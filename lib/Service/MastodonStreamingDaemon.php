@@ -187,7 +187,7 @@ class MastodonStreamingDaemon {
 					: '',
 				'filterCheckedAt' => $this->time->getTime(),
 				'announcementState' => $stream === 'user'
-					? $this->announcementState($viewer)
+					? self::reactionState($this->announcementSnapshots($viewer))
 					: null,
 				'announcementCheckedAt' => $this->time->getTime(),
 				'lastPoll' => 0,
@@ -461,20 +461,21 @@ class MastodonStreamingDaemon {
 		}
 
 		$subscriber->context['announcementCheckedAt'] = $now;
-		$current = $this->announcementState($viewer);
+		$snapshots = $this->announcementSnapshots($viewer);
+		$current = self::reactionState($snapshots);
 		$previous = $subscriber->context['announcementState'] ?? null;
 		$subscriber->context['announcementState'] = $current;
 		if (!is_array($previous)) {
 			return;
 		}
 
-		foreach ($current as $id => $announcement) {
+		foreach ($snapshots as $id => $snapshot) {
 			if (!isset($previous[$id])) {
-				$this->sendToStreams($server, $subscriber, $streams, 'announcement', $announcement);
+				$this->sendToStreams($server, $subscriber, $streams, 'announcement', $snapshot['payload']);
 				continue;
 			}
-			$before = self::reactionCounts($previous[$id]);
-			$after = self::reactionCounts($announcement);
+			$before = is_array($previous[$id]) ? $previous[$id] : [];
+			$after = $snapshot['reactions'];
 			foreach (array_unique([...array_keys($before), ...array_keys($after)]) as $name) {
 				if (($before[$name] ?? 0) === ($after[$name] ?? 0)) {
 					continue;
@@ -494,10 +495,27 @@ class MastodonStreamingDaemon {
 	}
 
 	/** @return array<string, array<string, mixed>> keyed by announcement id */
-	private function announcementState(Person $viewer): array {
-		$state = [];
+	private function announcementSnapshots(Person $viewer): array {
+		$snapshots = [];
 		foreach ($this->announcements->active($viewer->getId(), $this->time->getTime()) as $announcement) {
-			$state[(string)$announcement->getId()] = $announcement->jsonSerialize();
+			$payload = $announcement->jsonSerialize();
+			$snapshots[(string)$announcement->getId()] = [
+				'payload' => $payload,
+				'reactions' => self::reactionCounts($payload),
+			];
+		}
+
+		return $snapshots;
+	}
+
+	/**
+	 * @param array<string, array{payload: array<string, mixed>, reactions: array<string, int>}> $snapshots
+	 * @return array<string, array<string, int>> keyed by announcement id and reaction name
+	 */
+	private static function reactionState(array $snapshots): array {
+		$state = [];
+		foreach ($snapshots as $id => $snapshot) {
+			$state[$id] = $snapshot['reactions'];
 		}
 
 		return $state;

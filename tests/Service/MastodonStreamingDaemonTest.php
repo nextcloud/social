@@ -749,12 +749,11 @@ class MastodonStreamingDaemonTest extends TestCase {
 	}
 
 	public function testReactionCountChangesAreStreamed(): void {
-		$before = (new Announcement())->setId(9)->setText('Maintenance tonight');
 		$after = (new Announcement())->setId(9)->setText('Maintenance tonight')
 			->setReactions(['😀' => ['count' => 1, 'me' => false]]);
 		$this->announcements->expects(self::once())->method('active')->willReturn([$after]);
 		$subscriber = $this->subscriber();
-		$subscriber->context = ['announcementCheckedAt' => 1_799_999_990, 'announcementState' => ['9' => $before->jsonSerialize()]];
+		$subscriber->context = ['announcementCheckedAt' => 1_799_999_990, 'announcementState' => ['9' => []]];
 		$server = $this->createMock(WebSocketServer::class);
 		$server->expects(self::once())->method('send')->with($subscriber, (string)json_encode([
 			'stream' => ['user'],
@@ -767,10 +766,9 @@ class MastodonStreamingDaemonTest extends TestCase {
 
 	public function testRemovedAnnouncementsUseRawIdForSseDeleteEvent(): void {
 		$this->announcements->expects(self::once())->method('active')->willReturn([]);
-		$announcement = (new Announcement())->setId(9)->setText('Maintenance tonight');
 		$subscriber = $this->subscriber();
 		$subscriber->eventStream = true;
-		$subscriber->context = ['announcementCheckedAt' => 1_799_999_990, 'announcementState' => ['9' => $announcement->jsonSerialize()]];
+		$subscriber->context = ['announcementCheckedAt' => 1_799_999_990, 'announcementState' => ['9' => []]];
 		$server = $this->createMock(WebSocketServer::class);
 		$server->expects(self::once())->method('send')->with($subscriber, "event: announcement.delete\ndata: 9\n\n");
 
