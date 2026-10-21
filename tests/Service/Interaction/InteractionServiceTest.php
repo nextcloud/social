@@ -200,4 +200,43 @@ class InteractionServiceTest extends TestCase {
 		$this->assertSame([$actorId], array_map(static fn (Person $person): string => $person->getId(), $ready['accounts']));
 		$this->assertFalse($ready['filling'], 'the background result clears the pending state');
 	}
+
+	public function testFailedBackgroundRefreshKeepsTheLastKnownReactionActors(): void {
+		$post = (new Note())->setId('https://remote.example/notes/1');
+		$oldActor = 'https://remote.example/users/alice';
+		$streams = $this->createMock(StreamRequest::class);
+		$streams->method('getStreamById')->with($post->getId())->willReturn($post);
+		$factory = $this->createStub(ICacheFactory::class);
+		$factory->method('isAvailable')->willReturn(false);
+		$time = $this->createStub(ITimeFactory::class);
+		$time->method('getTime')->willReturn(1790000000);
+		$durableCache = new DurableCache($factory, new InMemoryDurableCacheRequest(), $time);
+		$key = md5('Like' . "\0" . $post->getId());
+		$durableCache->setShared('social.reactors', $key, [$oldActor], 3600);
+		$queue = $this->createMock(RemoteFetchQueue::class);
+		$queue->expects($this->never())->method('fillInteractions');
+		$bluesky = $this->createMock(BlueskyInteractionSource::class);
+		$bluesky->method('supports')->willReturn(true);
+		$bluesky->expects($this->once())->method('actors')->willThrowException(new \RuntimeException('AppView unavailable'));
+		$fediverse = $this->createMock(ActivityPubInteractionSource::class);
+		$fediverse->method('supports')->willReturn(false);
+		$container = $this->createMock(ContainerInterface::class);
+		$container->method('get')->willReturnMap([
+			[ActivityPubInteractionSource::class, $fediverse],
+			[BlueskyInteractionSource::class, $bluesky],
+		]);
+		$service = new InteractionService(
+			$this->createMock(ActionService::class),
+			$this->createMock(CacheActorService::class),
+			$streams,
+			$durableCache,
+			$queue,
+			new NullLogger(),
+			$container,
+		);
+
+		$service->fill($post->getId(), 'Like');
+
+		$this->assertSame([$oldActor], $durableCache->getShared('social.reactors', $key));
+	}
 }

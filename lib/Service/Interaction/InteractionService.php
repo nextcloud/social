@@ -212,7 +212,13 @@ class InteractionService {
 			}
 		}
 		if ($type !== self::QUOTES) {
-			$this->durableCache->setShared(self::CACHE, self::key($post, $type), array_values(array_unique($ids)), self::KEPT);
+			$key = self::key($post, $type);
+			// A failed source may have omitted actors that were present in the
+			// last complete read. Keep that list until every source can refresh it;
+			// otherwise a transient outage makes known reactions disappear.
+			if (!$failed || !is_array($this->durableCache->getShared(self::CACHE, $key))) {
+				$this->durableCache->setShared(self::CACHE, $key, array_values(array_unique($ids)), self::KEPT);
+			}
 		}
 		if ($supported) {
 			$this->durableCache->setShared(
