@@ -144,6 +144,45 @@ class AtprotoReadingTest extends TestCase {
 		$this->assertNotEmpty(array_filter($descendants, static fn (string $c): bool => str_contains($c, $replyWords)), 'the reply is under her post');
 	}
 
+	public function testAnUnfollowedBlueskyProfileCanBeScrolledAcrossAuthorFeedPages(): void {
+		$bobDid = $this->network->createUser('profile' . bin2hex(random_bytes(3)));
+		$bobHandle = $this->network->userHandle();
+		$words = [
+			'Profile history one ' . bin2hex(random_bytes(4)),
+			'Profile history two ' . bin2hex(random_bytes(4)),
+			'Profile history three ' . bin2hex(random_bytes(4)),
+		];
+		foreach ($words as $word) {
+			$this->network->postText($word);
+		}
+
+		$this->assertNotNull($this->network->await(function () use ($bobDid, $words): ?bool {
+			$texts = array_map(static fn (array $item): string => (string)($item['post']['record']['text'] ?? ''), $this->network->authorFeed($bobDid));
+
+			return count(array_intersect($words, $texts)) === count($words) ? true : null;
+		}), 'all profile posts are indexed before the author-feed pages are read');
+
+		$bobId = $this->network->await(fn (): ?string => $this->tryResolve($bobHandle));
+		$this->assertNotNull($bobId, 'the profile resolves without following it');
+		$this->assertFalse($this->alice->relationship($bobId)['following']);
+
+		$path = '/api/v1/accounts/' . rawurlencode($bobId) . '/statuses';
+		$firstPage = $this->alice->get($path, ['limit' => '2']);
+		$this->assertCount(2, $firstPage, 'the first profile page contains two posts');
+		$lastId = (string)($firstPage[1]['id'] ?? '');
+		$this->assertNotSame('', $lastId, 'the first page supplies the local max_id cursor');
+
+		$secondPage = $this->alice->get($path, ['limit' => '2', 'max_id' => $lastId]);
+		$statuses = array_merge($firstPage, $secondPage);
+		$texts = array_map(static fn (array $status): string => strip_tags((string)($status['content'] ?? '')), $statuses);
+		$uniqueIds = array_unique(array_column($statuses, 'id'));
+
+		$this->assertCount(3, $uniqueIds, 'scrolling loads a third post instead of repeating the first page');
+		foreach ($words as $word) {
+			$this->assertNotEmpty(array_filter($texts, static fn (string $text): bool => str_contains($text, $word)), 'profile history includes: ' . $word);
+		}
+	}
+
 	private function tryResolve(string $handle): ?string {
 		try {
 			return $this->alice->resolve($handle);

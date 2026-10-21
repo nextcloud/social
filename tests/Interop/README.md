@@ -444,7 +444,10 @@ her repository; his like of her post and his reply to it come in through the
 AppView's notifications, asked for as her — the like in her Activities, the
 reply under her post. The test polls the watch and the notification cursor
 directly rather than the timed pass, because an empty first read backs a row
-off past the test's wait.
+off past the test's wait. It also resolves a separate author nobody here
+follows, reads three of that author's posts through the profile status API,
+and follows the API's `max_id` into the next AppView cursor page without
+repeating the first page.
 
 `AtprotoThreadsTest` is phase 3a: a reply from here to a dev-PDS post is in
 that post's thread on the AppView (parent and root), a quote of it is a
