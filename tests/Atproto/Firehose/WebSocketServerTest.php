@@ -21,12 +21,14 @@ class WebSocketServerTest extends TestCase {
 	private ?WebSocketServer $server = null;
 	private string $bind = '';
 
+	#[\Override]
 	protected function setUp(): void {
 		$port = random_int(20000, 60000);
 		$this->bind = '127.0.0.1:' . $port;
 		$this->server = new WebSocketServer($this->bind);
 	}
 
+	#[\Override]
 	protected function tearDown(): void {
 		$this->server?->shutdown();
 	}
@@ -85,7 +87,7 @@ class WebSocketServerTest extends TestCase {
 		$server = new WebSocketServer($bind, WebSocketServer::MAX_SUBSCRIBERS, WebSocketServer::MAX_PER_ADDRESS, '/api/v1/streaming', false);
 		try {
 			$client = stream_socket_client('tcp://' . $bind, $errno, $error, 2);
-			$this->assertNotFalse($client, (string)$error);
+			$this->assertNotFalse($client, $error);
 			fwrite($client, "GET /api/v1/streaming/?stream=user HTTP/1.1\r\nHost: social.test\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n");
 			$ready = [];
 			for ($i = 0; $i < 5; $i++) {
@@ -117,15 +119,15 @@ class WebSocketServerTest extends TestCase {
 		);
 		try {
 			$client = stream_socket_client('tcp://' . $bind, $errno, $error, 2);
-			$this->assertNotFalse($client, (string)$error);
-			fwrite($client, "GET /api/v1/streaming/user/notification?access_token=valid-token HTTP/1.1\r\nHost: social.test\r\nAccept: text/event-stream\r\n\r\n");
+			$this->assertNotFalse($client, $error);
+			fwrite($client, "GET /api/v1/streaming/public/local?access_token=valid-token HTTP/1.1\r\nHost: social.test\r\nAccept: text/event-stream\r\n\r\n");
 			$ready = [];
 			for ($i = 0; $i < 5; $i++) {
 				$ready = array_merge($ready, $server->serve(0.05));
 			}
 			$this->assertCount(1, $ready);
 			$this->assertTrue($ready[0]->eventStream);
-			$this->assertSame('/api/v1/streaming/user/notification', $ready[0]->requestPath);
+			$this->assertSame('/api/v1/streaming/public/local', $ready[0]->requestPath);
 			$response = $this->readUntil($client, "\n\n");
 			$this->assertStringStartsWith('HTTP/1.1 200 OK', $response);
 			$this->assertStringContainsString('Content-Type: text/event-stream', $response);
@@ -135,6 +137,33 @@ class WebSocketServerTest extends TestCase {
 			$this->assertSame("event: notification\ndata: {\"id\":\"42\"}\n\n", $this->readBytes($client, strlen("event: notification\ndata: {\"id\":\"42\"}\n\n")));
 			$server->ping($ready[0]);
 			$this->assertSame(": thump\n\n", $this->readBytes($client, strlen(": thump\n\n")));
+			fclose($client);
+		} finally {
+			$server->shutdown();
+		}
+	}
+
+	public function testConfiguredEventStreamAcceptsHashtagPathAndQuery(): void {
+		$bind = '127.0.0.1:' . random_int(20000, 60000);
+		$server = new WebSocketServer(
+			$bind,
+			path: '/api/v1/streaming',
+			binaryFrames: false,
+			authorize: static fn ($subscriber): bool => ($subscriber->query['access_token'] ?? '') === 'valid-token',
+			eventStreams: true,
+		);
+		try {
+			$client = stream_socket_client('tcp://' . $bind, $errno, $error, 2);
+			$this->assertNotFalse($client, $error);
+			fwrite($client, "GET /api/v1/streaming/hashtag/local?tag=social&access_token=valid-token HTTP/1.1\r\nHost: social.test\r\nAccept: text/event-stream\r\n\r\n");
+			$ready = [];
+			for ($i = 0; $i < 5; $i++) {
+				$ready = array_merge($ready, $server->serve(0.05));
+			}
+			$this->assertCount(1, $ready);
+			$this->assertSame('/api/v1/streaming/hashtag/local', $ready[0]->requestPath);
+			$this->assertSame('social', $ready[0]->query['tag']);
+			$this->assertStringStartsWith('HTTP/1.1 200 OK', $this->readUntil($client, "\n\n"));
 			fclose($client);
 		} finally {
 			$server->shutdown();
@@ -154,7 +183,7 @@ class WebSocketServerTest extends TestCase {
 		);
 		try {
 			$client = stream_socket_client('tcp://' . $bind, $errno, $error, 2);
-			$this->assertNotFalse($client, (string)$error);
+			$this->assertNotFalse($client, $error);
 			fwrite($client, "GET /api/v1/streaming?access_token=valid-token HTTP/1.1\r\nHost: social.test\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n");
 			$ready = [];
 			for ($i = 0; $i < 5; $i++) {
@@ -166,7 +195,7 @@ class WebSocketServerTest extends TestCase {
 			fclose($client);
 
 			$unauthorized = stream_socket_client('tcp://' . $bind, $errno, $error, 2);
-			$this->assertNotFalse($unauthorized, (string)$error);
+			$this->assertNotFalse($unauthorized, $error);
 			fwrite($unauthorized, "GET /api/v1/streaming HTTP/1.1\r\nHost: social.test\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n");
 			for ($i = 0; $i < 5; $i++) {
 				$server->serve(0.05);
@@ -184,7 +213,7 @@ class WebSocketServerTest extends TestCase {
 		$server = new WebSocketServer($bind, path: '/api/v1/streaming', binaryFrames: false);
 		try {
 			$client = stream_socket_client('tcp://' . $bind, $errno, $error, 2);
-			$this->assertNotFalse($client, (string)$error);
+			$this->assertNotFalse($client, $error);
 			fwrite($client, "GET /api/v1/streaming/health HTTP/1.1\r\nHost: social.test\r\n\r\n");
 			for ($i = 0; $i < 5; $i++) {
 				$server->serve(0.05);
@@ -216,7 +245,7 @@ class WebSocketServerTest extends TestCase {
 		);
 		try {
 			$client = stream_socket_client('tcp://' . $bind, $errno, $error, 2);
-			$this->assertNotFalse($client, (string)$error);
+			$this->assertNotFalse($client, $error);
 			fwrite($client, "GET /api/v1/streaming HTTP/1.1\r\nHost: social.test\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Protocol: social-token\r\n\r\n");
 			$ready = [];
 			for ($i = 0; $i < 5; $i++) {
@@ -260,7 +289,7 @@ class WebSocketServerTest extends TestCase {
 	 */
 	private function connect(string $path) {
 		$client = stream_socket_client('tcp://' . $this->bind, $errno, $error, 2);
-		$this->assertNotFalse($client, (string)$error);
+		$this->assertNotFalse($client, $error);
 		fwrite($client, 'GET ' . $path . " HTTP/1.1\r\nHost: social.test\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n");
 
 		return $client;

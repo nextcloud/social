@@ -285,7 +285,16 @@ class WebSocketServer {
 
 			return false;
 		}
-		$isEventStream = $this->eventStreams && in_array($path, [$this->path . '/user', $this->path . '/user/notification'], true);
+		$isEventStream = $this->eventStreams && in_array($path, [
+			$this->path . '/user',
+			$this->path . '/user/notification',
+			$this->path . '/direct',
+			$this->path . '/public',
+			$this->path . '/public/local',
+			$this->path . '/public/remote',
+			$this->path . '/hashtag',
+			$this->path . '/hashtag/local',
+		], true);
 		if ($path !== $this->path && !$isEventStream) {
 			$this->refuse($subscriber, 404, 'Not Found');
 

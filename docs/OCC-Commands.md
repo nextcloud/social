@@ -506,7 +506,7 @@ costs latency and nothing else. Run it under systemd beside the firehose daemon
 
 ### `social:mastodon:stream`
 
-Serve Mastodon's authenticated home-timeline and notification WebSocket and SSE streams.
+Serve Mastodon's authenticated user and public WebSocket and SSE streams.
 
 ```
 php occ social:mastodon:stream [--bind ADDRESS:PORT] [--max-seconds SECONDS]
@@ -514,7 +514,7 @@ php occ social:mastodon:stream [--bind ADDRESS:PORT] [--max-seconds SECONDS]
 
 | Option | Value | Description |
 |--------|-------|-------------|
-| `--bind` | string (127.0.0.1:8788) | Where to listen; the shipped root proxy rules send `/api/v1/streaming`, `/api/v1/streaming/user`, `/api/v1/streaming/user/notification` and `/api/v1/streaming/health` here |
+| `--bind` | string (127.0.0.1:8788) | Where to listen; the shipped root proxy rules send `/api/v1/streaming`, `/api/v1/streaming/user`, `/api/v1/streaming/user/notification`, `/api/v1/streaming/direct`, `/api/v1/streaming/public`, `/api/v1/streaming/public/local`, `/api/v1/streaming/public/remote`, `/api/v1/streaming/hashtag`, `/api/v1/streaming/hashtag/local` and `/api/v1/streaming/health` here |
 | `--max-seconds` | int (0) | Stop after this long, so a supervisor can restart it; `0` runs until stopped |
 
 The daemon requires a user access token with `read` or both `read:statuses` and
