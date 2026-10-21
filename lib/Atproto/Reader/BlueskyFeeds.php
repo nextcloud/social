@@ -46,6 +46,7 @@ class BlueskyFeeds {
 	private const MAX_EMPTY_PAGES = 10;
 	private const CURSORS = 'social-atproto-feed-cursors';
 	private const CURSOR_RETRIES = 'social-atproto-feed-retries';
+	private const PROFILE_CURSORS = 'social-atproto-profile-cursors';
 	private const COLLECTIONS = [self::FEED => 'app.bsky.feed.generator', self::LIST => 'app.bsky.graph.list'];
 
 	public function __construct(
@@ -216,6 +217,104 @@ class BlueskyFeeds {
 			}
 			$cursor = $next;
 		}
+	}
+
+	/**
+	 * Reads one public author-feed page into the shared stream so the ordinary
+	 * account-status API can return it with the same cards and pagination as
+	 * other remote accounts.
+	 *
+	 * The opaque AppView cursor is associated with the last local post id. A
+	 * missing or expired cursor ends paging instead of restarting at the top.
+	 */
+	public function authorPage(Person $actor, string $after, int $limit, ?Person $viewer = null): void {
+		if (!BlueskyActorService::isBluesky($actor)) {
+			return;
+		}
+
+		$key = $this->profileCursorKey($actor, $after);
+		$cursor = '';
+		if ($after !== '') {
+			$stored = $this->durableCache->get(self::PROFILE_CURSORS, $key);
+			if (!is_string($stored) || $stored === '') {
+				return;
+			}
+			$cursor = $stored;
+		}
+
+		$seen = $cursor === '' ? [] : [$cursor => true];
+		$emptyPages = 0;
+		if ($viewer === null) {
+			$this->streams->resetViewer();
+		} else {
+			$this->streams->setViewer($viewer);
+		}
+
+		try {
+			while (true) {
+				$answer = $this->appView->query('app.bsky.feed.getAuthorFeed', [
+					'actor' => BlueskyIds::didOf($actor->getId()),
+					'filter' => 'posts_with_replies',
+					'limit' => max(1, min(100, $limit)),
+				] + ($cursor !== '' ? ['cursor' => $cursor] : []));
+				if (!is_array($answer['feed'] ?? null)) {
+					throw new UnexpectedValueException('Bluesky author feed response has no feed array');
+				}
+
+				$visibleIds = [];
+				foreach ($answer['feed'] as $item) {
+					if (!is_array($item) || !is_array($item['post'] ?? null)) {
+						continue;
+					}
+					$this->postStore->storeFeedItem($item);
+					$id = BlueskyIds::postIdOfUri((string)($item['post']['uri'] ?? ''));
+					try {
+						$stream = $this->streams->getStreamById($id, true, ACore::FORMAT_LOCAL);
+						$visibleIds[] = (string)$stream->getNid();
+					} catch (StreamNotFoundException) {
+						// A locally hidden post does not define the client's next page.
+					}
+					$republisher = (string)($item['reason']['by']['did'] ?? '');
+					if ($republisher === BlueskyIds::didOf($actor->getId())) {
+						try {
+							$announce = $this->streams->getAnnounceBy($id, $actor->getId());
+							$visibleIds[] = (string)$announce->getNid();
+						} catch (StreamNotFoundException) {
+						}
+					}
+				}
+
+				if (array_key_exists('cursor', $answer) && !is_string($answer['cursor'])) {
+					throw new UnexpectedValueException('Bluesky author feed response has an invalid cursor');
+				}
+				$next = $answer['cursor'] ?? '';
+				if ($visibleIds !== []) {
+					if ($next !== '') {
+						foreach (array_unique($visibleIds) as $visibleId) {
+							$this->durableCache->set(self::PROFILE_CURSORS, $this->profileCursorKey($actor, $visibleId), $next, self::CURSOR_KEPT);
+						}
+					}
+					return;
+				}
+				if ($next === '') {
+					return;
+				}
+				if (isset($seen[$next])) {
+					throw new UnexpectedValueException('Bluesky author-feed cursor did not advance');
+				}
+				$seen[$next] = true;
+				if (++$emptyPages >= self::MAX_EMPTY_PAGES) {
+					throw new UnexpectedValueException('Bluesky author feed has too many consecutive pages with no visible posts');
+				}
+				$cursor = $next;
+			}
+		} catch (Throwable $e) {
+			$this->logger->info('Bluesky profile feed not read', ['actor' => $actor->getId(), 'exception' => $e]);
+		}
+	}
+
+	private function profileCursorKey(Person $actor, string $after): string {
+		return hash('sha256', $actor->getId() . "\0" . $after);
 	}
 
 	/**

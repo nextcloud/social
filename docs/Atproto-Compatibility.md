@@ -1434,7 +1434,11 @@ reaching the chat service another way goes by it.
   butterfly glyph with `title="On Bluesky"`; beside it, the one verified
   check (`VerifiedBadge`) for Bluesky's trusted verifications and this
   instance's own (§12.6). The badge appears on every card the author
-  appears in: post header, notification, follower list, search result.
+  appears in: post header, notification, follower list, search result. The
+  profile status API reads the public `getAuthorFeed` into the shared stream
+  before its regular account query; opaque cursors are stored against local
+  status ids, preserving the profile's existing `max_id` pagination. An
+  AppView outage does not prevent already stored posts from being read.
 - **Addressing**: `@alice.bsky.social` in a post mentions the Bluesky
   account; the composer's mention picker completes Bluesky handles from the
   AppView typeahead when the typed text has a dot and no second `@`.

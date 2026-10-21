@@ -10,6 +10,8 @@ declare(strict_types=1);
 namespace OCA\Social\Controller;
 
 use OCA\Social\Atproto\Identity\IdentityService;
+use OCA\Social\Atproto\Reader\BlueskyActorService;
+use OCA\Social\Atproto\Reader\BlueskyFeeds;
 use OCA\Social\Exceptions\AtprotoIdentityNotFoundException;
 use OCA\Social\Exceptions\FollowNotFoundException;
 use OCA\Social\Exceptions\InvalidActionException;
@@ -101,6 +103,7 @@ class AccountApiController extends MastodonApiController {
 		private RemoteFetchQueue $remoteFetchQueue,
 		private IdentityService $atprotoIdentities,
 		private FollowListService $followLists,
+		private BlueskyFeeds $blueskyFeeds,
 	) {
 		parent::__construct($request, $urlGenerator, $userSession, $logger, $clientService, $accountService, $cacheActorService, $streamService, $followService);
 	}
@@ -822,14 +825,20 @@ class AccountApiController extends MastodonApiController {
 				);
 			}
 
-			// only for a caller with a session: a sync fetches the account's
-			// outbox from its server and stores every post of it, so an
-			// anonymous caller could make this instance fetch and keep the
-			// posts of any account they can name. Only for the first page,
-			// which is where new posts appear, and in the background, at most
-			// once a quarter-hour per account: this page answers with what is
-			// stored, and the next look has what the sync found.
-			if ($this->viewer !== null && !$max_id && !$min_id && !$since_id) {
+			// Bluesky profiles have no ActivityPub outbox. Read their public
+			// author feed into the shared stream before the ordinary profile
+			// timeline query; keep AppView's cursor behind the local max_id so
+			// clients continue paging through this endpoint as usual.
+			if (BlueskyActorService::isBluesky($local) && !$min_id && !$since_id) {
+				$this->blueskyFeeds->authorPage($local, $max_id ? (string)$max_id : '', $limit, $this->viewer);
+			} elseif ($this->viewer !== null && !$max_id && !$min_id && !$since_id) {
+				// only for a caller with a session: a sync fetches the account's
+				// outbox from its server and stores every post of it, so an
+				// anonymous caller could make this instance fetch and keep the
+				// posts of any account they can name. Only for the first page,
+				// which is where new posts appear, and in the background, at most
+				// once a quarter-hour per account: this page answers with what is
+				// stored, and the next look has what the sync found.
 				$this->remoteFetchQueue->syncTimeline($local);
 			}
 

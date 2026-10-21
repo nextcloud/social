@@ -480,6 +480,7 @@ class ApiControllerTest extends TestCase {
 			'feedDisplayService' => $this->feedDisplayService,
 			'remoteFetchQueue' => $this->remoteFetchQueue,
 			'followLists' => $this->followLists,
+			'blueskyFeeds' => $this->createStub(\OCA\Social\Atproto\Reader\BlueskyFeeds::class),
 			'viewCountService' => $this->viewCountService,
 			'teamService' => $this->teamService,
 			'emojiService' => $this->emojiService,

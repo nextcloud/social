@@ -217,6 +217,33 @@ class BlueskyFeedsTest extends TestCase {
 		$this->assertCount(2, $this->asked, 'without asking again');
 	}
 
+	public function testUnwatchedProfileFeedUsesItsAppViewCursorOnTheNextPage(): void {
+		$actor = (new Person())->setId(BlueskyIds::actorId(self::BOB));
+		$uri = 'at://' . self::BOB . '/app.bsky.feed.post/profile-post';
+		$olderUri = 'at://' . self::BOB . '/app.bsky.feed.post/profile-older';
+		$this->answerPages['app.bsky.feed.getAuthorFeed'] = [
+			['feed' => [['post' => ['uri' => $uri]]], 'cursor' => 'profile-next'],
+			['feed' => [['post' => ['uri' => $olderUri]]], 'cursor' => 'profile-end'],
+		];
+		$feeds = $this->feeds(false);
+
+		$feeds->authorPage($actor, '', 20, $this->alice);
+		$after = (string)crc32(BlueskyIds::postIdOfUri($uri));
+		$feeds->authorPage($actor, $after, 20, $this->alice);
+
+		self::assertSame(['app.bsky.feed.getAuthorFeed', [
+			'actor' => self::BOB,
+			'filter' => 'posts_with_replies',
+			'limit' => 20,
+		], false], $this->asked[0]);
+		self::assertSame(['app.bsky.feed.getAuthorFeed', [
+			'actor' => self::BOB,
+			'filter' => 'posts_with_replies',
+			'limit' => 20,
+			'cursor' => 'profile-next',
+		], false], $this->asked[1]);
+	}
+
 	public function testEmptyPagesWithCursorsAreSkippedUntilAVisiblePostAppears(): void {
 		$hiddenUri = 'at://' . self::BOB . '/app.bsky.feed.post/3kh';
 		$visibleUri = 'at://' . self::BOB . '/app.bsky.feed.post/3kv';
