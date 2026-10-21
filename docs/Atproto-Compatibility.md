@@ -1077,13 +1077,14 @@ on their first read and deleted.
 
 Opening a post that is on Bluesky reads its thread from the AppView
 (`BlueskyThreadSource`, `getPostThread`, ten reply levels and 20 parents up)
-inline with a three-second timeout, so replies appear without waiting for
-cron. If the stable response reports fewer direct replies than its own
-`replyCount`, the reader also tries the first-party AppView's unspecced V2
-thread view to fill the missing replies; AppViews without that endpoint keep
-the stable response. Replies recovered by V2 which have replies of their own
-are also queued for the background fill, so nested conversations are not lost
-with an omitted direct reply. If the stable read reaches the endpoint's
+inline within one shared three-second budget across the sequential AppView
+requests, so fallback reads cannot add another full timeout to the page load.
+Replies appear without waiting for cron. If the stable response reports fewer
+direct replies than its own `replyCount`, the reader also tries the first-party
+AppView's unspecced V2 thread view to fill the missing replies; AppViews
+without that endpoint keep the stable response. Replies recovered by V2 which
+have replies of their own are also queued for the background fill, so nested
+conversations are not lost with an omitted direct reply. If the stable read reaches the endpoint's
 ten-level limit with a deeper branch remaining, it queues a background fill to
 continue that branch, up to twenty bounded reads and the shared 150-new-reply
 budget. Context responses keep their filling signal while that queued read is

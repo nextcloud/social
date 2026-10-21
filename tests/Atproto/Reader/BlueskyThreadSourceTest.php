@@ -107,6 +107,42 @@ class BlueskyThreadSourceTest extends TestCase {
 		], $queries);
 	}
 
+	public function testVisibleFallbackReadsShareTheOriginalThreeSecondBudget(): void {
+		$root = self::node('at://p/2', [self::node('at://r/1')]);
+		$root['post']['replyCount'] = 2;
+		$config = $this->createMock(AtprotoConfig::class);
+		$config->method('isEnabled')->willReturn(true);
+		$refs = $this->createMock(PostRefs::class);
+		$refs->method('strongRef')->willReturn(['uri' => 'at://p/2', 'cid' => 'bafy']);
+		$appView = $this->createMock(AppViewClient::class);
+		$timeouts = [];
+		$appView->expects($this->exactly(2))->method('query')->willReturnCallback(
+			static function (string $method, array $params, array $headers = [], ?int $timeout = null) use (&$timeouts, $root): array {
+				$timeouts[] = $timeout;
+				if ($method === 'app.bsky.feed.getPostThread') {
+					usleep(1_100_000);
+
+					return ['thread' => $root];
+				}
+
+				return ['thread' => [
+					['depth' => 0, 'value' => ['$type' => 'app.bsky.unspecced.defs#threadItemPost', 'post' => ['uri' => 'at://p/2']]],
+					['depth' => 1, 'value' => ['$type' => 'app.bsky.unspecced.defs#threadItemPost', 'post' => ['uri' => 'at://r/1']]],
+					['depth' => 1, 'value' => ['$type' => 'app.bsky.unspecced.defs#threadItemPost', 'post' => ['uri' => 'at://r/2']]],
+				], 'hasOtherReplies' => false];
+			}
+		);
+		$store = $this->createMock(PostStore::class);
+		$store->method('storePost')->willReturn(true);
+		$source = new BlueskyThreadSource($config, $appView, $refs, $store, $this->createMock(LabelerService::class), new NullLogger());
+
+		$source->fillVisible((new Note())->setId('https://social.test/@alice/2'), 10);
+
+		self::assertSame(3, $timeouts[0]);
+		self::assertGreaterThan(0, $timeouts[1]);
+		self::assertLessThan(3, $timeouts[1], 'the V2 request receives only the remaining part of the shared budget');
+	}
+
 	public function testVisibleReadSchedulesRepliesOfRecoveredDirectRepliesForTheBackgroundFill(): void {
 		$root = self::node('at://p/2', [self::node('at://r/1')]);
 		$root['post']['replyCount'] = 2;

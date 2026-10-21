@@ -71,16 +71,23 @@ class BlueskyThreadSource implements ThreadSource {
 	private function fillWithTimeout(Stream $post, int $budget, ?int $timeout): int {
 		$this->deepRepliesPending = false;
 		$this->missingReplyContinuations = [];
+		$deadline = $timeout === null ? null : hrtime(true) + ($timeout * 1_000_000_000);
 		$uri = $this->refs->strongRef($post->getId())['uri'] ?? '';
 		if ($uri === '' || $budget <= 0) {
+			return 0;
+		}
+		$readTimeout = $this->remainingTimeout($deadline);
+		if ($readTimeout === 0) {
+			$this->deepRepliesPending = true;
+
 			return 0;
 		}
 		try {
 			$params = ['uri' => $uri, 'depth' => self::DEPTH, 'parentHeight' => self::PARENT_HEIGHT];
 			$headers = ['atproto-accept-labelers' => $this->labelers->acceptHeader()];
-			$answer = $timeout === null
+			$answer = $deadline === null
 				? $this->appView->query('app.bsky.feed.getPostThread', $params, $headers)
-				: $this->appView->query('app.bsky.feed.getPostThread', $params, $headers, $timeout);
+				: $this->appView->query('app.bsky.feed.getPostThread', $params, $headers, $readTimeout);
 			$thread = $answer['thread'] ?? null;
 			if (!is_array($thread) || !in_array($thread['$type'] ?? null, [self::THREAD_VIEW, self::NOT_FOUND_VIEW, self::BLOCKED_VIEW], true)) {
 				throw new \UnexpectedValueException('Bluesky thread response has no recognized thread view');
@@ -102,7 +109,11 @@ class BlueskyThreadSource implements ThreadSource {
 					$knownReplies[] = $replyUri;
 				}
 			}
-			$stored += $this->fillMissingDirectReplies($uri, $headers, $timeout, $budget - $stored, $knownReplies, (int)($thread['post']['replyCount'] ?? 0));
+			if ($this->remainingTimeout($deadline) === 0) {
+				$this->deepRepliesPending = true;
+			} else {
+				$stored += $this->fillMissingDirectReplies($uri, $headers, $deadline, $budget - $stored, $knownReplies, (int)($thread['post']['replyCount'] ?? 0));
+			}
 		}
 
 		// The public AppView caps getPostThread's reply depth at ten even when
@@ -146,7 +157,13 @@ class BlueskyThreadSource implements ThreadSource {
 	}
 
 	/** The stable thread endpoint can omit direct replies; V2 and search can recover them. */
-	private function fillMissingDirectReplies(string $uri, array $headers, ?int $timeout, int $budget, array $knownReplies, int $expectedReplies): int {
+	private function fillMissingDirectReplies(string $uri, array $headers, ?int $deadline, int $budget, array $knownReplies, int $expectedReplies): int {
+		$timeout = $this->remainingTimeout($deadline);
+		if ($timeout === 0) {
+			$this->deepRepliesPending = true;
+
+			return 0;
+		}
 		try {
 			$params = [
 				'anchor' => $uri,
@@ -160,7 +177,7 @@ class BlueskyThreadSource implements ThreadSource {
 				: $this->appView->query('app.bsky.unspecced.getPostThreadV2', $params, $headers, $timeout);
 			$items = $answer['thread'] ?? null;
 			if (!is_array($items)) {
-				$searched = $this->fillRepliesFromSearch($uri, $headers, $timeout, $budget, $knownReplies, $expectedReplies);
+				$searched = $this->fillRepliesFromSearch($uri, $headers, $deadline, $budget, $knownReplies, $expectedReplies);
 				if ($searched !== null) {
 					return $searched;
 				}
@@ -174,7 +191,7 @@ class BlueskyThreadSource implements ThreadSource {
 			$this->logger->debug('Bluesky V2 thread view not available; keeping the standard thread response', ['uri' => $uri, 'exception' => $e]);
 			// SearchPostsV2 is a specced, cursor-paged route. Use it to recover
 			// replies when this older AppView has no thread V2 endpoint.
-			$searched = $this->fillRepliesFromSearch($uri, $headers, $timeout, $budget, $knownReplies, $expectedReplies);
+			$searched = $this->fillRepliesFromSearch($uri, $headers, $deadline, $budget, $knownReplies, $expectedReplies);
 			if ($searched !== null) {
 				return $searched;
 			}
@@ -205,7 +222,7 @@ class BlueskyThreadSource implements ThreadSource {
 			}
 		}
 		$this->missingReplyContinuations = array_values(array_unique($this->missingReplyContinuations));
-		$this->deepRepliesPending = $timeout !== null && (
+		$this->deepRepliesPending = $deadline !== null && (
 			($answer['hasOtherReplies'] ?? false) === true
 			|| ($expectedReplies > 0 && count(array_unique($directReplies)) < $expectedReplies)
 		);
@@ -226,7 +243,7 @@ class BlueskyThreadSource implements ThreadSource {
 			// Some AppViews return a valid but truncated V2 page without setting
 			// hasOtherReplies. The specced, cursor-paged search route can still
 			// recover the rest of the thread.
-			$searched = $this->fillRepliesFromSearch($uri, $headers, $timeout, $budget - $stored, $directReplies, $expectedReplies);
+			$searched = $this->fillRepliesFromSearch($uri, $headers, $deadline, $budget - $stored, $directReplies, $expectedReplies);
 			if ($searched !== null) {
 				$stored += $searched;
 			}
@@ -242,9 +259,9 @@ class BlueskyThreadSource implements ThreadSource {
 	 *
 	 * @return int|null stored new posts, or null when this AppView cannot answer
 	 */
-	private function fillRepliesFromSearch(string $uri, array $headers, ?int $timeout, int $budget, array $knownReplies, int $expectedReplies): ?int {
+	private function fillRepliesFromSearch(string $uri, array $headers, ?int $deadline, int $budget, array $knownReplies, int $expectedReplies): ?int {
 		if ($budget <= 0) {
-			$this->deepRepliesPending = $timeout !== null;
+			$this->deepRepliesPending = $deadline !== null;
 
 			return 0;
 		}
@@ -256,6 +273,12 @@ class BlueskyThreadSource implements ThreadSource {
 		$pages = 0;
 		try {
 			do {
+				$timeout = $this->remainingTimeout($deadline);
+				if ($timeout === 0) {
+					$this->deepRepliesPending = true;
+
+					return $stored;
+				}
 				$params = [
 					'threadRootUri' => $uri,
 					'repliesOnly' => 'true',
@@ -263,7 +286,7 @@ class BlueskyThreadSource implements ThreadSource {
 					'sort' => 'recent',
 					'limit' => min(100, max(1, $budget - $stored)),
 				] + ($cursor === '' ? [] : ['cursor' => $cursor]);
-				$answer = $timeout === null
+				$answer = $deadline === null
 					? $this->appView->query('app.bsky.feed.searchPostsV2', $params, $headers)
 					: $this->appView->query('app.bsky.feed.searchPostsV2', $params, $headers, $timeout);
 				$posts = $answer['posts'] ?? null;
@@ -307,17 +330,27 @@ class BlueskyThreadSource implements ThreadSource {
 				$seenCursors[$next] = true;
 				$cursor = $next;
 				$pages++;
-			} while ($timeout === null && $cursor !== '' && $stored < $budget && $pages < 20);
+			} while ($deadline === null && $cursor !== '' && $stored < $budget && $pages < 20);
 		} catch (Throwable $e) {
 			$this->logger->debug('Bluesky thread search fallback not available', ['uri' => $uri, 'exception' => $e]);
 
 			return null;
 		}
 
-		$this->deepRepliesPending = $timeout !== null && ($cursor !== ''
+		$this->deepRepliesPending = $deadline !== null && ($cursor !== ''
 			|| ($expectedReplies > 0 && count($direct) < $expectedReplies));
 
 		return $stored;
+	}
+
+	/** Remaining whole seconds in the visible thread's shared request budget. */
+	private function remainingTimeout(?int $deadline): ?int {
+		if ($deadline === null) {
+			return null;
+		}
+		$remaining = $deadline - hrtime(true);
+
+		return $remaining <= 0 ? 0 : (int)ceil($remaining / 1_000_000_000);
 	}
 
 	/** Whether the stable response's root has fewer visible reply nodes than its current reply count. */
