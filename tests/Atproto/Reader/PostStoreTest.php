@@ -89,6 +89,7 @@ class PostStoreTest extends TestCase {
 					$this->atprotoStreamedBlobs = $atprotoStreamedBlobs;
 				}
 				$objectData = $data['object'];
+				$streamedAttachment = is_array($objectData['attachment'][0] ?? null) ? $objectData['attachment'][0] : [];
 				// The real parser's streamed-blob handling is covered by StreamTest;
 				// this mock records the allowlist passed by PostStore.
 				if ($atprotoStreamedBlobs !== []) {
@@ -99,9 +100,9 @@ class PostStoreTest extends TestCase {
 					$note->setAttachments([(new MediaAttachment())
 						->setId('123')
 						->setType('unknown')
-						->setMediaType('application/pdf')
+						->setMediaType((string)($streamedAttachment['mediaType'] ?? 'application/pdf'))
 						->setUrl('https://social.test/media/stream/123')
-						->setDescription('meeting-notes.pdf')]);
+						->setDescription((string)($streamedAttachment['name'] ?? 'meeting-notes.pdf'))]);
 				}
 				$item->setObject($note);
 			}
@@ -266,6 +267,35 @@ class PostStoreTest extends TestCase {
 
 		$this->assertFalse($this->store->storePost($view), 'enrichment does not count as a second imported post');
 		$this->assertSame([], $this->imported, 'the post is not re-created or its text overwritten');
+	}
+
+	public function testLaterAppViewViewRecoversAnUnsupportedCdnImageAsAFile(): void {
+		$id = 'https://bsky.app/profile/' . self::DID . '/post/3kznmn7xqxl22';
+		$this->known[] = $id;
+		$actor = $this->person(self::DID);
+		$this->actors->method('cached')->willReturn($actor);
+		$this->actors->expects($this->once())->method('pdsEndpoint')->with(self::DID)->willReturn('https://pds.example');
+		$this->actors->expects($this->once())->method('store')->with($actor);
+		$this->streams->expects($this->once())->method('setRecoveredRemoteAttachments')->with(
+			$id,
+			$this->callback(static function (string $attachments): bool {
+				$decoded = json_decode($attachments, true);
+
+				return ($decoded[0]['description'] ?? '') === 'portrait.avif'
+					&& ($decoded[0]['media_type'] ?? '') === 'image/avif';
+			}),
+			'',
+		);
+		$view = $this->postView();
+		$cid = \OCA\Social\Atproto\Protocol\Cid::forRaw('a late AVIF image in a custom embed')->toString();
+		$view['embed'] = ['$type' => 'org.example.embed.file#view'];
+		$view['record']['embed'] = [
+			'$type' => 'org.example.embed.file',
+			'file' => ['name' => 'portrait.avif', 'blob' => ['$type' => 'blob', 'ref' => ['$link' => $cid], 'mimeType' => 'image/avif']],
+		];
+
+		$this->assertFalse($this->store->storePost($view), 'attachment recovery does not create a duplicate post');
+		$this->assertSame([], $this->imported, 'the cached post is not re-created');
 	}
 
 	public function testAThreadViewRefreshesCountsOnAnAlreadyKnownPost(): void {

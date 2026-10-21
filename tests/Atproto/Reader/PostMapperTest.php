@@ -314,6 +314,29 @@ class PostMapperTest extends TestCase {
 		]], $note['attachment']);
 	}
 
+	public function testUnsupportedCdnImageFormatsRemainAvailableAsPdsFiles(): void {
+		$cid = Cid::forRaw('a third-party AVIF image')->toString();
+		$embed = ['$type' => 'org.example.embed.file', 'file' => [
+			'name' => 'portrait.avif', 'blob' => ['$type' => 'blob', 'ref' => ['$link' => $cid], 'mimeType' => 'image/avif', 'size' => 2048],
+		]];
+		$view = $this->postView([
+			'embed' => ['$type' => 'org.example.embed.file#view'],
+			'record' => array_merge($this->postView()['record'], ['embed' => $embed]),
+		]);
+
+		$this->assertSame([], (new PostMapper($this->resolver()))->note($view)['attachment'], 'without a verified PDS, an unknown blob URL is not invented');
+		$note = (new PostMapper($this->resolver()))->note($view, 'https://pds.example');
+
+		$this->assertSame([[
+			'type' => 'Document',
+			'mediaType' => 'image/avif',
+			'url' => 'https://pds.example/xrpc/com.atproto.sync.getBlob?did=' . rawurlencode(self::DID) . '&cid=' . $cid,
+			'name' => 'portrait.avif',
+			'size' => 2048,
+		]], $note['attachment']);
+		$this->assertTrue(PostMapper::hasGenericBlobs($embed), 'a later view may add the PDS endpoint and recover this file');
+	}
+
 	public function testRawExternalEmbedKeepsItsLinkAndBlobThumbnail(): void {
 		$cid = Cid::forRaw('external card image bytes')->toString();
 		$view = $this->postView();

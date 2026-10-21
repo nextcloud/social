@@ -261,7 +261,7 @@ class PostMapper {
 		return $note;
 	}
 
-	/** Whether an unknown embed contains non-image raw blobs needing a PDS lookup. */
+	/** Whether an unknown embed contains raw blobs needing a PDS lookup. */
 	public static function hasGenericBlobs(mixed $embed): bool {
 		if (!is_array($embed) || in_array((string)($embed['$type'] ?? ''), [
 			self::IMAGES, self::RECORD_IMAGES, self::GALLERY, self::VIDEO, self::RECORD_VIDEO,
@@ -280,7 +280,7 @@ class PostMapper {
 				$cid = (string)($ref['$link'] ?? $value['cid'] ?? '');
 				return Cid::isValid($cid)
 					&& preg_match('~^[a-z0-9!#$&^_.+-]+/[a-z0-9!#$&^_.+-]+$~', $mime) === 1
-					&& !str_starts_with($mime, 'image/');
+					&& (!str_starts_with($mime, 'image/') || self::cdnImageFormat($mime) === '');
 			}
 			foreach ($value as $child) {
 				if ($walk($child, $depth + 1)) {
@@ -385,8 +385,12 @@ class PostMapper {
 				$imageUrl = self::blobImageUrl(['ref' => ['$link' => $cid], 'mimeType' => $mime], $did);
 				if ($imageUrl !== '') {
 					$attachments[] = ['type' => 'Image', 'mediaType' => $mime === 'image/jpg' ? 'image/jpeg' : $mime, 'url' => $imageUrl, 'name' => self::blobName($blobName, $mime, count($attachments) + 1)];
+					continue;
 				}
-				continue;
+				// The public CDN only has transformations for a short list of
+				// image formats. Keep other valid image blobs as downloadable
+				// files through their verified PDS instead of silently dropping
+				// the attachment.
 			}
 			if (!self::isSafePds($pds)) {
 				continue;
@@ -542,18 +546,23 @@ class PostMapper {
 		$ref = is_array($blob['ref'] ?? null) ? $blob['ref'] : [];
 		$cid = (string)($ref['$link'] ?? $blob['cid'] ?? '');
 		$mimeType = strtolower((string)($blob['mimeType'] ?? ''));
-		$format = match ($mimeType) {
+		$format = self::cdnImageFormat($mimeType);
+		if ($format === '' || !Cid::isValid($cid)) {
+			return '';
+		}
+
+		return 'https://cdn.bsky.app/img/feed_fullsize/plain/' . $authorDid . '/' . $cid . '@' . $format;
+	}
+
+	/** The image formats the public Bluesky CDN exposes as feed images. */
+	private static function cdnImageFormat(string $mimeType): string {
+		return match ($mimeType) {
 			'image/jpeg', 'image/jpg' => 'jpeg',
 			'image/png' => 'png',
 			'image/webp' => 'webp',
 			'image/gif' => 'gif',
 			default => '',
 		};
-		if ($format === '' || !Cid::isValid($cid)) {
-			return '';
-		}
-
-		return 'https://cdn.bsky.app/img/feed_fullsize/plain/' . $authorDid . '/' . $cid . '@' . $format;
 	}
 
 	/**
