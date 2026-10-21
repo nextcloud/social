@@ -208,7 +208,7 @@ class PostMapperTest extends TestCase {
 	public function testRawImageBlobsAreUsedWhenAppViewOmitsTheEmbedView(): void {
 		$cid = Cid::forRaw('original bluesky image bytes')->toString();
 		$view = $this->postView();
-		$view['embed'] = null;
+		$view['embed'] = ['$type' => 'app.bsky.embed.images#view', 'images' => []];
 		$view['record']['embed'] = [
 			'$type' => 'app.bsky.embed.images',
 			'images' => [[
@@ -249,6 +249,72 @@ class PostMapperTest extends TestCase {
 		$note = (new PostMapper($this->resolver()))->note($view);
 
 		$this->assertSame([], $note['attachment'], 'an opaque or non-image blob is never presented as a broken image');
+	}
+
+	public function testRawExternalEmbedKeepsItsLinkAndBlobThumbnail(): void {
+		$cid = Cid::forRaw('external card image bytes')->toString();
+		$view = $this->postView();
+		$view['embed'] = ['$type' => 'app.bsky.embed.future#view'];
+		$view['record']['embed'] = [
+			'$type' => 'app.bsky.embed.external',
+			'external' => [
+				'uri' => 'https://example.org/report.pdf',
+				'title' => 'The report',
+				'description' => 'A linked file',
+				'thumb' => [
+					'$type' => 'blob',
+					'ref' => ['$link' => $cid],
+					'mimeType' => 'image/jpeg',
+					'size' => 1234,
+				],
+			],
+		];
+
+		$note = (new PostMapper($this->resolver()))->note($view);
+
+		$this->assertSame([
+			'url' => 'https://example.org/report.pdf',
+			'title' => 'The report',
+			'description' => 'A linked file',
+			'image' => 'https://cdn.bsky.app/img/feed_fullsize/plain/' . self::DID . '/' . $cid . '@jpeg',
+			'provider' => 'example.org',
+		], $note['_atproto']['card']);
+		$this->assertStringContainsString('https://example.org/report.pdf', $note['content']);
+	}
+
+	public function testRawVideoAndRecordWithMediaEmbedsRemainVisible(): void {
+		$video = $this->postView();
+		$video['embed'] = null;
+		$video['record']['embed'] = [
+			'$type' => 'app.bsky.embed.video',
+			'video' => ['ref' => ['$link' => Cid::forRaw('original video bytes')->toString()], 'mimeType' => 'video/mp4', 'size' => 1234],
+			'alt' => 'A video before the AppView built its playlist',
+		];
+		$videoNote = (new PostMapper($this->resolver()))->note($video);
+		$this->assertStringContainsString('target="_blank">Video</a>', $videoNote['content']);
+		$this->assertSame('Note', $videoNote['type'], 'a raw video blob is not claimed playable before its playlist exists');
+
+		$cid = Cid::forRaw('quoted post image bytes')->toString();
+		$quoted = $this->postView();
+		$quoted['embed'] = [
+			'$type' => 'app.bsky.embed.recordWithMedia#view',
+			'record' => [],
+			'media' => ['$type' => 'app.bsky.embed.images#view', 'images' => []],
+		];
+		$quoted['record']['embed'] = [
+			'$type' => 'app.bsky.embed.recordWithMedia',
+			'record' => ['uri' => 'at://' . self::OTHER . '/app.bsky.feed.post/3kquoted', 'cid' => 'bafyreibjifzpqj6o6wcq3hejh7y4z4z2vmiklkvykc57tw3pcbx3kxifpm'],
+			'media' => [
+				'$type' => 'app.bsky.embed.images',
+				'images' => [[
+					'image' => ['ref' => ['$link' => $cid], 'mimeType' => 'image/png'],
+					'alt' => 'A quoted image',
+				]],
+			],
+		];
+		$quotedNote = (new PostMapper($this->resolver()))->note($quoted);
+		$this->assertSame('https://bsky.app/profile/' . self::OTHER . '/post/3kquoted', $quotedNote['quote']);
+		$this->assertSame('https://cdn.bsky.app/img/feed_fullsize/plain/' . self::DID . '/' . $cid . '@png', $quotedNote['attachment'][0]['url']);
 	}
 
 	public function testAVideoPostIsAFederatedVideoStreamedFromItsPlaylist(): void {

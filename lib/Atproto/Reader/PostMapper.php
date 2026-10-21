@@ -42,9 +42,13 @@ class PostMapper {
 	private const RECORD_IMAGES = 'app.bsky.embed.images';
 	private const GALLERY = 'app.bsky.embed.gallery#view';
 	private const VIDEO = 'app.bsky.embed.video#view';
+	private const RECORD_VIDEO = 'app.bsky.embed.video';
 	private const EXTERNAL = 'app.bsky.embed.external#view';
+	private const RECORD_EXTERNAL = 'app.bsky.embed.external';
 	private const RECORD = 'app.bsky.embed.record#view';
+	private const RECORD_RECORD = 'app.bsky.embed.record';
 	private const RECORD_WITH_MEDIA = 'app.bsky.embed.recordWithMedia#view';
+	private const RECORD_RECORD_WITH_MEDIA = 'app.bsky.embed.recordWithMedia';
 	private const VIEW_RECORD = 'app.bsky.embed.record#viewRecord';
 	private const VIEW_DETACHED = 'app.bsky.embed.record#viewDetached';
 	/** the records a post can embed that are shown as a card */
@@ -162,14 +166,12 @@ class PostMapper {
 		$text = (string)($record['text'] ?? '');
 		$content = FacetRenderer::html($text, $record['facets'] ?? []);
 		$viewEmbed = is_array($post['embed'] ?? null) ? $post['embed'] : [];
-		$viewType = (string)($viewEmbed['$type'] ?? '');
-		$embedViews = [self::IMAGES, self::GALLERY, self::VIDEO, self::EXTERNAL, self::RECORD, self::RECORD_WITH_MEDIA];
-		$embed = in_array($viewType, $embedViews, true)
+		$embed = self::hasUsableEmbedView($viewEmbed, $did)
 			? $viewEmbed
 			: (is_array($record['embed'] ?? null) ? $record['embed'] : $viewEmbed);
 		[$attachments, $quote, $appended] = $this->embed($embed, $text, $id, $did);
 		$content .= $appended;
-		$card = self::cardOf($embed);
+		$card = self::cardOf($embed, $did);
 		if ($card !== null && !str_contains($content, $card['url'])) {
 			$content .= '<p><a href="' . self::escape($card['url']) . '" rel="nofollow noopener noreferrer" target="_blank">' . self::escape($card['title']) . '</a></p>';
 		}
@@ -266,6 +268,13 @@ class PostMapper {
 
 			return [$attachments, $quote, $appended];
 		}
+		if ($type === self::RECORD_RECORD_WITH_MEDIA) {
+			[$attachments, , $appended] = $this->embed(is_array($embed['media'] ?? null) ? $embed['media'] : [], $text, $postId, $authorDid);
+			$record = is_array($embed['record'] ?? null) ? $embed['record'] : [];
+			$uri = (string)($record['uri'] ?? '');
+
+			return [$attachments, Syntax::isAtUri($uri) ? $this->local->postId($uri) : '', $appended];
+		}
 		switch ($type) {
 			case self::IMAGES:
 				return [self::imagesOf(is_array($embed['images'] ?? null) ? $embed['images'] : [], 'thumb'), '', ''];
@@ -282,15 +291,23 @@ class PostMapper {
 				}
 
 				return [[], '', ''];
+			case self::RECORD_RECORD:
+				$record = is_array($embed['record'] ?? null) ? $embed['record'] : [];
+				$uri = (string)($record['uri'] ?? '');
+
+				return [[], Syntax::isAtUri($uri) ? $this->local->postId($uri) : '', ''];
 			case self::EXTERNAL:
-				$uri = (string)($embed['external']['uri'] ?? '');
+			case self::RECORD_EXTERNAL:
+				$external = is_array($embed['external'] ?? null) ? $embed['external'] : [];
+				$uri = (string)($external['uri'] ?? '');
 				if (!preg_match('#^https?://#i', $uri) || str_contains($text, $uri)) {
 					return [[], '', ''];
 				}
-				$title = trim((string)($embed['external']['title'] ?? ''));
+				$title = trim((string)($external['title'] ?? ''));
 
 				return [[], '', '<p><a href="' . self::escape($uri) . '" rel="nofollow noopener noreferrer" target="_blank">' . self::escape($title !== '' ? $title : $uri) . '</a></p>'];
 			case self::VIDEO:
+			case self::RECORD_VIDEO:
 				if (self::videoOf($embed) !== null) {
 					return [[], '', ''];
 				}
@@ -301,6 +318,21 @@ class PostMapper {
 		}
 
 		return [[], '', ''];
+	}
+
+	/** Whether an AppView embed view has enough data to be useful on this client. */
+	private static function hasUsableEmbedView(array $embed, string $authorDid): bool {
+		return match ((string)($embed['$type'] ?? '')) {
+			self::IMAGES => self::imagesOf(is_array($embed['images'] ?? null) ? $embed['images'] : [], 'thumb') !== [],
+			self::GALLERY => self::imagesOf(is_array($embed['items'] ?? null) ? $embed['items'] : [], 'thumbnail') !== [],
+			self::VIDEO => self::videoOf($embed) !== null,
+			self::EXTERNAL => self::cardOf($embed, $authorDid) !== null,
+			self::RECORD => is_array($embed['record'] ?? null) && $embed['record'] !== [],
+			self::RECORD_WITH_MEDIA => is_array($embed['record'] ?? null)
+				&& $embed['record'] !== []
+				&& self::hasUsableEmbedView(is_array($embed['media'] ?? null) ? $embed['media'] : [], $authorDid),
+			default => false,
+		};
 	}
 
 	/** @return list<array> */
@@ -338,29 +370,17 @@ class PostMapper {
 	 * @return list<array<string, mixed>>
 	 */
 	private static function recordImagesOf(array $images, string $authorDid): array {
-		if (!Syntax::isDid($authorDid)) {
-			return [];
-		}
 		$attachments = [];
 		foreach ($images as $image) {
 			if (!is_array($image)) {
 				continue;
 			}
 			$blob = is_array($image['image'] ?? null) ? $image['image'] : [];
-			$ref = is_array($blob['ref'] ?? null) ? $blob['ref'] : [];
-			$cid = (string)($ref['$link'] ?? $blob['cid'] ?? '');
 			$mimeType = strtolower((string)($blob['mimeType'] ?? ''));
-			$format = match ($mimeType) {
-				'image/jpeg', 'image/jpg' => 'jpeg',
-				'image/png' => 'png',
-				'image/webp' => 'webp',
-				'image/gif' => 'gif',
-				default => '',
-			};
-			if ($format === '' || !Cid::isValid($cid)) {
+			$url = self::blobImageUrl($blob, $authorDid);
+			if ($url === '') {
 				continue;
 			}
-			$url = 'https://cdn.bsky.app/img/feed_fullsize/plain/' . $authorDid . '/' . $cid . '@' . $format;
 			$attachment = [
 				'type' => 'Image',
 				'mediaType' => $mimeType === 'image/jpg' ? 'image/jpeg' : $mimeType,
@@ -376,6 +396,28 @@ class PostMapper {
 		}
 
 		return $attachments;
+	}
+
+	/** The public CDN URL of a validated raw image blob, or '' when it is not one. */
+	private static function blobImageUrl(mixed $blob, string $authorDid): string {
+		if (!is_array($blob) || !Syntax::isDid($authorDid)) {
+			return '';
+		}
+		$ref = is_array($blob['ref'] ?? null) ? $blob['ref'] : [];
+		$cid = (string)($ref['$link'] ?? $blob['cid'] ?? '');
+		$mimeType = strtolower((string)($blob['mimeType'] ?? ''));
+		$format = match ($mimeType) {
+			'image/jpeg', 'image/jpg' => 'jpeg',
+			'image/png' => 'png',
+			'image/webp' => 'webp',
+			'image/gif' => 'gif',
+			default => '',
+		};
+		if ($format === '' || !Cid::isValid($cid)) {
+			return '';
+		}
+
+		return 'https://cdn.bsky.app/img/feed_fullsize/plain/' . $authorDid . '/' . $cid . '@' . $format;
 	}
 
 	/**
@@ -399,20 +441,23 @@ class PostMapper {
 	 *
 	 * @return array{url: string, title: string, description: string, image: string, provider: string}|null
 	 */
-	public static function cardOf(array $embed): ?array {
-		if (($embed['$type'] ?? '') === self::EXTERNAL) {
+	public static function cardOf(array $embed, string $authorDid = ''): ?array {
+		if (in_array(($embed['$type'] ?? ''), [self::EXTERNAL, self::RECORD_EXTERNAL], true)) {
 			$external = is_array($embed['external'] ?? null) ? $embed['external'] : [];
 			$url = (string)($external['uri'] ?? '');
 			if (!preg_match('#^https?://#i', $url)) {
 				return null;
 			}
-			$thumbnail = (string)($external['thumb'] ?? '');
+			$thumbnail = $external['thumb'] ?? '';
+			$image = is_string($thumbnail)
+				? (preg_match('#^https://#i', $thumbnail) ? $thumbnail : '')
+				: self::blobImageUrl($thumbnail, $authorDid);
 
 			return [
 				'url' => $url,
 				'title' => trim((string)($external['title'] ?? '')) ?: $url,
 				'description' => (string)($external['description'] ?? ''),
-				'image' => preg_match('#^https://#i', $thumbnail) ? $thumbnail : '',
+				'image' => $image,
 				'provider' => parse_url($url, PHP_URL_HOST) ?: '',
 			];
 		}

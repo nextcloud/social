@@ -998,11 +998,14 @@ side effect of an arriving post — recipients, `social_stream_dest`,
 notifications, filters, interests — happens the way it happens for
 ActivityPub; nothing downstream knows a Bluesky post from any other.
 
-When an AppView returns the post record but no usable media view, standard
-`app.bsky.embed.images` blobs are still resolved from their validated CID,
-image MIME type and author DID to the Bluesky image CDN. Unknown MIME types
-and malformed CIDs are omitted rather than rendered as broken or misleading
-media; arbitrary blobs are not assumed to be images.
+When an AppView omits a usable embed view, standard post-record embeds remain
+visible: image blobs resolve from their validated CID, image MIME type and
+author DID to the Bluesky image CDN; external embeds retain their link and
+blob thumbnail; quote-with-media records retain both the quote and its images.
+A raw video record remains a link to its post until the AppView supplies the
+playable video playlist. Unknown MIME types and malformed CIDs are omitted
+rather than rendered as broken or misleading media; arbitrary blobs are not
+assumed to be images.
 
 A post is addressed to the public with the author's followers collection in
 `cc`, which is what the home timeline joins on. An author who asked apps not
