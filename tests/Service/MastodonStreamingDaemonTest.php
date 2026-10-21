@@ -187,14 +187,61 @@ class MastodonStreamingDaemonTest extends TestCase {
 		self::assertNull($this->invoke('onMessage', $subscriber, 0x1, '{"type":"subscribe","stream":"list","list":"5"}'));
 		$context = $this->contextOf($subscriber);
 		self::assertSame(['list' => true], $context['subscriptions'] ?? []);
-		$listSubscription = $context['listSubscription'] ?? [];
+		$listSubscription = $context['listSubscriptions'][5] ?? [];
 		self::assertSame(5, is_array($listSubscription) ? ($listSubscription['id'] ?? null) : null);
-		self::assertSame('90', $context['listSince'] ?? null);
+		self::assertSame('90', $context['listSince:5'] ?? null);
 
 		self::assertNull($this->invoke('onMessage', $subscriber, 0x1, '{"type":"unsubscribe","stream":"list","list":"5"}'));
 		$context = $this->contextOf($subscriber);
 		self::assertSame([], $context['subscriptions'] ?? []);
-		self::assertArrayNotHasKey('listSubscription', $context);
+		self::assertArrayNotHasKey('listSubscriptions', $context);
+	}
+
+	public function testListStreamKeepsMultipleOwnedListsWithIndependentCursors(): void {
+		$alice = (new Person())->setId('https://social.example/users/alice');
+		$listFive = (new MastodonList())->setId(5);
+		$listNine = (new MastodonList())->setId(9);
+		$this->lists->expects(self::exactly(2))->method('getOwnedById')->willReturnMap([
+			[$alice->getId(), 5, $listFive],
+			[$alice->getId(), 9, $listNine],
+		]);
+		$this->lists->expects(self::exactly(2))->method('getTimeline')->willReturnCallback(static function (MastodonList $list): array {
+			return [(new Stream())->setNid($list->getId() === 5 ? '50' : '90')];
+		});
+		$subscriber = $this->subscriber();
+		$subscriber->context = ['viewer' => $alice, 'scopes' => ['read:statuses'], 'subscriptions' => []];
+
+		self::assertNull($this->invoke('onMessage', $subscriber, 0x1, '{"type":"subscribe","stream":"list","list":"5"}'));
+		self::assertNull($this->invoke('onMessage', $subscriber, 0x1, '{"type":"subscribe","stream":"list","list":"9"}'));
+		$context = $this->contextOf($subscriber);
+		self::assertSame('50', $context['listSince:5'] ?? null);
+		self::assertSame('90', $context['listSince:9'] ?? null);
+
+		self::assertNull($this->invoke('onMessage', $subscriber, 0x1, '{"type":"unsubscribe","stream":"list","list":"5"}'));
+		$context = $this->contextOf($subscriber);
+		$listSubscriptions = is_array($context['listSubscriptions'] ?? null) ? $context['listSubscriptions'] : [];
+		self::assertArrayNotHasKey(5, $listSubscriptions);
+		self::assertArrayHasKey(9, $listSubscriptions);
+		self::assertSame(['list' => true], $context['subscriptions'] ?? []);
+	}
+
+	public function testListStreamRejectsSubscriptionsBeyondTheLimit(): void {
+		$alice = (new Person())->setId('https://social.example/users/alice');
+		$this->lists->expects(self::exactly(20))->method('getOwnedById')->willReturnCallback(
+			static fn (string $owner, int $id): MastodonList => (new MastodonList())->setId($id)
+		);
+		$this->lists->expects(self::exactly(20))->method('getTimeline')->willReturn([]);
+		$subscriber = $this->subscriber();
+		$subscriber->context = ['viewer' => $alice, 'scopes' => ['read:statuses'], 'subscriptions' => []];
+
+		for ($id = 1; $id <= 20; $id++) {
+			self::assertNull($this->invoke('onMessage', $subscriber, 0x1, '{"type":"subscribe","stream":"list","list":"' . $id . '"}'));
+		}
+
+		$error = json_decode((string)$this->invoke('onMessage', $subscriber, 0x1, '{"type":"subscribe","stream":"list","list":"21"}'), true);
+		self::assertSame('Too many list subscriptions', $error['payload']);
+		self::assertCount(20, $subscriber->context['listSubscriptions']);
+		self::assertArrayNotHasKey(21, $subscriber->context['listSubscriptions']);
 	}
 
 	public function testListStreamRejectsMissingOrUnownedLists(): void {
@@ -226,13 +273,13 @@ class MastodonStreamingDaemonTest extends TestCase {
 		);
 		$subscriber = $this->subscriber();
 		$subscriber->context = [
-			'listSince' => '40',
-			'listSubscription' => ['id' => 5, 'list' => $list, 'since' => '40'],
+			'listSince:5' => '40',
 			'subscriptions' => ['list' => true],
+			'listSubscriptions' => [5 => ['id' => 5, 'list' => $list, 'since' => '40']],
 		];
 		$server = new WebSocketServer('127.0.0.1:' . random_int(20000, 60000));
 		try {
-			$this->invoke('sendListStatuses', $server, $subscriber, new Person());
+			$this->invoke('sendListStatuses', $server, $subscriber, new Person(), 5, $subscriber->context['listSubscriptions'][5]);
 		} finally {
 			$server->shutdown();
 		}
@@ -241,6 +288,41 @@ class MastodonStreamingDaemonTest extends TestCase {
 		self::assertSame(40, $options->getSince());
 		self::assertSame(50, $options->getLimit());
 		self::assertTrue($options->isInverted());
+	}
+
+	public function testPollingReadsEverySubscribedList(): void {
+		$alice = (new Person())->setId('https://social.example/users/alice');
+		$five = (new MastodonList())->setId(5);
+		$nine = (new MastodonList())->setId(9);
+		$read = [];
+		$this->streams->expects(self::once())->method('setViewer')->with($alice);
+		$this->lists->expects(self::exactly(2))->method('setViewer')->with($alice);
+		$this->lists->expects(self::exactly(2))->method('getTimeline')->willReturnCallback(
+			static function (MastodonList $list, ProbeOptions $options) use (&$read): array {
+				$read[] = [$list->getId(), $options->getSince()];
+				return [];
+			}
+		);
+		$subscriber = $this->subscriber();
+		$subscriber->context = [
+			'lastPoll' => 0,
+			'viewer' => $alice,
+			'subscriptions' => ['list' => true],
+			'listSubscriptions' => [
+				5 => ['id' => 5, 'list' => $five, 'since' => '40'],
+				9 => ['id' => 9, 'list' => $nine, 'since' => '80'],
+			],
+			'listSince:5' => '40',
+			'listSince:9' => '80',
+		];
+		$server = new WebSocketServer('127.0.0.1:' . random_int(20000, 60000));
+		try {
+			$this->invoke('poll', $server, $subscriber);
+		} finally {
+			$server->shutdown();
+		}
+
+		self::assertSame([[5, 40], [9, 80]], $read);
 	}
 
 	public function testPublicRemoteMediaStreamUsesTheMatchingPublicTimeline(): void {
