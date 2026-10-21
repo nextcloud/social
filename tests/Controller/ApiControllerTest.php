@@ -10,6 +10,8 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Controller;
 
 use OCA\Social\AP;
+use OCA\Social\Atproto\Reader\BlueskyFeeds;
+use OCA\Social\Atproto\Reader\BlueskyIds;
 use OCA\Social\Controller\ApiController;
 use OCA\Social\Controller\MastodonApiController;
 use OCA\Social\Db\CacheDocumentsRequest;
@@ -188,6 +190,7 @@ class ApiControllerTest extends TestCase {
 	private FeedDisplayService|Stub $feedDisplayService;
 	private \OCA\Social\Service\RemoteFetchQueue|MockObject $remoteFetchQueue;
 	private \OCA\Social\Service\FollowList\FollowListService|MockObject $followLists;
+	private BlueskyFeeds|MockObject $blueskyFeeds;
 	private \OCA\Social\Service\Counts\CountService|MockObject $counts;
 	/** what the AI switch stub answers for the viewer */
 	private bool $hidesAi = false;
@@ -338,6 +341,7 @@ class ApiControllerTest extends TestCase {
 		$this->aiContentService = $this->createStub(\OCA\Social\Service\AiContentService::class);
 		$this->aiContentService->method('hides')->willReturnCallback(fn (string $userId): bool => $this->hidesAi);
 		$this->remoteFetchQueue = $this->createMock(\OCA\Social\Service\RemoteFetchQueue::class);
+		$this->blueskyFeeds = $this->createMock(BlueskyFeeds::class);
 		$this->vapidService = $this->createStub(VapidService::class);
 		$this->vapidService->method('publicKey')->willReturn('instance-vapid-key');
 		$this->followLists = $this->createMock(\OCA\Social\Service\FollowList\FollowListService::class);
@@ -480,7 +484,7 @@ class ApiControllerTest extends TestCase {
 			'feedDisplayService' => $this->feedDisplayService,
 			'remoteFetchQueue' => $this->remoteFetchQueue,
 			'followLists' => $this->followLists,
-			'blueskyFeeds' => $this->createStub(\OCA\Social\Atproto\Reader\BlueskyFeeds::class),
+			'blueskyFeeds' => $this->blueskyFeeds,
 			'viewCountService' => $this->viewCountService,
 			'teamService' => $this->teamService,
 			'emojiService' => $this->emojiService,
@@ -3546,6 +3550,21 @@ class ApiControllerTest extends TestCase {
 		$this->captureTimelineOptions(['p']);
 
 		$this->assertSame(['p'], $this->controller()->accountStatuses('bob@remote.example')->getData());
+	}
+
+	public function testBlueskyProfileStatusesFetchEveryPageThroughTheAuthorFeed(): void {
+		$actor = $this->createStub(Person::class);
+		$actor->method('getId')->willReturn(BlueskyIds::actorId('did:plc:z72i7hdynmk6r22z27h6tvur'));
+		$this->cacheActorService->method('getFromAccount')->willReturn($actor);
+		$this->remoteFetchQueue->expects($this->never())->method('syncTimeline');
+		$this->blueskyFeeds->expects($this->once())
+			->method('authorPage')
+			->with($actor, '123456', 15, null);
+		$this->captureTimelineOptions(['post']);
+
+		$response = $this->controller()->accountStatuses('bob.bsky.social', 15, '123456');
+
+		$this->assertSame(['post'], $response->getData());
 	}
 
 	/** Scrolling down a profile is reading what is stored, not a reason to sync again. */
