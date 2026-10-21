@@ -17,6 +17,7 @@ use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\Conversation;
+use OCA\Social\Model\Client\Filter;
 use OCA\Social\Model\Client\MastodonList;
 use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Model\Client\SocialClient;
@@ -335,6 +336,37 @@ class MastodonStreamingDaemonTest extends TestCase {
 		self::assertIsString($payload);
 		self::assertSame(1, substr_count($payload, 'event: status.update'));
 		self::assertStringContainsString('"id":"75"', $payload);
+	}
+
+	public function testHomeStreamReceivesEditsOnlyWhenTheStatusRemainsInItsTimeline(): void {
+		$statusId = 'https://social.example/users/alice/statuses/75';
+		$status = (new Stream())->setId($statusId)->setNid('75')->setVisibility(Stream::TYPE_FOLLOWERS);
+		$this->statusRevisions->expects(self::once())->method('getAfterId')->willReturn([
+			['id' => 51, 'stream_id_prim' => md5($statusId)],
+		]);
+		$this->streams->expects(self::once())->method('getStreamByIdPrim')->with(md5($statusId), true)->willReturn($status);
+		$this->streams->expects(self::once())->method('getTimeline')->with(self::callback(
+			static fn (ProbeOptions $options): bool => $options->getProbe() === ProbeOptions::HOME
+				&& $options->getMinId() === 74
+				&& $options->getMaxId() === 76
+		))->willReturn([$status]);
+		$this->filters->expects(self::once())->method('apply')->with([$status], Filter::CONTEXT_HOME, self::isInstanceOf(Person::class))
+			->willReturn([['id' => '75']]);
+
+		$subscriber = $this->subscriber();
+		$subscriber->eventStream = true;
+		$subscriber->context = ['revisionSince' => 50, 'subscriptions' => ['user' => true]];
+		$server = new WebSocketServer('127.0.0.1:' . random_int(20000, 60000));
+		try {
+			$this->invoke('sendEditedPublicStatuses', $server, $subscriber, new Person());
+		} finally {
+			$server->shutdown();
+		}
+
+		rewind($subscriber->socket);
+		$payload = stream_get_contents($subscriber->socket);
+		self::assertIsString($payload);
+		self::assertSame(1, substr_count($payload, 'event: status.update'));
 	}
 
 	public function testHashtagSubscriptionRequiresTagAndSupportsUnsubscribe(): void {

@@ -399,7 +399,9 @@ class MastodonStreamingDaemon {
 			[...self::PUBLIC_STREAMS, 'hashtag', 'hashtag:local'],
 			static fn (string $name): bool => isset($subscriptions[$name])
 		));
-		if ($activeStreams === []) {
+		if ($activeStreams === []
+			&& !isset($subscriptions['user'])
+			&& ($subscriber->context['listSubscriptions'] ?? []) === []) {
 			return;
 		}
 
@@ -420,39 +422,83 @@ class MastodonStreamingDaemon {
 			} catch (Throwable) {
 				continue;
 			}
-			if (($status->getVisibility() ?: $this->streamService->visibilityOf($status)) !== Stream::TYPE_PUBLIC) {
-				continue;
-			}
+			$isPublic = ($status->getVisibility() ?: $this->streamService->visibilityOf($status)) === Stream::TYPE_PUBLIC;
 
 			$matching = [];
-			foreach ($activeStreams as $stream) {
-				if ($this->editedStatusMatchesStream($status, $stream)) {
-					$matching[] = $stream;
+			if ($isPublic) {
+				foreach ($activeStreams as $stream) {
+					if ($this->editedStatusMatchesStream($status, $stream)) {
+						$matching[] = $stream;
+					}
+				}
+				foreach ($subscriber->context['hashtagSubscriptions'] ?? [] as $subscription) {
+					if (is_array($subscription)
+						&& in_array(
+							(string)($subscription['tag'] ?? ''),
+							array_map(static fn (string $tag): string => strtolower(ltrim($tag, '#')), $status->getHashtags()),
+							true
+						)
+						&& (!($subscription['local'] ?? false) || $status->isLocal())) {
+						$matching[] = (string)($subscription['stream'] ?? 'hashtag');
+					}
 				}
 			}
-			foreach ($subscriber->context['hashtagSubscriptions'] ?? [] as $subscription) {
+			if (isset($subscriptions['user']) && $this->editedStatusIsInTimeline($status, ProbeOptions::HOME, viewer: $viewer)) {
+				$matching[] = 'user';
+			}
+			foreach ($subscriber->context['listSubscriptions'] ?? [] as $subscription) {
 				if (is_array($subscription)
-					&& in_array(
-						(string)($subscription['tag'] ?? ''),
-						array_map(static fn (string $tag): string => strtolower(ltrim($tag, '#')), $status->getHashtags()),
-						true
-					)
-					&& (!($subscription['local'] ?? false) || $status->isLocal())) {
-					$matching[] = (string)($subscription['stream'] ?? 'hashtag');
+					&& ($subscription['list'] ?? null) instanceof MastodonList
+					&& $this->editedStatusIsInTimeline($status, '', $subscription['list'], $viewer)) {
+					$matching[] = 'list';
 				}
 			}
 			if ($matching === []) {
 				continue;
 			}
 
-			$filtered = $this->filterService->apply([$status], Filter::CONTEXT_PUBLIC, $viewer);
-			if ($filtered === []) {
-				continue;
-			}
 			foreach (array_unique($matching) as $stream) {
-				$this->send($server, $subscriber, [$stream], 'status.update', $filtered[0]);
+				$context = in_array($stream, [...self::PUBLIC_STREAMS, 'hashtag', 'hashtag:local'], true)
+					? Filter::CONTEXT_PUBLIC
+					: Filter::CONTEXT_HOME;
+				$filtered = $this->filterService->apply([$status], $context, $viewer);
+				if ($filtered !== []) {
+					$this->send($server, $subscriber, [$stream], 'status.update', $filtered[0]);
+				}
 			}
 		}
+	}
+
+	private function editedStatusIsInTimeline(Stream $status, string $probe, ?MastodonList $list = null, ?Person $viewer = null): bool {
+		if ($this->feedDisplayService->hidesReplies($viewer?->getUserId() ?? '') && $status->getInReplyTo() !== '') {
+			return false;
+		}
+		$nid = (string)$status->getNid();
+		$options = (new ProbeOptions())
+			->setFormat(ACore::FORMAT_LOCAL)
+			->setProbe($probe)
+			->setMinId(Nid::decrement($nid))
+			->setMaxId(Nid::increment($nid))
+			->setLimit(self::BATCH)
+			->setInverted(true);
+
+		if ($list !== null) {
+			if ($viewer === null) {
+				return false;
+			}
+			$this->listsRequest->setViewer($viewer);
+			$statuses = $this->listsRequest->getTimeline($list, $options);
+		} else {
+			$statuses = $this->streamService->getTimeline($options);
+		}
+
+		foreach ($statuses as $candidate) {
+			if (Nid::compare((string)$candidate->getNid(), $nid) === 0) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	private function editedStatusMatchesStream(Stream $status, string $stream): bool {

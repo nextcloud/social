@@ -494,11 +494,13 @@ same timelines used by the REST API, applies the viewer's filters, reply
 visibility and notification policy, and emits Mastodon's event payloads.
 For edits to public posts it reads the append-only status-revision cursor and
 emits one `status.update` event per changed post on matching public and
-hashtag subscriptions; private posts are never included in this fan-out.
+hashtag subscriptions. Home and owned-list streams recheck membership in the
+viewer-scoped timeline before receiving an edit, so a private post only reaches
+readers whose timeline already includes it.
 `WebSocketServer` keeps connection and output-buffer bounds for both
 transports. The root Apache and Nginx examples proxy the streaming endpoints
-and health path to this daemon. Delete events and edit fan-out to home, list
-and direct streams remain unimplemented.
+and health path to this daemon. Delete events and edit fan-out to direct
+streams remain unimplemented.
 
 ## ActivityPub Federation
 
