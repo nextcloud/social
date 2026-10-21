@@ -1191,6 +1191,9 @@ by the unfollow, whichever side it came from: a local `Undo` sent from here, or
 one that arrived in the inbox, in each case only when the follow it undoes had
 been accepted. The cron's walk is the safety net for what races through, not
 the thing that makes the number right.
+When an inbox `Undo` carries a composite Follow URI, the stored relationship is
+resolved by the exact actor and followed account pair; an unrelated Follow ID
+does not authorize deleting another relationship.
 
 **The cron walks rather than reads.** `Cron\Cache` refreshed *every* local
 account on every pass — the whole table in one PHP array, twelve minutes apart,
