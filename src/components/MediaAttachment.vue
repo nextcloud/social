@@ -278,14 +278,42 @@ export default {
 				return description
 			}
 			const path = (this.attachment?.url || this.attachment?.remote_url || '').split('?')[0]
-			return decodeURIComponent(path.split('/').pop() || '') || t('social', 'File')
+			const tail = path.split('/').pop() || ''
+			let name = tail
+			try {
+				name = decodeURIComponent(tail)
+			} catch {
+				// A malformed escape is not a reason to break the attachment card.
+			}
+			const stem = name.replace(/\.[^.]+$/, '')
+			const opaque = /^\d{6,}$/.test(stem)
+				|| /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(stem)
+				|| /^baf[a-z2-7]{20,}$/i.test(stem)
+				|| /^[a-z0-9_-]{40,}$/i.test(stem)
+
+			return name !== '' && !opaque ? name : t('social', 'File')
 		},
 
-		/** @return {string} the extension, upper-cased, as a kind label; '' when there is none */
+		/** @return {string} a useful file kind, from its extension or media type */
 		fileKind() {
 			const path = (this.attachment?.url || this.attachment?.remote_url || '').split('?')[0]
 			const match = /\.([a-z0-9]{1,8})$/i.exec(path)
-			return match ? match[1].toUpperCase() : ''
+			if (match) {
+				return match[1].toUpperCase()
+			}
+			const mediaType = String(this.attachment?.media_type || '').toLowerCase()
+			const knownKinds = {
+				'application/pdf': 'PDF',
+				'application/zip': 'ZIP',
+				'audio/mpeg': 'MP3',
+				'image/jpeg': 'JPEG',
+				'image/png': 'PNG',
+				'image/webp': 'WEBP',
+				'video/mp4': 'MP4',
+				'video/webm': 'WEBM',
+			}
+
+			return knownKinds[mediaType] || ''
 		},
 
 		/**
