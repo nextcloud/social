@@ -124,6 +124,10 @@ class IdentityService {
 		return $this->identityRequest->getAll($limit, $offset);
 	}
 
+	public function firstActive(): ?Identity {
+		return $this->identityRequest->firstActive();
+	}
+
 	public function count(): int {
 		return $this->identityRequest->count();
 	}

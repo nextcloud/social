@@ -246,6 +246,20 @@ class ActionServiceTest extends TestCase {
 		$this->assertSame([true, false], $sentMutes);
 	}
 
+	public function testThreadMuteForALocalMirroredPostIsPassedToTheBlueskyBridge(): void {
+		$rootId = 'https://cloud.example.com/apps/social/@alice/status/42';
+		$this->post->setId($rootId);
+		$this->streamService->method('getStreamByNid')->willReturn($this->post);
+		$this->threadRoot = $rootId;
+		$threadMutes = $this->createMock(\OCA\Social\Atproto\Publisher\BlueskyThreadMutes::class);
+		$threadMutes->expects($this->once())->method('fromSocial')->with($this->actor, $rootId, true);
+		$container = $this->createMock(\Psr\Container\ContainerInterface::class);
+		$container->method('get')->willReturn($threadMutes);
+		$service = new ActionService($this->streamService, $this->boostService, $this->likeService, $this->streamActionService, $this->pinService, $this->actionsRequest, $this->conversationsRequest, $this->dislikeService, $this->interestService, $container);
+
+		$service->action($this->actor, 42, 'mute');
+	}
+
 	public function testPinAndUnpinAreHandedToThePinService(): void {
 		$pinned = clone $this->post;
 		$this->pinService->expects($this->once())->method('pin')

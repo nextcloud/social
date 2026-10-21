@@ -148,7 +148,7 @@ class WebSocketBoundsTest extends TestCase {
 		$first = $this->connect(WebSocketServer::PATH);
 		$this->assertCount(1, $this->pump());
 
-		$second = stream_socket_client('tcp://' . $this->bind, $errno, $error, 2);
+		$second = $this->connect(WebSocketServer::PATH);
 		$this->pump();
 
 		$this->assertStringStartsWith('HTTP/1.1 503', $this->read($second));

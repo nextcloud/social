@@ -289,7 +289,7 @@ class RecordMapper {
 		// the profile rows Bluesky has a place for (`Person`)
 		$pronouns = $actor->getPronouns();
 		if ($pronouns !== '') {
-			$record['pronouns'] = self::clip($pronouns, 20, 200);
+			$record['pronouns'] = self::clipPronouns($pronouns);
 		}
 		$website = $actor->getWebsite();
 		if ($website !== '') {
@@ -550,6 +550,11 @@ class RecordMapper {
 		$name = trim($actor->getName());
 
 		return $name === '' ? '' : self::clip($name, 64, 640);
+	}
+
+	/** The pronouns the profile lexicon accepts. */
+	public static function clipPronouns(string $pronouns): string {
+		return self::clip($pronouns, 20, 200);
 	}
 
 	/** at most $graphemes characters and $bytes bytes, which the profile lexicon asks */

@@ -3,8 +3,10 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
+
+vi.mock('@nextcloud/dialogs', () => ({ showError: vi.fn(), showSuccess: vi.fn() }))
 
 import PostMenu from '../../../src/components/PostMenu.vue'
 
@@ -68,6 +70,7 @@ describe('the post menu', () => {
 			expect(items(mountMenu())).toEqual([
 				'Quote',
 				'Open on original instance',
+				'Copy code',
 				'Bookmark',
 				'Add a reaction',
 				'Mute conversation',
@@ -140,6 +143,7 @@ describe('the post menu', () => {
 				'Delete',
 				'Delete & re-draft',
 				'Delivery status',
+				'Copy code',
 				'Bookmark',
 				'Add a reaction',
 				'Mute conversation',
@@ -215,6 +219,22 @@ describe('the post menu', () => {
 			expect(items(mountMenu({ visibility: 'unlisted' }))).toContain('Quote')
 			expect(items(mountMenu({ visibility: 'private' }))).not.toContain('Quote')
 			expect(items(mountMenu({ visibility: 'direct' }))).not.toContain('Quote')
+		})
+
+		it('offers embed code only for a local public post', () => {
+			expect(items(mountMenu({ ...MINE, visibility: 'public' }))).toContain('Copy code')
+			expect(items(mountMenu({ ...MINE, visibility: 'unlisted' }))).not.toContain('Copy code')
+			expect(items(mountMenu({ ...MINE, visibility: 'public', local: false }))).not.toContain('Copy code')
+		})
+
+		it('copies the dedicated embed endpoint rather than the app page', async () => {
+			const writeText = vi.fn().mockResolvedValue(undefined)
+			Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+			const wrapper = mountMenu({ ...MINE, visibility: 'public', url: 'https://cloud.example/apps/social/@alice/1?view=post#top' })
+
+			await itemFor(wrapper, 'Copy code').trigger('click')
+
+			expect(writeText).toHaveBeenCalledWith('<iframe src="https://cloud.example/apps/social/@alice/1/embed" width="550" height="480" loading="lazy" frameborder="0" style="max-width:100%;border:0;border-radius:12px" title="Aloha Social post"></iframe>')
 		})
 
 		it('does not offer a quote the author said no to', () => {

@@ -47,6 +47,7 @@ use OCA\Social\Service\NotificationService;
 use OCA\Social\Service\PushService;
 use OCA\Social\Service\StreamService;
 use OCA\Social\Tests\Model\TActivityPubMocks;
+use OCP\BackgroundJob\IJobList;
 use OCP\IURLGenerator;
 use OCP\Notification\IManager as INotificationManager;
 use OCP\Notification\INotification;
@@ -113,6 +114,9 @@ class NotificationServiceTest extends TestCase {
 	/** @var string[] who the open pages were pushed to, by actor id */
 	private array $pushed = [];
 	private PushService|Stub $pushService;
+	private IJobList|Stub $jobList;
+	/** @var list<array{class: string, argument: mixed}> */
+	private array $webPushJobs = [];
 	/** @var array<int, array> every notification withdrawn from the bell */
 	private array $withdrawn = [];
 	/** @var array<int, array{string, string}> [id, type] of every deleted row */
@@ -265,6 +269,10 @@ class NotificationServiceTest extends TestCase {
 			->willReturnCallback(function (string $recipientId): void {
 				$this->pushed[] = $recipientId;
 			});
+		$this->jobList = $this->createStub(IJobList::class);
+		$this->jobList->method('add')->willReturnCallback(function (string $class, mixed $argument = null): void {
+			$this->webPushJobs[] = ['class' => $class, 'argument' => $argument];
+		});
 
 		$this->service = $this->build();
 	}
@@ -281,7 +289,11 @@ class NotificationServiceTest extends TestCase {
 
 		$container = $this->createStub(ContainerInterface::class);
 		$container->method('get')->willReturnCallback(
-			fn (string $id): ?object => ($id === PushService::class) ? $this->pushService : null
+			fn (string $id): ?object => match ($id) {
+				PushService::class => $this->pushService,
+				IJobList::class => $this->jobList,
+				default => null,
+			}
 		);
 
 		$conversations = $this->createStub(ConversationsRequest::class);
@@ -456,6 +468,22 @@ class NotificationServiceTest extends TestCase {
 		$this->service->onNotification($this->row(Like::TYPE, self::ALICE, self::BOB));
 
 		$this->assertSame([self::ALICE, self::ALICE], $this->pushed);
+	}
+
+	public function testEligibleNotificationsQueueWebPushWithOnlyLocalIdentifiers(): void {
+		$this->service->onNotification($this->row(Like::TYPE, self::ALICE, self::BOB));
+
+		$this->assertSame([[
+			'class' => \OCA\Social\Cron\MastodonPushNotification::class,
+			'argument' => ['user' => 'alice', 'nid' => '5'],
+		]], $this->webPushJobs);
+	}
+
+	public function testHeldNotificationsDoNotQueueWebPush(): void {
+		$this->heldSenders = [self::BOB];
+		$this->service->onNotification($this->row(Like::TYPE, self::ALICE, self::BOB));
+
+		$this->assertSame([], $this->webPushJobs);
 	}
 
 	/** The policy is asked about the sender, with what its rules need, for the recipient. */

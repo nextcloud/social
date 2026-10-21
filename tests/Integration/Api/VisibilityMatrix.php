@@ -89,6 +89,7 @@ final class VisibilityMatrix {
 		'activitypub_likes' => ['viewers' => self::VIEWERS, 'posts' => self::LOCAL_POSTS],
 		'rss' => ['viewers' => ['anonymous'], 'posts' => self::LOCAL_POSTS],
 		'oembed' => ['viewers' => ['anonymous'], 'posts' => self::LOCAL_POSTS],
+		'embed' => ['viewers' => ['anonymous'], 'posts' => self::LOCAL_POSTS],
 		'post_page' => ['viewers' => self::VIEWERS, 'posts' => self::LOCAL_POSTS],
 		'unified_search' => ['viewers' => self::SIGNED_IN, 'posts' => self::POSTS],
 		'reference' => ['viewers' => self::VIEWERS, 'posts' => self::LOCAL_POSTS],
@@ -132,6 +133,7 @@ final class VisibilityMatrix {
 		'ActivityPubController::likes' => 'activitypub_likes',
 		'ActivityPubController::feed' => 'rss',
 		'InstanceApiController::oembed' => 'oembed',
+		'SocialPubController::embedPost' => 'embed',
 	];
 
 	/**
@@ -298,6 +300,7 @@ final class VisibilityMatrix {
 				'unlisted' => self::EITHER,
 				default => false,
 			},
+			'embed' => $post === 'public',
 			'post_page' => true,
 			'widget_timeline', 'widget_mentions', 'widget_bookmarks' => self::EITHER,
 			'widget_direct' => ($post === 'direct') ? self::EITHER : false,

@@ -24,6 +24,7 @@ use OCA\Social\Service\RemoteFetchQueue;
 use OCA\Social\Service\ReportService;
 use OCA\Social\Service\SearchService;
 use OCA\Social\Service\StreamService;
+use OCA\Social\Service\VapidService;
 use OCA\Social\Tools\Nid;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\AnonRateLimit;
@@ -60,6 +61,7 @@ class ApiController extends MastodonApiController {
 		private ReportService $reportService,
 		private SearchService $searchService,
 		private RemoteFetchQueue $remoteFetchQueue,
+		private VapidService $vapidService,
 	) {
 		parent::__construct($request, $urlGenerator, $userSession, $logger, $clientService, $accountService, $cacheActorService, $streamService, $followService);
 	}
@@ -77,16 +79,13 @@ class ApiController extends MastodonApiController {
 			// route answers with: Mastodon's apps check theirs here
 			$this->initViewer(true, true);
 
-			// `vapid_key` is always present, because a client reads it out of
-			// this response before it decides whether to offer push at all; it
-			// is empty because this app has no Web Push endpoint, which is the
-			// answer that makes a client stop asking.
+			// Mastodon clients read the VAPID key here before offering push.
 			if ($this->client === null) {
 				return new DataResponse(
 					[
 						'name' => 'Aloha Social',
 						'website' => 'https://github.com/alohasocial/social/',
-						'vapid_key' => ''
+						'vapid_key' => $this->vapidService->publicKey()
 					], Http::STATUS_OK
 				);
 			} else {
@@ -100,7 +99,7 @@ class ApiController extends MastodonApiController {
 							? null : $this->client->getAppWebsite(),
 						'scopes' => array_values($this->client->getAppScopes()),
 						'redirect_uris' => array_values($this->client->getAppRedirectUris()),
-						'vapid_key' => ''
+						'vapid_key' => $this->vapidService->publicKey()
 					], Http::STATUS_OK
 				);
 			}
