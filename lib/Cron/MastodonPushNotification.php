@@ -115,7 +115,9 @@ class MastodonPushNotification extends QueuedJob {
 					'notification_type' => $subject,
 					'icon' => $actor->getAvatar(),
 					'title' => $title,
-					'body' => MastodonPushContent::body($post, $actor),
+					'body' => $post === null
+						? MastodonPushContent::profileBody($actor)
+						: MastodonPushContent::body($post, $actor),
 				], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 				$encoding = $subscription['standard'] ? ContentEncoding::aes128gcm : ContentEncoding::aesgcm;
 				$endpoint = new Subscription($subscription['endpoint'], $subscription['p256dh'], $subscription['auth'], $encoding);
