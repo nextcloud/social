@@ -2225,8 +2225,14 @@ validates and commits the batch through `RepositoryService::write()` once;
 list synchronization runs after that repository commit. Its optional
 `swapCommit` is checked against the locked head before the repository changes,
 and the response carries the commit produced by the batch. Batches that include
-Social actions still follow the action-specific paths, which can have their
-own side effects and commit boundaries and do not support `swapCommit` yet.
+Social actions still follow the action-specific paths, while `RepositoryService`
+stages their Bluesky records and exposes them to later actions in the same
+batch. One database transaction commits the database-backed Social changes,
+repository records, and firehose event; ActivityPub deliveries begin after
+commit. On failure, the database transaction and deferred delivery starts are
+rolled back. Profile and media files use Nextcloud storage and are outside that
+database rollback. A mixed batch checks `swapCommit` against the locked
+repository head before committing.
 
 ### Switching off Bluesky
 

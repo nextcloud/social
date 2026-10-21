@@ -2598,10 +2598,13 @@ thread root), `RecordMapper` (reply, quote and card embeds, the postgate),
   rejects an invalid batch before writing any of it. For these batches,
   `swapCommit` is compared with the locked repository head inside the write
   transaction; a stale CID returns `InvalidSwap` without changing the repo.
-  Batches containing
-  Social actions still run those actions one by one, so a later failure can
-  leave an earlier Social action applied; `swapCommit` is not supported for
-  them yet. Those repository-native record
+  Batches that mix Social actions and repository-native records run inside one
+  database transaction and produce one repository commit. ActivityPub
+  deliveries start only after the transaction commits; a failed action rolls
+  back the database work and discards deferred delivery starts. `swapCommit`
+  is checked against the locked head for mixed batches too. Avatar and media
+  files use Nextcloud storage and are outside the database rollback. Those
+  repository-native record
   types have no Social counterpart and are kept as the app wrote them,
   validated against their lexicon; a gate only for one of the account's own
   posts, under that post's key. A block is a block here, published, when the

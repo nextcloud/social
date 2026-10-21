@@ -44,6 +44,7 @@ use OCA\Social\Model\ActivityPub\Object\Like;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\Post;
 use OCA\Social\Service\AccountService;
+use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\AvatarService;
 use OCA\Social\Service\BannerService;
 use OCA\Social\Service\BoostService;
@@ -101,6 +102,8 @@ class WriteServiceTest extends TestCase {
 	/** @var BannerService&MockObject */
 	private BannerService $banners;
 	private WriteService $writes;
+	/** @var ActivityService&MockObject */
+	private ActivityService $activities;
 	/** @var RelationshipService&MockObject */
 	private RelationshipService $relationships;
 	/** @var BlueskyBlocks&MockObject */
@@ -153,12 +156,14 @@ class WriteServiceTest extends TestCase {
 		$identities->method('signingKey')->willReturn(PrivateKey::generate(Curve::K256));
 		$this->declaration = $this->createMock(ChatDeclaration::class);
 		$this->listImport = $this->createMock(BlueskyListImport::class);
+		$this->activities = $this->createMock(ActivityService::class);
 		$this->writes = new WriteService(
 			$accounts, $this->posts, $this->review, $this->createMock(ModerationService::class), $this->streams, $this->likes, $this->createMock(BoostService::class), $this->createMock(FollowService::class),
 			$this->cacheActors, $this->createMock(ReportService::class), $this->documents,
 			$this->publisher, $this->pictures, $this->videos, $this->createMock(InteractionPublisher::class), $this->repositories, $this->local, $this->postStore,
 			$this->blobs, $this->createMock(IURLGenerator::class), new NullLogger(), $this->avatars, $this->banners, $identities,
 			$this->relationships, $this->blocks, $this->declaration, $this->listImport,
+			$this->activities,
 		);
 		$this->session = new ClientSession('alice', new Identity(1, $this->alice->getId(), self::DID, 'alice.social.test', 'sealed', '', '', Identity::STATE_ACTIVE, '', 0), 'jti');
 	}
@@ -327,6 +332,34 @@ class WriteServiceTest extends TestCase {
 			$this->fail('unknown write types must be rejected');
 		} catch (XrpcException $e) {
 			$this->assertSame(400, $e->status);
+		}
+	}
+
+	public function testMixedBatchRollsBackWhenALaterSocialWriteFails(): void {
+		$this->repositories->expects($this->once())->method('beginBatch');
+		$this->repositories->expects($this->never())->method('commitBatch');
+		$this->repositories->expects($this->once())->method('rollbackBatch');
+		$this->activities->expects($this->once())->method('beginDeferredDeliveries');
+		$this->activities->expects($this->once())->method('discardDeferredDeliveries');
+		$this->activities->expects($this->never())->method('releaseDeferredDeliveries');
+		$this->repositories->expects($this->once())->method('write')->willReturnCallback(function (string $did, $key, array $writes): ?CommitResult {
+			foreach ($writes as $write) {
+				$bytes = DagCbor::encode($write->record);
+				$this->records[] = new StoredRecord($did, $write->collection, $write->rkey, Cid::forDagCbor($bytes), $bytes, $write->localId, 0);
+			}
+
+			return null;
+		});
+		$list = ['$type' => 'app.bsky.graph.list', 'purpose' => 'app.bsky.graph.defs#curatelist', 'name' => 'Friends', 'createdAt' => '2026-10-09T10:00:00.000Z'];
+
+		try {
+			$this->writes->apply($this->session, ['repo' => self::DID, 'writes' => [
+				['$type' => 'com.atproto.repo.applyWrites#create', 'collection' => 'app.bsky.graph.list', 'rkey' => Tid::next(), 'value' => $list],
+				['$type' => 'com.atproto.repo.applyWrites#create', 'collection' => 'chat.bsky.actor.declaration', 'rkey' => 'self', 'value' => ['allowIncoming' => 'all']],
+			]]);
+			$this->fail('a failed Social write must reject the batch');
+		} catch (XrpcException $e) {
+			$this->assertSame(500, $e->status);
 		}
 	}
 

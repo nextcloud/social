@@ -514,6 +514,27 @@ class ActivityServiceTest extends TestCase {
 		$this->assertSame([$direct], $paths);
 	}
 
+	public function testADeferredRequestStartsDeliveryOnlyAfterRelease(): void {
+		$this->requestQueueService->method('generateRequestQueue')->willReturn(self::TOKEN);
+		$this->requestQueueService->method('getRequestFromToken')->willReturn([]);
+		$starts = 0;
+		$this->requestQueueService->method('getPriorityRequest')->willReturnCallback(static function () use (&$starts): never {
+			$starts++;
+			throw new NoHighPriorityRequestException();
+		});
+		$like = new Like();
+		$like->setActorId(self::ALICE_ID);
+		$like->addInstancePath(new InstancePath(self::BOB_INBOX, InstancePath::TYPE_INBOX, InstancePath::PRIORITY_HIGH));
+
+		$this->service->beginDeferredDeliveries();
+		$this->assertSame(self::TOKEN, $this->service->request($like));
+		$this->assertSame(0, $starts);
+
+		$this->service->releaseDeferredDeliveries();
+
+		$this->assertSame(1, $starts);
+	}
+
 	// --- relays -----------------------------------------------------------
 
 	/**

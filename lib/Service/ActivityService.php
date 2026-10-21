@@ -73,6 +73,9 @@ class ActivityService {
 
 	/** The hostnames this instance answers to; see `localHosts()`. */
 	private ?array $localHosts = null;
+	private bool $deferDeliveries = false;
+	/** @var list<string> */
+	private array $deferredDeliveryTokens = [];
 
 	public function __construct(
 		private FollowsRequest $followsRequest,
@@ -441,6 +444,50 @@ class ActivityService {
 		if ($holdUntil > time()) {
 			return $token;
 		}
+		if ($this->deferDeliveries) {
+			$this->deferredDeliveryTokens[] = $token;
+
+			return $token;
+		}
+
+		$this->deliverToken($token);
+
+		return $token;
+	}
+
+	/** Hold inline and asynchronous delivery until the surrounding write commits. */
+	public function beginDeferredDeliveries(): void {
+		if ($this->deferDeliveries) {
+			throw new \LogicException('Activity deliveries are already deferred');
+		}
+		$this->deferDeliveries = true;
+		$this->deferredDeliveryTokens = [];
+	}
+
+	/** Start deliveries after the database transaction has committed. */
+	public function releaseDeferredDeliveries(): void {
+		if (!$this->deferDeliveries) {
+			return;
+		}
+		$tokens = $this->deferredDeliveryTokens;
+		$this->deferDeliveries = false;
+		$this->deferredDeliveryTokens = [];
+		foreach ($tokens as $token) {
+			try {
+				$this->deliverToken($token);
+			} catch (\Throwable $e) {
+				$this->logger->notice('Queued activity will be delivered by the worker', ['token' => $token, 'exception' => $e]);
+			}
+		}
+	}
+
+	/** Discard delivery starts when the surrounding write rolls back. */
+	public function discardDeferredDeliveries(): void {
+		$this->deferDeliveries = false;
+		$this->deferredDeliveryTokens = [];
+	}
+
+	private function deliverToken(string $token): void {
 
 		$this->manageInit();
 
@@ -450,15 +497,13 @@ class ActivityService {
 			$this->manageRequest($directRequest, true);
 		} catch (NoHighPriorityRequestException $e) {
 		} catch (EmptyQueueException $e) {
-			return $token;
+			return;
 		}
 
 		$requests = $this->requestQueueService->getRequestFromToken($token, RequestQueue::STATUS_STANDBY);
 		if (sizeof($requests) > 0) {
 			$this->curlService->asyncWithToken($token);
 		}
-
-		return $token;
 	}
 
 	public function manageInit() {
