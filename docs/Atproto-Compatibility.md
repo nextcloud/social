@@ -2586,6 +2586,9 @@ thread root), `RecordMapper` (reply, quote and card embeds, the postgate),
   expiry, when the word has one).
   `putPreferences` replaces the preference set: if `mutedWordsPref` is absent,
   the app's mirrored muted words are cleared from the local filter projection.
+  Before replacing anything, the app validates muted-word items and their
+  targets, actor scope, ids and expiry types; malformed values receive
+  `InvalidRequest` without changing the saved preferences or local filters.
 - **Writes are Social actions** (§16.5): `createRecord` of a post is a
   Social post (public; reply, quote, pictures, language; a link the app
   shortened is its whole address again), a like a like, a repost a boost,

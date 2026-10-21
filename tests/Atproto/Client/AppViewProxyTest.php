@@ -195,4 +195,30 @@ class AppViewProxyTest extends TestCase {
 			['$type' => 'app.bsky.actor.defs#savedFeedsPrefV2', 'items' => []],
 		]]);
 	}
+
+	public function testMalformedMutedWordsAreRejectedBeforePreferencesOrFiltersChange(): void {
+		$config = $this->createMock(IConfig::class);
+		$config->expects($this->never())->method('setUserValue');
+		$words = $this->createMock(\OCA\Social\Atproto\Client\MutedWords::class);
+		$words->expects($this->never())->method('apply');
+		$preferences = new Preferences($config, $words, $this->createMock(\OCA\Social\Service\AccountService::class));
+		$malformed = [
+			['value' => ['unexpected'], 'targets' => ['content']],
+			['value' => 'spoilers', 'targets' => [['unexpected']]],
+			['value' => 'spoilers', 'targets' => ['unknown']],
+			['value' => 'spoilers', 'targets' => ['content'], 'expiresAt' => ['unexpected']],
+			['value' => 'spoilers', 'targets' => ['content'], 'actorTarget' => 'friends'],
+		];
+
+		foreach ($malformed as $item) {
+			try {
+				$preferences->put($this->session, ['preferences' => [
+					['$type' => \OCA\Social\Atproto\Client\MutedWords::PREF, 'items' => [$item]],
+				]]);
+				$this->fail('accepted malformed muted word ' . json_encode($item));
+			} catch (XrpcException $e) {
+				$this->assertSame('InvalidRequest', $e->error);
+			}
+		}
+	}
 }

@@ -56,6 +56,9 @@ class Preferences {
 			if (!is_array($preference) || !is_string($preference['$type'] ?? null) || !str_starts_with($preference['$type'], 'app.bsky.')) {
 				throw XrpcException::invalidRequest('Some preferences are not in the app.bsky namespace');
 			}
+			if (self::isMutedWords($preference)) {
+				self::validateMutedWords($preference);
+			}
 		}
 		$words = ['$type' => MutedWords::PREF, 'items' => []];
 		foreach ($preferences as $preference) {
@@ -76,5 +79,31 @@ class Preferences {
 
 	private static function isMutedWords(mixed $preference): bool {
 		return is_array($preference) && ($preference['$type'] ?? '') === MutedWords::PREF;
+	}
+
+	private static function validateMutedWords(array $preference): void {
+		$items = $preference['items'] ?? null;
+		if (!is_array($items) || !array_is_list($items)) {
+			throw XrpcException::invalidRequest('mutedWordsPref.items must be a list');
+		}
+
+		foreach ($items as $item) {
+			if (!is_array($item) || !is_string($item['value'] ?? null) || !is_array($item['targets'] ?? null) || !array_is_list($item['targets'])) {
+				throw XrpcException::invalidRequest('Each muted word must have a string value and a list of targets');
+			}
+			foreach ($item['targets'] as $target) {
+				if (!is_string($target) || !in_array($target, ['content', 'tag'], true)) {
+					throw XrpcException::invalidRequest('Muted word targets must be content or tag');
+				}
+			}
+			foreach (['id', 'expiresAt'] as $field) {
+				if (isset($item[$field]) && !is_string($item[$field])) {
+					throw XrpcException::invalidRequest('Muted word ' . $field . ' must be a string');
+				}
+			}
+			if (isset($item['actorTarget']) && (!is_string($item['actorTarget']) || !in_array($item['actorTarget'], ['all', 'exclude-following'], true))) {
+				throw XrpcException::invalidRequest('Muted word actorTarget is invalid');
+			}
+		}
 	}
 }
