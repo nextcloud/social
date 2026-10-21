@@ -229,7 +229,6 @@ class CountService {
 		foreach ($posts as $post) {
 			$left[$post->getId()] = $post;
 		}
-		$askedPosts = $left;
 		$asked = count($left);
 		$answered = 0;
 		foreach ($this->sources() as $source) {
@@ -243,27 +242,27 @@ class CountService {
 			} catch (Throwable $e) {
 				$this->logger->info('Counts not read', ['source' => $source::class, 'exception' => $e]);
 				$this->stampAll($mine);
+				// The visible read may have enqueued these and the browser can
+				// still be polling with a stale model. Cool down only failed
+				// batches; writing one durable-cache row for every successful
+				// background refresh exceeds the cron's bounded SQL work budget.
+				foreach (array_keys($mine) as $id) {
+					$this->setVisibleState((string)$id, self::VISIBLE_DONE, self::VISIBLE_RETRY_INTERVAL);
+				}
 			}
 		}
 		$this->stampAll($left);
-		foreach (array_keys($askedPosts) as $id) {
-			// A background read may have failed or found no counts. Keep a short
-			// cooldown so stale model instances in follow-up status polls cannot
-			// immediately start the same network request again.
-			$this->setVisibleState((string)$id, self::VISIBLE_DONE, self::VISIBLE_RETRY_INTERVAL);
-		}
-
 		return ['asked' => $asked, 'answered' => $answered];
 	}
 
 	private function visibleState(string $postId): ?string {
-		$value = $this->durableCache?->getShared(self::VISIBLE_CACHE, md5($postId));
+		$value = $this->durableCache->getShared(self::VISIBLE_CACHE, md5($postId));
 
 		return is_string($value) ? $value : null;
 	}
 
 	private function setVisibleState(string $postId, string $state, int $ttl): void {
-		$this->durableCache?->setShared(self::VISIBLE_CACHE, md5($postId), $state, $ttl);
+		$this->durableCache->setShared(self::VISIBLE_CACHE, md5($postId), $state, $ttl);
 	}
 
 	/**
