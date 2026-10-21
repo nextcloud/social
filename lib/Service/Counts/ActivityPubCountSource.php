@@ -30,6 +30,13 @@ use OCP\AppFramework\Http;
 class ActivityPubCountSource implements CountSource {
 	/** Documents asked for in one round of requests. */
 	public const PARALLEL = 20;
+	private const ORIGIN_TIMEOUT = 5;
+	private const COUNT_KEYS = [
+		'likes' => 'likes',
+		'shares' => 'boosts',
+		'replies' => 'replies',
+		'quotes' => 'quotes',
+	];
 
 	public function __construct(
 		private CurlService $curl,
@@ -50,8 +57,47 @@ class ActivityPubCountSource implements CountSource {
 		foreach (array_chunk($posts, self::PARALLEL) as $chunk) {
 			$statuses = [];
 			$answers = $this->curl->retrieveObjectsMany(
-				array_map(static fn (Stream $post): string => $post->getId(), $chunk), [], $statuses
+				array_map(static fn (Stream $post): string => $post->getId(), $chunk), ['timeout' => self::ORIGIN_TIMEOUT], $statuses
 			);
+			$counts = [];
+			$collections = [];
+			foreach ($chunk as $post) {
+				$data = $answers[$post->getId()] ?? null;
+				if (!is_array($data) || ($data['id'] ?? '') !== $post->getId()) {
+					continue;
+				}
+				foreach (self::COUNT_KEYS as $property => $counter) {
+					$counts[$post->getId()][$counter] = self::count($data, $property);
+					if ($counts[$post->getId()][$counter] === null) {
+						$url = self::collectionUrl($data[$property] ?? null);
+						if ($url !== '') {
+							$collections[$url][$post->getId()][$counter] = true;
+						}
+					}
+				}
+			}
+
+			// Some servers embed totalItems, while others only give the
+			// collection URL. Resolve those URLs together so the visible-post
+			// refresh does not make one sequential request per counter.
+			if ($collections !== []) {
+				$collectionAnswers = $this->curl->retrieveObjectsMany(array_keys($collections), ['timeout' => self::ORIGIN_TIMEOUT]);
+				foreach ($collections as $url => $refs) {
+					$collection = $collectionAnswers[$url] ?? null;
+					if (!is_array($collection) || ($collection['id'] ?? $collection['@id'] ?? '') !== $url) {
+						continue;
+					}
+					foreach ($refs as $postId => $counters) {
+						foreach (array_keys($counters) as $counter) {
+							$property = array_search($counter, self::COUNT_KEYS, true);
+							if (is_string($property)) {
+								$counts[$postId][$counter] = Stream::statedCount([$property => $collection], $property);
+							}
+						}
+					}
+				}
+			}
+
 			foreach ($chunk as $post) {
 				if (in_array($statuses[$post->getId()] ?? 0, [Http::STATUS_NOT_FOUND, Http::STATUS_GONE], true)) {
 					$this->writer->stampGone($post->getId());
@@ -64,9 +110,10 @@ class ActivityPubCountSource implements CountSource {
 				}
 				if ($this->writer->write(
 					$post->getId(),
-					Stream::statedCount($data, 'likes'),
-					Stream::statedCount($data, 'shares'),
-					Stream::statedCount($data, 'replies'),
+					$counts[$post->getId()]['likes'] ?? null,
+					$counts[$post->getId()]['boosts'] ?? null,
+					$counts[$post->getId()]['replies'] ?? null,
+					quotes: $counts[$post->getId()]['quotes'] ?? null,
 				)) {
 					$answered++;
 				}
@@ -74,5 +121,37 @@ class ActivityPubCountSource implements CountSource {
 		}
 
 		return $answered;
+	}
+
+	/** A count from an embedded collection or Mastodon's quote extension. */
+	private static function count(array $data, string $property): ?int {
+		if ($property === 'quotes') {
+			$quoteCount = $data['quoteCount'] ?? null;
+			if (is_int($quoteCount) || (is_string($quoteCount) && ctype_digit($quoteCount))) {
+				$quoteCount = (int)$quoteCount;
+				if ($quoteCount >= 0 && $quoteCount <= Stream::REMOTE_COUNT_CEILING) {
+					return $quoteCount;
+				}
+			}
+		}
+
+		return Stream::statedCount($data, $property);
+	}
+
+	/** The URL of a collection that names no total inline. */
+	private static function collectionUrl(mixed $collection): string {
+		if (is_string($collection)) {
+			$url = $collection;
+		} elseif (is_array($collection)) {
+			$url = $collection['id'] ?? $collection['@id'] ?? '';
+		} else {
+			return '';
+		}
+
+		if (!is_string($url) || preg_match('#^https?://#i', $url) !== 1) {
+			return '';
+		}
+
+		return $url;
 	}
 }

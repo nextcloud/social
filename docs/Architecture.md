@@ -1926,9 +1926,12 @@ people look at are asked for again, one concept with a source per network
 
 - `ActivityPubCountSource` reads the post's document at its `id` and takes
   the `totalItems` of its `likes`, `shares` and `replies` collections
-  (`Stream::statedCount()`), twenty documents a round; an answer naming some
-  other document, or none — a post deleted at its source among them — leaves
-  what is stored;
+  (`Stream::statedCount()`), twenty documents a round. If an origin gives a
+  collection URL without an inline total, those collection URLs are fetched
+  together in a second round. Mastodon's `quoteCount` extension is retained as
+  the quote total. Requests to origins have a five-second timeout; an answer
+  naming some other document, or none — a post deleted at its source among
+  them — leaves what is stored;
 - `Atproto\Reader\BlueskyCountSource` asks the AppView's `getPosts`, 25
   posts a call (`PostStore::postViews()`), for `likeCount`, `repostCount`,
   `replyCount` and `quoteCount`; a `notFound` post placeholder or an omitted
