@@ -145,7 +145,7 @@ class BlueskyThreadSource implements ThreadSource {
 		return $stored;
 	}
 
-	/** The stable thread endpoint can omit direct replies; the first-party AppView's V2 view can name the rest. */
+	/** The stable thread endpoint can omit direct replies; V2 and search can recover them. */
 	private function fillMissingDirectReplies(string $uri, array $headers, ?int $timeout, int $budget, array $knownReplies, int $expectedReplies): int {
 		try {
 			$params = [
@@ -160,6 +160,11 @@ class BlueskyThreadSource implements ThreadSource {
 				: $this->appView->query('app.bsky.unspecced.getPostThreadV2', $params, $headers, $timeout);
 			$items = $answer['thread'] ?? null;
 			if (!is_array($items)) {
+				$searched = $this->fillRepliesFromSearch($uri, $headers, $timeout, $budget, $knownReplies, $expectedReplies);
+				if ($searched !== null) {
+					return $searched;
+				}
+
 				$this->deepRepliesPending = $timeout !== null;
 
 				return 0;
@@ -167,9 +172,13 @@ class BlueskyThreadSource implements ThreadSource {
 		} catch (Throwable $e) {
 			// The V2 thread view is still unspecced and is absent on some AppViews.
 			$this->logger->debug('Bluesky V2 thread view not available; keeping the standard thread response', ['uri' => $uri, 'exception' => $e]);
-			// The visible response has already told us that the stable endpoint
-			// omitted replies. Ask the queued worker to try again there instead
-			// of silently treating the partial conversation as complete.
+			// SearchPostsV2 is a specced, cursor-paged route. Use it to recover
+			// replies when this older AppView has no thread V2 endpoint.
+			$searched = $this->fillRepliesFromSearch($uri, $headers, $timeout, $budget, $knownReplies, $expectedReplies);
+			if ($searched !== null) {
+				return $searched;
+			}
+
 			$this->deepRepliesPending = $timeout !== null;
 
 			return 0;
@@ -213,6 +222,100 @@ class BlueskyThreadSource implements ThreadSource {
 			}
 		}
 		$this->store->rememberHiddenReplies(is_array($answer['threadgate'] ?? null) ? $answer['threadgate'] : null);
+		if ($expectedReplies > count(array_unique($directReplies)) && $stored < $budget) {
+			// Some AppViews return a valid but truncated V2 page without setting
+			// hasOtherReplies. The specced, cursor-paged search route can still
+			// recover the rest of the thread.
+			$searched = $this->fillRepliesFromSearch($uri, $headers, $timeout, $budget - $stored, $directReplies, $expectedReplies);
+			if ($searched !== null) {
+				$stored += $searched;
+			}
+		}
+
+		return $stored;
+	}
+
+	/**
+	 * Recover replies through the specced search route when the experimental
+	 * thread V2 route is unavailable or returns fewer direct replies than the
+	 * stable thread view says exist.
+	 *
+	 * @return int|null stored new posts, or null when this AppView cannot answer
+	 */
+	private function fillRepliesFromSearch(string $uri, array $headers, ?int $timeout, int $budget, array $knownReplies, int $expectedReplies): ?int {
+		if ($budget <= 0) {
+			$this->deepRepliesPending = $timeout !== null;
+
+			return 0;
+		}
+
+		$direct = array_fill_keys($knownReplies, true);
+		$cursor = '';
+		$seenCursors = [];
+		$stored = 0;
+		$pages = 0;
+		try {
+			do {
+				$params = [
+					'threadRootUri' => $uri,
+					'repliesOnly' => 'true',
+					'allTime' => 'true',
+					'sort' => 'recent',
+					'limit' => min(100, max(1, $budget - $stored)),
+				] + ($cursor === '' ? [] : ['cursor' => $cursor]);
+				$answer = $timeout === null
+					? $this->appView->query('app.bsky.feed.searchPostsV2', $params, $headers)
+					: $this->appView->query('app.bsky.feed.searchPostsV2', $params, $headers, $timeout);
+				$posts = $answer['posts'] ?? null;
+				if (!is_array($posts)) {
+					return null;
+				}
+
+				foreach ($posts as $view) {
+					if (!is_array($view)) {
+						continue;
+					}
+					$record = is_array($view['record'] ?? null) ? $view['record'] : [];
+					$reply = is_array($record['reply'] ?? null) ? $record['reply'] : [];
+					$root = is_array($reply['root'] ?? null) ? (string)($reply['root']['uri'] ?? '') : '';
+					if ($root !== $uri) {
+						continue;
+					}
+					$parent = is_array($reply['parent'] ?? null) ? (string)($reply['parent']['uri'] ?? '') : '';
+					$postUri = (string)($view['uri'] ?? '');
+					if ($parent === $uri && $postUri !== '') {
+						$direct[$postUri] = true;
+					}
+					if ($this->store->storePost($view, false)) {
+						$stored++;
+					} else {
+						$this->store->refreshKnownPostCountsFromView($view);
+					}
+					if ($stored >= $budget) {
+						break;
+					}
+				}
+
+				$next = $answer['cursor'] ?? '';
+				if (!is_string($next)) {
+					return null;
+				}
+				if ($next === '' || isset($seenCursors[$next])) {
+					$cursor = '';
+					break;
+				}
+				$seenCursors[$next] = true;
+				$cursor = $next;
+				$pages++;
+			} while ($timeout === null && $cursor !== '' && $stored < $budget && $pages < 20);
+		} catch (Throwable $e) {
+			$this->logger->debug('Bluesky thread search fallback not available', ['uri' => $uri, 'exception' => $e]);
+
+			return null;
+		}
+
+		$this->deepRepliesPending = $timeout !== null && ($cursor !== ''
+			|| ($expectedReplies > 0 && count($direct) < $expectedReplies));
 
 		return $stored;
 	}

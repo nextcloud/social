@@ -183,10 +183,13 @@ class BlueskyThreadSourceTest extends TestCase {
 		$refs = $this->createMock(PostRefs::class);
 		$refs->method('strongRef')->willReturn(['uri' => 'at://p/2', 'cid' => 'bafy']);
 		$appView = $this->createMock(AppViewClient::class);
-		$appView->expects($this->exactly(2))->method('query')->willReturnCallback(
+		$appView->expects($this->exactly(3))->method('query')->willReturnCallback(
 			static function (string $method) use ($thread): array {
 				if ($method === 'app.bsky.feed.getPostThread') {
 					return ['thread' => $thread];
+				}
+				if ($method === 'app.bsky.feed.searchPostsV2') {
+					return ['posts' => []];
 				}
 				throw new AtprotoException('UnknownMethod');
 			}
@@ -199,6 +202,104 @@ class BlueskyThreadSourceTest extends TestCase {
 		$this->assertTrue($source->hasDeepRepliesPending(), 'an unavailable V2 read must be retried in the background');
 	}
 
+	public function testMissingRepliesUseTheSpeccedCursorPagedSearchFallback(): void {
+		$thread = self::node('at://p/2', [self::node('at://r/1')]);
+		$thread['post']['replyCount'] = 3;
+		$config = $this->createMock(AtprotoConfig::class);
+		$config->method('isEnabled')->willReturn(true);
+		$refs = $this->createMock(PostRefs::class);
+		$refs->method('strongRef')->willReturn(['uri' => 'at://p/2', 'cid' => 'bafy']);
+		$appView = $this->createMock(AppViewClient::class);
+		$asked = [];
+		$appView->expects($this->exactly(3))->method('query')->willReturnCallback(
+			static function (string $method, array $params) use (&$asked, $thread): array {
+				$asked[] = [$method, $params];
+				if ($method === 'app.bsky.feed.getPostThread') {
+					return ['thread' => $thread];
+				}
+				if ($method === 'app.bsky.unspecced.getPostThreadV2') {
+					throw new AtprotoException('UnknownMethod');
+				}
+
+				return [
+					'posts' => [
+						['uri' => 'at://r/2', 'record' => ['reply' => ['root' => ['uri' => 'at://p/2'], 'parent' => ['uri' => 'at://p/2']]]],
+						['uri' => 'at://r/3', 'record' => ['reply' => ['root' => ['uri' => 'at://p/2'], 'parent' => ['uri' => 'at://r/2']]]],
+					],
+					'cursor' => 'next-page',
+				];
+			}
+		);
+		$stored = [];
+		$store = $this->createMock(PostStore::class);
+		$store->method('storePost')->willReturnCallback(static function (array $post) use (&$stored): bool {
+			$stored[] = $post['uri'];
+
+			return true;
+		});
+		$source = new BlueskyThreadSource($config, $appView, $refs, $store, $this->createMock(LabelerService::class), new NullLogger());
+
+		$this->assertSame(4, $source->fillVisible((new Note())->setId('https://social.test/@alice/2'), 10));
+		$this->assertSame(['at://p/2', 'at://r/1', 'at://r/2', 'at://r/3'], $stored);
+		$this->assertSame('app.bsky.feed.searchPostsV2', $asked[2][0]);
+		$this->assertSame([
+			'threadRootUri' => 'at://p/2',
+			'repliesOnly' => 'true',
+			'allTime' => 'true',
+			'sort' => 'recent',
+			'limit' => 8,
+		], $asked[2][1]);
+		$this->assertTrue($source->hasDeepRepliesPending(), 'a cursor beyond the visible page schedules a background continuation');
+	}
+
+	public function testBackgroundSearchFallbackFollowsTheCursorToTheNextReplyPage(): void {
+		$thread = self::node('at://p/2', [self::node('at://r/1')]);
+		$thread['post']['replyCount'] = 3;
+		$config = $this->createMock(AtprotoConfig::class);
+		$config->method('isEnabled')->willReturn(true);
+		$refs = $this->createMock(PostRefs::class);
+		$refs->method('strongRef')->willReturn(['uri' => 'at://p/2', 'cid' => 'bafy']);
+		$appView = $this->createMock(AppViewClient::class);
+		$searchParams = [];
+		$appView->expects($this->exactly(4))->method('query')->willReturnCallback(
+			static function (string $method, array $params) use (&$searchParams, $thread): array {
+				if ($method === 'app.bsky.feed.getPostThread') {
+					return ['thread' => $thread];
+				}
+				if ($method === 'app.bsky.unspecced.getPostThreadV2') {
+					throw new AtprotoException('UnknownMethod');
+				}
+				$searchParams[] = $params;
+				if (!isset($params['cursor'])) {
+					return [
+						'posts' => [
+							['uri' => 'at://r/2', 'record' => ['reply' => ['root' => ['uri' => 'at://p/2'], 'parent' => ['uri' => 'at://p/2']]]],
+						],
+						'cursor' => 'page-two',
+					];
+				}
+
+				return [
+					'posts' => [
+						['uri' => 'at://r/3', 'record' => ['reply' => ['root' => ['uri' => 'at://p/2'], 'parent' => ['uri' => 'at://p/2']]]],
+					],
+				];
+			}
+		);
+		$stored = [];
+		$store = $this->createMock(PostStore::class);
+		$store->method('storePost')->willReturnCallback(static function (array $post) use (&$stored): bool {
+			$stored[] = $post['uri'];
+
+			return true;
+		});
+		$source = new BlueskyThreadSource($config, $appView, $refs, $store, $this->createMock(LabelerService::class), new NullLogger());
+
+		$this->assertSame(4, $source->fill((new Note())->setId('https://social.test/@alice/2'), 10));
+		$this->assertSame(['at://p/2', 'at://r/1', 'at://r/2', 'at://r/3'], $stored);
+		$this->assertSame('page-two', $searchParams[1]['cursor']);
+	}
+
 	public function testIncompleteV2ReplyPageRequestsABackgroundFill(): void {
 		$thread = self::node('at://p/2', [self::node('at://r/1')]);
 		$thread['post']['replyCount'] = 3;
@@ -207,7 +308,7 @@ class BlueskyThreadSourceTest extends TestCase {
 		$refs = $this->createMock(PostRefs::class);
 		$refs->method('strongRef')->willReturn(['uri' => 'at://p/2', 'cid' => 'bafy']);
 		$appView = $this->createMock(AppViewClient::class);
-		$appView->expects($this->exactly(2))->method('query')->willReturnCallback(
+		$appView->expects($this->exactly(3))->method('query')->willReturnCallback(
 			static function (string $method) use ($thread): array {
 				if ($method === 'app.bsky.feed.getPostThread') {
 					return ['thread' => $thread];
