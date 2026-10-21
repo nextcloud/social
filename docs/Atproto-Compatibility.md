@@ -1480,8 +1480,10 @@ reaching the chat service another way goes by it.
   profile status API reads the public `getAuthorFeed` into the shared stream
   before its regular account query; opaque cursors are stored against local
   status ids, and each AppView page is read once while its cached posts are
-  traversed, preserving the profile's existing `max_id` pagination. An
-  AppView outage does not prevent already stored posts from being read. The
+  traversed, preserving the profile's existing `max_id` pagination. A bounded
+  refill resumes from its saved cursor after an invalid or failed AppView page,
+  so hidden records do not have to be traversed again. An AppView outage does
+  not prevent already stored posts from being read. The
   same endpoint serves the Posts, Photos and Videos profile tabs, so imported
   records keep the existing media filtering, cards and post actions. Pinned
   posts continue through the profile's pin endpoint.

@@ -358,6 +358,12 @@ class BlueskyFeeds {
 			}
 		} catch (Throwable $e) {
 			$this->logger->info('Bluesky profile feed not read', ['actor' => $actor->getId(), 'exception' => $e]);
+			// Keep the progress made past hidden or unavailable records. Without
+			// this, a failed page retries from the previous visible post's cursor
+			// and asks the AppView for the same empty pages again.
+			if ($cursor !== '') {
+				$this->durableCache->set(self::PROFILE_RETRIES, $key, $cursor, self::CURSOR_KEPT);
+			}
 
 			return true;
 		}

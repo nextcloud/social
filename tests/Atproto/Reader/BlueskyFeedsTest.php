@@ -286,6 +286,29 @@ class BlueskyFeedsTest extends TestCase {
 		self::assertTrue($this->feeds()->authorPage($actor, '', 20, $this->alice));
 	}
 
+	public function testAProfileRefillResumesAfterHiddenPagesWhenTheNextPageHasAnInvalidCursor(): void {
+		$actor = (new Person())->setId(BlueskyIds::actorId(self::BOB));
+		$hidden = [];
+		$visible = [];
+		for ($index = 0; $index < 21; $index++) {
+			$hiddenUri = 'at://' . self::BOB . '/app.bsky.feed.post/hidden-before-error-' . $index;
+			$hidden[] = ['post' => ['uri' => $hiddenUri]];
+			$this->hidden[] = BlueskyIds::postIdOfUri($hiddenUri);
+			$visible[] = ['post' => ['uri' => 'at://' . self::BOB . '/app.bsky.feed.post/visible-after-error-' . $index]];
+		}
+		$this->answerPages['app.bsky.feed.getAuthorFeed'] = [
+			['feed' => $hidden, 'cursor' => 'after-hidden-page'],
+			['feed' => [], 'cursor' => 'after-hidden-page'], // repeated cursor: invalid continuation response
+			['feed' => $visible, 'cursor' => 'after-visible-page'],
+		];
+		$feeds = $this->feeds(false);
+
+		self::assertTrue($feeds->authorPage($actor, '', 20, $this->alice));
+		self::assertFalse($feeds->authorPage($actor, '', 20, $this->alice));
+		self::assertSame('after-hidden-page', $this->asked[1][1]['cursor']);
+		self::assertSame('after-hidden-page', $this->asked[2][1]['cursor'], 'the retry starts after the hidden page already read');
+	}
+
 	public function testAProfileRefillForALaterPageResumesFromItsOwnCursor(): void {
 		$actor = (new Person())->setId(BlueskyIds::actorId(self::BOB));
 		$firstPage = [];
