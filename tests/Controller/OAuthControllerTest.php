@@ -37,6 +37,7 @@ use OCA\Social\Service\InstanceService;
 use OCA\Social\Service\VapidService;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
+use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\RedirectResponse;
 use OCP\AppFramework\Http\TemplateResponse;
@@ -922,6 +923,22 @@ class OAuthControllerTest extends TestCase {
 		$this->atprotoOAuth->method('refusal')->willReturn('https://app.example/callback?error=access_denied');
 
 		return $requested;
+	}
+
+	public function testABlueskyLoginSendsAVisitorToNextcloudLoginAndPreservesTheRequest(): void {
+		$authorizeUrl = '/oauth/authorize?client_id=' . rawurlencode(self::ATPROTO_CLIENT)
+			. '&request_uri=' . rawurlencode(self::REQUEST_URI);
+		$this->request->method('getRequestUri')->willReturn($authorizeUrl);
+		$this->urlGenerator->expects($this->once())
+			->method('linkToRoute')
+			->with('core.login.showLoginForm', ['redirect_url' => $authorizeUrl])
+			->willReturn('/index.php/login?redirect_url=' . rawurlencode($authorizeUrl));
+
+		$response = $this->controller->authorize(self::ATPROTO_CLIENT, '', '', '', '', '', '', self::REQUEST_URI);
+
+		$this->assertInstanceOf(RedirectResponse::class, $response);
+		$this->assertSame('/index.php/login?redirect_url=' . rawurlencode($authorizeUrl), $response->getRedirectURL());
+		$this->assertNotEmpty((new \ReflectionMethod(OAuthController::class, 'authorize'))->getAttributes(PublicPage::class));
 	}
 
 	public function testABlueskyAppsSignInOffersSetupToAReaderWithoutAnAccount(): void {

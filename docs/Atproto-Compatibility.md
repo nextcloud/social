@@ -2710,7 +2710,9 @@ thread root), `RecordMapper` (reply, quote and card embeds, the postgate),
   it names the app by the host of its client ID and shows the whole
   address, because an app's own name and logo are what it says of itself
   and are not shown. A `login_hint` naming another account than the one
-  signed in is refused.
+  signed in is refused. A browser without a Nextcloud session is sent to
+  Nextcloud login and returned to the same authorization URL, including the
+  pushed request, before consent is displayed.
 - **Tokens**: access tokens of fifteen minutes, bound to the DPoP key and
   checked against their session on every request, so signing an app out
   stops it at once; refresh tokens used once and rotated, and a replaced

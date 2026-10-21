@@ -388,6 +388,7 @@ class OAuthController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[NoAdminRequired]
+	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/oauth/authorize')]
 	public function authorize(
 		string $client_id,
@@ -399,6 +400,12 @@ class OAuthController extends Controller {
 		string $code_challenge_method = '',
 		string $request_uri = '',
 	): Response {
+		if ($this->userSession->getUser() === null) {
+			return new RedirectResponse($this->urlGenerator->linkToRoute('core.login.showLoginForm', [
+				'redirect_url' => $this->request->getRequestUri(),
+			]));
+		}
+
 		if ($request_uri !== '') {
 			return $this->atprotoAuthorize($client_id, $request_uri);
 		}
