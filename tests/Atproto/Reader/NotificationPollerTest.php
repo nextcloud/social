@@ -198,8 +198,8 @@ class NotificationPollerTest extends TestCase {
 		]]);
 		$this->cursors->expects($this->once())->method('synced')->with(self::LOCAL, '2026-10-08T12:00:00.000Z', self::NOW, self::NOW + NotificationPoller::INTERVAL, self::TABLE);
 
-		$this->assertSame(1, $this->poller->pollAccount(new Watch(self::LOCAL, 'alice.social.test', '2026-10-08T10:00:00.000Z', self::NOW - 1000, self::NOW, 0, '', 0)));
-		$this->assertCount(1, $this->imported);
+		$this->assertSame(2, $this->poller->pollAccount(new Watch(self::LOCAL, 'alice.social.test', '2026-10-08T10:00:00.000Z', self::NOW - 1000, self::NOW, 0, '', 0)));
+		$this->assertCount(2, $this->imported);
 	}
 
 	public function testAPassEnrolsEveryActiveIdentityAndVisitsTheDueOnes(): void {

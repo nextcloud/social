@@ -116,7 +116,7 @@ class NotificationPoller {
 					continue;
 				}
 				$seen = (string)($notification['indexedAt'] ?? '');
-				if ($checkpoint->since !== '' && $seen !== '' && $seen <= $checkpoint->since) {
+				if ($checkpoint->since !== '' && $seen !== '' && $seen < $checkpoint->since) {
 					$reached = true;
 					break;
 				}

@@ -914,7 +914,11 @@ cursor column (`Reader\PollCursor`): `since`, the last committed timestamp;
 `newest`, the newest timestamp of the walk; and `page`, the next opaque AppView
 cursor. Each pass reads one page and resumes the rest on the next pass. Only
 reaching `since` or the end commits `newest`; a failed or malformed response
-does not move the checkpoint. Empty pages with a continuation are followed,
+does not move the checkpoint. `indexedAt` values are not event identifiers:
+posts or notifications tied at the committed timestamp are read, and only a
+strictly older timestamp ends the walk. The opaque cursor carries ties across
+pages; imports are idempotent when the boundary is seen again. Empty pages
+with a continuation are followed,
 and pending walks do not back off as empty feeds. A first read remains a
 snapshot of the newest page. Pinned posts are handled separately by
 `BlueskyPins`, so they neither stop the chronological walk nor advance it.
