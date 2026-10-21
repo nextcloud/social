@@ -82,6 +82,7 @@ class ActivityPubCountSource implements CountSource {
 			// refresh does not make one sequential request per counter.
 			if ($collections !== []) {
 				$collectionAnswers = $this->curl->retrieveObjectsMany(array_keys($collections), ['timeout' => $timeout ?? self::ORIGIN_TIMEOUT]);
+				$firstPages = [];
 				foreach ($collections as $url => $refs) {
 					$collection = $collectionAnswers[$url] ?? null;
 					if (!is_array($collection) || ($collection['id'] ?? $collection['@id'] ?? '') !== $url) {
@@ -91,7 +92,39 @@ class ActivityPubCountSource implements CountSource {
 						foreach (array_keys($counters) as $counter) {
 							$property = array_search($counter, self::COUNT_KEYS, true);
 							if (is_string($property)) {
-								$counts[$postId][$counter] = Stream::statedCount([$property => $collection], $property);
+								$count = Stream::statedCount([$property => $collection], $property);
+								if ($count !== null) {
+									$counts[$postId][$counter] = $count;
+									continue;
+								}
+								$first = $collection['first'] ?? null;
+								$count = is_array($first) ? Stream::statedCount([$property => $first], $property) : null;
+								if ($count !== null) {
+									$counts[$postId][$counter] = $count;
+									continue;
+								}
+								$pageUrl = self::collectionUrl($first);
+								if ($pageUrl !== '') {
+									$firstPages[$pageUrl][$postId][$counter] = $property;
+								}
+							}
+						}
+					}
+				}
+				// A few servers expose `totalItems` only on the first page, not
+				// on the collection root referenced by the post. Read those first
+				// pages together; counting their `items` would only be a partial
+				// total and would understate the post's reactions.
+				if ($firstPages !== []) {
+					$pageAnswers = $this->curl->retrieveObjectsMany(array_keys($firstPages), ['timeout' => $timeout ?? self::ORIGIN_TIMEOUT]);
+					foreach ($firstPages as $pageUrl => $refs) {
+						$page = $pageAnswers[$pageUrl] ?? null;
+						if (!is_array($page) || ($page['id'] ?? $page['@id'] ?? '') !== $pageUrl) {
+							continue;
+						}
+						foreach ($refs as $postId => $counters) {
+							foreach ($counters as $counter => $property) {
+								$counts[$postId][$counter] = Stream::statedCount([$property => $page], $property);
 							}
 						}
 					}
