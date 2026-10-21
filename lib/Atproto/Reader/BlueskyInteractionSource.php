@@ -15,6 +15,7 @@ use OCA\Social\Atproto\Publisher\PostRefs;
 use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Model\ActivityPub\Object\Like;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Service\DurableCache;
 use OCA\Social\Service\Interaction\InteractionSource;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -28,6 +29,10 @@ use UnexpectedValueException;
  * any Bluesky post is.
  */
 class BlueskyInteractionSource implements InteractionSource {
+	private const QUOTE_CURSOR = 'social.atproto.quotes.cursor';
+	private const QUOTE_CURSOR_KEPT = 3600;
+	private const MAX_QUOTE_PAGES = 100;
+
 	public function __construct(
 		private AtprotoConfig $config,
 		private AppViewClient $appView,
@@ -37,6 +42,7 @@ class BlueskyInteractionSource implements InteractionSource {
 		private BlueskyActorService $actors,
 		private LabelerService $labelers,
 		private LoggerInterface $logger,
+		private DurableCache $durableCache,
 	) {
 	}
 
@@ -103,32 +109,60 @@ class BlueskyInteractionSource implements InteractionSource {
 	#[\Override]
 	public function quotes(Stream $post, int $limit, ?int $timeout = null): int {
 		$uri = $this->refs->strongRef($post->getId())['uri'] ?? '';
-		try {
-			$params = ['uri' => $uri, 'limit' => max(1, min(100, $limit))];
-			$headers = ['atproto-accept-labelers' => $this->labelers->acceptHeader()];
-			$answer = $timeout === null
-				? $this->appView->query('app.bsky.feed.getQuotes', $params, $headers)
-				: $this->appView->query('app.bsky.feed.getQuotes', $params, $headers, $timeout);
-		} catch (Throwable $e) {
-			$this->logger->info('Bluesky quotes not read', ['uri' => $uri, 'exception' => $e]);
-
-			throw $e;
-		}
-		if (!is_array($answer['posts'] ?? null)) {
-			throw new UnexpectedValueException('Bluesky quote response has no posts list');
-		}
+		$key = hash('sha256', $uri);
+		$savedCursor = $this->durableCache->getShared(self::QUOTE_CURSOR, $key);
+		$cursor = is_string($savedCursor) ? $savedCursor : '';
+		$seen = $cursor === '' ? [] : [$cursor => true];
+		$deadline = $timeout === null ? null : hrtime(true) + ($timeout * 1_000_000_000);
 		$stored = 0;
-		foreach ($answer['posts'] as $view) {
-			if (!is_array($view) || !is_string($view['uri'] ?? null) || $view['uri'] === '') {
-				throw new UnexpectedValueException('Bluesky quote response contains an invalid post');
+		for ($page = 0; $page < self::MAX_QUOTE_PAGES; $page++) {
+			$requestTimeout = $timeout;
+			if ($deadline !== null) {
+				$requestTimeout = (int)floor(max(0, $deadline - hrtime(true)) / 1_000_000_000);
+				if ($requestTimeout < 1) {
+					throw new \RuntimeException('Bluesky quote read exceeded its time budget');
+				}
 			}
-			if ($this->store->storePost($view, false)) {
-				$stored++;
-			} else {
-				$this->store->refreshKnownPostCountsFromView($view);
+			$params = ['uri' => $uri, 'limit' => max(1, min(100, $limit))] + ($cursor !== '' ? ['cursor' => $cursor] : []);
+			try {
+				$answer = $requestTimeout === null
+					? $this->appView->query('app.bsky.feed.getQuotes', $params, ['atproto-accept-labelers' => $this->labelers->acceptHeader()])
+					: $this->appView->query('app.bsky.feed.getQuotes', $params, ['atproto-accept-labelers' => $this->labelers->acceptHeader()], $requestTimeout);
+			} catch (Throwable $e) {
+				$this->logger->info('Bluesky quotes not read', ['uri' => $uri, 'exception' => $e]);
+
+				throw $e;
 			}
+			if (!is_array($answer['posts'] ?? null) || ($answer['uri'] ?? null) !== $uri) {
+				throw new UnexpectedValueException('Bluesky quote response has no valid target or posts list');
+			}
+			foreach ($answer['posts'] as $view) {
+				if (!is_array($view) || !is_string($view['uri'] ?? null) || $view['uri'] === '') {
+					throw new UnexpectedValueException('Bluesky quote response contains an invalid post');
+				}
+				if ($this->store->storePost($view, false)) {
+					$stored++;
+				} else {
+					$this->store->refreshKnownPostCountsFromView($view);
+				}
+			}
+			if (array_key_exists('cursor', $answer) && !is_string($answer['cursor'])) {
+				throw new UnexpectedValueException('Bluesky quote response has an invalid cursor');
+			}
+			$next = $answer['cursor'] ?? '';
+			if ($next === '') {
+				$this->durableCache->removeShared(self::QUOTE_CURSOR, $key);
+
+				return $stored;
+			}
+			if (isset($seen[$next])) {
+				throw new UnexpectedValueException('Bluesky quote cursor did not advance');
+			}
+			$this->durableCache->setShared(self::QUOTE_CURSOR, $key, $next, self::QUOTE_CURSOR_KEPT);
+			$seen[$next] = true;
+			$cursor = $next;
 		}
 
-		return $stored;
+		throw new UnexpectedValueException('Bluesky quotes have too many pages');
 	}
 }
