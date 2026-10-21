@@ -12,6 +12,7 @@ namespace OCA\Social\Tests\Service;
 use OCA\Social\Atproto\Firehose\Subscriber;
 use OCA\Social\Atproto\Firehose\WebSocketServer;
 use OCA\Social\Db\ListsRequest;
+use OCA\Social\Db\StatusDeletionEventsRequest;
 use OCA\Social\Db\StatusRevisionsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -42,6 +43,7 @@ class MastodonStreamingDaemonTest extends TestCase {
 	private AccountService&MockObject $accounts;
 	private StreamRequest&MockObject $requests;
 	private StatusRevisionsRequest&MockObject $statusRevisions;
+	private StatusDeletionEventsRequest&MockObject $statusDeletionEvents;
 	private StreamService&MockObject $streams;
 	private ConversationService&MockObject $conversations;
 	private ListsRequest&MockObject $lists;
@@ -57,6 +59,8 @@ class MastodonStreamingDaemonTest extends TestCase {
 		$this->requests = $this->createMock(StreamRequest::class);
 		$this->statusRevisions = $this->createMock(StatusRevisionsRequest::class);
 		$this->statusRevisions->method('newestId')->willReturn(50);
+		$this->statusDeletionEvents = $this->createMock(StatusDeletionEventsRequest::class);
+		$this->statusDeletionEvents->method('newestId')->willReturn(12);
 		$this->streams = $this->createMock(StreamService::class);
 		$this->conversations = $this->createMock(ConversationService::class);
 		$this->lists = $this->createMock(ListsRequest::class);
@@ -74,6 +78,7 @@ class MastodonStreamingDaemonTest extends TestCase {
 			$this->accounts,
 			$this->requests,
 			$this->statusRevisions,
+			$this->statusDeletionEvents,
 			$this->streams,
 			$this->conversations,
 			$this->lists,
@@ -396,6 +401,48 @@ class MastodonStreamingDaemonTest extends TestCase {
 		self::assertIsString($payload);
 		self::assertStringContainsString('event: conversation', $payload);
 		self::assertStringNotContainsString('event: status.update', $payload);
+	}
+
+	public function testPublicStreamReceivesDeletedStatusId(): void {
+		$this->statusDeletionEvents->expects(self::once())->method('getAfterId')->with(12, 50)->willReturn([
+			['id' => 13, 'status_nid' => '75', 'hashtags' => [], 'local' => true, 'media' => false],
+		]);
+		$subscriber = $this->subscriber();
+		$subscriber->eventStream = true;
+		$subscriber->context = ['deleteSince' => 12, 'subscriptions' => ['public:local' => true]];
+		$server = new WebSocketServer('127.0.0.1:' . random_int(20000, 60000));
+		try {
+			$this->invoke('sendDeletedPublicStatuses', $server, $subscriber);
+		} finally {
+			$server->shutdown();
+		}
+
+		self::assertSame(13, $subscriber->context['deleteSince']);
+		rewind($subscriber->socket);
+		$payload = stream_get_contents($subscriber->socket);
+		self::assertIsString($payload);
+		self::assertStringContainsString('event: delete', $payload);
+		self::assertStringContainsString('data: "75"', $payload);
+	}
+
+	public function testPublicMediaStreamDoesNotReceiveDeletedTextStatus(): void {
+		$this->statusDeletionEvents->expects(self::once())->method('getAfterId')->willReturn([
+			['id' => 13, 'status_nid' => '75', 'hashtags' => [], 'local' => true, 'media' => false],
+		]);
+		$subscriber = $this->subscriber();
+		$subscriber->eventStream = true;
+		$subscriber->context = ['deleteSince' => 12, 'subscriptions' => ['public:local:media' => true]];
+		$server = new WebSocketServer('127.0.0.1:' . random_int(20000, 60000));
+		try {
+			$this->invoke('sendDeletedPublicStatuses', $server, $subscriber);
+		} finally {
+			$server->shutdown();
+		}
+
+		rewind($subscriber->socket);
+		$payload = stream_get_contents($subscriber->socket);
+		self::assertIsString($payload);
+		self::assertStringNotContainsString('event: delete', $payload);
 	}
 
 	public function testHashtagSubscriptionRequiresTagAndSupportsUnsubscribe(): void {

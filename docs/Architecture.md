@@ -271,6 +271,7 @@ The tables are created by `lib/Migration/Version1000Date20221118000002.php` — 
 | `social_account_note` | The private note one account keeps about another: one row per pair, never federated |
 | `social_mute_expiry` | When a mute runs out: one row per (muter, muted), and only for a mute that was given a duration |
 | `social_stream_rev` | The versions a status has been through: one row per version including the original, oldest first. `media` (TEXT, nullable) is the attachments of that version as a JSON list of client `MediaAttachment` entities, the shape `social_stream.attachments` stores — kept on the revision because `media_attributes` rewrites a description or focal point on the attachment itself; null on rows from before the column, which read as no attachments |
+| `social_stream_del` | A bounded cursor of public status deletions for live Mastodon streams: status id, hashtags, locality and whether it had media; the daemon sends ids only, never status content |
 | `social_featured_tag` | The hashtags an account pins to its profile: one row per (actor, lowercased tag), unique on the pair |
 | `social_announcement` | The instance's announcements: one row per notice, with the text as typed and the window it is served in (both bounds nullable) |
 | `social_announce_read` | Who has dismissed which announcement: one row per (account, announcement), unique on the pair |
@@ -306,6 +307,8 @@ an account without an identity does not prevent a later match from signing in.
 `Version1000Date20261016103300` adds `social_video_views` and `social_video_seen` — the public view count of a video posted here, and the day's dedupe behind it (see the schema table and **Where somebody stopped watching**). Two tables because they keep different things for different lengths of time: the number for as long as the post exists, the viewers for the day they were counted on.
 
 `Version1000Date20261006000010` adds `social_stream_rev.media`, the attachments of each recorded version of a status (see the schema table).
+
+`Version1000Date20261021000001` adds `social_stream_del`, a cursor of the latest 10,000 public status deletions. It lets connected Mastodon clients remove deleted public statuses without retaining the deleted post or exposing private status deletions.
 
 Two of those deserve a warning.
 
@@ -501,8 +504,12 @@ The direct stream resolves an edited message to a conversation visible to
 that viewer and emits the current `conversation` entity; a dismissed or
 inaccessible conversation is not emitted.
 `WebSocketServer` keeps connection and output-buffer bounds for both
-transports. The root Apache and Nginx examples proxy the streaming endpoints
-and health path to this daemon. Delete events remain unimplemented.
+transports. Public status deletions are retained as ids and their public-stream
+matching metadata, bounded to the newest 10,000 events. The daemon emits
+Mastodon's `delete` event to user, list, matching public, and matching hashtag
+subscriptions; direct-message and non-public deletions are never recorded.
+The root Apache and Nginx examples proxy the streaming endpoints and health
+path to this daemon.
 
 ## ActivityPub Federation
 

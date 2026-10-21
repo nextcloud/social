@@ -44,11 +44,11 @@ Aloha Social 0.19.95 is a capable, standards-correct ActivityPub server with a b
 and largely genuine Mastodon client API. A walk of Mastodon's 145 documented
 client routes against the route table found 23 genuinely unserved — the raw
 path diff said 45, and 22 of those were catch-alls a textual comparison cannot
-see. Web Push subscription and encrypted delivery are implemented. Of the 23,
-**two endpoints remain absent**: streaming, which is announced as unavailable
-so clients poll rather than hanging, and `emails/confirmations`, which belongs
-to a sign-up this app does not own. Everything else exists, and §3.3 says
-which of them is a stub.
+see. Web Push subscription and encrypted delivery are implemented. Streaming
+is implemented as an optional daemon and needs the documented proxy rules;
+public status deletions now reach connected user, list, public and matching
+hashtag streams. `emails/confirmations` remains absent because sign-up belongs
+to Nextcloud. Everything else exists, and §3.3 says which of them is a stub.
 
 It is **not** a drop-in replacement for Mastodon, and two things stood between
 it and that goal. One was small and mechanical: the API is not served at the
@@ -277,9 +277,13 @@ parameter. The direct stream emits `conversation` events and requires
 SSE clients pass it as the `list` query parameter, and WebSocket subscriptions
 pass it as `list`; WebSocket clients can unsubscribe from each list
 independently. WebSocket hashtag subscriptions require a `tag` value in the
-subscription message. The instance filters events using the same
-visibility, mute and filter rules as its REST timelines. Delete and
-status-edit streams are not implemented yet.
+subscription message. The instance filters timeline updates using the same
+visibility, mute and filter rules as its REST timelines. Public status
+deletions emit `delete` events to user, list, matching public and matching
+hashtag streams. These events contain only the status id, and a bounded cursor
+retains the newest 10,000 deletions. Private and direct-message deletions are
+not emitted. Edits emit `status.update` for matching public, hashtag, home and
+list streams and `conversation` for accessible direct-message edits.
 `GET /api/v1/streaming/health` is answered by the stream daemon. Web Push is
 implemented at `/api/v1/push/subscription`; the instance
 publishes the same stable public VAPID key in `configuration.vapid.public_key`
@@ -802,7 +806,7 @@ whether it is done. Query and scalability work has its own list in
 | 7 | **`/api/v1/instance/peers` and `/activity`** | Hours | Instance browsers and the about page showed nothing | done |
 | 8 | **The v1 filter routes** | Hours | A client that has not moved to v2 filters got a 404 rather than an empty list | done |
 | 9 | **`/api/saved_searches/list.json`** — implement or stop routing it | Hours | Initialises a viewer and returns `[]`. See "Two answers rather than a tick" below | **open, and a decision rather than a task** |
-| 10 | **Streaming** (`wss://`, `/api/v1/streaming/*`) | Weeks | A daemon streams user home, notification, public, hashtag, list and direct updates; edit events are covered for public, hashtag, home, list and direct streams, while delete events remain | **partial** |
+| 10 | **Streaming** (`wss://`, `/api/v1/streaming/*`) | Weeks | A daemon streams user home, notification, public, hashtag, list and direct updates; edits are covered for public, hashtag, home, list and direct streams, and public deletions emit ids | **partial** |
 
 ### Tier 2b — what walking the route list turned up
 
@@ -925,10 +929,11 @@ check says whether they have; on an instance where they have not, no stock
 client reaches *any* of the surface above.
 
 **Streaming (10) remains a substantial client-compatibility gap.** The
-long-lived daemon serves the timeline types and emits `status.update` for
-matching public, hashtag, home and list streams, plus the `conversation` event
-for a direct-message edit. Delete events still need work. Web Push remains available
-for notifications. The peer-level
+long-lived daemon serves the timeline types, emits `status.update` for matching
+public, hashtag, home and list streams, `conversation` for accessible direct
+message edits, and `delete` for public status removals. It does not announce
+private or direct-message deletions. Web Push remains available for
+notifications. The peer-level
 media serialization finding is fixed and covered by a test that hydrates a stored
 status before serializing it.
 

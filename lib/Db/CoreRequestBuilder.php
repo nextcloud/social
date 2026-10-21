@@ -56,6 +56,7 @@ class CoreRequestBuilder {
 	public const TABLE_MUTE_EXPIRY = 'social_mute_expiry';
 	public const TABLE_FEATURED_TAGS = 'social_featured_tag';
 	public const TABLE_STATUS_REVISIONS = 'social_stream_rev';
+	public const TABLE_STATUS_DELETIONS = 'social_stream_del';
 	public const TABLE_LISTS = 'social_list';
 	public const TABLE_LIST_MEMBERS = 'social_list_member';
 	public const TABLE_COLLECTIONS = 'social_collection';
@@ -613,6 +614,13 @@ class CoreRequestBuilder {
 			'published',
 			'media',
 			'creation'
+		],
+		self::TABLE_STATUS_DELETIONS => [
+			'id',
+			'status_nid',
+			'hashtags',
+			'local',
+			'media'
 		],
 		self::TABLE_FEATURED_TAGS => [
 			'id',

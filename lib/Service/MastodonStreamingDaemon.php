@@ -13,6 +13,7 @@ use OCA\Social\Atproto\Firehose\Subscriber;
 use OCA\Social\Atproto\Firehose\WebSocketServer;
 use OCA\Social\Db\HashtagsRequest;
 use OCA\Social\Db\ListsRequest;
+use OCA\Social\Db\StatusDeletionEventsRequest;
 use OCA\Social\Db\StatusRevisionsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
@@ -48,6 +49,7 @@ class MastodonStreamingDaemon {
 		private AccountService $accountService,
 		private StreamRequest $streamRequest,
 		private StatusRevisionsRequest $statusRevisionsRequest,
+		private StatusDeletionEventsRequest $statusDeletionEventsRequest,
 		private StreamService $streamService,
 		private ConversationService $conversationService,
 		private ListsRequest $listsRequest,
@@ -172,6 +174,7 @@ class MastodonStreamingDaemon {
 				'notificationSince' => $this->streamRequest->newestNidFor([md5($viewer->getId())], 'notif'),
 				'directSince' => $this->streamRequest->newestNidFor([md5($viewer->getId())], 'dm'),
 				'revisionSince' => $this->statusRevisionsRequest->newestId(),
+				'deleteSince' => $this->statusDeletionEventsRequest->newestId(),
 				'lastPoll' => 0,
 				'lastPing' => $this->time->getTime(),
 			];
@@ -389,7 +392,66 @@ class MastodonStreamingDaemon {
 		foreach ($subscriber->context['hashtagSubscriptions'] ?? [] as $key => $subscription) {
 			$this->sendHashtagStatuses($server, $subscriber, $viewer, $key, $subscription);
 		}
+		$this->sendDeletedPublicStatuses($server, $subscriber);
 		$this->sendEditedPublicStatuses($server, $subscriber, $viewer);
+	}
+
+	/** Sends public status ids to active streams so clients can remove deleted posts. */
+	private function sendDeletedPublicStatuses(WebSocketServer $server, Subscriber $subscriber): void {
+		$subscriptions = $subscriber->context['subscriptions'] ?? [];
+		$listSubscriptions = $subscriber->context['listSubscriptions'] ?? [];
+		$hashtagSubscriptions = $subscriber->context['hashtagSubscriptions'] ?? [];
+		if (!isset($subscriptions['user'])
+			&& ($listSubscriptions === [])
+			&& !array_intersect(array_keys($subscriptions), [...self::PUBLIC_STREAMS, 'hashtag', 'hashtag:local'])) {
+			return;
+		}
+
+		$events = $this->statusDeletionEventsRequest->getAfterId(
+			(int)($subscriber->context['deleteSince'] ?? 0),
+			self::BATCH
+		);
+		if ($events === []) {
+			return;
+		}
+		$subscriber->context['deleteSince'] = $events[array_key_last($events)]['id'];
+
+		foreach ($events as $event) {
+			$matching = [];
+			if (isset($subscriptions['user'])) {
+				$matching[] = 'user';
+			}
+			if ($listSubscriptions !== []) {
+				$matching[] = 'list';
+			}
+			foreach (self::PUBLIC_STREAMS as $stream) {
+				if (!isset($subscriptions[$stream]) || !$this->deletedStatusMatchesStream($event, $stream)) {
+					continue;
+				}
+				$matching[] = $stream;
+			}
+			$eventTags = array_map(static fn (string $tag): string => strtolower(ltrim($tag, '#')), $event['hashtags']);
+			foreach ($hashtagSubscriptions as $subscription) {
+				if (!is_array($subscription)) {
+					continue;
+				}
+				$tag = strtolower(ltrim((string)($subscription['tag'] ?? ''), '#'));
+				if ($tag !== '' && in_array($tag, $eventTags, true)
+					&& (!($subscription['local'] ?? false) || $event['local'])) {
+					$matching[] = (string)($subscription['stream'] ?? 'hashtag');
+				}
+			}
+			foreach (array_unique($matching) as $stream) {
+				$this->send($server, $subscriber, [$stream], 'delete', $event['status_nid']);
+			}
+		}
+	}
+
+	/** @param array{id: int, status_nid: string, hashtags: list<string>, local: bool, media: bool} $event */
+	private function deletedStatusMatchesStream(array $event, string $stream): bool {
+		return (!str_contains($stream, ':local') || $event['local'])
+			&& (!str_contains($stream, ':remote') || !$event['local'])
+			&& (!str_contains($stream, ':media') || $event['media']);
 	}
 
 	/** Sends edits to public and hashtag subscribers without replaying existing revisions. */
@@ -751,7 +813,7 @@ class MastodonStreamingDaemon {
 		}
 	}
 
-	private function send(WebSocketServer $server, Subscriber $subscriber, array $streams, string $event, array $payload): void {
+	private function send(WebSocketServer $server, Subscriber $subscriber, array $streams, string $event, array|string $payload): void {
 		try {
 			$status = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
 			if ($subscriber->eventStream) {

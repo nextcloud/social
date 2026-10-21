@@ -161,6 +161,7 @@ class StreamRequest extends StreamRequestBuilder {
 		private RenditionsRequest $renditionsRequest,
 		private FollowsRequest $followsRequest,
 		private SearchTermsRequest $searchTermsRequest,
+		private StatusDeletionEventsRequest $statusDeletionEventsRequest,
 	) {
 		parent::__construct($connection, $logger, $urlGenerator, $configService, $miscService);
 	}
