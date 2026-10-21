@@ -108,7 +108,7 @@ class CountService {
 	 * job can take a full scheduler interval to run, which is too late for a
 	 * post the reader is looking at now.
 	 */
-	public function refreshVisibleIfDue(Stream $post): bool {
+	public function refreshVisibleIfDue(Stream $post, bool $force = false): bool {
 		$now = $this->time->getTime();
 		if ($post->getType() === Announce::TYPE) {
 			$object = $post->getObject();
@@ -118,11 +118,11 @@ class CountService {
 		}
 
 		$countsAt = $post->getCountsAt();
-		if ($countsAt !== null && $now - $countsAt < self::VISIBLE_INTERVAL) {
+		if (!$force && $countsAt !== null && $now - $countsAt < self::VISIBLE_INTERVAL) {
 			return false;
 		}
 		$visible = $this->visibleState($post->getId());
-		if ($visible !== null) {
+		if ($visible !== null && (!$force || $visible === self::VISIBLE_PENDING)) {
 			return $visible === self::VISIBLE_PENDING;
 		}
 
@@ -143,11 +143,11 @@ class CountService {
 				return false;
 			}
 			$countsAt = $post->getCountsAt();
-			if ($countsAt !== null && $now - $countsAt < self::VISIBLE_INTERVAL) {
+			if (!$force && $countsAt !== null && $now - $countsAt < self::VISIBLE_INTERVAL) {
 				return false;
 			}
 			$visible = $this->visibleState($post->getId());
-			if ($visible !== null) {
+			if ($visible !== null && (!$force || $visible === self::VISIBLE_PENDING)) {
 				return $visible === self::VISIBLE_PENDING;
 			}
 

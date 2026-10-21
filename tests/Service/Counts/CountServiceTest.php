@@ -156,6 +156,18 @@ class CountServiceTest extends TestCase {
 		$this->assertFalse($this->service()->refreshVisibleIfDue($post));
 	}
 
+	public function testOpeningARecentlyCountedPostCanRequestFreshCountsImmediately(): void {
+		$post = $this->post('at://did:plc:author/app.bsky.feed.post/1', 3600, 1);
+		$source = $this->getMockBuilder(BlueskyCountSource::class)->disableOriginalConstructor()->onlyMethods(['supports', 'refresh'])->getMock();
+		$source->method('supports')->with($post)->willReturn(true);
+		$source->expects($this->exactly(2))->method('refresh')->with([$post], AppViewClient::INTERACTIVE_TIMEOUT)->willReturn(1);
+		$this->sources[BlueskyCountSource::class] = $source;
+
+		$service = $this->service();
+		$this->assertTrue($service->refreshVisibleIfDue($post, true));
+		$this->assertTrue($service->refreshVisibleIfDue($post, true), 'a new detail-page open bypasses the prior short freshness window');
+	}
+
 	public function testConcurrentVisibleRefreshDoesNotAskBlueskyTwice(): void {
 		$post = $this->post('at://did:plc:author/app.bsky.feed.post/1', 3600, null);
 		$source = $this->getMockBuilder(BlueskyCountSource::class)->disableOriginalConstructor()->onlyMethods(['supports', 'refresh'])->getMock();

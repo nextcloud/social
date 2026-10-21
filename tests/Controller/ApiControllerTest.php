@@ -1535,6 +1535,17 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame('1', $response->getHeaders()['X-Social-Filling'] ?? null, 'the client reads it again a little later');
 	}
 
+	public function testOpeningAStatusCanForceACurrentCountRead(): void {
+		$this->userSession->method('getUser')->willReturn(null);
+		$item = $this->createMock(Stream::class);
+		$this->streamService->method('getStreamByNid')->willReturn($item);
+		$this->counts->expects($this->once())->method('refreshVisibleIfDue')->with($item, true)->willReturn(true);
+
+		$response = $this->controller()->statusGet(42, true, true);
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+	}
+
 	public function testAStatusWhoseCountsAreCurrentSaysNothingIsOnItsWay(): void {
 		$this->userSession->method('getUser')->willReturn(null);
 		$item = $this->createMock(Stream::class);

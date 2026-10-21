@@ -499,7 +499,7 @@ class StatusApiController extends MastodonApiController {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/statuses/{nid}')]
-	public function statusGet(int|string $nid, bool $refresh_counts = true): DataResponse {
+	public function statusGet(int|string $nid, bool $refresh_counts = true, bool $force_counts = false): DataResponse {
 		try {
 			$this->initViewer(false);
 
@@ -511,7 +511,7 @@ class StatusApiController extends MastodonApiController {
 			}
 			// Refresh the post from its origin when opened; the background count
 			// queue is deliberately much slower than an interactive read.
-			$refreshed = $refresh_counts && $this->counts->refreshVisibleIfDue($item);
+			$refreshed = $refresh_counts && $this->counts->refreshVisibleIfDue($item, $force_counts);
 			if ($refreshed) {
 				$item = $this->streamService->getStreamByNid(\OCA\Social\Tools\Nid::fromStorage($nid));
 			}

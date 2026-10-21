@@ -1454,14 +1454,17 @@ export const useTimelineStore = defineStore('timeline', {
 		 *
 		 * @param {string} id the status id
 		 * @param {boolean} [refresh] bypass an HTTP cache when refreshing visible counts
+		 * @param {boolean} [forceCounts] ask the origin even when the last count refresh was recent
 		 * @return {Promise<object|null>} the status, or null if it is not there
 		 */
-		async fetchStatus(id, refresh = false) {
+		async fetchStatus(id, refresh = false, forceCounts = false) {
 			try {
 				const url = generateUrl(`apps/social/api/v1/statuses/${id}`)
-				const get = () => refresh
-					? axios.get(url, { params: { _social_refresh: Date.now() } })
-					: axios.get(url)
+				const get = (includeForceCounts = forceCounts) => refresh
+					? axios.get(url, { params: { _social_refresh: Date.now(), ...(includeForceCounts ? { force_counts: true } : {}) } })
+					: includeForceCounts
+						? axios.get(url, { params: { force_counts: true } })
+						: axios.get(url)
 				const response = await get()
 				this.addToStatuses(response.data)
 				// its counts are being asked for where it lives: read once more
@@ -1470,7 +1473,7 @@ export const useTimelineStore = defineStore('timeline', {
 					this.statusRefetching = { ...this.statusRefetching, [id]: true }
 					const refetch = (attempt) => setTimeout(async () => {
 						try {
-							const refreshed = await get()
+							const refreshed = await get(false)
 							this.addToStatuses(refreshed.data)
 							if (attempt < MAX_STATUS_REFETCHES && refreshed.headers?.['x-social-filling'] === '1') {
 								refetch(attempt + 1)

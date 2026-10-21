@@ -740,6 +740,32 @@ describe('timeline store actions', () => {
 			})
 		})
 
+		it('asks the server for a fresh count snapshot when opening a post', async () => {
+			axios.get.mockResolvedValue({ data: makeStatus('42') })
+
+			await store.fetchStatus('42', false, true)
+
+			expect(axios.get).toHaveBeenCalledWith(`${API}/statuses/42`, {
+				params: { force_counts: true },
+			})
+		})
+
+		it('does not force another origin read during the short status-fill polling loop', async () => {
+			vi.useFakeTimers()
+			try {
+				axios.get.mockResolvedValueOnce({ data: makeStatus('42'), headers: { 'x-social-filling': '1' } })
+				axios.get.mockResolvedValueOnce({ data: makeStatus('42'), headers: {} })
+
+				await store.fetchStatus('42', false, true)
+				await vi.advanceTimersByTimeAsync(1000)
+
+				expect(axios.get).toHaveBeenNthCalledWith(1, `${API}/statuses/42`, { params: { force_counts: true } })
+				expect(axios.get).toHaveBeenNthCalledWith(2, `${API}/statuses/42`)
+			} finally {
+				vi.useRealTimers()
+			}
+		})
+
 		it('retries live counts while a status is still being filled', async () => {
 			vi.useFakeTimers()
 			try {

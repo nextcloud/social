@@ -427,7 +427,7 @@ export default {
 				let state = ''
 				this.postState = 'loading'
 				try {
-					await this.timelineStore.fetchStatus(routeId)
+					await this.timelineStore.fetchStatus(routeId, false, true)
 				} catch (error) {
 					logger.debug('Could not load a single status', { error, id: routeId })
 					state = 'failed'
@@ -444,7 +444,7 @@ export default {
 				this.postState = ''
 				// A timeline copy can already be minutes old. Keep it on screen,
 				// while replacing it with the origin's current counts and details.
-				this.timelineStore.fetchStatus(id).catch((error) => {
+				this.timelineStore.fetchStatus(id, false, true).catch((error) => {
 					logger.debug('Could not refresh an opened status', { error, id })
 				})
 			}
