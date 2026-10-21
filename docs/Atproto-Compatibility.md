@@ -1088,8 +1088,9 @@ to Bluesky. See **Whole conversations** in Architecture.md.
 The likes, boosts and quotes lists of a post that is on Bluesky — read from
 there, or written here and published — have Bluesky's in them too
 (`BlueskyInteractionSource`: `getLikes`, `getRepostedBy`, `getQuotes`), read
-in the background beside the fediverse's collections. See **Who liked,
-boosted or quoted** in Architecture.md.
+in the background beside the fediverse's collections. A visible read also
+refreshes changed avatars on already cached Bluesky reactors, preserving their
+full cached profile. See **Who liked, boosted or quoted** in Architecture.md.
 
 ### 9.4c Hashtags and searches
 

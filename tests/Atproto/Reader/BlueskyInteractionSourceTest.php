@@ -18,6 +18,7 @@ use OCA\Social\Atproto\Reader\BlueskyInteractionSource;
 use OCA\Social\Atproto\Reader\PostStore;
 use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\TestCase;
@@ -25,6 +26,46 @@ use Psr\Log\NullLogger;
 
 #[AllowMockObjectsWithoutExpectations]
 class BlueskyInteractionSourceTest extends TestCase {
+	public function testReactionViewRefreshesCachedAvatarWithoutDroppingTheProfile(): void {
+		$config = $this->createMock(AtprotoConfig::class);
+		$config->method('isEnabled')->willReturn(true);
+		$refs = $this->createMock(PostRefs::class);
+		$refs->method('strongRef')->willReturn(['uri' => 'at://did:plc:alice/app.bsky.feed.post/3k', 'cid' => 'bafy']);
+		$appView = $this->createMock(AppViewClient::class);
+		$appView->method('query')->willReturn(['likes' => [[
+			'actor' => ['did' => 'did:plc:ann', 'handle' => 'ann.test', 'avatar' => 'https://cdn.bsky.app/avatar/new.jpeg'],
+		]]]);
+		$cached = (new Person())->setName('Cached display name')->setSummary('Cached full bio');
+		$actors = $this->createMock(BlueskyActorService::class);
+		$actors->method('cached')->with('did:plc:ann')->willReturn($cached);
+		$actors->expects($this->once())->method('store')->with($this->callback(static function (Person $actor): bool {
+			return $actor->getName() === 'Cached display name'
+				&& $actor->getSummary() === 'Cached full bio'
+				&& $actor->hasIcon()
+				&& $actor->getIcon()?->getUrl() === 'https://cdn.bsky.app/avatar/new.jpeg';
+		}));
+		$mapper = $this->createMock(ActorMapper::class);
+		$mapper->method('person')->willReturnCallback(static function (array $profile): Person {
+			$person = new Person();
+			$avatar = (new Document())->setUrl((string)$profile['avatar']);
+			$person->setIcon($avatar);
+
+			return $person;
+		});
+		$source = new BlueskyInteractionSource(
+			$config,
+			$appView,
+			$refs,
+			$this->createMock(PostStore::class),
+			$mapper,
+			$actors,
+			$this->createMock(LabelerService::class),
+			new NullLogger(),
+		);
+
+		$this->assertSame(['https://bsky.app/profile/did:plc:ann'], $source->actors((new Note())->setId('https://social.test/@alice/1'), 'Like', 10));
+	}
+
 	public function testLikersRepostersAndQuotesAreAskedOfTheAppView(): void {
 		$config = $this->createMock(AtprotoConfig::class);
 		$config->method('isEnabled')->willReturn(true);

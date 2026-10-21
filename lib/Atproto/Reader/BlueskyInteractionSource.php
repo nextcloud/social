@@ -66,8 +66,23 @@ class BlueskyInteractionSource implements InteractionSource {
 				continue;
 			}
 			try {
-				if ($this->actors->cached($did) === null) {
+				$cached = $this->actors->cached($did);
+				$avatarUrl = trim((string)($profile['avatar'] ?? ''));
+				if ($cached === null) {
 					$this->actors->store($this->mapper->person($profile));
+				} elseif (!$cached->isLocal() && $avatarUrl !== '') {
+					// Reaction views carry an avatar but not a full profile. Refresh
+					// that image on the cached actor without replacing its richer
+					// description, banner, PDS details or moderation state.
+					$cachedAvatar = $cached->getIcon();
+					if ($cachedAvatar === null || $cachedAvatar->getUrl() !== $avatarUrl) {
+						$mapped = $this->mapper->person($profile);
+						$avatar = $mapped->getIcon();
+						if ($avatar !== null) {
+							$cached->setIcon($avatar);
+							$this->actors->store($cached);
+						}
+					}
 				}
 				$ids[] = BlueskyIds::actorId($did);
 			} catch (Throwable $e) {
