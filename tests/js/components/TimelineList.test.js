@@ -70,7 +70,7 @@ const TimelineEntryStub = {
 	props: ['item', 'type', 'depth', 'unread', 'immediate'],
 	// carries the real component's class and tabindex, because the list finds
 	// entries by that class and sends focus to them
-	template: '<li class="timeline-entry timeline-entry-stub" tabindex="-1" :data-id="item.id" :data-depth="depth" :data-unread="unread ? \'yes\' : \'no\'" />',
+	template: '<li class="timeline-entry timeline-entry-stub" tabindex="-1" :data-id="item.id" :data-status-id="item.id" :data-depth="depth" :data-unread="unread ? \'yes\' : \'no\'" />',
 }
 const entryDepths = (wrapper) => wrapper.findAll('.timeline-entry-stub').map((entry) => [entry.attributes('data-id'), Number(entry.attributes('data-depth'))])
 
@@ -153,6 +153,23 @@ describe('TimelineList', () => {
 	afterEach(() => {
 		vi.useRealTimers()
 		vi.unstubAllGlobals()
+	})
+
+	it('refreshes visible Bluesky counts on entry and throttles repeated checks', async () => {
+		const post = { ...status('bsky'), uri: 'at://did:plc:alice/app.bsky.feed.post/1' }
+		const { wrapper, store } = mountList({ timeline: [post] })
+		await flushPromises()
+		const entry = wrapper.find('.timeline-entry-stub').element
+		vi.spyOn(entry, 'getBoundingClientRect').mockReturnValue({ top: 10, bottom: 200 })
+		wrapper.vm.countRefreshLastAsked.clear()
+		const refresh = vi.spyOn(store, 'fetchStatus').mockResolvedValue(post)
+
+		wrapper.vm.refreshVisibleBlueskyCounts()
+		wrapper.vm.refreshVisibleBlueskyCounts()
+
+		expect(refresh).toHaveBeenCalledTimes(1)
+		expect(refresh).toHaveBeenCalledWith('bsky')
+		wrapper.unmount()
 	})
 
 	describe('the Videos page', () => {

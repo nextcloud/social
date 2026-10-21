@@ -81,7 +81,7 @@ class PollingBacklogTest extends TestCase {
 		$this->assertSame(['', 'second', 'third', 'last'], $asked);
 		$this->assertSame(array_map(self::uri(...), range(225, 100)), $this->stored);
 		$this->assertSame(self::stamp(225), $this->checkpoint);
-		$this->assertSame([120, 120, 120, 120], $this->scheduled);
+		$this->assertSame(array_fill(0, 4, $notifications ? 60 : 120), $this->scheduled);
 
 		$pages[''] = $this->page($notifications, [226, 225], 'older');
 		$poller->poll(1);

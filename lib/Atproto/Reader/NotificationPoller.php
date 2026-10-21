@@ -41,8 +41,8 @@ use UnexpectedValueException;
  * import path makes the notification, the count and the follower row.
  */
 class NotificationPoller {
-	public const INTERVAL = 120;
-	/** an account nobody on Bluesky interacts with is asked twice a day */
+	public const INTERVAL = 60;
+	/** upper bound for retrying an account after repeated AppView failures */
 	public const MAX_BACKOFF = 12 * 3600;
 	public const BATCH = 50;
 	public const PAGE = 50;
@@ -135,7 +135,7 @@ class NotificationPoller {
 			return 0;
 		}
 
-		$this->cursors->synced($cursor->did, $next, $now, $now + $this->nextInterval($cursor, $handled > 0 || $next !== $newest), self::TABLE);
+		$this->cursors->synced($cursor->did, $next, $now, $now + self::INTERVAL, self::TABLE);
 
 		return $handled;
 	}
@@ -288,11 +288,4 @@ class NotificationPoller {
 		return true;
 	}
 
-	private function nextInterval(Watch $cursor, bool $hadAny): int {
-		if ($hadAny || $cursor->lastSync === 0) {
-			return self::INTERVAL;
-		}
-
-		return min(self::MAX_BACKOFF, max(self::INTERVAL, $cursor->nextSync - $cursor->lastSync) * 2);
-	}
 }

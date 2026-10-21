@@ -163,13 +163,46 @@ class PostMapperTest extends TestCase {
 		$this->assertSame('https://bsky.app/profile/' . self::OTHER . '/post/3kquoted', $detached['quote'], 'a detached quote is still a quote');
 		$this->assertTrue($detached['_atproto']['quote_detached']);
 
-		$card = $mapper->note($this->postView(['embed' => ['$type' => 'app.bsky.embed.external#view', 'external' => ['uri' => 'https://nextcloud.com/blog', 'title' => 'A <post>']]]));
+		$card = $mapper->note($this->postView(['embed' => ['$type' => 'app.bsky.embed.external#view', 'external' => ['uri' => 'https://nextcloud.com/blog', 'title' => 'A <post>', 'description' => 'A post description', 'thumb' => 'https://cdn.bsky.app/card.jpg']]]));
 		$this->assertStringEndsWith('<p><a href="https://nextcloud.com/blog" rel="nofollow noopener noreferrer" target="_blank">A &lt;post&gt;</a></p>', $card['content']);
+		$this->assertSame([
+			'url' => 'https://nextcloud.com/blog',
+			'title' => 'A <post>',
+			'description' => 'A post description',
+			'image' => 'https://cdn.bsky.app/card.jpg',
+			'provider' => 'nextcloud.com',
+		], $card['_atproto']['card'], 'the external embed is retained as a link preview with its image');
 
 		$pending = $mapper->note($this->postView(['embed' => ['$type' => 'app.bsky.embed.video#view', 'cid' => 'bafkrei']]));
 		$this->assertSame('Note', $pending['type'], 'no playlist yet: a link to the post');
 		$this->assertStringContainsString('<a href="https://bsky.app/profile/' . self::DID . '/post/3kznmn7xqxl22"', $pending['content']);
 		$this->assertStringContainsString('target="_blank">Video</a>', $pending['content'], 'named for what it is, not where it is');
+	}
+
+	public function testGalleryAndImageViewsBecomeUsableImageAttachments(): void {
+		$items = [];
+		for ($i = 0; $i < 5; $i++) {
+			$items[] = [
+				'thumbnail' => 'https://cdn.bsky.app/thumb-' . $i . '.jpg',
+				'fullsize' => $i === 0 ? '' : 'https://cdn.bsky.app/full-' . $i . '.jpg',
+				'alt' => 'photo ' . $i,
+				'aspectRatio' => ['width' => 1200, 'height' => 800],
+			];
+		}
+		$gallery = (new PostMapper($this->resolver()))->note($this->postView([
+			'embed' => ['$type' => 'app.bsky.embed.gallery#view', 'items' => $items],
+		]));
+
+		$this->assertCount(5, $gallery['attachment'], 'all supported gallery images must reach the carousel');
+		$this->assertSame('https://cdn.bsky.app/thumb-0.jpg', $gallery['attachment'][0]['url'], 'the thumbnail remains usable when the full image is absent');
+		$this->assertSame('photo 0', $gallery['attachment'][0]['name']);
+		$this->assertSame(1200, $gallery['attachment'][0]['width']);
+		$this->assertSame('https://cdn.bsky.app/full-1.jpg', $gallery['attachment'][1]['url']);
+
+		$image = (new PostMapper($this->resolver()))->note($this->postView([
+			'embed' => ['$type' => 'app.bsky.embed.images#view', 'images' => [['thumb' => 'https://cdn.bsky.app/thumb.png', 'fullsize' => '', 'alt' => 'preview']]],
+		]));
+		$this->assertSame('https://cdn.bsky.app/thumb.png', $image['attachment'][0]['url'], 'legacy image views also fall back to their thumbnail');
 	}
 
 	public function testAVideoPostIsAFederatedVideoStreamedFromItsPlaylist(): void {

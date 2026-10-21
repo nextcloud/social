@@ -1763,9 +1763,10 @@ describe('a conversation read from where it lives', () => {
 		store = useTimelineStore()
 	})
 
-	it('asks once more a little later while the server reads the rest of it', async () => {
+	it('keeps checking while the server reads the rest of the conversation', async () => {
 		await store.changeTimelineType({ type: 'single-post', params: { id: '7' } })
 		axios.get
+			.mockResolvedValueOnce({ data: { ancestors: [], descendants: [makeStatus('8')] }, headers: { 'x-social-thread-filling': '1' } })
 			.mockResolvedValueOnce({ data: { ancestors: [], descendants: [makeStatus('8')] }, headers: { 'x-social-thread-filling': '1' } })
 			.mockResolvedValueOnce({ data: { ancestors: [], descendants: [makeStatus('8'), makeStatus('9')] }, headers: {} })
 
@@ -1773,7 +1774,7 @@ describe('a conversation read from where it lives', () => {
 		expect(store.timeline).toEqual(['8'])
 
 		await vi.runAllTimersAsync()
-		expect(axios.get).toHaveBeenCalledTimes(2)
+		expect(axios.get).toHaveBeenCalledTimes(3)
 		expect(store.timeline).toEqual(['8', '9'])
 		vi.useRealTimers()
 	})

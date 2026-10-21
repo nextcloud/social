@@ -1782,9 +1782,12 @@ export const useTimelineStore = defineStore('timeline', {
 					return
 				}
 				try {
-					const { data } = await axios.get(url, { params })
+					const response = await axios.get(url, { params })
 					if (this.getTimelineIdentity === identity) {
-						this.addToTimeline(data)
+						this.addToTimeline(response.data)
+						if (response.headers?.['x-social-thread-filling'] === '1' || response.headers?.['x-social-filling'] === '1') {
+							this.refetchThreadLater(url, params, identity)
+						}
 					}
 				} catch (error) {
 					logger.debug('The rest of the conversation was not read again', { error })

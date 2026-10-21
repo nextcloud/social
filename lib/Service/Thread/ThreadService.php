@@ -12,6 +12,7 @@ namespace OCA\Social\Service\Thread;
 use OCA\Social\Atproto\Reader\BlueskyThreadSource;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\StreamNotFoundException;
+use OCA\Social\Model\ActivityPub\Stream;
 use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -19,10 +20,10 @@ use Throwable;
 /**
  * The rest of a conversation, from wherever it lives: a reader opening a
  * post sees the replies its own server knows of, not only the ones somebody
- * here happened to follow. Each network the post is on is asked
- * (`ThreadSource`) — a post written here and published to Bluesky is asked
- * of both — in a background job (`Cron\FillThread`), so the page never waits
- * on another server; the next look has them.
+ * here happened to follow. On opening a Bluesky post, its thread is read
+ * inline; other network sources are asked in a background job
+ * (`Cron\FillThread`). A post written here and published to Bluesky can be
+ * read from Bluesky immediately while the Fediverse read continues.
  */
 class ThreadService {
 	/** the most replies one fill stores */
@@ -57,6 +58,28 @@ class ThreadService {
 		}
 
 		return $stored;
+	}
+
+	/**
+	 * Read Bluesky replies in the request that opened the conversation. The
+	 * feed has already made the user wait for this post; leaving its replies
+	 * for the next cron run can add another minute or more of stale context.
+	 *
+	 * @return bool whether a Bluesky thread was requested
+	 */
+	public function fillBluesky(Stream $post): bool {
+		$source = $this->container?->get(BlueskyThreadSource::class);
+		if (!$source instanceof BlueskyThreadSource || !$source->supports($post)) {
+			return false;
+		}
+
+		try {
+			$source->fill($post, self::BUDGET);
+		} catch (Throwable $e) {
+			$this->logger->info('Bluesky conversation not read during display', ['post' => $post->getId(), 'exception' => $e]);
+		}
+
+		return true;
 	}
 
 	/**

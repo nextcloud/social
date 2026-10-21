@@ -121,6 +121,26 @@ class CountServiceTest extends TestCase {
 		$this->assertSame(['asked' => 1, 'answered' => 1], $this->service()->refreshPosts([$mine]));
 	}
 
+	public function testVisibleBlueskyPostIsRefreshedImmediatelyInsteadOfWaitingForCron(): void {
+		$post = $this->post('at://did:plc:author/app.bsky.feed.post/1', 3600, null);
+		$source = $this->getMockBuilder(BlueskyCountSource::class)->disableOriginalConstructor()->onlyMethods(['supports', 'refresh'])->getMock();
+		$source->method('supports')->with($post)->willReturn(true);
+		$source->expects($this->once())->method('refresh')->with([$post])->willReturn(1);
+		$this->sources[BlueskyCountSource::class] = $source;
+
+		$this->assertTrue($this->service()->refreshBlueskyIfDue($post));
+	}
+
+	public function testVisibleBlueskyPostIsNotAskedAgainWithinThirtySeconds(): void {
+		$post = $this->post('at://did:plc:author/app.bsky.feed.post/1', 3 * 86400, CountService::VISIBLE_INTERVAL - 1);
+		$source = $this->getMockBuilder(BlueskyCountSource::class)->disableOriginalConstructor()->onlyMethods(['supports', 'refresh'])->getMock();
+		$source->method('supports')->with($post)->willReturn(true);
+		$source->expects($this->never())->method('refresh');
+		$this->sources[BlueskyCountSource::class] = $source;
+
+		$this->assertFalse($this->service()->refreshBlueskyIfDue($post));
+	}
+
 	public function testAPageQueuesItsDuePostsWithTheirIntervals(): void {
 		$this->queue->expects($this->once())->method('refreshCounts')->with([
 			'https://r.example/young' => CountService::YOUNG_INTERVAL,

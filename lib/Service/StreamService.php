@@ -33,6 +33,7 @@ use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Model\Details;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Service\Counts\CountService;
+use OCA\Social\Service\Thread\ThreadService;
 use OCA\Social\Tools\Exceptions\DateTimeException;
 use OCA\Social\Tools\Exceptions\MalformedArrayException;
 use OCA\Social\Tools\Exceptions\RequestContentException;
@@ -84,6 +85,7 @@ class StreamService {
 		private ChannelService $channelService,
 		private ?RemoteFetchQueue $remoteFetchQueue = null,
 		private ?CountService $countService = null,
+		private ?ThreadService $threadService = null,
 	) {
 	}
 
@@ -665,8 +667,14 @@ class StreamService {
 		// background: from its first post, and from this one when that is
 		// deeper than one read goes
 		$root = ($ancestors === []) ? $post : end($ancestors);
-		$filling = $this->remoteFetchQueue?->fillThread($root) ?? false;
-		if ($root !== $post) {
+		$blueskyRead = $this->threadService?->fillBluesky($root) ?? false;
+		// Bluesky is read inline for the opened conversation. Keep the queued
+		// read for a local post (which may also have Fediverse replies) and for
+		// conversations the inline Bluesky source could not handle.
+		$filling = (!$blueskyRead || $root->isLocal())
+			? ($this->remoteFetchQueue?->fillThread($root) ?? false)
+			: false;
+		if ($root !== $post && (!$blueskyRead || $post->isLocal())) {
 			$filling = ($this->remoteFetchQueue?->fillThread($post) ?? false) || $filling;
 		}
 

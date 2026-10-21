@@ -38,6 +38,7 @@ class PostMapper {
 	}
 
 	private const IMAGES = 'app.bsky.embed.images#view';
+	private const GALLERY = 'app.bsky.embed.gallery#view';
 	private const VIDEO = 'app.bsky.embed.video#view';
 	private const EXTERNAL = 'app.bsky.embed.external#view';
 	private const RECORD = 'app.bsky.embed.record#view';
@@ -162,7 +163,7 @@ class PostMapper {
 		[$attachments, $quote, $appended] = $this->embed($embed, $text, $id);
 		$content .= $appended;
 		$card = self::cardOf($embed);
-		if ($card !== null && !str_contains($text, $card['url'])) {
+		if ($card !== null && !str_contains($content, $card['url'])) {
 			$content .= '<p><a href="' . self::escape($card['url']) . '" rel="nofollow noopener noreferrer" target="_blank">' . self::escape($card['title']) . '</a></p>';
 		}
 
@@ -260,22 +261,9 @@ class PostMapper {
 		}
 		switch ($type) {
 			case self::IMAGES:
-				$attachments = [];
-				foreach (is_array($embed['images'] ?? null) ? $embed['images'] : [] as $image) {
-					$url = (string)($image['fullsize'] ?? '');
-					if ($url === '') {
-						continue;
-					}
-					$attachment = ['type' => 'Image', 'mediaType' => ActorMapper::mediaTypeOf($url), 'url' => $url, 'name' => (string)($image['alt'] ?? '')];
-					$ratio = $image['aspectRatio'] ?? null;
-					if (is_array($ratio) && (int)($ratio['width'] ?? 0) > 0 && (int)($ratio['height'] ?? 0) > 0) {
-						$attachment['width'] = (int)$ratio['width'];
-						$attachment['height'] = (int)$ratio['height'];
-					}
-					$attachments[] = $attachment;
-				}
-
-				return [$attachments, '', ''];
+				return [self::imagesOf(is_array($embed['images'] ?? null) ? $embed['images'] : [], 'thumb'), '', ''];
+			case self::GALLERY:
+				return [self::imagesOf(is_array($embed['items'] ?? null) ? $embed['items'] : [], 'thumbnail'), '', ''];
 			case self::RECORD:
 				$record = $embed['record'] ?? [];
 				// a quote the quoted author detached is still a quote, shown
@@ -306,6 +294,32 @@ class PostMapper {
 		return [[], '', ''];
 	}
 
+	/** @return list<array> */
+	private static function imagesOf(array $images, string $thumbnailKey): array {
+		$attachments = [];
+		foreach ($images as $image) {
+			if (!is_array($image)) {
+				continue;
+			}
+			$url = (string)($image['fullsize'] ?? '');
+			if (!preg_match('#^https://#i', $url)) {
+				$url = (string)($image[$thumbnailKey] ?? '');
+			}
+			if (!preg_match('#^https://#i', $url)) {
+				continue;
+			}
+			$attachment = ['type' => 'Image', 'mediaType' => ActorMapper::mediaTypeOf($url), 'url' => $url, 'name' => (string)($image['alt'] ?? '')];
+			$ratio = $image['aspectRatio'] ?? null;
+			if (is_array($ratio) && (int)($ratio['width'] ?? 0) > 0 && (int)($ratio['height'] ?? 0) > 0) {
+				$attachment['width'] = (int)$ratio['width'];
+				$attachment['height'] = (int)$ratio['height'];
+			}
+			$attachments[] = $attachment;
+		}
+
+		return $attachments;
+	}
+
 	/**
 	 * Whether the post quotes one whose author detached the quote: the
 	 * AppView shows the quoted post as `viewDetached`, alone or beside
@@ -328,6 +342,22 @@ class PostMapper {
 	 * @return array{url: string, title: string, description: string, image: string, provider: string}|null
 	 */
 	public static function cardOf(array $embed): ?array {
+		if (($embed['$type'] ?? '') === self::EXTERNAL) {
+			$external = is_array($embed['external'] ?? null) ? $embed['external'] : [];
+			$url = (string)($external['uri'] ?? '');
+			if (!preg_match('#^https?://#i', $url)) {
+				return null;
+			}
+			$thumbnail = (string)($external['thumb'] ?? '');
+
+			return [
+				'url' => $url,
+				'title' => trim((string)($external['title'] ?? '')) ?: $url,
+				'description' => (string)($external['description'] ?? ''),
+				'image' => preg_match('#^https://#i', $thumbnail) ? $thumbnail : '',
+				'provider' => (string)(parse_url($url, PHP_URL_HOST) ?: ''),
+			];
+		}
 		if (($embed['$type'] ?? '') === self::RECORD_WITH_MEDIA) {
 			$embed = ['$type' => self::RECORD, 'record' => $embed['record']['record'] ?? null];
 		}

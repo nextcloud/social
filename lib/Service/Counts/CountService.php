@@ -47,6 +47,8 @@ class CountService {
 	public const YOUNG = 86400;
 	public const YOUNG_INTERVAL = 900;
 	public const OLD_INTERVAL = 21600;
+	/** Live reader refresh cadence, separate from the slower background scan. */
+	public const VISIBLE_INTERVAL = 30;
 
 	public function __construct(
 		private StreamRequest $streams,
@@ -79,6 +81,33 @@ class CountService {
 		}
 
 		return $due !== [] && $this->queue->refreshCounts($due);
+	}
+
+	/**
+	 * Refresh a Bluesky post while it is being opened or displayed. A queued
+	 * cron job can take a full scheduler interval to run, which is too late for
+	 * counts shown beside a post the reader is looking at now.
+	 */
+	public function refreshBlueskyIfDue(Stream $post): bool {
+		$now = $this->time->getTime();
+
+		foreach ($this->sources() as $source) {
+			if (($source instanceof BlueskyCountSource || $source instanceof BlueskyPublishedCountSource)
+				&& $source->supports($post)) {
+				$countsAt = $post->getCountsAt();
+				if ($countsAt !== null && $now - $countsAt < self::VISIBLE_INTERVAL) {
+					return false;
+				}
+				try {
+					$source->refresh([$post]);
+				} catch (Throwable $e) {
+					$this->logger->info('Bluesky counts not read during display', ['post' => $post->getId(), 'exception' => $e]);
+				}
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	/** How long a post's counts stand before it is asked about again, in seconds. */

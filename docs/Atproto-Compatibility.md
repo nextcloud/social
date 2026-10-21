@@ -87,7 +87,7 @@ Taken by the product owner; the date is the interview. **Do not re-ask.**
 | D9 | A post that does not fit Bluesky is **truncated with a link** to the full post; **first four pictures**; a poll becomes **the question plus a link**; a content warning becomes a **self-label plus a text prefix**. No threads. | 09-25, fixed 10-06 |
 | D10 | **Edits**: within a grace period of five minutes the Bluesky record is deleted and recreated; after that the Bluesky copy keeps its text and its likes, and its link leads to the current version here. | 10-06 |
 | D11 | **Pictures** go with the first posting phase; **video** through Bluesky's video service is a later phase, and until then a video post links here. | 10-06 |
-| D12 | **Inbound** reads by **polling** the public AppView per followed author, with a cap and backoff; **Jetstream** is an optional daemon an administrator may run for instant delivery on a large instance. | 09-25 polling, 10-06 the optional daemon |
+| D12 | **Inbound** reads by **polling** the public AppView per followed author, with a cap and backoff; notifications stay on a one-minute cadence so an empty inbox cannot delay the next interaction for hours. **Jetstream** is an optional daemon an administrator may run for instant feed delivery on a large instance. | 09-25 polling, 10-06 the optional daemon; 10-21 notification cadence |
 | D13 | Bluesky posts appear **in the same timelines**, their authors addressed as bare `@alice.bsky.social` with a **badge**. | 09-25, confirmed 10-06 |
 | D14 | **All Bluesky interactions** (like, repost, follow, reply, mention, quote) show in Activities like their ActivityPub counterparts, under the same **notification policy** and requests inbox. | 10-06 |
 | D15 | **Direct messages** are Bluesky's chat service's: a Bluesky app signed in here reaches them through this PDS (`chat.bsky.*` proxied to the configured chat service), with a privileged app password or an OAuth app given `transition:chat.bsky`, as on Bluesky. Revised again 10-09: they are also this app's own direct messages (§10.1): a message from Bluesky arrives in the person's messages, and a direct message written here to somebody on Bluesky is sent there as a Bluesky direct message; what the person writes in a Bluesky app shows here too, read state goes both ways, a message request is what a direct message from a stranger is here (held by the notification policy), and who may send them direct messages is one setting for both networks (`chat.bsky.actor.declaration`). | 10-06, revised 10-09 twice |
@@ -934,18 +934,22 @@ there within minutes of the relay indexing the commit.
 
 ### 9.3 Polling (D12)
 
-`Cron\AtprotoSync` (a `TimedJob`, every two minutes) takes the watches due
+`Cron\AtprotoSync` (a `TimedJob`, every minute) takes the watches due
 (`next_sync <= now`), at most `SYNC_BATCH` per pass, at most the
 instance-wide `atproto_sync_ceiling` (default 200 requests per pass; the
 admin page shows how far behind the slowest watch is) and within the pass's
-wall-clock budget (`AtprotoSync::MAX_DURATION`, 90 seconds for its three
-steps — feeds, notifications, direct messages — each checking the clock
+wall-clock budget (`AtprotoSync::MAX_DURATION`, 45 seconds for its three
+steps — notifications, feeds, direct messages — each checking the clock
 between accounts, so a slow AppView ends the pass and what is still due is
 read on the next one), and asks the public
 AppView `app.bsky.feed.getAuthorFeed` for each (`filter=posts_with_replies`,
 `limit=50`, the stored cursor): new posts are stored, the cursor advanced,
 `next_sync` set by backoff — one interval after a page with posts, doubling
-up to six hours after empty pages, reset by the next post. Reposts in the
+up to six hours after empty pages, reset by the next post. Notifications are
+polled first every minute and do not back off after empty pages: they are the
+only inbound signal for likes, reposts and replies to local posts. The
+effective delay still depends on the Nextcloud background-job runner cadence
+and Bluesky AppView indexing. Reposts in the
 feed become boosts (`Announce`) by the Bluesky author; replies are stored
 with their `in_reply_to` and the parent fetched through `getPostThread`
 when it is not here (bounded, one hop per pass). Only the public AppView is
@@ -974,10 +978,15 @@ mention's `Mention` tag is named by the `@handle` the text shows, the DID
 only in its target, and a reply to a local post names its author by their
 handle), pictures
 as `social_cache_doc` rows pointing at the AppView's CDN URL with the
-blob's CID and alt text, a quote as `quoted_id`, an embedded custom feed,
-list or starter pack as a link to its bsky.app page with a card made from
-what the AppView says of it — its name, description, creator and picture,
-no page read (`PostMapper::cardOf()`); the card's provider line and the
+blob's CID and alt text. Both the legacy four-image embed and
+`app.bsky.embed.gallery#view` are mapped; gallery items use their full image
+URL, fall back to the AppView thumbnail when it is missing, and flow into
+the existing paged gallery UI. Video embeds use the video playlist; external
+link embeds retain their URL, title, description and thumbnail as a link
+preview. A quote becomes `quoted_id`; an embedded custom feed, list or
+starter pack becomes a link to its bsky.app page with a card made from what
+the AppView says of it — its name, description, creator and picture, no page
+read (`PostMapper::cardOf()`); the card's provider line and the
 link that stands in for a video not yet playable say what the thing is
 ("Feed by @…", "List", "Starter pack", "Video"), not which network it is
 on — a reply as `in_reply_to`,

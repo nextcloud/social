@@ -42,6 +42,7 @@ use OCA\Social\Service\PostDecorationService;
 use OCA\Social\Service\ReactionSummaryService;
 use OCA\Social\Service\RemoteFetchQueue;
 use OCA\Social\Service\StreamService;
+use OCA\Social\Service\Thread\ThreadService;
 use OCA\Social\Tools\Exceptions\RequestNetworkException;
 use OCP\IURLGenerator;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
@@ -1226,6 +1227,22 @@ class StreamServiceTest extends TestCase {
 		$this->assertTrue($context['filling']);
 	}
 
+	public function testOpeningABlueskyConversationReadsRepliesBeforeReturningContext(): void {
+		$post = $this->note('at://did:plc:alice/app.bsky.feed.post/2', self::ACTOR_ID);
+		$reply = $this->note('at://did:plc:bob/app.bsky.feed.post/3', 'https://remote.example/users/bob', $post->getId());
+		$this->streamRequest->method('getStreamByNid')->willReturn($post);
+		$this->streamRequest->expects($this->once())->method('getDescendants')->with($post->getId())->willReturn([$reply]);
+		$threads = $this->createMock(ThreadService::class);
+		$threads->expects($this->once())->method('fillBluesky')->with($post)->willReturn(true);
+		$queue = $this->createMock(RemoteFetchQueue::class);
+		$queue->expects($this->never())->method('fillThread');
+
+		$context = $this->serviceWithTags($this->createStub(MediaTagsRequest::class), $queue, $threads)->getContextByNid(2);
+
+		$this->assertSame([$reply], $context['descendants']);
+		$this->assertFalse($context['filling']);
+	}
+
 	/** The replies the thread's author hid are left out, or marked when asked for. */
 	public function testHiddenRepliesAreLeftOutUnlessAskedForAndTheAuthorMayHideAny(): void {
 		$post = $this->note('https://social.example/@alice/1', self::ACTOR_ID);
@@ -1962,7 +1979,7 @@ class StreamServiceTest extends TestCase {
 		$this->assertContains('https://cloud.example.org/notes/reply', $batched);
 	}
 
-	private function serviceWithTags(MediaTagsRequest $mediaTagsRequest, RemoteFetchQueue $remoteFetchQueue): StreamService {
+	private function serviceWithTags(MediaTagsRequest $mediaTagsRequest, RemoteFetchQueue $remoteFetchQueue, ?ThreadService $threads = null): StreamService {
 		return new StreamService(
 			$this->urlGenerator,
 			$this->streamRequest,
@@ -1977,7 +1994,9 @@ class StreamServiceTest extends TestCase {
 			$this->decoration($mediaTagsRequest, $remoteFetchQueue),
 			$this->accountService,
 			$this->channelService,
-			$remoteFetchQueue
+			$remoteFetchQueue,
+			null,
+			$threads,
 		);
 	}
 

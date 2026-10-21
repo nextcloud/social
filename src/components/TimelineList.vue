@@ -344,6 +344,8 @@ export default {
 			infoHidden: false,
 			state: [],
 			intervalId: -1,
+			countRefreshIntervalId: -1,
+			countRefreshLastAsked: new Map(),
 			pollEvery: 30000,
 			/** how long the poll is waiting after failures, 0 while the server answers */
 			pollWait: 0,
@@ -961,6 +963,7 @@ export default {
 		entries: {
 			handler() {
 				this.syncTracked()
+				this.refreshVisibleBlueskyCounts()
 			},
 
 			flush: 'post',
@@ -1006,6 +1009,12 @@ export default {
 		eventBus.on(NOTIFICATIONS_READ, this.onMarkedAllRead)
 
 		this.loadFirstPage()
+		// Counts on posts already in the feed change after its first render.
+		// Refresh only Bluesky posts currently in view, and let the server's
+		// per-post freshness window cap the AppView traffic.
+		this.refreshVisibleBlueskyCounts()
+		this.countRefreshIntervalId = window.setInterval(() => this.refreshVisibleBlueskyCounts(), 30000)
+		document.addEventListener('scroll', this.refreshVisibleBlueskyCounts, { capture: true, passive: true })
 		// with notify_push the server tells us about new entries; polling
 		// remains as a slow safety net. Without it, poll every 30 seconds.
 		const hasPush = onTimelinePush(this.onPushed)
@@ -1032,6 +1041,8 @@ export default {
 		eventBus.off('shortcut:previous', this.focusPrevious)
 		eventBus.off(NOTIFICATIONS_READ, this.onMarkedAllRead)
 		clearInterval(this.intervalId)
+		clearInterval(this.countRefreshIntervalId)
+		document.removeEventListener('scroll', this.refreshVisibleBlueskyCounts, true)
 		this.unwatchComposer()
 		if (this.observer) {
 			this.observer.disconnect()
@@ -1254,6 +1265,36 @@ export default {
 				.map((element) => [element, this.timelineStore.getStatus(element.dataset.statusId)])
 				.filter(([, status]) => status !== undefined)
 			this.tracker.sync(pairs)
+		},
+
+		/** Refresh counts for visible Bluesky posts without waiting for cron. */
+		refreshVisibleBlueskyCounts() {
+			if (document.visibilityState !== 'visible' || this.display !== 'list' || !this.$el) {
+				return
+			}
+
+			const now = Date.now()
+			const visible = new Set()
+			for (const element of this.$el.querySelectorAll('[data-status-id]')) {
+				const bounds = element.getBoundingClientRect()
+				if (bounds.bottom <= 0 || bounds.top >= window.innerHeight) {
+					continue
+				}
+				const indexed = this.timelineStore.getStatus(element.dataset.statusId)
+				const status = indexed?.reblog ?? indexed
+				if (status?.uri?.startsWith('at://') && status.id && now - (this.countRefreshLastAsked.get(status.id) ?? 0) >= 30000) {
+					visible.add(status.id)
+				}
+			}
+
+			// Keep simultaneous AppView requests bounded while allowing a few
+			// cards on screen to refresh together.
+			for (const id of [...visible].slice(0, 4)) {
+				this.countRefreshLastAsked.set(id, now)
+				this.timelineStore.fetchStatus(id).catch((error) => {
+					logger.debug('Visible Bluesky counts were not refreshed', { error, id })
+				})
+			}
 		},
 
 		/**

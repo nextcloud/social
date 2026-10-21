@@ -21,6 +21,18 @@ use Psr\Log\NullLogger;
 
 #[AllowMockObjectsWithoutExpectations]
 class ThreadServiceTest extends TestCase {
+	public function testBlueskyConversationCanBeReadInlineWhenOpened(): void {
+		$post = (new Note())->setId('at://did:plc:alice/app.bsky.feed.post/1');
+		$streams = $this->createStub(StreamRequest::class);
+		$bluesky = $this->createMock(BlueskyThreadSource::class);
+		$bluesky->expects($this->once())->method('supports')->with($post)->willReturn(true);
+		$bluesky->expects($this->once())->method('fill')->with($post, ThreadService::BUDGET)->willReturn(2);
+		$container = $this->createMock(ContainerInterface::class);
+		$container->method('get')->with(BlueskyThreadSource::class)->willReturn($bluesky);
+
+		$this->assertTrue((new ThreadService($streams, new NullLogger(), $container))->fillBluesky($post));
+	}
+
 	/** A post written here and published to Bluesky is asked of both. */
 	public function testEveryNetworkThePostIsOnIsAskedWithWhatIsLeftOfTheBudget(): void {
 		$post = (new Note())->setId('https://social.test/@alice/1');
