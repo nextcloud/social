@@ -143,6 +143,33 @@ class WebSocketServerTest extends TestCase {
 		}
 	}
 
+	public function testConfiguredEventStreamAcceptsHashtagPathAndQuery(): void {
+		$bind = '127.0.0.1:' . random_int(20000, 60000);
+		$server = new WebSocketServer(
+			$bind,
+			path: '/api/v1/streaming',
+			binaryFrames: false,
+			authorize: static fn ($subscriber): bool => ($subscriber->query['access_token'] ?? '') === 'valid-token',
+			eventStreams: true,
+		);
+		try {
+			$client = stream_socket_client('tcp://' . $bind, $errno, $error, 2);
+			$this->assertNotFalse($client, $error);
+			fwrite($client, "GET /api/v1/streaming/hashtag/local?tag=social&access_token=valid-token HTTP/1.1\r\nHost: social.test\r\nAccept: text/event-stream\r\n\r\n");
+			$ready = [];
+			for ($i = 0; $i < 5; $i++) {
+				$ready = array_merge($ready, $server->serve(0.05));
+			}
+			$this->assertCount(1, $ready);
+			$this->assertSame('/api/v1/streaming/hashtag/local', $ready[0]->requestPath);
+			$this->assertSame('social', $ready[0]->query['tag']);
+			$this->assertStringStartsWith('HTTP/1.1 200 OK', $this->readUntil($client, "\n\n"));
+			fclose($client);
+		} finally {
+			$server->shutdown();
+		}
+	}
+
 	public function testUpgradeCanBeAuthorizedFromRequestHeadersAndQuery(): void {
 		$bind = '127.0.0.1:' . random_int(20000, 60000);
 		$server = new WebSocketServer(

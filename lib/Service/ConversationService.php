@@ -137,14 +137,16 @@ class ConversationService {
 	 *
 	 * @return array{conversations: Conversation[], next: int|string, prev: int|string}
 	 */
-	public function getPage(Person $viewer, int $limit, int|string $maxId = '0', int|string $minId = 0, int|string $sinceId = '0'): array {
+	public function getPage(Person $viewer, int $limit, int|string $maxId = '0', int|string $minId = 0, int|string $sinceId = '0', bool $pollChats = true): array {
 		$limit = max(1, min(self::MAX_LIMIT, $limit));
 		// somebody reading their messages: the ones on Bluesky are read next
 		// run, not when the backoff says; resolved here, as the Bluesky side
 		// needs services that need this one
-		try {
-			$this->container?->get(ChatPoller::class)->wakeActor($viewer);
-		} catch (Throwable) {
+		if ($pollChats) {
+			try {
+				$this->container?->get(ChatPoller::class)->wakeActor($viewer);
+			} catch (Throwable) {
+			}
 		}
 		$messages = $this->directMessages($viewer, $maxId, $minId, $sinceId);
 		if ($messages === []) {
