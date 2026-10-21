@@ -78,6 +78,12 @@ class BoostService {
 			throw new StreamNotFoundException('Stream is not Public');
 		}
 
+		// Some peers compare an Announce's published time with the millisecond
+		// timestamp encoded in the original post ID. Refresh it after resolving
+		// that post and retain sub-second precision so a same-second boost is
+		// not rejected as predating its target.
+		$announce->setPublished((new \DateTimeImmutable())->format(\DateTimeInterface::RFC3339_EXTENDED));
+
 		if ($this->hasAnnounce($actor, $postId)) {
 			throw new ItemAlreadyExistsException('this account has already boosted this post');
 		}
