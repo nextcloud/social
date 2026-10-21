@@ -95,16 +95,19 @@ class BlueskyThreadSourceTest extends TestCase {
 		$source = new BlueskyThreadSource($config, $appView, $refs, $store, $this->createMock(LabelerService::class), new NullLogger());
 
 		$this->assertSame(4, $source->fillVisible((new Note())->setId('https://social.test/@alice/2'), 10));
+		$this->assertSame(['app.bsky.feed.getPostThread', ['uri' => 'at://p/2', 'depth' => 10, 'parentHeight' => 20], 3], $queries[0]);
 		$this->assertSame([
-			['app.bsky.feed.getPostThread', ['uri' => 'at://p/2', 'depth' => 10, 'parentHeight' => 20], 3],
-			['app.bsky.unspecced.getPostThreadV2', [
+			'app.bsky.unspecced.getPostThreadV2',
+			[
 				'anchor' => 'at://p/2',
 				'above' => 'false',
 				'below' => 1,
 				'branchingFactor' => 0,
 				'sort' => 'oldest',
-			], 3],
-		], $queries);
+			],
+		], array_slice($queries[1], 0, 2));
+		$this->assertGreaterThan(0, $queries[1][2]);
+		$this->assertLessThanOrEqual(2, $queries[1][2], 'V2 receives only the whole seconds left in the original budget');
 	}
 
 	public function testVisibleFallbackReadsShareTheOriginalThreeSecondBudget(): void {

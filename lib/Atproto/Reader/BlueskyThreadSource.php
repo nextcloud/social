@@ -71,23 +71,19 @@ class BlueskyThreadSource implements ThreadSource {
 	private function fillWithTimeout(Stream $post, int $budget, ?int $timeout): int {
 		$this->deepRepliesPending = false;
 		$this->missingReplyContinuations = [];
-		$deadline = $timeout === null ? null : hrtime(true) + ($timeout * 1_000_000_000);
 		$uri = $this->refs->strongRef($post->getId())['uri'] ?? '';
 		if ($uri === '' || $budget <= 0) {
-			return 0;
-		}
-		$readTimeout = $this->remainingTimeout($deadline);
-		if ($readTimeout === 0) {
-			$this->deepRepliesPending = true;
-
 			return 0;
 		}
 		try {
 			$params = ['uri' => $uri, 'depth' => self::DEPTH, 'parentHeight' => self::PARENT_HEIGHT];
 			$headers = ['atproto-accept-labelers' => $this->labelers->acceptHeader()];
+			// Count the AppView's network time, not local URI resolution, toward
+			// the shared interactive request budget.
+			$deadline = $timeout === null ? null : hrtime(true) + ($timeout * 1_000_000_000);
 			$answer = $deadline === null
 				? $this->appView->query('app.bsky.feed.getPostThread', $params, $headers)
-				: $this->appView->query('app.bsky.feed.getPostThread', $params, $headers, $readTimeout);
+				: $this->appView->query('app.bsky.feed.getPostThread', $params, $headers, $timeout);
 			$thread = $answer['thread'] ?? null;
 			if (!is_array($thread) || !in_array($thread['$type'] ?? null, [self::THREAD_VIEW, self::NOT_FOUND_VIEW, self::BLOCKED_VIEW], true)) {
 				throw new \UnexpectedValueException('Bluesky thread response has no recognized thread view');
@@ -350,7 +346,7 @@ class BlueskyThreadSource implements ThreadSource {
 		}
 		$remaining = $deadline - hrtime(true);
 
-		return $remaining <= 0 ? 0 : (int)ceil($remaining / 1_000_000_000);
+		return $remaining <= 0 ? 0 : (int)floor($remaining / 1_000_000_000);
 	}
 
 	/** Whether the stable response's root has fewer visible reply nodes than its current reply count. */
