@@ -48,6 +48,18 @@ class AtprotoOAuthTest extends TestCase {
 		$this->assertNotNull($identity);
 		$userId = $this->alice->actor->getUserId();
 		$words = 'Posted with Bluesky sign-in ' . bin2hex(random_bytes(4));
+		$profileDid = $this->network->createUser('oauthprofile' . bin2hex(random_bytes(3)));
+		$profileWords = ['OAuth profile post one ' . bin2hex(random_bytes(3)), 'OAuth profile post two ' . bin2hex(random_bytes(3))];
+		foreach ($profileWords as $profileWord) {
+			$this->network->postText($profileWord);
+		}
+		$this->assertNotNull($this->network->await(function () use ($profileDid, $profileWords): ?bool {
+			$profile = $this->network->profile($profileDid);
+			$feed = $this->network->authorFeed($profileDid);
+			$texts = array_map(static fn (array $item): string => (string)($item['post']['record']['text'] ?? ''), $feed);
+
+			return isset($profile['did']) && count(array_intersect($profileWords, $texts)) === count($profileWords) ? true : null;
+		}), 'the test profile and both posts are indexed before the signed-in app reads them');
 
 		$authorizeUrl = trim($this->client('start', $identity->did, $words));
 		$this->assertStringStartsWith((string)(getenv('NEXTCLOUD_URL') ?: 'https://nextcloud.test') . '/oauth/authorize?', $authorizeUrl, 'the shared authorization endpoint');
@@ -78,13 +90,18 @@ class AtprotoOAuthTest extends TestCase {
 		}
 		$this->assertStringStartsWith('http://127.0.0.1/callback?', $callback);
 
-		$result = json_decode($this->client('finish', (string)parse_url($callback, PHP_URL_QUERY), $words), true);
+		$result = json_decode($this->client('finish', (string)parse_url($callback, PHP_URL_QUERY), $words, '', $profileDid), true);
 		$this->assertIsArray($result);
 		$this->assertSame($identity->did, $result['did'], 'the account the app verified');
 		$this->assertSame('atproto transition:generic', $result['scope']);
 		$this->assertSame(200, $result['who']['status'], json_encode($result['who']));
 		$this->assertSame($identity->handle, $result['who']['body']['handle']);
 		$this->assertSame(200, $result['timeline']['status'], 'the AppView proxied with the session');
+		$this->assertSame(200, $result['profile']['status'], json_encode($result['profile']));
+		$this->assertSame($profileDid, $result['profile']['body']['did'], 'a Bluesky app can load another account profile through its PDS');
+		$this->assertSame(200, $result['authorFeed']['status'], json_encode($result['authorFeed']));
+		$profilePosts = array_map(static fn (array $item): string => (string)($item['post']['record']['text'] ?? ''), $result['authorFeed']['body']['feed'] ?? []);
+		$this->assertEqualsCanonicalizing($profileWords, array_values(array_intersect($profileWords, $profilePosts)), 'the signed-in app reads multiple posts from the profile through its PDS');
 		$this->assertSame(200, $result['posted']['status'], json_encode($result['posted']));
 		$this->assertStringStartsWith('at://' . $identity->did . '/app.bsky.feed.post/', (string)$result['posted']['body']['uri']);
 		$this->assertSame(200, $result['again']['status'], 'after a refresh');
@@ -118,7 +135,7 @@ class AtprotoOAuthTest extends TestCase {
 	/**
 	 * Runs the client library's script: one step of the sign-in.
 	 */
-	private function client(string $command, string $argument, string $words, string $scope = ''): string {
+	private function client(string $command, string $argument, string $words, string $scope = '', string $profileDid = ''): string {
 		$process = proc_open(
 			['node', 'oauth-client.mjs', $command, $argument],
 			[1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
@@ -131,6 +148,7 @@ class AtprotoOAuthTest extends TestCase {
 				'PLC_URL' => $this->network->plc,
 				'OAUTH_POST_TEXT' => $words,
 				'OAUTH_SCOPE' => $scope,
+				'OAUTH_PROFILE_DID' => $profileDid,
 				'NODE_EXTRA_CA_CERTS' => (string)(getenv('NODE_EXTRA_CA_CERTS') ?: '/tmp/tls/ca.crt'),
 			]
 		);

@@ -111,6 +111,9 @@ const network = await TestNetwork.create({
 	introspect: { port: INTROSPECT_PORT },
 })
 
+// Match service-auth audiences that include the AppView DID document's service fragment.
+network.bsky.ctx.authVerifier.standardAudienceDids.add(`${network.bsky.serverDid}#bsky_appview`)
+
 for (const resolver of [network.pds.ctx.idResolver, network.bsky.ctx.idResolver, network.bsky.dataplane.idResolver]) {
 	patchHandleResolver(resolver)
 }
