@@ -603,7 +603,8 @@ repository does not have refuses the request with `BlockNotFound`),
 `getRecommendedDidCredentials`, `submitPlcOperation`, `checkAccountStatus`
 and `activateAccount` to an account moving here (§13);
 `com.atproto.server.describeServer`, `createSession`, `refreshSession`,
-`deleteSession`, `getSession`, `getServiceAuth`, `createAccount`
+`deleteSession`, `getSession`, `getServiceAuth`, `createAppPassword`,
+`listAppPasswords`, `revokeAppPassword`, `createAccount`
 (migration in only, §13; open registration is **never** offered — a
 Bluesky account here is a Nextcloud account); `deactivateAccount` is not
 served (switching off is in Settings, §4.6); `com.atproto.repo.createRecord`, `putRecord`, `deleteRecord`,
@@ -645,6 +646,16 @@ Bluesky apps can sign in with this PDS in either of two ways:
   never accepted or sent to the Bluesky app. Access JWTs last two hours and
   refresh JWTs 90 days, signed with the instance service key and carried in
   `Authorization: Bearer`. Revoking an app password ends its sessions.
+  The PDS also serves `createAppPassword`, `listAppPasswords` and
+  `revokeAppPassword` for authenticated sessions. A newly created password
+  is returned once; listing returns only its name, creation time and optional
+  privileged flag, never its secret or internal database id. Creating a
+  password with chat access requires a session that already has
+  `transition:chat.bsky`.
+  The login identifier may be a handle, DID, or Nextcloud email address. If
+  an email address belongs to multiple local accounts, each account's own
+  Bluesky identity and app-password hashes are checked, so an earlier
+  account without a Bluesky identity cannot block the valid match.
 - **OAuth is available to clients that implement AT Protocol OAuth.** They
   resolve this PDS's discovery metadata and use PAR, DPoP and PKCE S256.
   The person signs in to Nextcloud here, reviews the requested access and
@@ -2515,14 +2526,20 @@ thread root), `RecordMapper` (reply, quote and card embeds, the postgate),
   Settings → Apps and account → Bluesky makes Bluesky-style app passwords instead (four
   groups of four, shown once, stored as a password hash, at most 25),
   good for this app's Bluesky surface only. Revoking one ends every session
-  it opened. A wrong password counts against the caller's address in
+  it opened. The same records are managed through the PDS XRPC methods
+  `createAppPassword`, `listAppPasswords` and `revokeAppPassword`; passwords
+  are scoped to the authenticated Nextcloud account. A wrong password counts against the caller's address in
   Nextcloud's brute-force protection, and the answer for an unknown account
   and a wrong password is the same.
 - **Sessions** are JWTs this server signs with its service key: an access
   token of two hours naming its session, a refresh token of ninety days
   whose id is the session (`createSession`, `refreshSession`,
-  `getSession`, `deleteSession`). A suspended account's apps are turned
-  away; an account that moved away cannot sign in.
+  `getSession`, `deleteSession`). Refresh tokens are consumed with one
+  atomic delete, so concurrent refreshes or a replay can issue only one
+  replacement session. Every access token is also checked against the app
+  password that created it, so revoking that password invalidates tokens
+  even when revocation races a refresh. A suspended account's apps are
+  turned away; an account that moved away cannot sign in.
 - **The AppView proxy** (`app.bsky.*`) goes to the configured AppView only —
   `atproto-proxy` cannot point the account's signature elsewhere — with a
   token the account's own key signs for the one method; the answer passes

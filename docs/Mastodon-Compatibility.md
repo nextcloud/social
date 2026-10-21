@@ -172,6 +172,14 @@ a token 401, as Mastodon does. The `/oauth/token` error bodies carry RFC 6749's
 names (`invalid_request`, `unsupported_grant_type`, `invalid_grant`,
 `invalid_client`) with a readable `error_description`.
 
+The same OAuth server also implements RFC 8628's device authorization grant.
+`/oauth/device_authorization` starts a short-lived request; a person enters its
+user code at `/oauth/device`, reviews the app and scopes, then allows or denies
+it from their signed-in account. The device polls `/oauth/token` using its
+device code and receives the account-bound token once approved. This is for
+clients without a usable browser or keyboard; the existing authorization-code
+and out-of-band flows are unchanged.
+
 ### 3.3 The endpoint surface is now broad and mostly real
 
 I opened the controller method behind each route rather than trusting the route
@@ -251,12 +259,29 @@ string, so they were hiding edit and history, calling the v1 filter routes that
 404 instead of v2, and never asking for `/api/v2/instance` or
 `/notifications/unread_count` — all of which are implemented.
 
-The 4.x feature still missing is announced rather than left to fail.
-`urls.streaming_api` (v2: `configuration.urls.streaming`) is `wss://<host>`
-although there is no streaming endpoint: masto.js (Elk, Phanpy) builds its
-websocket from it and, with the key left out, tried to connect to `undefined`
-on every page load; at this host the connection is a clean 404 and the client
-polls. Web Push is implemented at `/api/v1/push/subscription`; the instance
+The Mastodon WebSocket streams `user`, `user:notification`, `direct`, `list`,
+`public`, `public:media`, `public:local`, `public:local:media`,
+`public:remote`, `public:remote:media`, `hashtag` and `hashtag:local`, plus
+the `user`, public, hashtag, direct and list SSE endpoints, are available when
+`occ social:mastodon:stream` is running and the root proxy rules are installed.
+WebSocket clients connect to
+`/api/v1/streaming`; a connection can subscribe to up to 20 owned lists at once,
+with an independent cursor for each. SSE clients connect to `/api/v1/streaming/user`,
+`/api/v1/streaming/user/notification`, `/api/v1/streaming/direct`,
+`/api/v1/streaming/list`, `/api/v1/streaming/public`,
+`/api/v1/streaming/public/local`, `/api/v1/streaming/public/remote`,
+`/api/v1/streaming/hashtag` or `/api/v1/streaming/hashtag/local`. Public SSE
+routes accept `only_media=true`; hashtag SSE routes require a `tag` query
+parameter. The direct stream emits `conversation` events and requires
+`read:statuses`. List streams require an owned list ID and `read:statuses`;
+SSE clients pass it as the `list` query parameter, and WebSocket subscriptions
+pass it as `list`; WebSocket clients can unsubscribe from each list
+independently. WebSocket hashtag subscriptions require a `tag` value in the
+subscription message. The instance filters events using the same
+visibility, mute and filter rules as its REST timelines. Delete and
+status-edit streams are not implemented yet.
+`GET /api/v1/streaming/health` is answered by the stream daemon. Web Push is
+implemented at `/api/v1/push/subscription`; the instance
 publishes the same stable public VAPID key in `configuration.vapid.public_key`
 and the application entity's `vapid_key`. `configuration.translation.enabled` is no longer
 always `false`: it is `true` where this Nextcloud has a translation provider,
@@ -777,7 +802,7 @@ whether it is done. Query and scalability work has its own list in
 | 7 | **`/api/v1/instance/peers` and `/activity`** | Hours | Instance browsers and the about page showed nothing | done |
 | 8 | **The v1 filter routes** | Hours | A client that has not moved to v2 filters got a 404 rather than an empty list | done |
 | 9 | **`/api/saved_searches/list.json`** — implement or stop routing it | Hours | Initialises a viewer and returns `[]`. See "Two answers rather than a tick" below | **open, and a decision rather than a task** |
-| 10 | **Streaming** (`wss://`, `/api/v1/streaming/*`) | Weeks | Deliberately absent: `urls.streaming_api` names `wss://<host>`, where the websocket is a clean 404, so clients poll rather than connect to `undefined`. A real timeline needs a process that outlives a PHP request | **open** |
+| 10 | **Streaming** (`wss://`, `/api/v1/streaming/*`) | Weeks | A daemon now streams user home updates and notifications; public/hashtag/list/direct streams and delete/edit events remain | **partial** |
 
 ### Tier 2b — what walking the route list turned up
 
@@ -899,10 +924,10 @@ root once an administrator installs the shipped web-server rules, and the setup
 check says whether they have; on an instance where they have not, no stock
 client reaches *any* of the surface above.
 
-**Streaming (10) is the next substantial client-compatibility gap.** It needs a
-long-lived websocket service and event fan-out; it cannot be fixed by adding a
-route to the PHP request path. Web Push is already implemented for notifications,
-but clients still poll timelines until streaming is available. The peer-level
+**Streaming (10) is the next substantial client-compatibility gap.** The
+long-lived WebSocket daemon now serves the home and notification streams;
+the remaining timeline types and edit/delete events still need event fan-out.
+Web Push remains available for notifications. The peer-level
 media serialization finding is fixed and covered by a test that hydrates a stored
 status before serializing it.
 

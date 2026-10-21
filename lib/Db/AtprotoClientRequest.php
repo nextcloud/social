@@ -71,6 +71,18 @@ class AtprotoClientRequest extends CoreRequestBuilder {
 		return (int)$privileged === 1;
 	}
 
+	public function hasAppPassword(string $userId, int $id): bool {
+		$qb = $this->getQueryBuilder();
+		$qb->select('id')->from(self::TABLE_ATPROTO_APP_PASSWORD)
+			->where($qb->expr()->eq('id', $qb->createNamedParameter($id, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->eq('user_id', $qb->createNamedParameter($userId)));
+		$result = $qb->executeQuery();
+		$exists = $result->fetchOne() !== false;
+		$result->closeCursor();
+
+		return $exists;
+	}
+
 	public function appPasswordUsed(int $id): void {
 		$qb = $this->getQueryBuilder();
 		$qb->update(self::TABLE_ATPROTO_APP_PASSWORD)
@@ -135,10 +147,11 @@ class AtprotoClientRequest extends CoreRequestBuilder {
 		];
 	}
 
-	public function removeSession(string $jti): void {
+	public function removeSession(string $jti): bool {
 		$qb = $this->getQueryBuilder();
 		$qb->delete(self::TABLE_ATPROTO_SESSION)->where($qb->expr()->eq('jti', $qb->createNamedParameter($jti)));
-		$qb->executeStatement();
+
+		return $qb->executeStatement() === 1;
 	}
 
 	/**

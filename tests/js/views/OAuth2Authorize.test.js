@@ -31,7 +31,40 @@ describe('OAuth2Authorize', () => {
 		setState('appLogo', '')
 		setState('trusted', false)
 		setState('setup', null)
+		setState('deviceDecisionUrl', '')
+		setState('devicePending', false)
+		setState('deviceDecisionResult', '')
 		wrapper = mount(OAuth2Authorize)
+	})
+
+	it('shows the code entry page for an OAuth device request', () => {
+		setState('deviceDecisionUrl', '/apps/social/oauth/device')
+		setState('deviceUserCode', '')
+		const page = mount(OAuth2Authorize)
+
+		expect(page.find('h1').text()).toBe('Authorize a device')
+		expect(page.text()).toContain('Only enter a code shown on a screen of your own.')
+		expect(page.find('form').attributes('method')).toBe('get')
+		expect(page.find('input[name="user_code"]').exists()).toBe(true)
+	})
+
+	it('shows app, scopes, account and one-time allow or deny for a pending device', () => {
+		setState('deviceDecisionUrl', '/apps/social/oauth/device')
+		setState('devicePending', true)
+		setState('deviceUserCode', 'BCDF-GHJK')
+		setState('appName', 'Living Room TV')
+		setState('account', { uid: 'alice', displayName: 'Alice', handle: '@alice@example.org' })
+		setState('scopes', ['read', 'write'])
+		const page = mount(OAuth2Authorize)
+
+		expect(page.find('h1').text()).toBe('Authorize this device')
+		expect(page.text()).toContain('Living Room TV')
+		expect(page.text()).toContain('BCDF-GHJK')
+		expect(page.find('.account').text()).toContain('@alice@example.org')
+		expect(page.findAll('.scopes__item')).toHaveLength(2)
+		expect(page.findAll('button[type="submit"]')).toHaveLength(2)
+		expect(page.find('input[name="user_code"]').element.value).toBe('BCDF-GHJK')
+		expect(page.find('form').attributes('action')).toBe('/apps/social/oauth/device')
 	})
 
 	it('names the third party application asking for access', () => {
