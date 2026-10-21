@@ -185,7 +185,7 @@ The tables are created by `lib/Migration/Version1000Date20221118000002.php` — 
 | `social_cache_actor` | Cached remote federated actors (inbox/outbox URLs, public keys, counts), the refresh bookkeeping `sync_attempt`/`sync_failures`, and `account_lower`, the handle lowercased and indexed (`social_ca_al`) for the account search and the lookup by handle |
 | `social_cache_doc` | Cached remote and local media attachments. `ai_source` (SMALLINT, default 0) is the machine-generation provenance the picture's metadata stated when it was stored — `1` IPTC's `trainedAlgorithmicMedia`, `2` its `compositeWithTrainedAlgorithmicMedia` — read by `ImageMetadataService::digitalSourceType()` *before* the metadata is stripped, because the stored bytes no longer say it; rows from before the column read as 0 |
 | `social_client` | OAuth 2.0 client registrations |
-| `social_device_auth` | hashed one-time OAuth device codes, short user codes, scope grants, polling interval and expiry; pruned with the OAuth client sweep |
+| `social_device_auth` | hashed one-time OAuth device codes, short user codes, scope grants, polling interval and expiry; pruned with the OAuth client sweep and removed with the approved account |
 | `social_follow` | Follow relationships (actor → object, with accepted flag) |
 | `social_hashtag` | Hashtag trend data: a JSON `trend` blob per hashtag, plus one sortable integer column per window (`trend_1h` … `trend_10d`). A row is written with zero counts when a public post first carries the hashtag (`StreamTagsRequest::generateStreamTags()`), so a hashtag search finds it at once; the trends cron fills the counts |
 | `social_instance` | Known federated instances (version, metadata) |

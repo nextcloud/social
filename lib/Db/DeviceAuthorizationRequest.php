@@ -134,4 +134,11 @@ class DeviceAuthorizationRequest extends CoreRequestBuilder {
 			->where($qb->expr()->lt('expires', $qb->createNamedParameter($before, IQueryBuilder::PARAM_INT)))
 			->executeStatement();
 	}
+
+	public function deleteByUser(string $userId): void {
+		$qb = $this->getQueryBuilder();
+		$qb->delete('social_device_auth')
+			->where($qb->expr()->eq('user_id', $qb->createNamedParameter($userId)))
+			->executeStatement();
+	}
 }

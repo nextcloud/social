@@ -18,6 +18,7 @@ use OCA\Social\Db\CacheDocumentsRequest;
 use OCA\Social\Db\ChannelsRequest;
 use OCA\Social\Db\CollectionsRequest;
 use OCA\Social\Db\ConversationsRequest;
+use OCA\Social\Db\DeviceAuthorizationRequest;
 use OCA\Social\Db\DomainBlocksRequest;
 use OCA\Social\Db\FeaturedTagsRequest;
 use OCA\Social\Db\FileCommentsRequest;
@@ -120,6 +121,7 @@ class ActorCascadeServiceTest extends TestCase {
 		$this->cacheDocumentService = $this->createStub(CacheDocumentService::class);
 		$this->files = $this->createMock(FileCommentsRequest::class);
 		$this->imports = $this->createMock(ImportsRequest::class);
+		$this->mocks[DeviceAuthorizationRequest::class] = $this->createMock(DeviceAuthorizationRequest::class);
 		foreach (self::tables() as [$class, $method]) {
 			$this->mocks[$class] ??= $this->createMock($class);
 		}
@@ -167,6 +169,7 @@ class ActorCascadeServiceTest extends TestCase {
 			$this->request(TeamsRequest::class),
 			$this->files,
 			$this->imports,
+			$this->request(DeviceAuthorizationRequest::class),
 			$this->request(ChannelsRequest::class),
 			$this->request(WatchRequest::class),
 			$this->request(RequestQueueRequest::class),
@@ -257,6 +260,7 @@ class ActorCascadeServiceTest extends TestCase {
 	public function testWhatAPersonPostedFromFilesAndTheirImportsGoWithTheirAccount(): void {
 		$this->files->expects($this->once())->method('deleteByUser')->with('bob');
 		$this->imports->expects($this->once())->method('deleteByUser')->with('bob');
+		$this->request(DeviceAuthorizationRequest::class)->expects($this->once())->method('deleteByUser')->with('bob');
 
 		$this->service()->purge(self::BOB, false, 'bob');
 	}
@@ -264,6 +268,7 @@ class ActorCascadeServiceTest extends TestCase {
 	public function testWithoutAUserNothingIsDeletedByUser(): void {
 		$this->files->expects($this->never())->method('deleteByUser');
 		$this->imports->expects($this->never())->method('deleteByUser');
+		$this->request(DeviceAuthorizationRequest::class)->expects($this->never())->method('deleteByUser');
 
 		$this->service()->purge(self::BOB);
 		$this->service()->purge(self::BOB, reversible: true);
