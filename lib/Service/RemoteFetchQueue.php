@@ -310,19 +310,39 @@ class RemoteFetchQueue {
 			$wanted[] = $id;
 		}
 
+		$queued = false;
+		$enqueueBatch = function (array $batch) use (&$queued): void {
+			if ($batch === []) {
+				return;
+			}
+			if ($this->queue(RefreshCounts::class, ['posts' => $batch])) {
+				$queued = true;
+
+				return;
+			}
+
+			// A post whose refresh job could not be stored must remain eligible
+			// for a later request; otherwise the interval marker would make its
+			// counts look as though a refresh were already in progress.
+			foreach ($batch as $id) {
+				try {
+					$this->durableCache->remove(self::COUNTS_ASKED, md5($id));
+				} catch (Throwable $e) {
+					$this->logger->info('[RemoteFetchQueue] could not reset count refresh throttle', ['post' => $id, 'exception' => $e]);
+				}
+			}
+		};
 		$batch = [];
 		foreach ($wanted as $id) {
 			if ($batch !== [] && strlen((string)json_encode(['posts' => [...$batch, $id]])) > self::ARGUMENT_LENGTH) {
-				$this->queue(RefreshCounts::class, ['posts' => $batch]);
+				$enqueueBatch($batch);
 				$batch = [];
 			}
 			$batch[] = $id;
 		}
-		if ($batch !== []) {
-			$this->queue(RefreshCounts::class, ['posts' => $batch]);
-		}
+		$enqueueBatch($batch);
 
-		return $wanted !== [];
+		return $queued;
 	}
 
 	/**

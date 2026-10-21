@@ -275,6 +275,26 @@ class RemoteFetchQueueTest extends TestCase {
 		$this->assertSame([['https://r.example/1', 'https://r.example/2'], ['https://r.example/1']], $added);
 	}
 
+	public function testACountRefreshQueueFailureCanBeRetriedOnTheNextRequest(): void {
+		$fail = true;
+		$this->jobList->method('has')->willReturnCallback(static function () use (&$fail): bool {
+			if ($fail) {
+				throw new \RuntimeException('queue storage unavailable');
+			}
+
+			return false;
+		});
+		$this->jobList->expects($this->once())->method('add')->with(RefreshCounts::class, [
+			'posts' => ['https://remote.example/notes/1', 'https://remote.example/notes/2'],
+		]);
+		$posts = ['https://remote.example/notes/1' => 900, 'https://remote.example/notes/2' => 900];
+
+		$this->assertFalse($this->queue->refreshCounts($posts));
+		$fail = false;
+		$this->assertTrue($this->queue->refreshCounts($posts));
+		$this->assertFalse($this->queue->refreshCounts($posts), 'a successfully queued refresh remains deduplicated');
+	}
+
 	public function testOneCallAsksAboutABoundedNumberOfPostsInJobsTheJobListAccepts(): void {
 		$this->jobList->method('has')->willReturn(false);
 		$asked = [];
