@@ -3566,11 +3566,11 @@ class ApiControllerTest extends TestCase {
 		$actor = $this->createStub(Person::class);
 		$actor->method('getId')->willReturn(BlueskyIds::actorId('did:plc:z72i7hdynmk6r22z27h6tvur'));
 		$this->cacheActorService->method('getFromAccount')->willReturn($actor);
-		$this->streamService->method('lastTimelineCountsFilling')->willReturn(true);
 		$this->remoteFetchQueue->expects($this->never())->method('syncTimeline');
 		$this->blueskyFeeds->expects($this->once())
 			->method('authorPage')
-			->with($actor, '123456', 15, null);
+			->with($actor, '123456', 15, null)
+			->willReturn(true);
 		$this->captureTimelineOptions(['post']);
 
 		$response = $this->controller()->accountStatuses('bob.bsky.social', 15, '123456');

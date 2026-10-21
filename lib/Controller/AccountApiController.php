@@ -825,12 +825,13 @@ class AccountApiController extends MastodonApiController {
 				);
 			}
 
+			$profileFilling = false;
 			// Bluesky profiles have no ActivityPub outbox. Read their public
 			// author feed into the shared stream before the ordinary profile
 			// timeline query; keep AppView's cursor behind the local max_id so
 			// clients continue paging through this endpoint as usual.
 			if (BlueskyActorService::isBluesky($local) && !$min_id && !$since_id) {
-				$this->blueskyFeeds->authorPage($local, $max_id ? (string)$max_id : '', $limit, $this->viewer);
+				$profileFilling = $this->blueskyFeeds->authorPage($local, $max_id ? (string)$max_id : '', $limit, $this->viewer);
 			} elseif ($this->viewer !== null && !$max_id && !$min_id && !$since_id) {
 				// only for a caller with a session: a sync fetches the account's
 				// outbox from its server and stores every post of it, so an
@@ -876,6 +877,9 @@ class AccountApiController extends MastodonApiController {
 				$this->streamService->lastTimelineRowCount()
 			);
 			if ($this->streamService->lastTimelineCountsFilling()) {
+				$response->addHeader('X-Social-Filling', '1');
+			}
+			if ($profileFilling) {
 				$response->addHeader('X-Social-Filling', '1');
 			}
 

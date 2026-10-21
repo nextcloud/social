@@ -232,9 +232,9 @@ class BlueskyFeedsTest extends TestCase {
 		];
 		$feeds = $this->feeds(false);
 
-		$feeds->authorPage($actor, '', 20, $this->alice);
+		self::assertFalse($feeds->authorPage($actor, '', 20, $this->alice));
 		$after = (string)crc32(BlueskyIds::postIdOfUri($uri));
-		$feeds->authorPage($actor, $after, 20, $this->alice);
+		self::assertFalse($feeds->authorPage($actor, $after, 20, $this->alice));
 
 		self::assertSame(['app.bsky.feed.getAuthorFeed', [
 			'actor' => self::BOB,
@@ -248,8 +248,79 @@ class BlueskyFeedsTest extends TestCase {
 			'cursor' => 'profile-next',
 		], false], $this->asked[1]);
 
-		$feeds->authorPage($actor, $after, 20, $this->alice);
+		self::assertFalse($feeds->authorPage($actor, $after, 20, $this->alice));
 		self::assertCount(2, $this->asked, 'a consumed AppView page is not fetched again while local max_id pages through its posts');
+	}
+
+	public function testAProfileWithHiddenPostsContinuesInBoundedRefillsUntilItHasAFullPage(): void {
+		$actor = (new Person())->setId(BlueskyIds::actorId(self::BOB));
+		$hiddenPages = [];
+		for ($page = 1; $page <= 2; $page++) {
+			$feed = [];
+			for ($index = 0; $index < 21; $index++) {
+				$uri = 'at://' . self::BOB . '/app.bsky.feed.post/hidden-' . $page . '-' . $index;
+				$feed[] = ['post' => ['uri' => $uri]];
+				$this->hidden[] = BlueskyIds::postIdOfUri($uri);
+			}
+			$hiddenPages[] = ['feed' => $feed, 'cursor' => 'profile-hidden-' . ($page + 1)];
+		}
+		$visible = [];
+		for ($index = 0; $index < 21; $index++) {
+			$visible[] = ['post' => ['uri' => 'at://' . self::BOB . '/app.bsky.feed.post/visible-' . $index]];
+		}
+		$this->answerPages['app.bsky.feed.getAuthorFeed'] = [
+			...$hiddenPages,
+			['feed' => $visible, 'cursor' => 'profile-after-visible'],
+		];
+		$feeds = $this->feeds(false);
+
+		self::assertTrue($feeds->authorPage($actor, '', 20, $this->alice), 'the first request stops after two AppView pages and asks the client to continue');
+		self::assertFalse($feeds->authorPage($actor, '', 20, $this->alice), 'the refill reads the saved cursor and completes the visible page');
+		self::assertSame('profile-hidden-3', $this->asked[2][1]['cursor']);
+		self::assertCount(3, $this->asked, 'the refill consumes one subsequent AppView page');
+	}
+
+	public function testATemporaryAuthorFeedFailureRequestsARefillInsteadOfLookingLikeAnEmptyProfile(): void {
+		$actor = (new Person())->setId(BlueskyIds::actorId(self::BOB));
+
+		self::assertTrue($this->feeds()->authorPage($actor, '', 20, $this->alice));
+	}
+
+	public function testAProfileRefillForALaterPageResumesFromItsOwnCursor(): void {
+		$actor = (new Person())->setId(BlueskyIds::actorId(self::BOB));
+		$firstPage = [];
+		for ($index = 0; $index < 21; $index++) {
+			$firstPage[] = ['post' => ['uri' => 'at://' . self::BOB . '/app.bsky.feed.post/page-one-' . $index]];
+		}
+		$hiddenPages = [];
+		for ($page = 2; $page <= 3; $page++) {
+			$feed = [];
+			for ($index = 0; $index < 21; $index++) {
+				$uri = 'at://' . self::BOB . '/app.bsky.feed.post/page-' . $page . '-hidden-' . $index;
+				$feed[] = ['post' => ['uri' => $uri]];
+				$this->hidden[] = BlueskyIds::postIdOfUri($uri);
+			}
+			$hiddenPages[] = ['feed' => $feed, 'cursor' => 'profile-page-' . ($page + 1)];
+		}
+		$lastOnFirstPage = BlueskyIds::postIdOfUri('at://' . self::BOB . '/app.bsky.feed.post/page-one-20');
+		$finalPage = [];
+		for ($index = 0; $index < 21; $index++) {
+			$finalPage[] = ['post' => ['uri' => 'at://' . self::BOB . '/app.bsky.feed.post/page-four-' . $index]];
+		}
+		$this->answerPages['app.bsky.feed.getAuthorFeed'] = [
+			['feed' => $firstPage, 'cursor' => 'profile-page-2'],
+			...$hiddenPages,
+			['feed' => $finalPage, 'cursor' => 'profile-page-5'],
+		];
+		$feeds = $this->feeds(false);
+
+		self::assertFalse($feeds->authorPage($actor, '', 20, $this->alice));
+		$after = (string)crc32($lastOnFirstPage);
+		self::assertTrue($feeds->authorPage($actor, $after, 20, $this->alice));
+		self::assertFalse($feeds->authorPage($actor, $after, 20, $this->alice));
+		self::assertSame('profile-page-2', $this->asked[1][1]['cursor']);
+		self::assertSame('profile-page-4', $this->asked[3][1]['cursor'], 'the refill resumes after the two pages consumed by the previous request');
+		self::assertCount(4, $this->asked);
 	}
 
 	public function testEmptyPagesWithCursorsAreSkippedUntilAVisiblePostAppears(): void {

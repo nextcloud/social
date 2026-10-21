@@ -50,6 +50,7 @@ class BlueskyFeeds {
 	private const CURSOR_RETRIES = 'social-atproto-feed-retries';
 	private const PROFILE_CURSORS = 'social-atproto-profile-cursors';
 	private const PROFILE_CURSOR_PAGES = 'social-atproto-profile-cursor-pages';
+	private const PROFILE_RETRIES = 'social-atproto-profile-retries';
 	private const COLLECTIONS = [self::FEED => 'app.bsky.feed.generator', self::LIST => 'app.bsky.graph.list'];
 
 	public function __construct(
@@ -232,22 +233,29 @@ class BlueskyFeeds {
 	 *
 	 * The opaque AppView cursor is associated with the last local post id. A
 	 * missing or expired cursor ends paging instead of restarting at the top.
+	 *
+	 * @return bool whether the client should ask again to continue filling this page
 	 */
-	public function authorPage(Person $actor, string $after, int $limit, ?Person $viewer = null): void {
+	public function authorPage(Person $actor, string $after, int $limit, ?Person $viewer = null): bool {
 		if (!BlueskyActorService::isBluesky($actor)) {
-			return;
+			return false;
 		}
 
 		$key = $this->profileCursorKey($actor, $after);
 		$cursor = '';
-		if ($after !== '') {
+		$retry = $this->durableCache->get(self::PROFILE_RETRIES, $key);
+		if (is_string($retry) && $retry !== '') {
+			// Continue a short or failed page from the cursor the last attempt
+			// reached, whether this is the initial page or a later max_id page.
+			$cursor = $retry;
+		} elseif ($after !== '') {
 			$stored = $this->durableCache->get(self::PROFILE_CURSORS, $key);
 			if (!is_string($stored) || $stored === '') {
-				return;
+				return false;
 			}
 			$cursor = $stored;
 			if ($this->durableCache->get(self::PROFILE_CURSOR_PAGES, $this->profileCursorKey($actor, $cursor)) === true) {
-				return;
+				return false;
 			}
 		}
 
@@ -322,11 +330,15 @@ class BlueskyFeeds {
 						}
 					}
 					if ($visibleCount >= max(1, $limit + 1) || $next === '') {
-						return;
+						$this->durableCache->remove(self::PROFILE_RETRIES, $key);
+
+						return false;
 					}
 				}
 				if ($next === '') {
-					return;
+					$this->durableCache->remove(self::PROFILE_RETRIES, $key);
+
+					return false;
 				}
 				if (isset($seen[$next])) {
 					throw new UnexpectedValueException('Bluesky author-feed cursor did not advance');
@@ -338,12 +350,16 @@ class BlueskyFeeds {
 					}
 				}
 				if (++$profilePages >= self::MAX_PROFILE_PAGES) {
-					return;
+					$this->durableCache->set(self::PROFILE_RETRIES, $key, $next, self::CURSOR_KEPT);
+
+					return true;
 				}
 				$cursor = $next;
 			}
 		} catch (Throwable $e) {
 			$this->logger->info('Bluesky profile feed not read', ['actor' => $actor->getId(), 'exception' => $e]);
+
+			return true;
 		}
 	}
 
