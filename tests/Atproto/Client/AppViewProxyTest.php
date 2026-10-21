@@ -62,7 +62,7 @@ class AppViewProxyTest extends TestCase {
 			[$header, $payload, $signature] = explode('.', substr($options['headers']['Authorization'], 7));
 			$claims = json_decode(Encoding::base64UrlDecode($payload), true);
 			$this->assertSame(self::DID, $claims['iss']);
-			$this->assertSame('did:web:api.bsky.app', $claims['aud']);
+			$this->assertSame('did:web:api.bsky.app#bsky_appview', $claims['aud']);
 			$this->assertSame('app.bsky.feed.getTimeline', $claims['lxm']);
 			$this->assertTrue($this->userKey->publicKey()->verify($header . '.' . $payload, Encoding::base64UrlDecode($signature)));
 			$this->assertSame('did:plc:labeler', $options['headers']['atproto-accept-labelers']);
@@ -94,10 +94,28 @@ class AppViewProxyTest extends TestCase {
 		$this->assertStringContainsString('Profile not found', $answer->bytes);
 	}
 
+	public function testTheOfficialAppViewServiceReferenceIsPreservedInTheSignedAudience(): void {
+		$this->curl->expects($this->once())->method('doRequest')->with('get', 'https://api.bsky.app/xrpc/app.bsky.actor.getProfile?actor=alice.test', $this->callback(function (array $options): bool {
+			$claims = json_decode(Encoding::base64UrlDecode(explode('.', substr($options['headers']['Authorization'], 7))[1]), true);
+			$this->assertSame('did:web:api.bsky.app#bsky_appview', $claims['aud']);
+
+			return true;
+		}))->willReturnCallback(static function (string $method, string $url, array $options, &$contentType, &$status): string {
+			$status = 200;
+			$contentType = 'application/json';
+
+			return '{"did":"did:plc:alice","posts":[]}';
+		});
+
+		$answer = $this->proxy->forward($this->session, 'app.bsky.actor.getProfile', 'get', 'actor=alice.test', '', ['atproto-proxy' => 'did:web:api.bsky.app#bsky_appview']);
+		$this->assertSame(200, $answer->status);
+		$this->assertStringContainsString('did:plc:alice', $answer->bytes);
+	}
+
 	public function testDirectMessagesGoToTheChatServiceSignedForIt(): void {
 		$this->curl->expects($this->once())->method('doRequest')->with('post', 'https://api.bsky.chat/xrpc/chat.bsky.convo.sendMessage', $this->callback(function (array $options): bool {
 			$claims = json_decode(Encoding::base64UrlDecode(explode('.', substr($options['headers']['Authorization'], 7))[1]), true);
-			$this->assertSame(['did:web:api.bsky.chat', 'chat.bsky.convo.sendMessage'], [$claims['aud'], $claims['lxm']]);
+			$this->assertSame(['did:web:api.bsky.chat#bsky_chat', 'chat.bsky.convo.sendMessage'], [$claims['aud'], $claims['lxm']]);
 			$this->assertSame('{"convoId":"c1"}', $options['body']);
 
 			return true;

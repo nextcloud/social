@@ -524,7 +524,9 @@ profile back to Bluesky.
 ### Resuming Bluesky synchronization
 
 `FeedPoller` and `NotificationPoller` read at most one AppView page per due
-account and pass. `Reader\PollCursor` keeps their committed timestamp separate
+account and pass. A feed's first read walks pages to the end, so its cursor
+starts without a committed timestamp and advances only when the walk finishes;
+notification polling starts with a snapshot of its newest page. `Reader\PollCursor` keeps their committed timestamp separate
 from the AppView's opaque pagination cursor. While walking a backlog, the
 existing cursor column holds JSON with `since` (the previous committed
 timestamp), `newest` (the newest timestamp seen in this walk) and `page` (the
@@ -537,8 +539,8 @@ boundary is safe because imports are idempotent. No schema change is needed.
 Empty intermediate pages still continue, while malformed responses, repeated
 cursors and failed reads retain the existing checkpoint and use failure
 backoff. A pending walk stays on the ordinary two-minute interval even when
-its current page stores no new rows. An account's first read takes only its
-newest page, so following somebody does not import their whole history.
+its current page stores no new rows. The initial feed read is bounded to one
+page per pass and continues until the AppView has no older page.
 Pinned feed entries do not participate in chronological synchronization:
 `BlueskyPins` handles them separately, and an old pin must not end the walk.
 

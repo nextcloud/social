@@ -28,7 +28,7 @@ class AppViewClientTest extends TestCase {
 		$config->method('appViewAuth')->willReturn('https://api.bsky.app');
 		$config->method('appViewDid')->willReturn('did:web:api.bsky.app');
 		$auth = $this->createMock(ServiceAuth::class);
-		$auth->method('token')->with($this->anything(), 'did:plc:alice', 'did:web:api.bsky.app', 'app.bsky.notification.putActivitySubscription')->willReturn('signed');
+		$auth->method('token')->with($this->anything(), 'did:plc:alice', 'did:web:api.bsky.app#bsky_appview', 'app.bsky.notification.putActivitySubscription')->willReturn('signed');
 		$sent = [];
 		$curl = $this->createMock(CurlService::class);
 		$curl->method('doRequest')->willReturnCallback(static function (string $verb, string $url, array $options, &$contentType, &$status) use (&$sent): string {

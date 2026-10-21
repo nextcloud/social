@@ -60,7 +60,7 @@ class AppViewClient {
 	 * @throws AtprotoException
 	 */
 	public function queryAs(string $did, PrivateKey $key, string $method, array $params = []): array {
-		$token = $this->serviceAuth->token($key, $did, $this->config->appViewDid(), $method);
+		$token = $this->serviceAuth->token($key, $did, $this->config->appViewDid() . '#bsky_appview', $method);
 
 		return $this->get($this->config->appViewAuth(), $method, $params, ['Authorization' => 'Bearer ' . $token]);
 	}
@@ -74,7 +74,7 @@ class AppViewClient {
 	 * @throws AtprotoException
 	 */
 	public function procedureAs(string $did, PrivateKey $key, string $method, array $input): array {
-		$token = $this->serviceAuth->token($key, $did, $this->config->appViewDid(), $method);
+		$token = $this->serviceAuth->token($key, $did, $this->config->appViewDid() . '#bsky_appview', $method);
 
 		return $this->get($this->config->appViewAuth(), $method, [], ['Authorization' => 'Bearer ' . $token], $input);
 	}
@@ -92,7 +92,7 @@ class AppViewClient {
 		if ($this->config->chat() === '') {
 			throw new AtprotoException('No chat service is configured');
 		}
-		$token = $this->serviceAuth->token($key, $did, $this->config->chatDid(), $method);
+		$token = $this->serviceAuth->token($key, $did, $this->config->chatDid() . '#bsky_chat', $method);
 
 		return $this->get($this->config->chat(), $method, $params, ['Authorization' => 'Bearer ' . $token], $input);
 	}
