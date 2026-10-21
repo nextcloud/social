@@ -66,6 +66,7 @@ class RemoteFetchQueue {
 	private const POSTS_FILLED = 'social.postsfill';
 
 	private const COUNTS_ASKED = 'social.countsfill';
+	private const VISIBLE_COUNTS_ASKED = 'social.countsfill.visible';
 
 	/**
 	 * The longest a job's list of posts is, JSON-encoded: `IJobList` refuses
@@ -297,7 +298,7 @@ class RemoteFetchQueue {
 	 * @param array<string, int> $intervals post id => seconds until it may be asked for again
 	 * @return bool whether a read was asked for
 	 */
-	public function refreshCounts(array $intervals): bool {
+	public function refreshCounts(array $intervals, bool $force = false): bool {
 		$wanted = [];
 		foreach ($intervals as $id => $interval) {
 			if (count($wanted) >= self::MAX_PER_CALL) {
@@ -308,11 +309,12 @@ class RemoteFetchQueue {
 				continue;
 			}
 			$key = md5($id);
+			$throttle = $force ? self::VISIBLE_COUNTS_ASKED : self::COUNTS_ASKED;
 			try {
-				if ($this->durableCache->get(self::COUNTS_ASKED, $key) !== null) {
+				if ($this->durableCache->get($throttle, $key) !== null) {
 					continue;
 				}
-				$this->durableCache->set(self::COUNTS_ASKED, $key, 1, $interval);
+				$this->durableCache->set($throttle, $key, 1, $interval);
 			} catch (Throwable $e) {
 				// the post's own stamp, written when it is asked, still holds
 			}
@@ -320,11 +322,11 @@ class RemoteFetchQueue {
 		}
 
 		$queued = false;
-		$enqueueBatch = function (array $batch) use (&$queued): void {
+		$enqueueBatch = function (array $batch) use (&$queued, $force): void {
 			if ($batch === []) {
 				return;
 			}
-			if ($this->queue(RefreshCounts::class, ['posts' => $batch])) {
+			if ($this->queue(RefreshCounts::class, ['posts' => $batch] + ($force ? ['force' => true] : []))) {
 				$queued = true;
 
 				return;
@@ -334,12 +336,14 @@ class RemoteFetchQueue {
 			// for a later request; otherwise the interval marker would make its
 			// counts look as though a refresh were already in progress.
 			foreach ($batch as $id) {
-				$this->clearThrottle(self::COUNTS_ASKED, md5($id), $id, 'count refresh');
+				$throttle = $force ? self::VISIBLE_COUNTS_ASKED : self::COUNTS_ASKED;
+				$this->clearThrottle($throttle, md5($id), $id, 'count refresh');
 			}
 		};
 		$batch = [];
 		foreach ($wanted as $id) {
-			if ($batch !== [] && strlen((string)json_encode(['posts' => [...$batch, $id]])) > self::ARGUMENT_LENGTH) {
+			$argument = ['posts' => [...$batch, $id]] + ($force ? ['force' => true] : []);
+			if ($batch !== [] && strlen((string)json_encode($argument)) > self::ARGUMENT_LENGTH) {
 				$enqueueBatch($batch);
 				$batch = [];
 			}

@@ -335,6 +335,24 @@ class RemoteFetchQueueTest extends TestCase {
 		$this->assertSame([['https://r.example/1', 'https://r.example/2'], ['https://r.example/1']], $added);
 	}
 
+	public function testAForcedVisibleCountRetryHasItsOwnThrottleAndJobFlag(): void {
+		$this->jobList->method('has')->willReturn(false);
+		$added = [];
+		$this->jobList->method('add')->willReturnCallback(function (string $job, array $argument) use (&$added): void {
+			$this->assertSame(RefreshCounts::class, $job);
+			$added[] = $argument;
+		});
+
+		$this->assertTrue($this->queue->refreshCounts(['https://r.example/1' => 900]));
+		$this->assertTrue($this->queue->refreshCounts(['https://r.example/1' => 15], true));
+		$this->assertFalse($this->queue->refreshCounts(['https://r.example/1' => 15], true));
+
+		$this->assertSame([
+			['posts' => ['https://r.example/1']],
+			['posts' => ['https://r.example/1'], 'force' => true],
+		], $added);
+	}
+
 	public function testACountRefreshQueueFailureCanBeRetriedOnTheNextRequest(): void {
 		$fail = true;
 		$this->jobList->method('has')->willReturnCallback(static function () use (&$fail): bool {

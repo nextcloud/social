@@ -215,6 +215,32 @@ class CountServiceTest extends TestCase {
 		$this->assertTrue($this->service()->refreshVisibleIfDue($post));
 	}
 
+	public function testFailedForcedVisibleReadQueuesRetryEvenWhenOrdinaryCountIntervalIsFresh(): void {
+		$id = 'at://did:plc:author/app.bsky.feed.post/1';
+		$post = $this->post($id, 3600, 1);
+		$source = $this->getMockBuilder(BlueskyCountSource::class)->disableOriginalConstructor()->onlyMethods(['supports', 'refresh'])->getMock();
+		$source->method('supports')->with($post)->willReturn(true);
+		$source->expects($this->once())->method('refresh')->with([$post], AppViewClient::INTERACTIVE_TIMEOUT)->willThrowException(new RuntimeException('AppView is temporarily unavailable'));
+		$this->sources[BlueskyCountSource::class] = $source;
+		$this->queue->expects($this->once())->method('refreshCounts')->with([$id => 15], true)->willReturn(true);
+
+		$service = $this->service();
+
+		$this->assertTrue($service->refreshVisibleIfDue($post, true));
+		$this->assertTrue($service->visibleRefreshPending($id));
+	}
+
+	public function testForcedBackgroundRetryReadsCountsEvenWhenTheyAreOrdinarilyFresh(): void {
+		$id = 'at://did:plc:author/app.bsky.feed.post/1';
+		$post = $this->post($id, 3600, 1);
+		$source = $this->getMockBuilder(BlueskyCountSource::class)->disableOriginalConstructor()->onlyMethods(['supports', 'refresh'])->getMock();
+		$source->method('supports')->with($post)->willReturn(true);
+		$source->expects($this->once())->method('refresh')->with([$post])->willReturn(1);
+		$this->sources[BlueskyCountSource::class] = $source;
+
+		$this->assertSame(['asked' => 1, 'answered' => 1], $this->service()->refresh([$id], true));
+	}
+
 	public function testFailedVisibleReadStaysPendingUntilBackgroundStampUpdatesThePost(): void {
 		$post = $this->post('at://did:plc:author/app.bsky.feed.post/1', 3600, null);
 		$source = $this->getMockBuilder(BlueskyCountSource::class)->disableOriginalConstructor()->onlyMethods(['supports', 'refresh'])->getMock();
@@ -229,8 +255,8 @@ class CountServiceTest extends TestCase {
 		);
 		$this->sources[BlueskyCountSource::class] = $source;
 		$this->queue->expects($this->once())->method('refreshCounts')->with([
-			$post->getId() => CountService::YOUNG_INTERVAL,
-		])->willReturn(true);
+			$post->getId() => 15,
+		], true)->willReturn(true);
 		$service = $this->service();
 
 		$this->assertTrue($service->refreshVisibleIfDue($post), 'the failed live read schedules a background retry');
@@ -242,7 +268,7 @@ class CountServiceTest extends TestCase {
 		);
 		$cacheKey = hash('sha256', "social.counts.visible\n" . md5($post->getId()));
 		$pendingState = $this->cacheRows->rows[$cacheKey];
-		$this->assertSame(['asked' => 1, 'answered' => 0], $service->refresh([$post->getId()]));
+		$this->assertSame(['asked' => 1, 'answered' => 0], $service->refresh([$post->getId()], true));
 		$this->assertSame($pendingState, $this->cacheRows->rows[$cacheKey], 'background refresh does not write one cache row per post');
 		$this->assertFalse($service->refreshVisibleIfDue($post), 'the background timestamp prevents a repeat request');
 	}

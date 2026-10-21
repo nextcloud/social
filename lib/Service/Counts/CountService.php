@@ -158,14 +158,14 @@ class CountService {
 				try {
 					$answered = $source->refresh([$post], AppViewClient::INTERACTIVE_TIMEOUT);
 					if ($answered === 0) {
-						$this->seen([$post]);
+						$this->queueVisibleRetry($post);
 						$this->setVisibleState($post->getId(), self::VISIBLE_PENDING, self::VISIBLE_RETRY_INTERVAL);
 					} else {
 						$this->setVisibleState($post->getId(), self::VISIBLE_DONE, self::VISIBLE_INTERVAL);
 					}
 				} catch (Throwable $e) {
 					$this->logger->info('Post counts not read during display', ['post' => $post->getId(), 'exception' => $e]);
-					$this->seen([$post]);
+					$this->queueVisibleRetry($post);
 					$this->setVisibleState($post->getId(), self::VISIBLE_PENDING, self::VISIBLE_RETRY_INTERVAL);
 				}
 				return true;
@@ -181,6 +181,11 @@ class CountService {
 	public function visibleRefreshPending(string $postId): bool {
 		return $this->visibleState($postId) === self::VISIBLE_PENDING
 			|| $this->locks->isLocked(self::VISIBLE_LOCK . md5($postId), ILockingProvider::LOCK_EXCLUSIVE);
+	}
+
+	/** A forced live read may fail even when the ordinary count interval is fresh. */
+	private function queueVisibleRetry(Stream $post): void {
+		$this->queue->refreshCounts([$post->getId() => self::VISIBLE_RETRY_INTERVAL], true);
 	}
 
 	/** How long a post's counts stand before it is asked about again, in seconds. */
@@ -214,7 +219,7 @@ class CountService {
 	 * @param string[] $postIds
 	 * @return array{asked: int, answered: int}
 	 */
-	public function refresh(array $postIds): array {
+	public function refresh(array $postIds, bool $force = false): array {
 		$now = $this->time->getTime();
 		$posts = [];
 		foreach (array_unique($postIds) as $id) {
@@ -223,7 +228,7 @@ class CountService {
 			} catch (StreamNotFoundException) {
 				continue;
 			}
-			if ($this->isDue($post, $now)) {
+			if ($force || $this->isDue($post, $now)) {
 				$posts[] = $post;
 			}
 		}
