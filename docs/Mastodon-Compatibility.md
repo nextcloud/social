@@ -294,6 +294,8 @@ They also emit `announcement`, `announcement.reaction` and
 `announcement.delete` as instance notices appear, receive reactions, expire
 or are removed. Scalar event data, including deleted ids, is sent without JSON
 string quotes as Mastodon expects.
+After notification requests are accepted, user and notification-only streams
+emit `notifications_merged` so clients can refresh the notifications list.
 `GET /api/v1/streaming/health` is answered by the stream daemon. Web Push is
 implemented at `/api/v1/push/subscription`; the instance
 publishes the same stable public VAPID key in `configuration.vapid.public_key`

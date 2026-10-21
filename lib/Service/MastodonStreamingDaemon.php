@@ -41,6 +41,7 @@ class MastodonStreamingDaemon {
 	private const PING_INTERVAL = 20;
 	private const FILTER_POLL_INTERVAL = 5;
 	private const ANNOUNCEMENT_POLL_INTERVAL = 5;
+	private const NOTIFICATION_MERGE_POLL_INTERVAL = 5;
 	private const BATCH = 50;
 	private const MAX_HASHTAG_SUBSCRIPTIONS = 20;
 	private const MAX_LIST_SUBSCRIPTIONS = 20;
@@ -64,6 +65,7 @@ class MastodonStreamingDaemon {
 		private FilterService $filterService,
 		private FeedDisplayService $feedDisplayService,
 		private NotificationPolicyService $notificationPolicyService,
+		private TimelineRevisionService $timelineRevisionService,
 		private ITimeFactory $time,
 		private LoggerInterface $logger,
 	) {
@@ -190,6 +192,10 @@ class MastodonStreamingDaemon {
 					? self::reactionState($this->announcementSnapshots($viewer))
 					: null,
 				'announcementCheckedAt' => $this->time->getTime(),
+				'notificationsMergedRevision' => in_array($stream, ['user', 'user:notification'], true)
+					? $this->timelineRevisionService->of($client->getAuthUserId(), TimelineRevisionService::NOTIFICATIONS_MERGED)
+					: 0,
+				'notificationsMergedCheckedAt' => $this->time->getTime(),
 				'lastPoll' => 0,
 				'lastPing' => $this->time->getTime(),
 			];
@@ -254,6 +260,12 @@ class MastodonStreamingDaemon {
 				return null;
 			}
 			$subscriber->context['subscriptions'][$stream] = true;
+			if (in_array($stream, ['user', 'user:notification'], true)) {
+				$subscriber->context['notificationsMergedRevision'] = $this->timelineRevisionService->of(
+					(string)($subscriber->context['userId'] ?? ''), TimelineRevisionService::NOTIFICATIONS_MERGED
+				);
+				$subscriber->context['notificationsMergedCheckedAt'] = 0;
+			}
 		} else {
 			if ($stream === 'list') {
 				$listId = $this->listId($message['list'] ?? '');
@@ -385,6 +397,7 @@ class MastodonStreamingDaemon {
 		$subscriptions = $subscriber->context['subscriptions'] ?? [];
 		$this->sendFilterChanges($server, $subscriber, $viewer, $subscriptions, $now);
 		$this->sendAnnouncementChanges($server, $subscriber, $viewer, $subscriptions, $now);
+		$this->sendNotificationsMerged($server, $subscriber, $viewer, $subscriptions, $now);
 		if (isset($subscriptions['user'])) {
 			$this->sendStatuses($server, $subscriber, $viewer);
 		}
@@ -491,6 +504,31 @@ class MastodonStreamingDaemon {
 			if (!isset($current[$id])) {
 				$this->sendToStreams($server, $subscriber, $streams, 'announcement.delete', (string)$id);
 			}
+		}
+	}
+
+	/** Emits Mastodon's notification-merge event after a reader accepts requests. */
+	private function sendNotificationsMerged(WebSocketServer $server, Subscriber $subscriber, Person $viewer, array $subscriptions, int $now): void {
+		$streams = array_values(array_filter(
+			['user', 'user:notification'],
+			static fn (string $stream): bool => isset($subscriptions[$stream])
+		));
+		if ($streams === [] || $now - (int)($subscriber->context['notificationsMergedCheckedAt'] ?? 0) < self::NOTIFICATION_MERGE_POLL_INTERVAL) {
+			return;
+		}
+
+		$subscriber->context['notificationsMergedCheckedAt'] = $now;
+		$revision = $this->timelineRevisionService->of(
+			$viewer->getUserId(), TimelineRevisionService::NOTIFICATIONS_MERGED
+		);
+		$previous = (int)($subscriber->context['notificationsMergedRevision'] ?? $revision);
+		$subscriber->context['notificationsMergedRevision'] = $revision;
+		if ($revision <= $previous) {
+			return;
+		}
+
+		foreach ($streams as $stream) {
+			$this->send($server, $subscriber, [$stream], 'notifications_merged', '');
 		}
 	}
 

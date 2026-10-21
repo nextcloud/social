@@ -35,6 +35,7 @@ use OCA\Social\Service\MastodonStreamingDaemon;
 use OCA\Social\Service\NotificationPolicyService;
 use OCA\Social\Service\PostDecorationService;
 use OCA\Social\Service\StreamService;
+use OCA\Social\Service\TimelineRevisionService;
 use OCP\AppFramework\Utility\ITimeFactory;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -57,6 +58,7 @@ class MastodonStreamingDaemonTest extends TestCase {
 	private PostDecorationService&MockObject $postDecoration;
 	private FilterService&MockObject $filters;
 	private ITimeFactory&MockObject $time;
+	private TimelineRevisionService&MockObject $timelineRevisions;
 	private MastodonStreamingDaemon $daemon;
 
 	#[\Override]
@@ -78,6 +80,7 @@ class MastodonStreamingDaemonTest extends TestCase {
 		$this->filters = $this->createMock(FilterService::class);
 		$this->time = $this->createMock(ITimeFactory::class);
 		$this->time->method('getTime')->willReturn(1_800_000_000);
+		$this->timelineRevisions = $this->createMock(TimelineRevisionService::class);
 		$this->requests->method('newestHomeNid')->willReturn('10');
 		$this->requests->method('newestNidFor')->willReturn('20');
 		$this->accounts->method('getActorFromUserId')->willReturn(
@@ -99,6 +102,7 @@ class MastodonStreamingDaemonTest extends TestCase {
 			$this->filters,
 			$this->createMock(FeedDisplayService::class),
 			$this->createMock(NotificationPolicyService::class),
+			$this->timelineRevisions,
 			$this->time,
 			new NullLogger(),
 		);
@@ -721,6 +725,45 @@ class MastodonStreamingDaemonTest extends TestCase {
 		$server->expects(self::never())->method('send');
 
 		$this->invoke('sendFilterChanges', $server, $subscriber, new Person(), ['user:notification' => true], 1_800_000_000);
+	}
+
+	public function testAcceptedNotificationRequestsEmitWebSocketMergeEvent(): void {
+		$this->timelineRevisions->expects(self::once())
+			->method('of')
+			->with('alice', TimelineRevisionService::NOTIFICATIONS_MERGED)
+			->willReturn(4);
+		$subscriber = $this->subscriber();
+		$subscriber->context = [
+			'userId' => 'alice',
+			'notificationsMergedRevision' => 3,
+			'notificationsMergedCheckedAt' => 1_799_999_990,
+		];
+		$server = $this->createMock(WebSocketServer::class);
+		$server->expects(self::once())->method('send')->with($subscriber, (string)json_encode([
+			'stream' => ['user:notification'],
+			'event' => 'notifications_merged',
+			'payload' => '',
+		]));
+
+		$this->invoke('sendNotificationsMerged', $server, $subscriber, (new Person())->setUserId('alice'), ['user:notification' => true], 1_800_000_000);
+		self::assertSame(4, $subscriber->context['notificationsMergedRevision']);
+	}
+
+	public function testNotificationMergeEventUsesEmptySsePayloadAndIgnoresUnchangedRevision(): void {
+		$this->timelineRevisions->expects(self::exactly(2))
+			->method('of')
+			->willReturn(4);
+		$subscriber = $this->subscriber();
+		$subscriber->eventStream = true;
+		$subscriber->context = [
+			'notificationsMergedRevision' => 3,
+			'notificationsMergedCheckedAt' => 1_799_999_990,
+		];
+		$server = $this->createMock(WebSocketServer::class);
+		$server->expects(self::once())->method('send')->with($subscriber, "event: notifications_merged\ndata: \n\n");
+
+		$this->invoke('sendNotificationsMerged', $server, $subscriber, new Person(), ['user' => true], 1_800_000_000);
+		$this->invoke('sendNotificationsMerged', $server, $subscriber, new Person(), ['user' => true], 1_800_000_006);
 	}
 
 	public function testUnchangedFiltersDoNotEmitAnEvent(): void {

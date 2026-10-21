@@ -503,6 +503,10 @@ seconds and emits `announcement`, `announcement.reaction` and
 `announcement.delete` when a notice appears, its reaction counts change, or
 it expires or is removed. String event payloads such as deleted ids are sent
 as raw text rather than JSON-quoted strings.
+Accepting a notification request bumps a dedicated per-account revision, which
+causes subscribed user and notification-only streams to emit
+`notifications_merged` without confusing other timeline changes with accepted
+requests.
 For edits to public posts it reads the append-only status-revision cursor and
 emits one `status.update` event per changed post on matching public and
 hashtag subscriptions. Home and owned-list streams recheck membership in the
