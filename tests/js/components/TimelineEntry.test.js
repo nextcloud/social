@@ -115,6 +115,15 @@ describe('a reply in a thread', () => {
 		expect(replyBlock).not.toContain('margin-inline-end: calc(var(--thread-depth, 1) * -24px)')
 		expect(replyBlock).toContain('padding-inline-start: 18px')
 	})
+
+	it('uses a tighter thread indent on phones so reply content keeps its width', () => {
+		const source = readFileSync(resolve(process.cwd(), 'src/components/TimelineEntry.vue'), 'utf8')
+		const phoneBlock = source.slice(source.indexOf('@include layout.below(layout.$phone) {', source.indexOf('A phone. The avatar column')))
+
+		expect(phoneBlock).toContain('.timeline-entry--reply {')
+		expect(phoneBlock).toContain('margin-inline-start: calc(var(--thread-depth, 1) * 12px)')
+		expect(phoneBlock).toContain('padding-inline-start: 10px')
+	})
 })
 
 function mountEntry(item, props = {}) {
