@@ -72,9 +72,6 @@ class ActivityPubInteractionSource implements InteractionSource {
 					throw $e;
 				}
 			}
-			if (!is_array($collection)) {
-				break;
-			}
 			$items = $collection['orderedItems'] ?? $collection['items'] ?? [];
 			foreach (is_array($items) ? $items : [] as $item) {
 				$id = self::actorOf($item, $type);
