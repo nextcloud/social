@@ -495,6 +495,9 @@ cursor and can be unsubscribed independently.
 Once per second it reads the
 same timelines used by the REST API, applies the viewer's filters, reply
 visibility and notification policy, and emits Mastodon's event payloads.
+Every five seconds it fingerprints each subscribed account's filters and
+emits `filters_changed` on that account's user streams when the set changes;
+the event carries no payload, as Mastodon specifies.
 For edits to public posts it reads the append-only status-revision cursor and
 emits one `status.update` event per changed post on matching public and
 hashtag subscriptions. Home and owned-list streams recheck membership in the

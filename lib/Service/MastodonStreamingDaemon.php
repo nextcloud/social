@@ -11,6 +11,7 @@ namespace OCA\Social\Service;
 
 use OCA\Social\Atproto\Firehose\Subscriber;
 use OCA\Social\Atproto\Firehose\WebSocketServer;
+use OCA\Social\Db\FiltersRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\HashtagsRequest;
 use OCA\Social\Db\ListsRequest;
@@ -38,6 +39,7 @@ class MastodonStreamingDaemon {
 	private const POLL_IDLE = 0.25;
 	private const POLL_INTERVAL = 1;
 	private const PING_INTERVAL = 20;
+	private const FILTER_POLL_INTERVAL = 5;
 	private const BATCH = 50;
 	private const MAX_HASHTAG_SUBSCRIPTIONS = 20;
 	private const MAX_LIST_SUBSCRIPTIONS = 20;
@@ -52,6 +54,7 @@ class MastodonStreamingDaemon {
 		private StatusRevisionsRequest $statusRevisionsRequest,
 		private StatusDeletionEventsRequest $statusDeletionEventsRequest,
 		private FollowsRequest $followsRequest,
+		private FiltersRequest $filtersRequest,
 		private StreamService $streamService,
 		private ConversationService $conversationService,
 		private ListsRequest $listsRequest,
@@ -177,6 +180,10 @@ class MastodonStreamingDaemon {
 				'directSince' => $this->streamRequest->newestNidFor([md5($viewer->getId())], 'dm'),
 				'revisionSince' => $this->statusRevisionsRequest->newestId(),
 				'deleteSince' => $this->statusDeletionEventsRequest->newestId(),
+				'filterFingerprint' => in_array($stream, ['user', 'user:notification'], true)
+					? self::filterFingerprint($this->filtersRequest->getByActor($viewer->getId()))
+					: '',
+				'filterCheckedAt' => $this->time->getTime(),
 				'lastPoll' => 0,
 				'lastPing' => $this->time->getTime(),
 			];
@@ -370,6 +377,7 @@ class MastodonStreamingDaemon {
 		}
 		$this->streamService->setViewer($viewer);
 		$subscriptions = $subscriber->context['subscriptions'] ?? [];
+		$this->sendFilterChanges($server, $subscriber, $viewer, $subscriptions, $now);
 		if (isset($subscriptions['user'])) {
 			$this->sendStatuses($server, $subscriber, $viewer);
 		}
@@ -396,6 +404,43 @@ class MastodonStreamingDaemon {
 		}
 		$this->sendDeletedStatuses($server, $subscriber);
 		$this->sendEditedPublicStatuses($server, $subscriber, $viewer);
+	}
+
+	/** Emits Mastodon's `filters_changed` event when this account's filters change. */
+	private function sendFilterChanges(WebSocketServer $server, Subscriber $subscriber, Person $viewer, array $subscriptions, int $now): void {
+		$streams = array_values(array_filter(
+			['user', 'user:notification'],
+			static fn (string $stream): bool => isset($subscriptions[$stream])
+		));
+		if ($streams === [] || $now - (int)($subscriber->context['filterCheckedAt'] ?? 0) < self::FILTER_POLL_INTERVAL) {
+			return;
+		}
+
+		$subscriber->context['filterCheckedAt'] = $now;
+		$fingerprint = self::filterFingerprint($this->filtersRequest->getByActor($viewer->getId()));
+		$previous = (string)($subscriber->context['filterFingerprint'] ?? '');
+		if ($previous === '' || hash_equals($previous, $fingerprint)) {
+			$subscriber->context['filterFingerprint'] = $fingerprint;
+
+			return;
+		}
+		$subscriber->context['filterFingerprint'] = $fingerprint;
+		if ($subscriber->eventStream) {
+			$server->send($subscriber, "event: filters_changed\ndata: undefined\n\n");
+			return;
+		}
+		$server->send($subscriber, (string)json_encode([
+			'stream' => $streams,
+			'event' => 'filters_changed',
+		], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+	}
+
+	/** @param Filter[] $filters */
+	private static function filterFingerprint(array $filters): string {
+		return hash('sha256', serialize(array_map(
+			static fn (Filter $filter): array => $filter->jsonSerialize(),
+			$filters
+		)));
 	}
 
 	/** Sends deleted status ids only to streams that could have received the status. */

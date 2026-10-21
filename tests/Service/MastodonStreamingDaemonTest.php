@@ -11,6 +11,7 @@ namespace OCA\Social\Tests\Service;
 
 use OCA\Social\Atproto\Firehose\Subscriber;
 use OCA\Social\Atproto\Firehose\WebSocketServer;
+use OCA\Social\Db\FiltersRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\ListsRequest;
 use OCA\Social\Db\StatusDeletionEventsRequest;
@@ -46,6 +47,7 @@ class MastodonStreamingDaemonTest extends TestCase {
 	private StatusRevisionsRequest&MockObject $statusRevisions;
 	private StatusDeletionEventsRequest&MockObject $statusDeletionEvents;
 	private FollowsRequest&MockObject $follows;
+	private FiltersRequest&MockObject $filterRows;
 	private StreamService&MockObject $streams;
 	private ConversationService&MockObject $conversations;
 	private ListsRequest&MockObject $lists;
@@ -64,6 +66,7 @@ class MastodonStreamingDaemonTest extends TestCase {
 		$this->statusDeletionEvents = $this->createMock(StatusDeletionEventsRequest::class);
 		$this->statusDeletionEvents->method('newestId')->willReturn(12);
 		$this->follows = $this->createMock(FollowsRequest::class);
+		$this->filterRows = $this->createMock(FiltersRequest::class);
 		$this->streams = $this->createMock(StreamService::class);
 		$this->conversations = $this->createMock(ConversationService::class);
 		$this->lists = $this->createMock(ListsRequest::class);
@@ -83,6 +86,7 @@ class MastodonStreamingDaemonTest extends TestCase {
 			$this->statusRevisions,
 			$this->statusDeletionEvents,
 			$this->follows,
+			$this->filterRows,
 			$this->streams,
 			$this->conversations,
 			$this->lists,
@@ -676,6 +680,42 @@ class MastodonStreamingDaemonTest extends TestCase {
 		$error = json_decode($this->invoke('onMessage', $subscriber, 0x1, '{"type":"subscribe","stream":"user"}'), true);
 		self::assertSame('Insufficient scope', $error['payload']);
 		self::assertSame([], $subscriber->context['subscriptions']);
+	}
+
+	public function testChangedFiltersEmitMastodonWebSocketEventWithoutPayload(): void {
+		$filter = (new Filter())->setId(7)->setTitle('spoilers');
+		$this->filterRows->expects(self::once())->method('getByActor')->willReturn([$filter]);
+		$subscriber = $this->subscriber();
+		$subscriber->context = ['filterCheckedAt' => 1_799_999_990, 'filterFingerprint' => hash('sha256', serialize([]))];
+		$server = $this->createMock(WebSocketServer::class);
+		$server->expects(self::once())->method('send')->with($subscriber, (string)json_encode([
+			'stream' => ['user'],
+			'event' => 'filters_changed',
+		]));
+
+		$this->invoke('sendFilterChanges', $server, $subscriber, new Person(), ['user' => true], 1_800_000_000);
+	}
+
+	public function testChangedFiltersUseMastodonSseUndefinedPayload(): void {
+		$filter = (new Filter())->setId(7)->setTitle('spoilers');
+		$this->filterRows->expects(self::once())->method('getByActor')->willReturn([$filter]);
+		$subscriber = $this->subscriber();
+		$subscriber->eventStream = true;
+		$subscriber->context = ['filterCheckedAt' => 1_799_999_990, 'filterFingerprint' => hash('sha256', serialize([]))];
+		$server = $this->createMock(WebSocketServer::class);
+		$server->expects(self::once())->method('send')->with($subscriber, "event: filters_changed\ndata: undefined\n\n");
+
+		$this->invoke('sendFilterChanges', $server, $subscriber, new Person(), ['user:notification' => true], 1_800_000_000);
+	}
+
+	public function testUnchangedFiltersDoNotEmitAnEvent(): void {
+		$this->filterRows->method('getByActor')->willReturn([]);
+		$subscriber = $this->subscriber();
+		$subscriber->context = ['filterCheckedAt' => 1_799_999_990, 'filterFingerprint' => hash('sha256', serialize([]))];
+		$server = $this->createMock(WebSocketServer::class);
+		$server->expects(self::never())->method('send');
+
+		$this->invoke('sendFilterChanges', $server, $subscriber, new Person(), ['user' => true], 1_800_000_000);
 	}
 
 	private function client(array $scopes): SocialClient {
