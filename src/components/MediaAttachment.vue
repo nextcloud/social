@@ -300,7 +300,25 @@ export default {
 			} catch {
 				// A malformed escape is not a reason to break the attachment card.
 			}
-			return name !== '' && !isOpaqueFileName(name) ? name : t('social', 'File')
+			if (name !== '' && !isOpaqueFileName(name)) {
+				return name
+			}
+
+			// Older remote posts may have stored only a local numeric media id
+			// where newer imports keep the source filename. The MIME type still
+			// lets the card say what the download contains.
+			const mediaType = String(this.attachment?.media_type || '').toLowerCase()
+			const [major] = mediaType.split('/', 2)
+			const category = ({
+				application: t('social', 'document'),
+				audio: t('social', 'audio file'),
+				image: t('social', 'image file'),
+				text: t('social', 'text file'),
+				video: t('social', 'video file'),
+			})[major] || t('social', 'file')
+			const kind = this.fileKind
+
+			return kind ? t('social', '{kind} {category}', { kind, category }) : category
 		},
 
 		/** @return {string} a useful file kind, from its extension or media type */

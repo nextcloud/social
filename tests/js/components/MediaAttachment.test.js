@@ -129,7 +129,7 @@ describe('MediaAttachment', () => {
 			props: { attachment: { id: '9', type: 'unknown', url: `https://cloud.example.org/media/${key}`, media_type: 'application/pdf', preview_url: null, description: null } },
 		})
 
-		expect(wrapper.find('.attachment__file-name').text()).toBe('File')
+		expect(wrapper.find('.attachment__file-name').text()).toBe('PDF document')
 		expect(wrapper.find('.attachment__file-kind').text()).toBe('PDF')
 	})
 
@@ -138,7 +138,7 @@ describe('MediaAttachment', () => {
 			props: { attachment: { id: '9', type: 'unknown', url: `https://cloud.example.org/media/${key}`, preview_url: null, description: null } },
 		})
 
-		expect(wrapper.find('.attachment__file-name').text()).toBe('File')
+		expect(wrapper.find('.attachment__file-name').text()).toBe('PDF file')
 		expect(wrapper.find('.attachment__file-kind').text()).toBe('PDF')
 	})
 
@@ -190,7 +190,7 @@ describe('MediaAttachment', () => {
 			props: { attachment: { id: '9', type: 'unknown', url: 'https://cloud.example.org/media/', media_type: 'application/pdf', preview_url: null, description } },
 		})
 
-		expect(wrapper.find('.attachment__file-name').text()).toBe('File')
+		expect(wrapper.find('.attachment__file-name').text()).toBe('PDF document')
 		expect(wrapper.find('.attachment__file-kind').text()).toBe('PDF')
 	})
 
