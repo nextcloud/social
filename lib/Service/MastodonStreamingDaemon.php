@@ -392,16 +392,17 @@ class MastodonStreamingDaemon {
 		foreach ($subscriber->context['hashtagSubscriptions'] ?? [] as $key => $subscription) {
 			$this->sendHashtagStatuses($server, $subscriber, $viewer, $key, $subscription);
 		}
-		$this->sendDeletedPublicStatuses($server, $subscriber);
+		$this->sendDeletedStatuses($server, $subscriber);
 		$this->sendEditedPublicStatuses($server, $subscriber, $viewer);
 	}
 
-	/** Sends public status ids to active streams so clients can remove deleted posts. */
-	private function sendDeletedPublicStatuses(WebSocketServer $server, Subscriber $subscriber): void {
+	/** Sends deleted status ids only to streams that could have received the status. */
+	private function sendDeletedStatuses(WebSocketServer $server, Subscriber $subscriber): void {
 		$subscriptions = $subscriber->context['subscriptions'] ?? [];
 		$listSubscriptions = $subscriber->context['listSubscriptions'] ?? [];
 		$hashtagSubscriptions = $subscriber->context['hashtagSubscriptions'] ?? [];
 		if (!isset($subscriptions['user'])
+			&& !isset($subscriptions['direct'])
 			&& ($listSubscriptions === [])
 			&& !array_intersect(array_keys($subscriptions), [...self::PUBLIC_STREAMS, 'hashtag', 'hashtag:local'])) {
 			return;
@@ -418,20 +419,30 @@ class MastodonStreamingDaemon {
 
 		foreach ($events as $event) {
 			$matching = [];
-			if (isset($subscriptions['user'])) {
+			$isPrivate = $event['visibility'] !== Stream::TYPE_PUBLIC;
+			if ($isPrivate) {
+				$viewer = $subscriber->context['viewer'] ?? null;
+				if (!$viewer instanceof Person || !in_array(md5($viewer->getId()), $event['recipients'], true)) {
+					continue;
+				}
+			}
+			if (!$isPrivate && isset($subscriptions['user'])) {
 				$matching[] = 'user';
 			}
-			if ($listSubscriptions !== []) {
+			if ($event['visibility'] === Stream::TYPE_DIRECT && isset($subscriptions['direct'])) {
+				$matching[] = 'direct';
+			}
+			if (!$isPrivate && $listSubscriptions !== []) {
 				$matching[] = 'list';
 			}
-			foreach (self::PUBLIC_STREAMS as $stream) {
+			foreach ($isPrivate ? [] : self::PUBLIC_STREAMS as $stream) {
 				if (!isset($subscriptions[$stream]) || !$this->deletedStatusMatchesStream($event, $stream)) {
 					continue;
 				}
 				$matching[] = $stream;
 			}
 			$eventTags = array_map(static fn (string $tag): string => strtolower(ltrim($tag, '#')), $event['hashtags']);
-			foreach ($hashtagSubscriptions as $subscription) {
+			foreach ($isPrivate ? [] : $hashtagSubscriptions as $subscription) {
 				if (!is_array($subscription)) {
 					continue;
 				}
@@ -447,7 +458,7 @@ class MastodonStreamingDaemon {
 		}
 	}
 
-	/** @param array{id: int, status_nid: string, hashtags: list<string>, local: bool, media: bool} $event */
+	/** @param array{id: int, status_nid: string, hashtags: list<string>, local: bool, media: bool, visibility: string, recipients: list<string>} $event */
 	private function deletedStatusMatchesStream(array $event, string $stream): bool {
 		return (!str_contains($stream, ':local') || $event['local'])
 			&& (!str_contains($stream, ':remote') || !$event['local'])

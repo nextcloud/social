@@ -405,14 +405,14 @@ class MastodonStreamingDaemonTest extends TestCase {
 
 	public function testPublicStreamReceivesDeletedStatusId(): void {
 		$this->statusDeletionEvents->expects(self::once())->method('getAfterId')->with(12, 50)->willReturn([
-			['id' => 13, 'status_nid' => '75', 'hashtags' => [], 'local' => true, 'media' => false],
+			['id' => 13, 'status_nid' => '75', 'hashtags' => [], 'local' => true, 'media' => false, 'visibility' => Stream::TYPE_PUBLIC, 'recipients' => []],
 		]);
 		$subscriber = $this->subscriber();
 		$subscriber->eventStream = true;
 		$subscriber->context = ['deleteSince' => 12, 'subscriptions' => ['public:local' => true]];
 		$server = new WebSocketServer('127.0.0.1:' . random_int(20000, 60000));
 		try {
-			$this->invoke('sendDeletedPublicStatuses', $server, $subscriber);
+			$this->invoke('sendDeletedStatuses', $server, $subscriber);
 		} finally {
 			$server->shutdown();
 		}
@@ -427,14 +427,57 @@ class MastodonStreamingDaemonTest extends TestCase {
 
 	public function testPublicMediaStreamDoesNotReceiveDeletedTextStatus(): void {
 		$this->statusDeletionEvents->expects(self::once())->method('getAfterId')->willReturn([
-			['id' => 13, 'status_nid' => '75', 'hashtags' => [], 'local' => true, 'media' => false],
+			['id' => 13, 'status_nid' => '75', 'hashtags' => [], 'local' => true, 'media' => false, 'visibility' => Stream::TYPE_PUBLIC, 'recipients' => []],
 		]);
 		$subscriber = $this->subscriber();
 		$subscriber->eventStream = true;
 		$subscriber->context = ['deleteSince' => 12, 'subscriptions' => ['public:local:media' => true]];
 		$server = new WebSocketServer('127.0.0.1:' . random_int(20000, 60000));
 		try {
-			$this->invoke('sendDeletedPublicStatuses', $server, $subscriber);
+			$this->invoke('sendDeletedStatuses', $server, $subscriber);
+		} finally {
+			$server->shutdown();
+		}
+
+		rewind($subscriber->socket);
+		$payload = stream_get_contents($subscriber->socket);
+		self::assertIsString($payload);
+		self::assertStringNotContainsString('event: delete', $payload);
+	}
+
+	public function testDirectDeletionIsSentOnlyToOriginalRecipients(): void {
+		$this->statusDeletionEvents->expects(self::once())->method('getAfterId')->willReturn([
+			['id' => 13, 'status_nid' => '75', 'hashtags' => [], 'local' => true, 'media' => false, 'visibility' => Stream::TYPE_DIRECT, 'recipients' => [md5('https://example.test/users/alice')]],
+		]);
+		$viewer = (new Person())->setId('https://example.test/users/alice');
+		$subscriber = $this->subscriber();
+		$subscriber->eventStream = true;
+		$subscriber->context = ['deleteSince' => 12, 'viewer' => $viewer, 'subscriptions' => ['direct' => true]];
+		$server = new WebSocketServer('127.0.0.1:0');
+		try {
+			$this->invoke('sendDeletedStatuses', $server, $subscriber);
+		} finally {
+			$server->shutdown();
+		}
+
+		rewind($subscriber->socket);
+		$payload = stream_get_contents($subscriber->socket);
+		self::assertIsString($payload);
+		self::assertStringContainsString('event: delete', $payload);
+		self::assertStringContainsString('data: "75"', $payload);
+	}
+
+	public function testDirectDeletionIsNotSentToNonRecipient(): void {
+		$this->statusDeletionEvents->expects(self::once())->method('getAfterId')->willReturn([
+			['id' => 13, 'status_nid' => '75', 'hashtags' => [], 'local' => true, 'media' => false, 'visibility' => Stream::TYPE_DIRECT, 'recipients' => [md5('https://example.test/users/alice')]],
+		]);
+		$viewer = (new Person())->setId('https://example.test/users/bob');
+		$subscriber = $this->subscriber();
+		$subscriber->eventStream = true;
+		$subscriber->context = ['deleteSince' => 12, 'viewer' => $viewer, 'subscriptions' => ['direct' => true]];
+		$server = new WebSocketServer('127.0.0.1:0');
+		try {
+			$this->invoke('sendDeletedStatuses', $server, $subscriber);
 		} finally {
 			$server->shutdown();
 		}

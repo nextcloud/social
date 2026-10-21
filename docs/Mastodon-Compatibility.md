@@ -46,8 +46,9 @@ client routes against the route table found 23 genuinely unserved — the raw
 path diff said 45, and 22 of those were catch-alls a textual comparison cannot
 see. Web Push subscription and encrypted delivery are implemented. Streaming
 is implemented as an optional daemon and needs the documented proxy rules;
-public status deletions now reach connected user, list, public and matching
-hashtag streams. `emails/confirmations` remains absent because sign-up belongs
+public deletions reach matching timelines and direct-message deletions reach
+only their original participants. Followers-only deletions remain open.
+`emails/confirmations` remains absent because sign-up belongs
 to Nextcloud. Everything else exists, and §3.3 says which of them is a stub.
 
 It is **not** a drop-in replacement for Mastodon, and two things stood between
@@ -279,10 +280,12 @@ pass it as `list`; WebSocket clients can unsubscribe from each list
 independently. WebSocket hashtag subscriptions require a `tag` value in the
 subscription message. The instance filters timeline updates using the same
 visibility, mute and filter rules as its REST timelines. Public status
-deletions emit `delete` events to user, list, matching public and matching
-hashtag streams. These events contain only the status id, and a bounded cursor
-retains the newest 10,000 deletions. Private and direct-message deletions are
-not emitted. Edits emit `status.update` for matching public, hashtag, home and
+deletions emit `delete` events to matching public streams. Direct-message
+deletions reach only the original participants' direct streams;
+their audience is recorded as actor hashes and the event contains only the
+status id. Public events retain hashtag and media filters, while direct-message
+events carry no hashtag metadata. The cursor keeps the newest 10,000 deletions.
+Followers-only deletions remain unannounced. Edits emit `status.update` for matching public, hashtag, home and
 list streams and `conversation` for accessible direct-message edits.
 `GET /api/v1/streaming/health` is answered by the stream daemon. Web Push is
 implemented at `/api/v1/push/subscription`; the instance
@@ -931,8 +934,8 @@ client reaches *any* of the surface above.
 **Streaming (10) remains a substantial client-compatibility gap.** The
 long-lived daemon serves the timeline types, emits `status.update` for matching
 public, hashtag, home and list streams, `conversation` for accessible direct
-message edits, and `delete` for public status removals. It does not announce
-private or direct-message deletions. Web Push remains available for
+message edits, and `delete` for public and recipient-scoped direct-message
+removals. Followers-only deletions remain a gap. Web Push remains available for
 notifications. The peer-level
 media serialization finding is fixed and covered by a test that hydrates a stored
 status before serializing it.

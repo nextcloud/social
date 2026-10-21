@@ -56,12 +56,28 @@ class StatusDeletionEventsTest extends TestCase {
 		$this->assertSame($event['id'], $this->events->newestId());
 	}
 
-	public function testDoesNotRecordPrivateStatusDeletions(): void {
+	public function testRecordsDirectStatusDeletionOnlyForItsRecipients(): void {
 		$this->events->record((new Note())
 			->setNid('9223372036854000001')
-			->setVisibility(Stream::TYPE_DIRECT));
+			->setVisibility(Stream::TYPE_DIRECT), ['recipient-prim']);
+
+		$event = array_values(array_filter(
+			$this->events->getAfterId($this->cursor, 20),
+			fn (array $row): bool => $row['status_nid'] === '9223372036854000001'
+		))[0] ?? null;
+		$this->assertNotNull($event);
+		$this->eventIds[] = $event['id'];
+		$this->assertSame(Stream::TYPE_DIRECT, $event['visibility']);
+		$this->assertSame(['recipient-prim'], $event['recipients']);
+		$this->assertSame([], $event['hashtags']);
+	}
+
+	public function testDoesNotRecordPrivateStatusWithoutRecipients(): void {
+		$this->events->record((new Note())
+			->setNid('9223372036854000002')
+			->setVisibility(Stream::TYPE_FOLLOWERS));
 
 		$ids = array_column($this->events->getAfterId($this->cursor, 20), 'status_nid');
-		$this->assertNotContains('9223372036854000001', $ids);
+		$this->assertNotContains('9223372036854000002', $ids);
 	}
 }

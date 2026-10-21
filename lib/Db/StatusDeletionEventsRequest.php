@@ -15,7 +15,7 @@ use OCA\Social\Model\ActivityPub\Stream;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use Throwable;
 
-/** The bounded cursor of public status deletions for connected Mastodon clients. */
+/** The bounded cursor of status deletions for connected Mastodon clients. */
 class StatusDeletionEventsRequest extends CoreRequestBuilder {
 	private const RETAIN = 10000;
 
@@ -32,11 +32,11 @@ class StatusDeletionEventsRequest extends CoreRequestBuilder {
 	}
 
 	/**
-	 * @return list<array{id: int, status_nid: string, hashtags: list<string>, local: bool, media: bool}>
+	 * @return list<array{id: int, status_nid: string, hashtags: list<string>, local: bool, media: bool, visibility: string, recipients: list<string>}>
 	 */
 	public function getAfterId(int $afterId, int $limit): array {
 		$qb = $this->getQueryBuilder();
-		$qb->select('id', 'status_nid', 'hashtags', 'local', 'media')
+		$qb->select('id', 'status_nid', 'hashtags', 'local', 'media', 'visibility', 'recipients')
 			->from(self::TABLE_STATUS_DELETIONS)
 			->where($qb->expr()->gt('id', $qb->createNamedParameter($afterId)))
 			->orderBy('id', 'asc')
@@ -46,12 +46,15 @@ class StatusDeletionEventsRequest extends CoreRequestBuilder {
 		$cursor = $qb->executeQuery();
 		while ($row = $cursor->fetch()) {
 			$hashtags = json_decode((string)$row['hashtags'], true);
+			$recipients = json_decode((string)$row['recipients'], true);
 			$rows[] = [
 				'id' => (int)$row['id'],
 				'status_nid' => (string)$row['status_nid'],
 				'hashtags' => is_array($hashtags) ? array_values(array_filter($hashtags, 'is_string')) : [],
 				'local' => (bool)$row['local'],
 				'media' => (bool)$row['media'],
+				'visibility' => (string)$row['visibility'],
+				'recipients' => is_array($recipients) ? array_values(array_filter($recipients, 'is_string')) : [],
 			];
 		}
 		$cursor->closeCursor();
@@ -59,20 +62,28 @@ class StatusDeletionEventsRequest extends CoreRequestBuilder {
 		return $rows;
 	}
 
-	public function record(Stream $status): void {
+	/** @param list<string> $recipientPrims */
+	public function record(Stream $status, array $recipientPrims = []): void {
 		if (!in_array($status->getType(), [Note::TYPE, Question::TYPE], true)
-			|| $status->getVisibility() !== Stream::TYPE_PUBLIC) {
+			|| !in_array($status->getVisibility(), [Stream::TYPE_PUBLIC, Stream::TYPE_DIRECT], true)) {
+			return;
+		}
+		$visibility = $status->getVisibility();
+		$recipients = $visibility === Stream::TYPE_PUBLIC ? [] : array_values(array_unique($recipientPrims));
+		if ($visibility !== Stream::TYPE_PUBLIC && $recipients === []) {
 			return;
 		}
 
 		try {
-			$hashtags = array_values(array_filter($status->getHashtags(), 'is_string'));
+			$hashtags = $visibility === Stream::TYPE_PUBLIC ? array_values(array_filter($status->getHashtags(), 'is_string')) : [];
 			$qb = $this->getQueryBuilder();
 			$qb->insert(self::TABLE_STATUS_DELETIONS)
 				->setValue('status_nid', $qb->createNamedParameter((string)$status->getNid()))
 				->setValue('hashtags', $qb->createNamedParameter((string)json_encode($hashtags, JSON_UNESCAPED_SLASHES)))
 				->setValue('media', $qb->createNamedParameter($status->getAttachments() !== [] ? 1 : 0, IQueryBuilder::PARAM_INT))
 				->setValue('local', $qb->createNamedParameter($status->isLocal() ? 1 : 0, IQueryBuilder::PARAM_INT))
+				->setValue('visibility', $qb->createNamedParameter($visibility))
+				->setValue('recipients', $qb->createNamedParameter((string)json_encode($recipients, JSON_UNESCAPED_SLASHES)))
 				->executeStatement();
 
 			$maxId = $this->newestId();

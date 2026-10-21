@@ -45,7 +45,7 @@ trait StreamDeletion {
 		try {
 			$candidate = $this->getStreamById($id, false, ACore::FORMAT_LOCAL);
 			if (in_array($candidate->getType(), [Note::TYPE, Question::TYPE], true)
-				&& $candidate->getVisibility() === Stream::TYPE_PUBLIC) {
+				&& in_array($candidate->getVisibility(), [Stream::TYPE_PUBLIC, Stream::TYPE_DIRECT], true)) {
 				$status = $candidate;
 			}
 		} catch (Throwable) {
@@ -70,7 +70,10 @@ trait StreamDeletion {
 			return;
 		}
 		if ($deleted > 0 && $status !== null) {
-			$this->statusDeletionEventsRequest->record($status);
+			$recipients = $status->getVisibility() === Stream::TYPE_PUBLIC
+				? []
+				: $this->streamDestRequest->recipientPrims($status->getId());
+			$this->statusDeletionEventsRequest->record($status, $recipients);
 		}
 
 		$this->deleteRelatedTo([$prim]);

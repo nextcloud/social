@@ -10,10 +10,13 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Migration;
 
 use OCA\Social\Migration\Version1000Date20261021000001;
+use OCA\Social\Migration\Version1000Date20261021000002;
 use OCP\DB\Types;
 use PHPUnit\Framework\TestCase;
 
-/** Stores a bounded cursor of public deletions for active streaming clients. */
+/**
+ * Stores a bounded cursor of status deletions for active streaming clients.
+ */
 class StatusDeletionEventsTableTest extends TestCase {
 	public function testCreatesTheIndexedDeletionCursorTable(): void {
 		$schema = MigrationReplay::run([Version1000Date20261021000001::class]);
@@ -33,6 +36,22 @@ class StatusDeletionEventsTableTest extends TestCase {
 
 		MigrationReplay::run([Version1000Date20261021000001::class], [], $schema);
 
+		$this->assertSame($once, $schema->shape());
+	}
+
+	public function testAddsVisibilityAndAudienceToExistingCursor(): void {
+		$schema = MigrationReplay::run([Version1000Date20261021000001::class]);
+		MigrationReplay::run([Version1000Date20261021000002::class], [], $schema);
+		$table = $schema->getTable('social_stream_del');
+
+		$this->assertSame(Types::STRING, $table->addedColumn('visibility')[0]);
+		$this->assertSame(16, $table->addedColumn('visibility')[1]['length']);
+		$this->assertSame('public', $table->addedColumn('visibility')[1]['default']);
+		$this->assertSame(Types::TEXT, $table->addedColumn('recipients')[0]);
+		$this->assertFalse($table->addedColumn('recipients')[1]['notnull']);
+
+		$once = $schema->shape();
+		MigrationReplay::run([Version1000Date20261021000002::class], [], $schema);
 		$this->assertSame($once, $schema->shape());
 	}
 }

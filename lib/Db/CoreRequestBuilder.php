@@ -620,7 +620,9 @@ class CoreRequestBuilder {
 			'status_nid',
 			'hashtags',
 			'local',
-			'media'
+			'media',
+			'visibility',
+			'recipients'
 		],
 		self::TABLE_FEATURED_TAGS => [
 			'id',
