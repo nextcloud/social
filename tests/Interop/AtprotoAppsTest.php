@@ -210,6 +210,8 @@ class AtprotoAppsTest extends TestCase {
 		$this->assertSame($identity->handle, $result['refreshed']['handle']);
 		$this->assertSame(200, $result['timeline']['status'], json_encode($result['timeline']));
 		$this->assertArrayHasKey('feed', $result['timeline']['body']);
+		$this->assertGreaterThanOrEqual(400, $result['logout']['accessStatus'], 'logout revokes the official client access token');
+		$this->assertGreaterThanOrEqual(400, $result['logout']['refreshStatus'], 'logout revokes the official client refresh token');
 	}
 
 	/** A small PNG, made here so the test carries no binary file. */
