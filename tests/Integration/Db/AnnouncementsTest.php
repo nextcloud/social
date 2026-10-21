@@ -132,6 +132,17 @@ class AnnouncementsTest extends TestCase {
 		$this->assertSame([], $this->announcements->dismissedBy(self::BOB, [$announcement->getId()]));
 	}
 
+	public function testReactionCountsAreGroupedAndIdentifyTheCurrentAccount(): void {
+		$announcement = $this->given('ann-always');
+		$this->announcements->react($announcement->getId(), self::ALICE, '👍');
+		$this->announcements->react($announcement->getId(), self::BOB, '👍');
+		$this->announcements->react($announcement->getId(), self::BOB, '🎉');
+
+		$reactions = $this->announcements->reactionsOn(self::ALICE, [$announcement->getId()]);
+		$this->assertSame(['count' => 2, 'me' => true], $reactions[$announcement->getId()]['👍']);
+		$this->assertSame(['count' => 1, 'me' => false], $reactions[$announcement->getId()]['🎉']);
+	}
+
 	public function testDismissingTwiceIsANoOpAndNotASecondRow(): void {
 		// the unique index on (account, announcement) is what says so
 		$announcement = $this->given('ann-always');
