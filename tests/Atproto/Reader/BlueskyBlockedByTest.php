@@ -25,6 +25,7 @@ use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
+use RuntimeException;
 
 #[AllowMockObjectsWithoutExpectations]
 class BlueskyBlockedByTest extends TestCase {
@@ -96,6 +97,24 @@ class BlueskyBlockedByTest extends TestCase {
 		]);
 
 		$this->assertCount(30, $this->source->ask(self::ALICE, $ids));
+	}
+
+	public function testAFailedBatchDoesNotDiscardOtherBatchAnswers(): void {
+		$ids = array_map(static fn (int $i): string => 'https://bsky.app/profile/did:plc:a' . $i, range(1, 75));
+		$this->appView->expects($this->exactly(3))->method('queryAs')->willReturnCallback(static function (string $did, PrivateKey $key, string $method, array $params): array {
+			if ($params['actors'][0] === 'did:plc:a26') {
+				throw new RuntimeException('AppView batch failed');
+			}
+
+			return ['profiles' => array_map(static fn (string $actor): array => self::profile($actor, true), $params['actors'])];
+		});
+
+		$answers = $this->source->ask(self::ALICE, $ids);
+
+		$this->assertCount(50, $answers);
+		$this->assertSame(true, $answers[$ids[0]]);
+		$this->assertArrayNotHasKey($ids[25], $answers, 'a failed batch has no confirmed answer');
+		$this->assertSame(true, $answers[$ids[50]], 'a later batch still has a confirmed answer');
 	}
 
 	public function testNobodyIsAskedForAnAccountNotOnBluesky(): void {

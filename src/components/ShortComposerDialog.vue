@@ -1133,8 +1133,8 @@ export default {
 <style scoped lang="scss">
 .short {
 	position: relative;
-	padding: 20px;
-	min-height: min(80vh, 640px);
+	padding: 32px;
+	min-height: min(84vh, 820px);
 	display: flex;
 	flex-direction: column;
 }
@@ -1158,23 +1158,28 @@ export default {
 	display: flex;
 	flex-direction: column;
 	justify-content: center;
+	padding-inline: 20px;
 }
 
 .short__sources {
-	display: flex;
-	flex-wrap: wrap;
-	justify-content: center;
-	gap: 16px;
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
+	gap: 20px;
+	width: 100%;
+	max-width: 960px;
+	margin-inline: auto;
 }
 
 .short__source {
 	display: flex;
 	flex-direction: column;
 	align-items: center;
-	gap: 6px;
-	inline-size: 220px;
-	padding: 32px 16px;
-	border: 2px dashed var(--color-border-dark);
+	justify-content: center;
+	gap: 10px;
+	min-width: 0;
+	min-height: 216px;
+	padding: 28px 22px;
+	border: 1px solid var(--color-border);
 	border-radius: var(--border-radius-large, 16px);
 	background: var(--color-background-hover);
 	color: var(--color-main-text);
@@ -1230,10 +1235,11 @@ export default {
 }
 
 /* the 9:16 frame a short is watched in, used for the camera and the preview */
+
 .short__stage {
 	position: relative;
 	aspect-ratio: 9 / 16;
-	max-height: 62vh;
+	max-height: 72vh;
 	margin-inline: auto;
 	overflow: hidden;
 	border-radius: 16px;
@@ -1439,14 +1445,27 @@ export default {
 /* ------------------------------------------------------------------ edit */
 .short__edit {
 	display: grid;
-	grid-template-columns: minmax(240px, 340px) 1fr;
-	gap: 24px;
+	grid-template-columns: minmax(360px, 440px) minmax(0, 1fr);
+	gap: 36px;
 	align-items: start;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 900px) {
+	.short {
+		padding: 20px 16px;
+	}
+
+	.short__choose {
+		padding-inline: 0;
+	}
+
 	.short__edit {
 		grid-template-columns: 1fr;
+		gap: 24px;
+	}
+
+	.short__stage {
+		max-height: 58vh;
 	}
 }
 
@@ -1564,13 +1583,13 @@ export default {
 .short__details {
 	display: flex;
 	flex-direction: column;
-	gap: 18px;
+	gap: 24px;
 }
 
 .short__section {
 	display: flex;
 	flex-direction: column;
-	gap: 8px;
+	gap: 12px;
 }
 
 .short__heading {

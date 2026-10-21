@@ -59,6 +59,22 @@ class StatusRevisionsRequestTest extends TestCase {
 		$this->assertSame(self::POST, $read[0]->getStreamId(), 'handed back as the status asked about, not its hash');
 	}
 
+	public function testStreamingCursorReturnsOnlyNewRevisionsInWriteOrder(): void {
+		$first = $this->revision('<p>first</p>');
+		$second = $this->revision('<p>second</p>');
+		$third = $this->revision('<p>third</p>');
+		$this->revisions->save($first);
+		$this->revisions->save($second);
+		$this->revisions->save($third);
+
+		$changes = $this->revisions->getAfterId($first->getId(), 1);
+		$this->assertCount(1, $changes);
+		$this->assertSame($second->getId(), $changes[0]['id']);
+		$this->assertSame(md5(self::POST), $changes[0]['stream_id_prim']);
+		$this->assertSame($third->getId(), $this->revisions->getAfterId($second->getId(), 10)[0]['id']);
+		$this->assertSame($third->getId(), $this->revisions->newestId());
+	}
+
 	public function testEachRevisionKeepsTheAttachmentsOfItsVersion(): void {
 		$this->revisions->save($this->revision('<p>a</p>')->setMediaAttachments([
 			(new MediaAttachment())->setId('11')->setType('image')->setDescription('Before'),

@@ -59,6 +59,7 @@ class BoundedQueriesTest extends TestCase {
 	/** Reads of many rows with no limit, each with what keeps the result small. */
 	private const UNBOUNDED_BY_DESIGN = [
 		'CacheActorsRequest::getSharedInboxes' => 'one row per remote instance (DISTINCT shared_inbox), for the list `occ social:fediverse` prints',
+		'StreamDestRequest::recipientPrims' => 'the original participants of one deleted direct message, all of whom need its removal event',
 		'FollowsRequest::getByFollowId' => 'every accepted follower of one collection; nothing in the app calls it today',
 		'FollowsRequest::getFollowerInboxes' => 'the audience of a delivery: one row per distinct inbox of the account\'s followers, and every one of them is delivered to',
 		'InstanceStatsRequest::remoteHosts' => 'one row per remote instance (GROUP BY host), for the instance statistics and /api/v1/instance/peers',

@@ -60,9 +60,11 @@ class AppViewClient {
 	 * @throws AtprotoException
 	 */
 	public function queryAs(string $did, PrivateKey $key, string $method, array $params = []): array {
-		$token = $this->serviceAuth->token($key, $did, $this->config->appViewDid(), $method);
+		$serviceDid = $this->config->appViewDid();
+		$token = $this->serviceAuth->token($key, $did, $serviceDid . '#bsky_appview', $method);
+		$legacyToken = fn (): string => $this->serviceAuth->token($key, $did, $serviceDid, $method);
 
-		return $this->get($this->config->appViewAuth(), $method, $params, ['Authorization' => 'Bearer ' . $token]);
+		return $this->get($this->config->appViewAuth(), $method, $params, ['Authorization' => 'Bearer ' . $token], null, $legacyToken);
 	}
 
 	/**
@@ -74,9 +76,11 @@ class AppViewClient {
 	 * @throws AtprotoException
 	 */
 	public function procedureAs(string $did, PrivateKey $key, string $method, array $input): array {
-		$token = $this->serviceAuth->token($key, $did, $this->config->appViewDid(), $method);
+		$serviceDid = $this->config->appViewDid();
+		$token = $this->serviceAuth->token($key, $did, $serviceDid . '#bsky_appview', $method);
+		$legacyToken = fn (): string => $this->serviceAuth->token($key, $did, $serviceDid, $method);
 
-		return $this->get($this->config->appViewAuth(), $method, [], ['Authorization' => 'Bearer ' . $token], $input);
+		return $this->get($this->config->appViewAuth(), $method, [], ['Authorization' => 'Bearer ' . $token], $input, $legacyToken);
 	}
 
 	/**
@@ -92,7 +96,7 @@ class AppViewClient {
 		if ($this->config->chat() === '') {
 			throw new AtprotoException('No chat service is configured');
 		}
-		$token = $this->serviceAuth->token($key, $did, $this->config->chatDid(), $method);
+		$token = $this->serviceAuth->token($key, $did, $this->config->chatDid() . '#bsky_chat', $method);
 
 		return $this->get($this->config->chat(), $method, $params, ['Authorization' => 'Bearer ' . $token], $input);
 	}
@@ -106,7 +110,7 @@ class AppViewClient {
 	 * @throws AppViewNotFoundException
 	 * @throws AtprotoException
 	 */
-	private function get(string $base, string $method, array $params, array $headers, ?array $input = null): array {
+	private function get(string $base, string $method, array $params, array $headers, ?array $input = null, ?callable $legacyToken = null): array {
 		$url = $base . '/xrpc/' . $method;
 		$query = http_build_query($params, '', '&', PHP_QUERY_RFC3986);
 		if ($query !== '') {
@@ -129,6 +133,11 @@ class AppViewClient {
 			throw new AtprotoException('AppView could not be reached for ' . $method, 0, $e);
 		}
 		$decoded = json_decode($answer, true);
+		if ($status === 401 && $legacyToken !== null && ($decoded['error'] ?? '') === 'BadJwtAudience') {
+			$headers['Authorization'] = 'Bearer ' . $legacyToken();
+
+			return $this->get($base, $method, $params, $headers, $input);
+		}
 		if ($status >= 200 && $status < 300) {
 			// a procedure without output (`muteActor`, `muteActorList`,
 			// `createBookmark`) answers an empty body

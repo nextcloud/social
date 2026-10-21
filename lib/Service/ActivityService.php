@@ -11,6 +11,7 @@ namespace OCA\Social\Service;
 
 use Exception;
 use OCA\Social\AP;
+use OCA\Social\Atproto\Reader\BlueskyIds;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\FollowsRequest;
@@ -72,6 +73,9 @@ class ActivityService {
 
 	/** The hostnames this instance answers to; see `localHosts()`. */
 	private ?array $localHosts = null;
+	private bool $deferDeliveries = false;
+	/** @var list<string> */
+	private array $deferredDeliveryTokens = [];
 
 	public function __construct(
 		private FollowsRequest $followsRequest,
@@ -114,6 +118,7 @@ class ActivityService {
 		$activity->setId($item->getId() . '/activity');
 		$activity->setInstancePaths($item->getInstancePaths());
 		$this->copyAudience($item, $activity);
+		$this->prepareActivityPubReply($item, $activity);
 
 		$activity->setActor($actor);
 		$this->signatureService->signObject($actor, $activity);
@@ -152,6 +157,7 @@ class ActivityService {
 		$update->setId($item->getId() . '#updates/' . $this->updateSerial($item));
 		$update->setInstancePaths($item->getInstancePaths());
 		$this->copyAudience($item, $update);
+		$this->prepareActivityPubReply($item, $update);
 		if ($item instanceof Person) {
 			$this->addressActorUpdate($item, $update);
 		}
@@ -349,6 +355,25 @@ class ActivityService {
 	}
 
 	/**
+	 * ActivityPub peers cannot join a reply whose parent exists only in ATProto.
+	 * Preserve the native parent on the stored stream for the Bluesky publisher;
+	 * make the ActivityPub copy standalone and link back to the parent instead.
+	 */
+	private function prepareActivityPubReply(ACore $item, ACore $activity): void {
+		if (!$item instanceof Stream || !BlueskyIds::isPostId($item->getInReplyTo())) {
+			return;
+		}
+
+		$item->setActivityPubReplyLink($item->getInReplyTo());
+		$authorId = BlueskyIds::actorId(BlueskyIds::didOf($item->getInReplyTo()));
+		$activity->setCcArray(array_values(array_diff($activity->getCcArray(), [$authorId])));
+		$activity->setInstancePaths(array_values(array_filter(
+			$activity->getInstancePaths(),
+			static fn (InstancePath $path): bool => $path->getAddress() !== BlueskyIds::HOST
+		)));
+	}
+
+	/**
 	 * @param string $id
 	 *
 	 * @return ACore
@@ -419,6 +444,50 @@ class ActivityService {
 		if ($holdUntil > time()) {
 			return $token;
 		}
+		if ($this->deferDeliveries) {
+			$this->deferredDeliveryTokens[] = $token;
+
+			return $token;
+		}
+
+		$this->deliverToken($token);
+
+		return $token;
+	}
+
+	/** Hold inline and asynchronous delivery until the surrounding write commits. */
+	public function beginDeferredDeliveries(): void {
+		if ($this->deferDeliveries) {
+			throw new \LogicException('Activity deliveries are already deferred');
+		}
+		$this->deferDeliveries = true;
+		$this->deferredDeliveryTokens = [];
+	}
+
+	/** Start deliveries after the database transaction has committed. */
+	public function releaseDeferredDeliveries(): void {
+		if (!$this->deferDeliveries) {
+			return;
+		}
+		$tokens = $this->deferredDeliveryTokens;
+		$this->deferDeliveries = false;
+		$this->deferredDeliveryTokens = [];
+		foreach ($tokens as $token) {
+			try {
+				$this->deliverToken($token);
+			} catch (\Throwable $e) {
+				$this->logger->notice('Queued activity will be delivered by the worker', ['token' => $token, 'exception' => $e]);
+			}
+		}
+	}
+
+	/** Discard delivery starts when the surrounding write rolls back. */
+	public function discardDeferredDeliveries(): void {
+		$this->deferDeliveries = false;
+		$this->deferredDeliveryTokens = [];
+	}
+
+	private function deliverToken(string $token): void {
 
 		$this->manageInit();
 
@@ -428,15 +497,13 @@ class ActivityService {
 			$this->manageRequest($directRequest, true);
 		} catch (NoHighPriorityRequestException $e) {
 		} catch (EmptyQueueException $e) {
-			return $token;
+			return;
 		}
 
 		$requests = $this->requestQueueService->getRequestFromToken($token, RequestQueue::STATUS_STANDBY);
 		if (sizeof($requests) > 0) {
 			$this->curlService->asyncWithToken($token);
 		}
-
-		return $token;
 	}
 
 	public function manageInit() {

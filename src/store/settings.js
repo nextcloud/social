@@ -43,6 +43,16 @@ export const useSettingsStore = defineStore('settings', {
 		},
 
 		/**
+		 * Whether standalone replies are omitted from the feeds.
+		 *
+		 * @param {SettingsState} state the store state
+		 * @return {boolean}
+		 */
+		hidesRepliesInFeeds(state) {
+			return state.serverData?.hideRepliesInFeeds === true
+		},
+
+		/**
 		 * Whether the one-key shortcuts are on. They are unless the reader
 		 * turned them off.
 		 *

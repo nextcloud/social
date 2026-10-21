@@ -271,24 +271,32 @@ class AnnouncementsRequest extends AnnouncementsRequestBuilder {
 		}
 
 		$qb = $this->getReactionsSelectSql();
-		$qb->andWhere($qb->expr()->in(
-			're.announcement_id',
-			$qb->createNamedParameter($announcementIds, IQueryBuilder::PARAM_INT_ARRAY)
-		));
-
 		$prim = $qb->prim($actorId);
+		$actorParameter = (string)$qb->createNamedParameter($prim);
+		$qb->select('re.announcement_id', 're.name')
+			->selectAlias($qb->createFunction('COUNT(re.id)'), 'reaction_count')
+			->selectAlias(
+				$qb->createFunction(
+					'MAX(CASE WHEN re.actor_id_prim = ' . $actorParameter . ' THEN 1 ELSE 0 END)'
+				),
+				'me'
+			)
+			->andWhere($qb->expr()->in(
+				're.announcement_id',
+				$qb->createNamedParameter($announcementIds, IQueryBuilder::PARAM_INT_ARRAY)
+			))
+			->groupBy('re.announcement_id')
+			->addGroupBy('re.name');
+
 		$reactions = [];
 		$cursor = $qb->executeQuery();
 		while ($data = $cursor->fetch()) {
 			$id = $this->getInt('announcement_id', $data);
 			$name = $this->get('name', $data, '');
-			if (!isset($reactions[$id][$name])) {
-				$reactions[$id][$name] = ['count' => 0, 'me' => false];
-			}
-			$reactions[$id][$name]['count']++;
-			if ($this->get('actor_id_prim', $data, '') === $prim) {
-				$reactions[$id][$name]['me'] = true;
-			}
+			$reactions[$id][$name] = [
+				'count' => $this->getInt('reaction_count', $data),
+				'me' => $this->getInt('me', $data) === 1,
+			];
 		}
 		$cursor->closeCursor();
 

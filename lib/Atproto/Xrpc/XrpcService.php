@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Atproto\Xrpc;
 
+use OCA\Social\Atproto\Client\ClientXrpc;
 use OCA\Social\Atproto\Identity\IdentityService;
 use OCA\Social\Atproto\Model\BlobRef;
 use OCA\Social\Atproto\Model\Identity;
@@ -105,9 +106,9 @@ class XrpcService {
 	private function describeServer(): array {
 		return [
 			'did' => $this->config->serviceDid(),
-			'availableUserDomains' => [],
+			'availableUserDomains' => ['.' . $this->config->handleHost()],
 			'inviteCodeRequired' => true,
-			'links' => ['privacyPolicy' => $this->configService->getCloudUrl(true) . '/index.php/apps/social/'],
+			'blobUploadLimit' => ClientXrpc::MAX_UPLOAD,
 		];
 	}
 

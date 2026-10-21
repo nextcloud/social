@@ -12,19 +12,23 @@
 	<span
 		v-if="count > 0"
 		class="post-action-count rolling-count"
+		:title="fullCount"
+		:aria-label="fullCount"
 		:class="rollClass">
-		<span :key="count" class="rolling-count__value rolling-count__value--current">{{ count }}</span>
+		<span :key="count" class="rolling-count__value rolling-count__value--current">{{ compactCount(count) }}</span>
 		<!-- the digit on its way out; never read aloud, and gone again once
 		     the roll is over, so the element still reads as one number -->
 		<span
 			v-if="leaving !== null"
 			:key="`leaving-${leaving}`"
 			class="rolling-count__value rolling-count__value--leaving"
-			aria-hidden="true">{{ leaving }}</span>
+			aria-hidden="true">{{ compactCount(leaving) }}</span>
 	</span>
 </template>
 
 <script>
+import { formatCompactCount, formatCount } from '../utils/number.js'
+
 /** how long one roll takes; the same .28s the stylesheet animates over */
 const ROLL_MS = 280
 
@@ -50,6 +54,11 @@ export default {
 	},
 
 	computed: {
+		/** @return {string} the full value for assistive technology and hover */
+		fullCount() {
+			return formatCount(this.count)
+		},
+
 		/** @return {string|null} */
 		rollClass() {
 			return this.direction === '' ? null : `rolling-count--${this.direction}`
@@ -67,6 +76,11 @@ export default {
 	},
 
 	methods: {
+		/** @param {number} value the count @return {string} */
+		compactCount(value) {
+			return formatCompactCount(value)
+		},
+
 		/**
 		 * @param {number} value what the count became
 		 * @param {number} previous what it was
@@ -125,10 +139,19 @@ export default {
 
 .rolling-count {
 	position: relative;
-	display: inline-block;
+	display: inline-flex;
+	flex: 0 0 auto;
+	align-items: center;
+	justify-content: center;
+	min-width: 2.4em;
+	padding-inline: 4px;
+	border-radius: var(--border-radius-pill, 999px);
+	background: var(--color-background-hover);
 	/* the slide is clipped to the line the number already occupied, so a
 	   rolling counter never pushes the action bar around */
 	overflow: hidden;
+	white-space: nowrap;
+	font-variant-numeric: tabular-nums;
 	vertical-align: middle;
 	line-height: 1.4;
 

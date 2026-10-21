@@ -260,6 +260,29 @@ class ActivityServiceTest extends TestCase {
 		$this->assertTrue($activity->isRoot());
 	}
 
+	public function testReplyToBlueskyPostStaysNativeAndIsStandaloneOnActivityPub(): void {
+		$reply = $this->note();
+		$parent = 'https://bsky.app/profile/did:plc:abcdefghijklmnopqrstuvwx/post/3kparent';
+		$blueskyActor = 'https://bsky.app/profile/did:plc:abcdefghijklmnopqrstuvwx';
+		$reply->setInReplyTo($parent);
+		$reply->addCc($blueskyActor);
+		$reply->addInstancePath(new InstancePath('https://bsky.app/xrpc/notifications', InstancePath::TYPE_INBOX, InstancePath::PRIORITY_HIGH));
+		$this->expectQueuedWithoutInlineDelivery();
+
+		$activity = null;
+		$this->service->createActivity($this->alice(), $reply, $activity);
+
+		$this->assertSame($parent, $reply->getInReplyTo(), 'the ATProto publisher keeps the native parent');
+		$this->assertNotContains($blueskyActor, $activity->getCcArray());
+		$this->assertSame([self::BOB_INBOX], array_map(static fn (InstancePath $path): string => $path->getUri(), $activity->getInstancePaths()));
+
+		$wire = $reply->exportAsActivityPub();
+		$this->assertArrayNotHasKey('inReplyTo', $wire);
+		$this->assertNotContains($blueskyActor, $wire['cc'] ?? []);
+		$this->assertStringContainsString('href="' . $parent . '"', $wire['content']);
+		$this->assertStringContainsString('>' . $parent . '</a>', $wire['content']);
+	}
+
 	public function testCreateActivitySavesNestedObjectsInnermostFirst(): void {
 		$note = $this->note();
 		$announce = new Announce();
@@ -489,6 +512,27 @@ class ActivityServiceTest extends TestCase {
 
 		$this->assertSame(self::TOKEN, $this->service->request($like));
 		$this->assertSame([$direct], $paths);
+	}
+
+	public function testADeferredRequestStartsDeliveryOnlyAfterRelease(): void {
+		$this->requestQueueService->method('generateRequestQueue')->willReturn(self::TOKEN);
+		$this->requestQueueService->method('getRequestFromToken')->willReturn([]);
+		$starts = 0;
+		$this->requestQueueService->method('getPriorityRequest')->willReturnCallback(static function () use (&$starts): never {
+			$starts++;
+			throw new NoHighPriorityRequestException();
+		});
+		$like = new Like();
+		$like->setActorId(self::ALICE_ID);
+		$like->addInstancePath(new InstancePath(self::BOB_INBOX, InstancePath::TYPE_INBOX, InstancePath::PRIORITY_HIGH));
+
+		$this->service->beginDeferredDeliveries();
+		$this->assertSame(self::TOKEN, $this->service->request($like));
+		$this->assertSame(0, $starts);
+
+		$this->service->releaseDeferredDeliveries();
+
+		$this->assertSame(1, $starts);
 	}
 
 	// --- relays -----------------------------------------------------------

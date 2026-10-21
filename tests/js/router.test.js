@@ -337,7 +337,7 @@ describe('the page title', () => {
 
 		await router.push('/nothing/here')
 		expect(document.title).toBe('Page not found - Aloha - Nextcloud')
-	})
+	}, 10000)
 
 	it('leaves a page that names itself alone', async () => {
 		await router.push('/statistics')

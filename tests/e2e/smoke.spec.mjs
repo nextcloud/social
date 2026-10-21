@@ -66,6 +66,7 @@ test.describe('Aloha Social, in a browser', () => {
 		const composer = page.locator('.modal-composer')
 		await expect(composer).toBeVisible()
 		await composer.locator('.message').click()
+		await composer.getByRole('button', { name: 'More options', exact: true }).click()
 		await composer.getByRole('button', { name: 'Add poll' }).click()
 
 		const settings = composer.locator('.poll-editor__settings')
@@ -134,6 +135,7 @@ test.describe('Aloha Social, in a browser', () => {
 		await openApp(page)
 		const composer = page.locator('.social__wrapper .new-post').first()
 		await composer.locator('.message').click()
+		await composer.getByRole('button', { name: 'More options', exact: true }).click()
 
 		await composer.getByRole('button', { name: 'Add poll' }).click()
 		await expect(composer.locator('.poll-editor')).toBeVisible()
@@ -164,6 +166,7 @@ test.describe('Aloha Social, in a browser', () => {
 		await openApp(page)
 		const composer = page.locator('.social__wrapper .new-post').first()
 		await composer.locator('.message').click()
+		await composer.getByRole('button', { name: 'More options', exact: true }).click()
 		await composer.getByRole('button', { name: 'Say where this was taken' }).click()
 
 		const picker = composer.locator('.place-picker')

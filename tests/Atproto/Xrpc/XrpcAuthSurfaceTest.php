@@ -24,6 +24,7 @@ use OCA\Social\Atproto\OAuth\DpopNonce;
 use OCA\Social\Atproto\OAuth\OAuthException;
 use OCA\Social\Atproto\Publisher\BlueskyBookmarks;
 use OCA\Social\Atproto\Publisher\BlueskyMutes;
+use OCA\Social\Atproto\Publisher\BlueskyThreadMutes;
 use OCA\Social\Atproto\Publisher\PictureService;
 use OCA\Social\Atproto\Publisher\VideoBlobService;
 use OCA\Social\Atproto\Repository\RepositoryService;
@@ -88,9 +89,11 @@ class XrpcAuthSurfaceTest extends TestCase {
 	/** what a signed-in Bluesky app is served here, so must be refused for want of a sign-in rather than as unknown */
 	private const SIGNED_IN = [
 		'com.atproto.server.getSession', 'com.atproto.server.getServiceAuth',
+		'com.atproto.server.createAppPassword', 'com.atproto.server.listAppPasswords', 'com.atproto.server.revokeAppPassword',
 		'com.atproto.repo.createRecord', 'com.atproto.repo.putRecord', 'com.atproto.repo.deleteRecord', 'com.atproto.repo.applyWrites',
 		'com.atproto.repo.uploadBlob', 'com.atproto.repo.importRepo', 'com.atproto.moderation.createReport',
 		'app.bsky.actor.getPreferences', 'app.bsky.actor.putPreferences', 'app.bsky.feed.getTimeline', 'app.bsky.graph.muteActor',
+		'app.bsky.graph.muteThread', 'app.bsky.graph.unmuteThread',
 		'chat.bsky.convo.listConvos', 'chat.bsky.convo.sendMessage',
 		'com.atproto.identity.requestPlcOperationSignature', 'com.atproto.identity.signPlcOperation',
 	];
@@ -119,7 +122,7 @@ class XrpcAuthSurfaceTest extends TestCase {
 		$client = new ClientXrpc(
 			$config, $sessions, $this->createMock(AppViewProxy::class), $this->createMock(Preferences::class),
 			$this->createMock(WriteService::class), $grants, $oauth, $this->createMock(ModerationService::class),
-			$inbound, $this->createMock(BlueskyMutes::class), $this->createMock(BlueskyBookmarks::class),
+			$inbound, $this->createMock(BlueskyMutes::class), $this->createMock(BlueskyThreadMutes::class), $this->createMock(BlueskyBookmarks::class),
 			$this->createMock(NotificationSettings::class), $this->createMock(PlcSignatureService::class),
 		);
 

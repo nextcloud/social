@@ -959,6 +959,47 @@ class CurlServiceTest extends TestCase {
 		$this->assertSame(7, $sent()['options']['timeout']);
 	}
 
+	public function testWebSocketHandshakeUsesHttp11AndValidatesTheAcceptHeader(): void {
+		$sent = null;
+		$this->client->method('request')->willReturnCallback(static function (string $method, string $url, array $options) use (&$sent): IResponse {
+			$sent = ['method' => $method, 'url' => $url, 'options' => $options];
+			$key = $options['headers']['Sec-WebSocket-Key'];
+			$accept = base64_encode(sha1($key . '258EAFA5-E914-47DA-95CA-C5AB0DC85B11', true));
+			$response = new class($accept) implements IResponse {
+				public function __construct(
+					private string $accept,
+				) {
+				}
+				public function getBody() {
+					return '';
+				}
+				public function getStatusCode(): int {
+					return 101;
+				}
+				public function getHeader(string $key): string {
+					return match (strtolower($key)) {
+						'upgrade' => 'websocket',
+						'connection' => 'keep-alive, Upgrade',
+						'sec-websocket-accept' => $this->accept,
+						default => '',
+					};
+				}
+				public function getHeaders(): array {
+					return [];
+				}
+			};
+
+			return $response;
+		});
+		$status = 0;
+
+		$this->assertTrue($this->service()->doWebSocketHandshake('https://' . self::PUBLIC_IP . '/xrpc/com.atproto.sync.subscribeRepos', $status));
+		$this->assertSame(101, $status);
+		$this->assertSame('get', $sent['method']);
+		$this->assertSame(CURL_HTTP_VERSION_1_1, $sent['options']['curl'][CURLOPT_HTTP_VERSION]);
+		$this->assertFalse($sent['options']['allow_redirects']);
+	}
+
 	public function testTheStatusAndContentTypeAreHandedBackToTheCaller(): void {
 		$this->captureRequest($this->answer('{}', 200, 'application/json'));
 		$contentType = '';

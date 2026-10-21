@@ -354,6 +354,7 @@ export default {
 	width: 100%;
 	height: 100%;
 	overflow: hidden;
+	background: #000;
 	/* the browser's own panning and zooming would fight every gesture here */
 	touch-action: none;
 }
@@ -361,6 +362,7 @@ export default {
 .zoomable__image {
 	max-width: 100%;
 	max-height: 100%;
+	object-fit: contain;
 	/* a pan follows the finger, so it must not be animated; only the steps
 	   from the controls and the double press are worth easing, and those set
 	   the same property, so the transition is kept short enough not to lag a
@@ -381,23 +383,28 @@ export default {
 
 .zoomable__controls {
 	position: absolute;
-	inset-block-end: 12px;
-	inset-inline-end: 12px;
+	inset-block-end: max(16px, env(safe-area-inset-bottom));
+	inset-inline-end: max(16px, env(safe-area-inset-right));
 	display: flex;
 	align-items: center;
-	gap: 4px;
-	padding: 4px;
+	gap: 6px;
+	padding: 6px;
 	border-radius: var(--border-radius-pill, 20px);
-	background: rgba(0, 0, 0, .55);
+	background: rgba(24, 24, 24, .82);
+	backdrop-filter: blur(12px);
 	color: #fff;
+}
+
+:dir(rtl) .zoomable__controls {
+	inset-inline-end: max(16px, env(safe-area-inset-left));
 }
 
 .zoomable__control {
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 32px;
-	height: 32px;
+	width: 40px;
+	height: 40px;
 	padding: 0;
 	border: none;
 	border-radius: 50%;
@@ -407,7 +414,9 @@ export default {
 
 	&:hover:not(:disabled),
 	&:focus-visible {
-		background: rgba(255, 255, 255, .2);
+		background: rgba(255, 255, 255, .22);
+		outline: 2px solid rgba(255, 255, 255, .8);
+		outline-offset: 2px;
 	}
 
 	&:disabled {
@@ -417,7 +426,7 @@ export default {
 }
 
 .zoomable__level {
-	min-width: 44px;
+	min-width: 48px;
 	font-size: 12px;
 	font-variant-numeric: tabular-nums;
 	text-align: center;

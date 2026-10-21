@@ -5,8 +5,7 @@
 <template>
 	<div
 		v-if="profileAccount && accountInfo"
-		class="user-profile"
-		:style="accent ? { '--profile-accent': accent, '--profile-accent-text': 'var(--color-primary-element-text)' } : {}">
+		class="user-profile">
 		<!-- decorative: the banner is changed from the Edit profile dialog, and
 		     a click here is a shortcut for people who have a pointer, not the
 		     only way in -->
@@ -341,12 +340,15 @@
 						<a
 							v-if="field.href"
 							:href="field.href"
+							:title="field.verified ? verifiedLinkTooltip(field.verifiedAt) : undefined"
 							target="_blank"
-							rel="nofollow noopener noreferrer">{{ field.text }}</a>
+							rel="nofollow noopener noreferrer">
+							<VerifiedCheck v-if="field.verified" :verifiedAt="field.verifiedAt" />
+							{{ field.text }}
+						</a>
 						<template v-else>
 							{{ field.text }}
 						</template>
-						<VerifiedCheck v-if="field.verified" :verifiedAt="field.verifiedAt" />
 					</dd>
 				</div>
 			</dl>
@@ -569,7 +571,6 @@ import ProfileHighlights from './ProfileHighlights.vue'
 import VerifiedBadge from './VerifiedBadge.vue'
 import VerifiedCheck from './VerifiedCheck.vue'
 import { cssUrl } from '../utils/cssUrl.js'
-import { asAccent, dominantColour } from '../utils/dominantColour.js'
 import { formatCount } from '../utils/number.js'
 import { fieldLink, profileFields } from '../utils/profileFields.js'
 import { sanitizeHtml } from '../utils/sanitizeHtml.js'
@@ -668,8 +669,6 @@ export default {
 			loading: false,
 			bannerUrlInput: '',
 			loadingUrl: false,
-			/** the banner's own colour, tinting this profile only */
-			accent: '',
 			relationshipLoading: false,
 			/** a verification being made or taken back */
 			verifying: false,
@@ -1024,7 +1023,6 @@ export default {
 		bannerStyle: {
 			handler(url) {
 				this.applyBanner(url)
-				this.readAccent(url)
 			},
 
 			immediate: true,
@@ -1073,22 +1071,6 @@ export default {
 			} catch {
 				this.familiar = []
 			}
-		},
-
-		/**
-		 * Tints this profile with its own banner. A banner that cannot be read
-		 * — cross-origin, missing, transparent — leaves the theme's colour in
-		 * place, which is what every profile looked like before.
-		 *
-		 * @param {string} url the banner currently shown
-		 */
-		async readAccent(url) {
-			if (!url) {
-				this.accent = ''
-				return
-			}
-
-			this.accent = asAccent(await dominantColour(url))
 		},
 
 		/**
@@ -1237,6 +1219,17 @@ export default {
 		 */
 		fieldVerifiedLabel(row) {
 			return t('social', 'Verified on {date}', { date: fullDateTime(this.fieldVerifiedAt(row)) })
+		},
+
+		/**
+		 * @param {string} verifiedAt when the link was last proved
+		 * @return {string} the link's verification tooltip
+		 */
+		verifiedLinkTooltip(verifiedAt) {
+			const date = verifiedAt ? fullDateTime(verifiedAt) : ''
+			return date === ''
+				? t('social', 'Ownership of this link was verified')
+				: t('social', 'Ownership of this link was verified on {date}', { date })
 		},
 
 		/**
@@ -1773,10 +1766,9 @@ export default {
 				font-weight: 600;
 				border-radius: 8px;
 
-				/* the profile's own colour, where the banner yielded one */
 				&.router-link-exact-active {
-					background: var(--profile-accent, var(--color-background-hover));
-					color: var(--profile-accent-text, inherit);
+					background: var(--color-primary-element);
+					color: var(--color-primary-element-text);
 				}
 
 				/* focus does not borrow the banner's colour: an indicator whose
@@ -1799,8 +1791,8 @@ export default {
 
 	&__fields {
 		width: 100%;
-		margin: 12px 0 0;
-		padding: 12px calc(var(--default-grid-baseline) * 4) 0;
+		margin: 10px 0 0;
+		padding: 8px calc(var(--default-grid-baseline) * 4) 0;
 		border-top: 1px solid var(--color-border);
 		background: var(--color-main-background);
 		text-align: start;
@@ -1808,8 +1800,8 @@ export default {
 
 	&__field {
 		display: flex;
-		gap: 12px;
-		padding: 6px 0;
+		gap: 8px;
+		padding: 3px 0;
 		font-size: 14px;
 
 		dt {
@@ -1821,6 +1813,11 @@ export default {
 
 		dd {
 			flex: 1;
+			min-width: 0;
+			display: flex;
+			align-items: center;
+			flex-wrap: wrap;
+			gap: 4px 8px;
 			overflow-wrap: anywhere;
 
 			a {
@@ -1829,6 +1826,34 @@ export default {
 				&:hover {
 					text-decoration: underline;
 				}
+			}
+		}
+	}
+
+	&__field--verified {
+		dd > a {
+			display: inline-flex;
+			align-items: center;
+			gap: 4px;
+			max-width: 100%;
+			padding: 2px 8px;
+			border: 1px solid #1f6f35;
+			border-radius: var(--border-radius, 4px);
+			background: #1f6f35;
+			color: #fff;
+			text-decoration: none;
+			overflow-wrap: anywhere;
+
+			:deep(.verified-check) {
+				margin-inline-start: 0;
+				color: #fff;
+			}
+
+			&:hover {
+				background: #195c2b;
+				border-color: #195c2b;
+				color: #fff;
+				text-decoration: underline;
 			}
 		}
 	}

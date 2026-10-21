@@ -319,6 +319,7 @@ abstract class MastodonApiController extends Controller {
 		'bookmarks' => ['read:bookmarks'],
 		'notifications' => ['read:notifications'],
 		'notificationsUnreadCount' => ['read:notifications'],
+		'pushSubscriptionGet' => ['push'],
 		'search' => ['read:search'],
 		'searchV2' => ['read:search'],
 		'savedSearches' => ['read:search'],
@@ -374,6 +375,9 @@ abstract class MastodonApiController extends Controller {
 
 		// -- writes -----------------------------------------------------------
 		'updateCredentials' => ['write:accounts'],
+		'pushSubscriptionCreate' => ['push'],
+		'pushSubscriptionUpdate' => ['push'],
+		'pushSubscriptionDelete' => ['push'],
 		'profileAvatarDelete' => ['write:accounts'],
 		'profileHeaderDelete' => ['write:accounts'],
 		'accountNew' => ['write:accounts'],

@@ -19,6 +19,7 @@ use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Security\HtmlSanitizer;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
@@ -26,9 +27,12 @@ use OCA\Social\Service\StreamService;
 use OCA\Social\Tools\Traits\TNCDataResponse;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\AnonRateLimit;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
+use OCP\AppFramework\Http\ContentSecurityPolicy;
+use OCP\AppFramework\Http\DataDisplayResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\AppFramework\Http\Template\PublicTemplateResponse;
 use OCP\AppFramework\Http\TemplateResponse;
@@ -272,6 +276,7 @@ class SocialPubController extends Controller {
 		if ($this->userId !== null) {
 			$page = $this->navigationController->navigate();
 			$this->initialState->provideInitialState('item', $post);
+			$this->addOembedDiscovery($page, $post);
 
 			return $page;
 		}
@@ -288,7 +293,126 @@ class SocialPubController extends Controller {
 		// post was already resolved above. Serve the same app shell as the
 		// anonymous timeline route so a cold link and an in-app navigation have
 		// the same public access rules.
-		return new PublicTemplateResponse(Application::APP_ID, 'main');
+		$page = new PublicTemplateResponse(Application::APP_ID, 'main');
+		$this->addOembedDiscovery($page, $post);
+
+		return $page;
+	}
+
+	/** Advertise oEmbed only where the requested post is already public. */
+	private function addOembedDiscovery(Response $response, Stream $post): void {
+		if (!$post->isLocal() || $post->getVisibility() !== Stream::TYPE_PUBLIC) {
+			return;
+		}
+
+		$endpoint = $this->configService->getSocialUrl() . 'api/oembed?url=' . rawurlencode($post->getId());
+		$response->addHeader('Link', '<' . $endpoint . '>; rel="alternate"; type="application/json+oembed"');
+	}
+
+	/** A minimal, public-only document that can be framed by an external site. */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[AnonRateLimit(limit: 60, period: 60)]
+	#[FrontpageRoute(verb: 'GET', url: '/@{username}/{token}/embed')]
+	public function embedPost(string $username, string $token): Response {
+		try {
+			$post = $this->streamService->getStreamById($this->configService->getSocialUrl() . '@' . $username . '/' . $token);
+		} catch (StreamNotFoundException $e) {
+			return new DataDisplayResponse('Not found', Http::STATUS_NOT_FOUND, ['Content-Type' => 'text/plain; charset=utf-8']);
+		}
+
+		if (!$post->isLocal() || $post->getVisibility() !== Stream::TYPE_PUBLIC) {
+			return new DataDisplayResponse('Not found', Http::STATUS_NOT_FOUND, ['Content-Type' => 'text/plain; charset=utf-8']);
+		}
+		$post->setCompleteDetails(true);
+
+		$author = $this->cacheActorService->getFromId($post->getAttributedTo());
+		$authorName = htmlspecialchars($author->getDisplayName() !== '' ? $author->getDisplayName() : $author->getPreferredUsername(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$authorHandle = htmlspecialchars('@' . $author->getPreferredUsername(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$authorUrl = htmlspecialchars($author->getId(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$postUrl = htmlspecialchars($post->getId(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$avatarUrl = $this->embedMediaUrl($author->getAvatar());
+		$avatar = $avatarUrl === null ? '' : '<img class="avatar" src="' . htmlspecialchars($avatarUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '" alt="">';
+		$publishedTime = $post->getPublishedTime();
+		$published = gmdate(DATE_ATOM, $publishedTime);
+		$publishedLabel = gmdate('Y-m-d', $publishedTime);
+		$body = HtmlSanitizer::sanitize($post->getContent(), $post->getId());
+		$body .= $this->embedMedia($post);
+		if ($post->isSensitive()) {
+			$warning = htmlspecialchars($post->getSpoilerText() ?: $this->l10n->t('Content warning'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+			$body = '<details><summary>' . $warning . '</summary>' . $body . '</details>';
+		}
+
+		$style = <<<'CSS'
+			body{font:16px/1.5 system-ui,sans-serif;margin:0;padding:16px;color:#222;background:#fff}
+			article{box-sizing:border-box;width:100%;max-width:550px;margin:auto;overflow-wrap:anywhere}
+			.author{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+			.avatar{width:40px;height:40px;object-fit:cover;border-radius:50%}
+			.author-name{display:block;font-weight:600}
+			.handle,time,footer{font-size:.9em;color:#555}
+			a{color:#176b39}
+			img,video,audio{max-width:100%;height:auto}
+			footer{margin-top:1rem}
+			@media(prefers-color-scheme:dark){body{color:#eee;background:#181818}.handle,time,footer{color:#bbb}a{color:#8fd6a9}}
+			CSS;
+		$document = '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'
+			. $authorName . ' on Aloha Social</title><style>' . $style . '</style></head><body><article><header class="author">'
+			. $avatar . '<a href="' . $authorUrl . '" rel="author"><span class="author-name">' . $authorName
+			. '</span><span class="handle">' . $authorHandle . '</span></a></header><time datetime="' . $published . '">'
+			. htmlspecialchars($publishedLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</time><main>' . $body
+			. '</main><footer><a href="' . $postUrl . '">'
+			. htmlspecialchars($this->l10n->t('Open post'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+			. '</a></footer></article></body></html>';
+		$response = new DataDisplayResponse($document, Http::STATUS_OK, [
+			'Content-Type' => 'text/html; charset=utf-8',
+			'X-Content-Type-Options' => 'nosniff',
+			'X-Frame-Options' => 'ALLOWALL',
+			'Cache-Control' => 'no-store',
+		]);
+		$policy = new ContentSecurityPolicy();
+		$policy->addAllowedFrameAncestorDomain('*');
+		$response->setContentSecurityPolicy($policy);
+
+		return $response;
+	}
+
+	/** Media is loaded only from this instance, avoiding third-party tracking pixels in embeds. */
+	private function embedMedia(Stream $post): string {
+		$media = '';
+		foreach ($post->getAttachments() as $attachment) {
+			$url = $this->embedMediaUrl($attachment->getUrl());
+			if ($url === null) {
+				continue;
+			}
+			$src = htmlspecialchars($url, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+			$description = htmlspecialchars($attachment->getDescription(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+			if (str_starts_with($attachment->getType(), 'video') || str_starts_with($attachment->getType(), 'gifv')) {
+				$media .= '<video controls preload="metadata" src="' . $src . '"></video>';
+			} elseif ($attachment->getType() === 'audio') {
+				$media .= '<audio controls preload="metadata" src="' . $src . '"></audio>';
+			} elseif ($attachment->getType() === 'image') {
+				$media .= '<img loading="lazy" src="' . $src . '" alt="' . $description . '">';
+			}
+		}
+
+		return $media;
+	}
+
+	/** Accept attachment and avatar URLs only from this instance. */
+	private function embedMediaUrl(?string $url): ?string {
+		if ($url === null) {
+			return null;
+		}
+		$parsed = parse_url($url);
+		$localUrl = parse_url($this->configService->getSocialUrl());
+		if (!is_array($parsed) || !is_array($localUrl) || !isset($parsed['scheme'], $parsed['host'])
+			|| !in_array(strtolower($parsed['scheme']), ['http', 'https'], true)
+			|| strtolower($parsed['host']) !== strtolower($localUrl['host'] ?? '')
+			|| ($parsed['port'] ?? null) !== ($localUrl['port'] ?? null)) {
+			return null;
+		}
+
+		return $url;
 	}
 
 	/**

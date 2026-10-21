@@ -568,11 +568,20 @@ class NotificationPolicyServiceTest extends TestCase {
 
 	/** A decision about a sender changes the unread count, which is tagged by the revision. */
 	public function testDecidingAboutASenderMovesTheRevision(): void {
-		$this->timelineRevisionService->expects($this->exactly(2))->method('bump')->with('alice');
+		$revisions = [];
+		$this->timelineRevisionService->expects($this->exactly(3))->method('bump')
+			->willReturnCallback(static function (string $userId, string $key = TimelineRevisionService::KEY) use (&$revisions): void {
+				$revisions[] = [$userId, $key];
+			});
 		$carol = new Person();
 
 		$this->service->accept($this->viewer(), $carol);
 		$this->service->dismiss($this->viewer(), $carol);
+		$this->assertSame([
+			['alice', TimelineRevisionService::KEY],
+			['alice', TimelineRevisionService::NOTIFICATIONS_MERGED],
+			['alice', TimelineRevisionService::KEY],
+		], $revisions);
 	}
 
 	/**

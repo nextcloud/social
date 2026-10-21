@@ -99,6 +99,18 @@ describe('the registration page', () => {
 		expect(wrapper.text()).toContain('This server requires two-factor authentication.')
 	})
 
+	it('returns to the overview without submitting the form', async () => {
+		const wrapper = await page(OPEN)
+		await continueToForm(wrapper)
+
+		const back = wrapper.find('.signup__back')
+		expect(back.attributes('type')).toBe('button')
+		await back.trigger('click')
+
+		expect(wrapper.find('form').exists()).toBe(false)
+		expect(wrapper.find('.signup__landing').exists()).toBe(true)
+	})
+
 	it('sends everything, the honeypot and the invitation included', async () => {
 		post.mockResolvedValue({ data: { state: 'verify', handle: 'alice' } })
 		const wrapper = await page({ ...OPEN, invited: true, inviteToken: 'tok' })

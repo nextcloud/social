@@ -22,3 +22,21 @@ export function formatCount(value) {
 
 	return (Number.isFinite(number) ? number : 0).toLocaleString(getCanonicalLocale())
 }
+
+/**
+ * A compact count for the narrow action row, where a full decimal count
+ * would crowd its neighbours. The complete localized value remains available
+ * to the reader through the counter's label and title.
+ *
+ * @param {number|string|null|undefined} value the count
+ * @return {string} a locale-aware compact count
+ */
+export function formatCompactCount(value) {
+	const number = Number(value)
+	const finite = Number.isFinite(number) ? number : 0
+
+	return new Intl.NumberFormat(getCanonicalLocale(), {
+		notation: finite >= 1000 ? 'compact' : 'standard',
+		maximumFractionDigits: finite >= 1000 ? 1 : 0,
+	}).format(finite)
+}

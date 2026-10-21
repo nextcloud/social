@@ -11,7 +11,7 @@
 		     on this page listening, so it did nothing at all. Kept mounted the
 		     way the single-post view keeps it, because the listener lives in
 		     the Composer's mounted(). -->
-		<Composer v-show="composerDisplayStatus" />
+		<Composer v-show="composerDisplayStatus" compactOptions />
 		<h1 class="social__search-heading">
 			{{ t('social', 'Search results for “{term}”', { term: query }) }}
 		</h1>
