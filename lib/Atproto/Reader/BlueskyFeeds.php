@@ -270,15 +270,29 @@ class BlueskyFeeds {
 			$this->streams->setViewer($viewer);
 		}
 
+		// A profile request may need several AppView pages when locally hidden
+		// posts are interleaved. Keep the whole refill within one interactive
+		// network budget instead of paying the full timeout for every page.
+		$deadline = hrtime(true) + (AppViewClient::INTERACTIVE_TIMEOUT * 1_000_000_000);
 		try {
 			while (true) {
+				$timeout = $profilePages === 0
+					? AppViewClient::INTERACTIVE_TIMEOUT
+					: (int)floor(($deadline - hrtime(true)) / 1_000_000_000);
+				if ($timeout < 1) {
+					if ($cursor !== '') {
+						$this->durableCache->set(self::PROFILE_RETRIES, $key, $cursor, self::CURSOR_KEPT);
+					}
+
+					return true;
+				}
 				$answer = $this->appView->query('app.bsky.feed.getAuthorFeed', [
 					'actor' => BlueskyIds::didOf($actor->getId()),
 					'filter' => 'posts_with_replies',
 					// Include one post beyond the API page so max_id can continue
 					// when firehose rows and AppView rows differ at the page edge.
 					'limit' => min(100, max(1, $limit + 1)),
-				] + ($cursor !== '' ? ['cursor' => $cursor] : []), [], AppViewClient::INTERACTIVE_TIMEOUT);
+				] + ($cursor !== '' ? ['cursor' => $cursor] : []), [], $timeout);
 				if (!is_array($answer['feed'] ?? null)) {
 					throw new UnexpectedValueException('Bluesky author feed response has no feed array');
 				}

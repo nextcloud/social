@@ -50,10 +50,13 @@ class BlueskyFeedsTest extends TestCase {
 	private array $cached = [];
 	/** @var list<array{string, array, bool}> what the AppView was asked, and whether as the person */
 	private array $asked = [];
+	/** @var list<?int> timeout supplied for each AppView request */
+	private array $askedTimeouts = [];
 	/** @var array<string, array> the AppView's answers, by method */
 	private array $answers = [];
 	/** @var array<string, list<array>> queued AppView pages, by method */
 	private array $answerPages = [];
+	private int $firstAuthorFeedDelayMicros = 0;
 	/** @var string[] posts hidden from the viewer */
 	private array $hidden = [];
 	private ?BlueskyBlockedBy $blockedBy = null;
@@ -77,13 +80,20 @@ class BlueskyFeedsTest extends TestCase {
 		$appView = $this->createMock(AppViewClient::class);
 		$answer = function (string $method, array $params, bool $asPerson): array {
 			$this->asked[] = [$method, $params, $asPerson];
+			if ($method === 'app.bsky.feed.getAuthorFeed' && count(array_filter($this->asked, static fn (array $request): bool => $request[0] === $method)) === 1 && $this->firstAuthorFeedDelayMicros > 0) {
+				usleep($this->firstAuthorFeedDelayMicros);
+			}
 			if (($this->answerPages[$method] ?? []) !== []) {
 				return array_shift($this->answerPages[$method]);
 			}
 
 			return $this->answers[$method] ?? throw new \RuntimeException('not answered: ' . $method);
 		};
-		$appView->method('query')->willReturnCallback(fn (string $method, array $params = []): array => $answer($method, $params, false));
+		$appView->method('query')->willReturnCallback(function (string $method, array $params = [], array $headers = [], ?int $timeout = null) use ($answer): array {
+			$this->askedTimeouts[] = $timeout;
+
+			return $answer($method, $params, false);
+		});
 		$appView->method('queryAs')->willReturnCallback(fn (string $did, PrivateKey $key, string $method, array $params = []): array => $answer($method, $params, true));
 		$identities = $this->createMock(IdentityService::class);
 		$identities->method('forActor')->willReturnCallback(fn (): ?Identity => $this->identity);
@@ -278,6 +288,30 @@ class BlueskyFeedsTest extends TestCase {
 		self::assertFalse($feeds->authorPage($actor, '', 20, $this->alice), 'the refill reads the saved cursor and completes the visible page');
 		self::assertSame('profile-hidden-3', $this->asked[2][1]['cursor']);
 		self::assertCount(3, $this->asked, 'the refill consumes one subsequent AppView page');
+	}
+
+	public function testProfileRefillSharesOneInteractiveTimeoutBudgetAcrossAppViewPages(): void {
+		$actor = (new Person())->setId(BlueskyIds::actorId(self::BOB));
+		$hidden = [];
+		$visible = [];
+		for ($index = 0; $index < 21; $index++) {
+			$hiddenUri = 'at://' . self::BOB . '/app.bsky.feed.post/slow-hidden-' . $index;
+			$hidden[] = ['post' => ['uri' => $hiddenUri]];
+			$this->hidden[] = BlueskyIds::postIdOfUri($hiddenUri);
+			$visible[] = ['post' => ['uri' => 'at://' . self::BOB . '/app.bsky.feed.post/after-slow-page-' . $index]];
+		}
+		$this->answerPages['app.bsky.feed.getAuthorFeed'] = [
+			['feed' => $hidden, 'cursor' => 'after-slow-hidden-page'],
+			['feed' => $visible, 'cursor' => 'after-visible-page'],
+		];
+		$this->firstAuthorFeedDelayMicros = 1_200_000;
+		$feeds = $this->feeds(false);
+
+		self::assertFalse($feeds->authorPage($actor, '', 20, $this->alice));
+
+		self::assertSame(AppViewClient::INTERACTIVE_TIMEOUT, $this->askedTimeouts[0]);
+		self::assertLessThan(AppViewClient::INTERACTIVE_TIMEOUT, $this->askedTimeouts[1], 'the next AppView page gets only the remaining time');
+		self::assertGreaterThan(0, $this->askedTimeouts[1]);
 	}
 
 	public function testATemporaryAuthorFeedFailureRequestsARefillInsteadOfLookingLikeAnEmptyProfile(): void {
