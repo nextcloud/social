@@ -23,9 +23,7 @@ class WebSocketServerTest extends TestCase {
 
 	#[\Override]
 	protected function setUp(): void {
-		$port = random_int(20000, 60000);
-		$this->bind = '127.0.0.1:' . $port;
-		$this->server = new WebSocketServer($this->bind);
+		[$this->bind, $this->server] = $this->openServer();
 	}
 
 	#[\Override]
@@ -83,8 +81,7 @@ class WebSocketServerTest extends TestCase {
 	}
 
 	public function testConfiguredPathCanSendTextFrames(): void {
-		$bind = '127.0.0.1:' . random_int(20000, 60000);
-		$server = new WebSocketServer($bind, WebSocketServer::MAX_SUBSCRIBERS, WebSocketServer::MAX_PER_ADDRESS, '/api/v1/streaming', false);
+		[$bind, $server] = $this->openServer('/api/v1/streaming', false);
 		try {
 			$client = stream_socket_client('tcp://' . $bind, $errno, $error, 2);
 			$this->assertNotFalse($client, $error);
@@ -109,9 +106,7 @@ class WebSocketServerTest extends TestCase {
 	}
 
 	public function testConfiguredEventStreamUsesRawEventsAndHeartbeat(): void {
-		$bind = '127.0.0.1:' . random_int(20000, 60000);
-		$server = new WebSocketServer(
-			$bind,
+		[$bind, $server] = $this->openServer(
 			path: '/api/v1/streaming',
 			binaryFrames: false,
 			authorize: static fn ($subscriber): bool => ($subscriber->query['access_token'] ?? '') === 'valid-token',
@@ -144,9 +139,7 @@ class WebSocketServerTest extends TestCase {
 	}
 
 	public function testConfiguredEventStreamAcceptsHashtagPathAndQuery(): void {
-		$bind = '127.0.0.1:' . random_int(20000, 60000);
-		$server = new WebSocketServer(
-			$bind,
+		[$bind, $server] = $this->openServer(
 			path: '/api/v1/streaming',
 			binaryFrames: false,
 			authorize: static fn ($subscriber): bool => ($subscriber->query['access_token'] ?? '') === 'valid-token',
@@ -171,9 +164,7 @@ class WebSocketServerTest extends TestCase {
 	}
 
 	public function testConfiguredEventStreamAcceptsListPathAndQuery(): void {
-		$bind = '127.0.0.1:' . random_int(20000, 60000);
-		$server = new WebSocketServer(
-			$bind,
+		[$bind, $server] = $this->openServer(
 			path: '/api/v1/streaming',
 			binaryFrames: false,
 			authorize: static fn ($subscriber): bool => ($subscriber->query['access_token'] ?? '') === 'valid-token',
@@ -198,14 +189,10 @@ class WebSocketServerTest extends TestCase {
 	}
 
 	public function testUpgradeCanBeAuthorizedFromRequestHeadersAndQuery(): void {
-		$bind = '127.0.0.1:' . random_int(20000, 60000);
-		$server = new WebSocketServer(
-			$bind,
-			WebSocketServer::MAX_SUBSCRIBERS,
-			WebSocketServer::MAX_PER_ADDRESS,
-			'/api/v1/streaming',
-			false,
-			static fn ($subscriber): bool => ($subscriber->headers['authorization'] ?? '') === 'Bearer valid-token'
+		[$bind, $server] = $this->openServer(
+			path: '/api/v1/streaming',
+			binaryFrames: false,
+			authorize: static fn ($subscriber): bool => ($subscriber->headers['authorization'] ?? '') === 'Bearer valid-token'
 				|| ($subscriber->query['access_token'] ?? '') === 'valid-token',
 		);
 		try {
@@ -236,8 +223,7 @@ class WebSocketServerTest extends TestCase {
 	}
 
 	public function testConfiguredHealthPathAnswersPlainHttp(): void {
-		$bind = '127.0.0.1:' . random_int(20000, 60000);
-		$server = new WebSocketServer($bind, path: '/api/v1/streaming', binaryFrames: false);
+		[$bind, $server] = $this->openServer('/api/v1/streaming', false);
 		try {
 			$client = stream_socket_client('tcp://' . $bind, $errno, $error, 2);
 			$this->assertNotFalse($client, $error);
@@ -256,9 +242,7 @@ class WebSocketServerTest extends TestCase {
 	}
 
 	public function testConfiguredPathCanAuthorizeSubprotocolAndHandleTextMessages(): void {
-		$bind = '127.0.0.1:' . random_int(20000, 60000);
-		$server = new WebSocketServer(
-			$bind,
+		[$bind, $server] = $this->openServer(
 			path: '/api/v1/streaming',
 			binaryFrames: false,
 			authorize: static function ($subscriber): bool {
@@ -292,6 +276,35 @@ class WebSocketServerTest extends TestCase {
 		} finally {
 			$server->shutdown();
 		}
+	}
+
+	/** @return array{string, WebSocketServer} */
+	private function openServer(
+		?string $path = null,
+		bool $binaryFrames = true,
+		?\Closure $authorize = null,
+		?\Closure $onMessage = null,
+		bool $eventStreams = false,
+	): array {
+		for ($attempt = 0; $attempt < 20; $attempt++) {
+			$bind = '127.0.0.1:' . random_int(20000, 60000);
+			try {
+				return [$bind, new WebSocketServer(
+					$bind,
+					path: $path ?? WebSocketServer::PATH,
+					binaryFrames: $binaryFrames,
+					authorize: $authorize,
+					onMessage: $onMessage,
+					eventStreams: $eventStreams,
+				)];
+			} catch (\RuntimeException $e) {
+				if (!str_starts_with($e->getMessage(), 'Cannot listen on ')) {
+					throw $e;
+				}
+			}
+		}
+
+		throw new \RuntimeException('Could not bind a loopback port after 20 attempts');
 	}
 
 	public function testFramesAreEncodedForEveryLength(): void {
