@@ -11,7 +11,6 @@ namespace OCA\Social\Service;
 
 use OCA\Social\Atproto\Publisher\BlueskyBookmarks;
 use OCA\Social\Atproto\Publisher\BlueskyThreadMutes;
-use OCA\Social\Atproto\Reader\BlueskyIds;
 use OCA\Social\Db\ActionsRequest;
 use OCA\Social\Db\ConversationsRequest;
 use OCA\Social\Exceptions\InvalidActionException;
@@ -128,11 +127,9 @@ class ActionService {
 			$rootId,
 			$muted
 		);
-		if (BlueskyIds::isPostId($rootId)) {
-			$threadMutes = $this->container?->get(BlueskyThreadMutes::class);
-			if ($threadMutes instanceof BlueskyThreadMutes) {
-				$threadMutes->fromSocial($actor, $rootId, $muted);
-			}
+		$threadMutes = $this->container?->get(BlueskyThreadMutes::class);
+		if ($threadMutes instanceof BlueskyThreadMutes) {
+			$threadMutes->fromSocial($actor, $rootId, $muted);
 		}
 	}
 

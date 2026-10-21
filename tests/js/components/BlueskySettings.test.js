@@ -132,6 +132,24 @@ describe('BlueskySettings', () => {
 		expect(writeText).toHaveBeenCalledWith('did:plc:abc123')
 	})
 
+	it('shows and copies the hosting provider for Bluesky sign-in', async () => {
+		serverHas()
+		const writeText = vi.fn().mockResolvedValue(undefined)
+		Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+		const wrapper = mountSettings()
+		await flushPromises()
+
+		const signIn = wrapper.find('.bluesky-settings__oauth-sign-in')
+		expect(signIn.text()).toContain('Sign in to the Bluesky app')
+		expect(signIn.text()).toContain('@alice.cloud.example.org')
+		expect(signIn.text()).toContain(window.location.origin)
+		expect(signIn.text()).toContain('your Nextcloud password stays here')
+
+		await buttonByLabel(wrapper, 'Copy the hosting provider address').trigger('click')
+		await flushPromises()
+		expect(writeText).toHaveBeenCalledWith(window.location.origin)
+	})
+
 	it('says so when the identity could not be read', async () => {
 		axios.get.mockRejectedValue(new Error('offline'))
 		const wrapper = mountSettings()
@@ -548,8 +566,8 @@ describe('BlueskySettings', () => {
 			await flushPromises()
 
 			expect(axios.get).toHaveBeenCalledWith(APP_PASSWORDS)
-			expect(section(wrapper).text()).toContain('App passwords for Bluesky apps')
-			expect(section(wrapper).text()).toContain(`choose this server as your hosting provider: ${window.location.origin}.`)
+			expect(section(wrapper).text()).toContain('App passwords for other Bluesky apps')
+			expect(section(wrapper).text()).toContain(`Choose this server as its hosting provider: ${window.location.origin}.`)
 			expect(rows(wrapper)).toHaveLength(2)
 			expect(rows(wrapper)[0].text()).toContain('Graysky on my phone')
 			expect(rows(wrapper)[0].text()).toContain('Made ')

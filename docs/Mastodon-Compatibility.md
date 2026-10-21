@@ -17,7 +17,7 @@ a walk of Mastodon's documented client routes found 23 genuinely unserved (the
 raw diff said 45; 22 of those were false positives — `statuses/{nid}/{act}`,
 `timelines/{timeline}` and the `accounts/{id}` route in `appinfo/routes.php`
 are catch-alls a path-by-path comparison cannot see). Of the 23, **everything
-that is not Web Push, streaming or a sign-up this app does not own is now
+that is not streaming or a sign-up this app does not own is now
 served**: translation, grouped notifications, the notification policy and its
 requests inbox, per-status filters, `profile/avatar|header`,
 `suggestions/{id}`, `instance/privacy_policy|terms_of_service|translation_languages`
@@ -44,11 +44,11 @@ Aloha Social 0.19.95 is a capable, standards-correct ActivityPub server with a b
 and largely genuine Mastodon client API. A walk of Mastodon's 145 documented
 client routes against the route table found 23 genuinely unserved — the raw
 path diff said 45, and 22 of those were catch-alls a textual comparison cannot
-see. Of the 23, **three** are left: `push/subscription` and `streaming`, the
-two known weeks-long items, both announced as absent so a client stops asking
-rather than hanging, and `emails/confirmations`, which belongs to a sign-up
-this app does not own. Everything else exists, and §3.3 says which of them is a
-stub.
+see. Web Push subscription and encrypted delivery are implemented. Of the 23,
+**two endpoints remain absent**: streaming, which is announced as unavailable
+so clients poll rather than hanging, and `emails/confirmations`, which belongs
+to a sign-up this app does not own. Everything else exists, and §3.3 says
+which of them is a stub.
 
 It is **not** a drop-in replacement for Mastodon, and two things stood between
 it and that goal. One was small and mechanical: the API is not served at the
@@ -74,8 +74,8 @@ report that does not separate them will either sound alarming or sound smug.
 
 | Test | Question | Verdict |
 |---|---|---|
-| **The client test** | Do existing Mastodon apps work against it, unmodified? | **Only once the shipped web-server rules are installed** (§3.1), and then without push or streaming (§3.3); without the rules, no |
-| **The peer test** | Would other fediverse servers notice the difference? | **Almost no** — federation quality is genuinely good, with one live defect (§4) |
+| **The client test** | Do existing Mastodon apps work against it, unmodified? | **Only once the shipped web-server rules are installed** (§3.1), and then without streaming (§3.3); without the rules, no |
+| **The peer test** | Would other fediverse servers notice the difference? | **Almost no** — federation quality is genuinely good; the last documented media-shape defect is fixed (§4) |
 | **The takeover test** | Can an existing Mastodon instance move onto it, same domain, same users, without the network noticing? | **No** — and this is weeks to months of work |
 
 Most of the value is in the first test. Most of the difficulty is in the third.
@@ -195,11 +195,8 @@ three standalone `instance` sub-routes, `/api/v1/timelines/link` and
 
 ### 3.4 Genuinely missing endpoints
 
-Three, and only three:
+Two, and only two:
 
-- **Web Push (`/api/v1/push/*`)** — absent. `lib/Service/PushService.php` is
-  unrelated; it pokes the `notify_push` app so the *web* client refreshes.
-  Third-party mobile apps get no push from this server.
 - **Streaming** — absent, and deliberately so. `InstanceService` returns an empty
   `urls` object so clients fall back to polling immediately rather than after a
   timeout.
@@ -254,14 +251,14 @@ string, so they were hiding edit and history, calling the v1 filter routes that
 404 instead of v2, and never asking for `/api/v2/instance` or
 `/notifications/unread_count` — all of which are implemented.
 
-The 4.x features still missing are announced rather than left to fail.
+The 4.x feature still missing is announced rather than left to fail.
 `urls.streaming_api` (v2: `configuration.urls.streaming`) is `wss://<host>`
 although there is no streaming endpoint: masto.js (Elk, Phanpy) builds its
 websocket from it and, with the key left out, tried to connect to `undefined`
 on every page load; at this host the connection is a clean 404 and the client
-polls. `vapid_key` is an empty string, so a client decides against
-offering Web Push before it asks for it — which is what it does against any
-server with no VAPID key. `configuration.translation.enabled` is no longer
+polls. Web Push is implemented at `/api/v1/push/subscription`; the instance
+publishes the same stable public VAPID key in `configuration.vapid.public_key`
+and the application entity's `vapid_key`. `configuration.translation.enabled` is no longer
 always `false`: it is `true` where this Nextcloud has a translation provider,
 and the languages that provider offers are at
 `/api/v1/instance/translation_languages`.
@@ -292,7 +289,7 @@ Good overall. Two of the four issues this section used to list are fixed in
 
 `POST /api/v1/apps` was the third: it omitted `redirect_uri`, which Mastodon's
 Application entity always carries. It now answers with the first registered URI
-and an empty `vapid_key`, because there is no Web Push here to have a key for.
+and the instance's stable public `vapid_key`.
 
 The fourth was an Account carrying `"avatar": ""` when the actor had no cached
 icon and no stored avatar. It is fixed with the account pictures (§ 3.1a):
@@ -463,40 +460,15 @@ same applies to an alias typed as a URL (`MigrationService::addAlias()`): the
 id stored is the one the server serves there, which is what Mastodon's own
 `Move` check looks for; a URL nobody answers is kept as typed.
 
-**What a peer would still notice — one thing, and it is live today:**
-
-**Attachments are served in Mastodon's client shape rather than as ActivityPub
-documents.** Fetch any status of this instance with
-`Accept: application/activity+json` and `attachment` comes back as
-
-```json
-[{"id": "707", "type": "video", "url": "…/media/02f8b930….mp4",
-  "preview_url": "…", "remote_url": null, "meta": {…}, "description": "…"}]
-```
-
-where the wire calls for `{"type": "Document", "mediaType": "video/mp4",
-"url": …, "name": "…"}`. There is no `mediaType` at all, `type` is the client
-entity's half-word, and `description` is not the property a peer reads alt text
-from.
-
-The pieces are all present and correctly written — `MediaAttachment::asDocument()`
-emits exactly the right object, and `StatusApiController::statusNew()` sets
-`ACore::FORMAT_ACTIVITYPUB` on the attachments of a post as it is created, so
-the original `Create` that goes out over the wire is right. What is wrong is
-everything *after* that: `StreamRequest::save()` deliberately stores
-`$item->asLocal()`, hydration leaves the rebuilt objects in the local format,
-and `Stream::jsonSerialize()` then hands those objects straight to the
-serialiser under `attachment`. So a single status, the outbox, `featured`,
-`replies`, an `Update` after an edit, and any re-fetch by a peer resolving a
-boost all carry the client shape.
-
-This is the same defect the Pixelfed compatibility review found in September and
-was believed fixed. It was not caught because the test that pins it —
-`WireCompatibilityTest::testWhatGoesBackToPixelfedStatesItsMediaType()` — calls
-`asDocument()` directly rather than serialising a stored status the way the
-controller does, so it passes against a wire format nothing produces. It is §9
-item 39, it is hours of work, and it is the highest-value item on that list
-after the tier-1 blocker.
+**The last documented peer defect is fixed: media attachments are serialized
+as ActivityPub `Document` objects after database hydration too.**
+`Stream::jsonSerialize()` now maps every non-local attachment through
+`MediaAttachment::asDocument()`, so a peer fetching a stored status, an outbox
+entry, `featured`, `replies`, an edit or a boosted object receives `mediaType`
+and `name`, not Mastodon's client-only `media_attachments` shape. The regression
+test hydrates a status from the `attachments` JSON column used by
+`StreamRequest::save()` and checks the ActivityPub serialization. This covers
+the re-serve path that the earlier direct `asDocument()` test missed.
 
 Authorized fetch inbound is **no longer** among them: a signed GET is verified
 and resolved to the account behind it (`AuthorizedFetchService`), so a
@@ -638,27 +610,20 @@ notices on the first signature check.
 
 Genuinely absent, in rough order of how much they would be missed:
 
-1. Web Push and streaming — every client polls, and both are announced as
-   absent rather than left to time out.
+1. Streaming — every client polls; no websocket server is advertised as
+   available.
 2. Registration management: sign-up, approval queue, invites, email
    confirmation. Accounts are Nextcloud users, so provisioning lives in the
    server, and an approval queue and invite links have no equivalent anywhere.
    This one is not going to be built here; what changed is that
    `POST /api/v1/accounts` answers **403** with the server's registration
    address instead of a 404.
-3. **Graded domain blocks, through a Mastodon admin client.** The app has a
-   silence tier — `FediverseService::silenceAddress()`, reachable from the
-   admin settings and `occ social:fediverse` — but the admin API does not
-   expose it: `AdminApiService::assertSeverity()` refuses any severity but
-   `suspend`, `AdminDomainBlock` reports every entry as `suspend`, and silenced
-   domains are not in that list at all. An admin moving from Mastodon finds the
-   feature present in the web UI and absent from their tooling.
-4. Search is by word, not by substring. `StreamRequest::searchContent()` looks
+3. Search is by word, not by substring. `StreamRequest::searchContent()` looks
    every word of the query up in `social_search_term` and matches the last one
    as a word beginning; a fragment from the middle of a word finds nothing, as
    on Mastodon. Script written without spaces between words is indexed in runs
    of up to 32 characters and found from the beginning of a run only.
-5. `tootctl` equivalents for `preview_cards remove` and media-only sweeps.
+4. `tootctl` equivalents for `preview_cards remove` and media-only sweeps.
    `accounts cull` and `accounts prune` no longer belong on this list: the cache
    cron gives up on an unreachable remote actor after ten failed refreshes
    (`CacheActorService`, the cull) and evicts the cached remote accounts nobody
@@ -666,7 +631,7 @@ Genuinely absent, in rough order of how much they would be missed:
    prune), both of them continuous rather than a command an administrator has
    to remember. `occ social:media:usage` reports what the media costs but
    deletes nothing.
-6. Canonical email blocks, which belong with registration.
+5. Canonical email blocks, which belong with registration.
 
 **No longer on this list**, each verified against the code rather than assumed:
 conversation mute; all four of the notification types that were missing —
@@ -690,10 +655,9 @@ would act on.
 Worth stating so they are not mistaken for work. Authentication, 2FA and sessions
 come from Nextcloud. Accounts are Nextcloud users, so `accountEnable` is a
 deliberate no-op and there is no per-actor login to disable. Notifications go
-through the Nextcloud notification system — bell, mobile app, mail digest —
-rather than Web Push, and they are emitted for mention, favourite,
-reblog, follow, follow request and update from the single write path
-(`NotificationService`). There is no materialised home feed
+through the Nextcloud notification system — bell, mobile app and mail digest —
+and opted-in Mastodon clients can receive encrypted Web Push. Both are emitted
+from the single write path (`NotificationService`). There is no materialised home feed
 to rebuild, because timelines are queried live. Rules and retention are app
 values and occ commands. Moderation lives in Nextcloud admin settings.
 
@@ -737,8 +701,8 @@ Since that paragraph was written, four more waves landed. **#2134** filled the
 small client gaps — the v1 filter routes, `instance/peers` and `instance/activity`,
 `preferences`, `familiar_followers`. **#2135** went after what a peer would
 notice — `Add` and `Remove` federate a pin, the WebFinger profile link points at
-an Aloha Social profile, and `mediaType`, which §4 has now reopened because the fix
-never reached the object a peer is served. **#2136** is the admin and
+an Aloha Social profile, and the media `Document` shape is now preserved after
+database hydration, covered by a regression test. **#2136** is the admin and
 moderation tier almost entire: instance silencing, a moderator role that is
 Nextcloud's own settings delegation, an account browser and a takedown button,
 warnings and strikes, IP and email-domain blocks, admin metrics, the instance's
@@ -806,7 +770,7 @@ whether it is done. Query and scalability work has its own list in
 
 | # | Work | Effort | What it fixes | Status |
 |---|---|---|---|---|
-| 3 | **Web Push** (`/api/v1/push/*`, a VAPID key, `configuration.vapid`) | Weeks | Third-party mobile apps get no notifications at all; every client polls. `vapid_key` is answered as `''`, which is how a client learns to stop asking | **open** |
+| 3 | **Web Push** (`/api/v1/push/subscription`, VAPID, `configuration.vapid`) | Weeks | Mobile apps need subscription management, encrypted per-token credentials, an encrypted delivery worker, and expired-endpoint cleanup | implemented in this branch; verification pending |
 | 4 | **`/api/v1/preferences`** | Hours | Clients read the posting defaults from it and fall back to guesses | done |
 | 5 | **`/api/v1/custom_emojis`** — the instance's own emoji, and `Emoji` tags outbound | Days | Returned `[]` unconditionally: remote emoji rendered, this instance could publish none | done |
 | 6 | **`/api/v1/accounts/familiar_followers`** | Hours | The "followed by people you know" line on a profile | done |
@@ -835,7 +799,7 @@ missing. All of them have since landed.
 ### Tier 2c — the 2026-09-15 walk, against Mastodon's 145 documented routes
 
 The 23 the walk found unserved, once the catch-alls were discounted. Everything
-that is not Web Push, streaming or a sign-up this app does not own is done.
+that is not streaming or a sign-up this app does not own is done.
 
 | # | Work | Effort | What it fixes | Status |
 |---|---|---|---|---|
@@ -935,10 +899,12 @@ root once an administrator installs the shipped web-server rules, and the setup
 check says whether they have; on an instance where they have not, no stock
 client reaches *any* of the surface above.
 
-**Item 39 next, ahead of anything larger.** It is hours of work, it is the only
-thing on this list a *peer* currently gets wrong, and every post with a picture
-or a video is affected by it. Then Web Push (3) and streaming (10), the two
-weeks-long items left, in the order a user would notice them.
+**Streaming (10) is the next substantial client-compatibility gap.** It needs a
+long-lived websocket service and event fan-out; it cannot be fixed by adding a
+route to the PHP request path. Web Push is already implemented for notifications,
+but clients still poll timelines until streaming is available. The peer-level
+media serialization finding is fixed and covered by a test that hydrates a stored
+status before serializing it.
 
 **Tier 5 should not be started** until somebody decides that "replace an
 existing Mastodon instance on its own domain" is a product goal. While
@@ -961,11 +927,9 @@ existence of an account-note route two lines above the row documenting it,
 calling two instance counters permanently zero when they are counted and cached,
 and calling local poll votes and poll creation unsupported when both work.
 
-The fourth is the opposite kind and is **still true**: `README.md` says
-third-party clients can log in. They cannot, until §3.1 is fixed — and that is a
-promise the code does not keep rather than a stale limitation, which is the
-worse of the two. The README now says what stands in the way, but the sentence
-is only honest because it says so.
+The README's client claim is conditional: Mastodon apps work after the
+administrator installs the shipped `/api` and `/oauth` root rewrites. The setup
+check and the warning name that prerequisite, so the claim matches the code.
 
 Two more were found on this pass, and they are worth naming because they are
 different failure modes.
@@ -976,16 +940,13 @@ per-user OAuth tokens done, §3.2 had them done, and §9's summary table still
 called both tier-1 blockers open. Two documents that must agree will not, so
 there is one now.
 
-The second is worse, because a test was supposed to catch it. §4's attachment
-finding — the wire carrying Mastodon's client entity where an ActivityPub
-`Document` belongs — had been recorded as fixed, and
-`WireCompatibilityTest::testWhatGoesBackToPixelfedStatesItsMediaType()` passes.
-It passes because it calls `MediaAttachment::asDocument()` itself rather than
-serialising a stored status the way a controller does, so it pins a method and
-not a behaviour. **A federation claim is only worth what the assertion behind
-it exercises.** The way this one was actually found was fetching a status from
-a running instance with `Accept: application/activity+json` and reading what
-came back, which is what the next pass over §4 should do again.
+The media attachment finding exposed that same weak test boundary: the earlier
+test called `MediaAttachment::asDocument()` directly and did not serialize a
+stored status. It is now covered by
+`StreamTest::testAHydratedPostServesItsAttachmentsAsDocuments()`, which loads
+the attachment from the persisted JSON shape and checks the resulting
+ActivityPub serialization. A live remote fetch remains useful verification,
+but the regression test now exercises the previously missed hydration path.
 
 A third pass, 2026-09-15, found three more of the first kind — prose that had
 gone stale under working code — and all three were in `README.md`: it listed

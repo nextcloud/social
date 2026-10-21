@@ -19,6 +19,8 @@ use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Security\SecretHasher;
 use OCA\Social\Tools\Traits\TStringTools;
 use OCP\AppFramework\Utility\ITimeFactory;
+use Psr\Log\LoggerInterface;
+use Throwable;
 
 /**
  * Class ClientService
@@ -82,6 +84,8 @@ class ClientService {
 		SecretHasher $secretHasher,
 		private ClientAuthRequest $clientAuthRequest,
 		private ConfigService $configService,
+		private PushSubscriptionService $pushSubscriptions,
+		private LoggerInterface $logger,
 		private ?ITimeFactory $timeFactory = null,
 	) {
 		$this->clientRequest = $clientRequest;
@@ -277,6 +281,7 @@ class ClientService {
 		foreach ($this->getAuthorizationsOf($userId) as $authorization) {
 			if ($authorization->getAuthId() === $authId) {
 				$this->clientAuthRequest->revoke($authId);
+				$this->deletePushSubscription($userId, $authorization->getToken());
 
 				return true;
 			}
@@ -328,6 +333,7 @@ class ClientService {
 				// instance's, and taking it with an idle token made the client
 				// register itself all over again
 				$this->clientAuthRequest->deprecate($now);
+				$this->deletePushSubscription($client->getAuthUserId(), $client->getToken());
 			} catch (Exception $e) {
 			}
 
@@ -339,6 +345,7 @@ class ClientService {
 		// as whoever held the copy kept using it.
 		if ($this->expiredByAge($client, $now)) {
 			$this->clientAuthRequest->revoke($client->getAuthId());
+			$this->deletePushSubscription($client->getAuthUserId(), $client->getToken());
 
 			throw new ClientNotFoundException('the access_token has expired');
 		}
@@ -407,6 +414,21 @@ class ClientService {
 		// one authorization, not the app row: revoking on one device must not
 		// sign out everybody else who authorized the same client
 		$this->clientAuthRequest->revoke($stored->getAuthId());
+		$this->deletePushSubscription($stored->getAuthUserId(), $stored->getToken());
+	}
+
+	private function deletePushSubscription(string $userId, string $storedToken): void {
+		if ($userId === '' || !str_starts_with($storedToken, SecretHasher::PREFIX)) {
+			return;
+		}
+		try {
+			$this->pushSubscriptions->delete($userId, substr($storedToken, strlen(SecretHasher::PREFIX)));
+		} catch (Throwable $e) {
+			$this->logger->error('Could not remove a revoked Mastodon Web Push subscription', [
+				'user' => $userId,
+				'exception' => $e,
+			]);
+		}
 	}
 
 	/**

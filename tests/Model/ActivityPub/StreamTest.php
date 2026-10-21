@@ -365,13 +365,19 @@ class StreamTest extends TestCase {
 	 */
 	public function testAHydratedPostServesItsAttachmentsAsDocuments(): void {
 		$stream = new Stream();
-		$stream->setId('https://cloud.example/apps/social/@alice/1');
-		$attachment = (new MediaAttachment())->import([
-			'id' => '7', 'type' => 'image', 'media_type' => 'image/png',
-			'url' => 'https://cloud.example/apps/social/media/abc', 'preview_url' => null, 'remote_url' => null,
-			'meta' => ['original' => ['width' => 640, 'height' => 480]], 'description' => 'a cat', 'blurhash' => 'LEHV6n',
+		$stream->importFromDatabase([
+			'id' => 'https://cloud.example/apps/social/@alice/1',
+			'type' => 'Note',
+			'published_time' => '2024-05-01 12:00:00',
+			'content' => 'look at this cat',
+			'visibility' => 'public',
+			'attachments' => json_encode([[
+				'id' => '7', 'type' => 'image', 'media_type' => 'image/png',
+				'url' => 'https://cloud.example/apps/social/media/abc', 'preview_url' => null, 'remote_url' => null,
+				'meta' => ['original' => ['width' => 640, 'height' => 480]], 'description' => 'a cat', 'blurhash' => 'LEHV6n',
+			]], JSON_THROW_ON_ERROR),
 		]);
-		$stream->setAttachments([$attachment]);
+		$attachment = $stream->getAttachments()[0];
 		$this->assertSame(ACore::FORMAT_LOCAL, $attachment->getExportFormat(), 'hydrated in the local format, as importFromDatabase() leaves it');
 
 		$stream->setExportFormat(ACore::FORMAT_ACTIVITYPUB);

@@ -33,6 +33,7 @@ use OCA\Social\Service\CheckService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\InstanceService;
+use OCA\Social\Service\VapidService;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\DataResponse;
@@ -52,6 +53,10 @@ use Psr\Log\NullLogger;
 
 #[AllowMockObjectsWithoutExpectations]
 class OAuthControllerTest extends TestCase {
+	public function testWebPushScopeIsAdvertisedByOAuthDiscovery(): void {
+		self::assertContains('push', OAuthController::SCOPES);
+	}
+
 	/** @var AuthorizationServer&MockObject */
 	private AuthorizationServer $atprotoOAuth;
 	/** @var AtprotoConfig&MockObject */
@@ -109,7 +114,15 @@ class OAuthControllerTest extends TestCase {
 			$this->atprotoOAuth,
 			$this->atprotoConfig,
 			$this->createMock(DpopNonce::class),
+			$this->vapidService(),
 		);
+	}
+
+	private function vapidService(): VapidService {
+		$vapid = $this->createStub(VapidService::class);
+		$vapid->method('publicKey')->willReturn('instance-vapid-key');
+
+		return $vapid;
 	}
 
 	protected function tearDown(): void {
@@ -240,7 +253,7 @@ class OAuthControllerTest extends TestCase {
 			// Mastodon's Application entity always carries both, and a client
 			// that decodes this into a typed struct fails without them
 			'redirect_uri' => 'https://tusky.app/callback',
-			'vapid_key' => '',
+			'vapid_key' => 'instance-vapid-key',
 		], $response->getData());
 	}
 
@@ -1179,7 +1192,12 @@ class OAuthControllerTest extends TestCase {
 		$clientRequest = $this->createMock(ClientRequest::class);
 		$clientAuthRequest = $this->createStub(ClientAuthRequest::class);
 		$clientService = new ClientService(
-			$clientRequest, $hasher, $clientAuthRequest, $this->createStub(\OCA\Social\Service\ConfigService::class)
+			$clientRequest,
+			$hasher,
+			$clientAuthRequest,
+			$this->createStub(\OCA\Social\Service\ConfigService::class),
+			$this->createStub(\OCA\Social\Service\PushSubscriptionService::class),
+			new NullLogger(),
 		);
 
 		// exactly the columns saveApp() writes, read back the way
@@ -1429,6 +1447,33 @@ class OAuthControllerTest extends TestCase {
 		$this->assertSame('https://nc.example/oauth/authorize', $data['authorization_endpoint']);
 		$this->assertSame('https://nc.example/oauth/token', $data['token_endpoint']);
 		$this->assertSame('https://nc.example/api/v1/apps', $data['app_registration_endpoint']);
+	}
+
+	public function testTheRootDocumentIncludesAtprotoDiscoveryWhenBlueskyIsReady(): void {
+		$this->atprotoConfig->method('isEnabled')->willReturn(true);
+		$this->atprotoOAuth->method('metadata')->willReturn([
+			'issuer' => 'https://nc.example',
+			'pushed_authorization_request_endpoint' => 'https://nc.example/oauth/par',
+			'require_pushed_authorization_requests' => true,
+			'authorization_response_iss_parameter_supported' => true,
+			'dpop_signing_alg_values_supported' => ['ES256'],
+			'client_id_metadata_document_supported' => true,
+			'token_endpoint_auth_signing_alg_values_supported' => ['ES256'],
+			'response_modes_supported' => ['query', 'fragment'],
+			'protected_resources' => ['https://nc.example'],
+		]);
+		$this->checkService->method('clientApiRootIsKnownGood')->willReturn(true);
+		$this->configService->method('getSocialUrl')->willReturn('https://nc.example/apps/social/');
+		$this->configService->method('getCloudUrl')->willReturn('https://nc.example');
+
+		$data = $this->controller->oauthMetadata()->getData();
+
+		$this->assertSame('https://nc.example', $data['issuer']);
+		$this->assertSame('https://nc.example/oauth/par', $data['pushed_authorization_request_endpoint']);
+		$this->assertTrue($data['require_pushed_authorization_requests']);
+		$this->assertSame(['ES256'], $data['dpop_signing_alg_values_supported']);
+		$this->assertContains('atproto', $data['scopes_supported']);
+		$this->assertSame('https://nc.example/oauth/token', $data['token_endpoint']);
 	}
 
 	/**
