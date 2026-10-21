@@ -1502,6 +1502,28 @@ describe('timeline store actions', () => {
 			expect(tl().timeline).toEqual(['1', '2'])
 		})
 
+		it('keeps an empty profile page open while Bluesky continues past hidden records', async () => {
+			vi.useFakeTimers()
+			try {
+				await store.changeTimelineTypeAccount('bob@remote.tld')
+				axios.get
+					.mockResolvedValueOnce({ data: [], headers: { 'x-social-filling': '1' } })
+					.mockResolvedValueOnce({ data: [makeStatus('1')], headers: {} })
+
+				await store.fetchTimeline()
+				expect(store.timelinePageFilling).toBe(true)
+				expect(store.timelinePageEmpty).toBe(true)
+
+				await vi.advanceTimersByTimeAsync(1000)
+
+				expect(store.timelinePageFilling).toBe(false)
+				expect(store.timelinePageEmpty).toBe(false)
+				expect(store.timeline).toEqual(['1'])
+			} finally {
+				vi.useRealTimers()
+			}
+		})
+
 		/**
 		 * The profile's Photos and Videos tabs. `only_media` is Mastodon's own
 		 * parameter and says what the two have in common; `media_type` is the
@@ -1835,6 +1857,23 @@ describe('a conversation read from where it lives', () => {
 		await vi.runAllTimersAsync()
 		expect(axios.get).toHaveBeenCalledTimes(3)
 		expect(store.timeline).toEqual(['8', '9'])
+		vi.useRealTimers()
+	})
+
+	it('keeps an empty conversation pending until the thread refill completes', async () => {
+		await store.changeTimelineType({ type: 'single-post', params: { id: '7' } })
+		axios.get
+			.mockResolvedValueOnce({ data: { ancestors: [], descendants: [] }, headers: { 'x-social-thread-filling': '1' } })
+			.mockResolvedValueOnce({ data: { ancestors: [], descendants: [] }, headers: {} })
+
+		await store.fetchTimeline()
+		expect(store.timelinePageFilling).toBe(true)
+		expect(store.timelinePageEmpty).toBe(true)
+
+		await vi.advanceTimersByTimeAsync(1000)
+
+		expect(store.timelinePageFilling).toBe(false)
+		expect(store.timelinePageEmpty).toBe(true)
 		vi.useRealTimers()
 	})
 

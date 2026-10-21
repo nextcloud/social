@@ -582,6 +582,16 @@ export default {
 			return this.timelineStore.getTimelineIdentity
 		},
 
+		/** @return {boolean} whether the current remote page can still grow */
+		timelinePageFilling() {
+			return this.timelineStore.timelinePageFilling
+		},
+
+		/** @return {boolean} whether the last timeline page was empty */
+		timelinePageEmpty() {
+			return this.timelineStore.timelinePageEmpty
+		},
+
 		/** @return {boolean} nothing to show, and nothing went wrong */
 		showEmptyContent() {
 			return this.error === null
@@ -919,6 +929,23 @@ export default {
 			// a different list is a different page view: what was read on
 			// the last one is said, and the new one starts counting afresh
 			this.startTracking()
+		},
+
+		// A Bluesky profile can have an empty intermediate page while the
+		// server continues past hidden or unavailable records. Keep the end
+		// sentinel active until the background refill confirms the end.
+		timelinePageFilling(filling) {
+			if (filling) {
+				this.allLoaded = false
+			} else if (this.timelinePageEmpty && !this.loading) {
+				this.allLoaded = true
+			}
+		},
+
+		timelinePageEmpty(empty) {
+			if (empty && !this.timelinePageFilling && !this.loading) {
+				this.allLoaded = true
+			}
 		},
 
 		// turning learning off, or on, from the notice above the list
@@ -1576,7 +1603,9 @@ export default {
 				// page of one, and its `.length` is undefined — so `=== 0` was
 				// never true and the sentinel kept asking for a next page that
 				// does not exist
-				this.allLoaded = Array.isArray(response) ? response.length === 0 : true
+				this.allLoaded = Array.isArray(response)
+					? response.length === 0 && !this.timelinePageFilling
+					: !this.timelinePageFilling
 			} catch (error) {
 				if (generation !== this.generation) {
 					return

@@ -1837,6 +1837,21 @@ describe('TimelineList', () => {
 			expect(wrapper.find('.timeline-list--settling').exists()).toBe(false)
 		})
 
+		it('keeps paging enabled for an empty page while a remote profile refill is pending', async () => {
+			const { wrapper, store } = mountList({ timeline: [], responses: [[]] })
+			await flushPromises()
+			expect(wrapper.vm.allLoaded).toBe(true)
+
+			store.timelinePageEmpty = true
+			store.timelinePageFilling = true
+			await nextTick()
+			expect(wrapper.vm.allLoaded).toBe(false)
+
+			store.timelinePageFilling = false
+			await nextTick()
+			expect(wrapper.vm.allLoaded).toBe(true)
+		})
+
 		it('does not rewrite the shared empty-content entry for a public profile', async () => {
 			// the computed used to assign into this.emptyContent, so the
 			// rewritten title stayed behind for every later route
