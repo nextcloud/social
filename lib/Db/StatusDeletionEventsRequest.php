@@ -32,11 +32,11 @@ class StatusDeletionEventsRequest extends CoreRequestBuilder {
 	}
 
 	/**
-	 * @return list<array{id: int, status_nid: string, hashtags: list<string>, local: bool, media: bool, visibility: string, recipients: list<string>}>
+	 * @return list<array{id: int, status_nid: string, hashtags: list<string>, local: bool, media: bool, visibility: string, recipients: list<string>, audience_prim: ?string}>
 	 */
 	public function getAfterId(int $afterId, int $limit): array {
 		$qb = $this->getQueryBuilder();
-		$qb->select('id', 'status_nid', 'hashtags', 'local', 'media', 'visibility', 'recipients')
+		$qb->select('id', 'status_nid', 'hashtags', 'local', 'media', 'visibility', 'recipients', 'audience_prim')
 			->from(self::TABLE_STATUS_DELETIONS)
 			->where($qb->expr()->gt('id', $qb->createNamedParameter($afterId)))
 			->orderBy('id', 'asc')
@@ -55,6 +55,7 @@ class StatusDeletionEventsRequest extends CoreRequestBuilder {
 				'media' => (bool)$row['media'],
 				'visibility' => (string)$row['visibility'],
 				'recipients' => is_array($recipients) ? array_values(array_filter($recipients, 'is_string')) : [],
+				'audience_prim' => is_string($row['audience_prim']) ? $row['audience_prim'] : null,
 			];
 		}
 		$cursor->closeCursor();
@@ -65,7 +66,7 @@ class StatusDeletionEventsRequest extends CoreRequestBuilder {
 	/** @param list<string> $recipientPrims */
 	public function record(Stream $status, array $recipientPrims = []): void {
 		if (!in_array($status->getType(), [Note::TYPE, Question::TYPE], true)
-			|| !in_array($status->getVisibility(), [Stream::TYPE_PUBLIC, Stream::TYPE_DIRECT], true)) {
+			|| !in_array($status->getVisibility(), [Stream::TYPE_PUBLIC, Stream::TYPE_UNLISTED, Stream::TYPE_FOLLOWERS, Stream::TYPE_DIRECT], true)) {
 			return;
 		}
 		$visibility = $status->getVisibility();
@@ -75,6 +76,12 @@ class StatusDeletionEventsRequest extends CoreRequestBuilder {
 		}
 
 		try {
+			$audiencePrim = in_array($visibility, [Stream::TYPE_UNLISTED, Stream::TYPE_FOLLOWERS], true)
+				? $this->followersCollectionPrim($status->getAttributedTo())
+				: null;
+			if (in_array($visibility, [Stream::TYPE_UNLISTED, Stream::TYPE_FOLLOWERS], true) && $audiencePrim === null) {
+				return;
+			}
 			$hashtags = $visibility === Stream::TYPE_PUBLIC ? array_values(array_filter($status->getHashtags(), 'is_string')) : [];
 			$qb = $this->getQueryBuilder();
 			$qb->insert(self::TABLE_STATUS_DELETIONS)
@@ -84,6 +91,7 @@ class StatusDeletionEventsRequest extends CoreRequestBuilder {
 				->setValue('local', $qb->createNamedParameter($status->isLocal() ? 1 : 0, IQueryBuilder::PARAM_INT))
 				->setValue('visibility', $qb->createNamedParameter($visibility))
 				->setValue('recipients', $qb->createNamedParameter((string)json_encode($recipients, JSON_UNESCAPED_SLASHES)))
+				->setValue('audience_prim', $qb->createNamedParameter($audiencePrim))
 				->executeStatement();
 
 			$maxId = $this->newestId();
@@ -99,5 +107,20 @@ class StatusDeletionEventsRequest extends CoreRequestBuilder {
 				'exception' => $e,
 			]);
 		}
+	}
+
+	private function followersCollectionPrim(string $actorId): ?string {
+		$qb = $this->getQueryBuilder();
+		$qb->select('followers')
+			->from(self::TABLE_CACHE_ACTORS)
+			->where($qb->expr()->eq('id_prim', $qb->createNamedParameter($qb->prim($actorId))))
+			->setMaxResults(1);
+
+		$cursor = $qb->executeQuery();
+		$row = $cursor->fetch();
+		$cursor->closeCursor();
+		$followers = (string)($row['followers'] ?? '');
+
+		return $followers === '' ? null : $qb->prim($followers);
 	}
 }

@@ -308,7 +308,7 @@ an account without an identity does not prevent a later match from signing in.
 
 `Version1000Date20261006000010` adds `social_stream_rev.media`, the attachments of each recorded version of a status (see the schema table).
 
-`Version1000Date20261021000001` adds `social_stream_del`, a cursor of the latest 10,000 status deletions. `Version1000Date20261021000002` adds visibility and, for direct messages, the hashes of the original recipients. The daemon can then remove deleted direct messages only from streams belonging to their original participants without retaining post content. Followers-only deletions remain unannounced because their audience changes over time and needs a dedicated recipient-resolution path.
+`Version1000Date20261021000001` adds `social_stream_del`, a cursor of the latest 10,000 status deletions. `Version1000Date20261021000002` adds visibility and the hashes of original recipients; `Version1000Date20261021000003` adds the hashed followers collection for unlisted and followers-only posts. The daemon can remove deleted direct messages only from direct streams belonging to original participants, and unlisted/followers-only deletion events only from home and list streams of original recipients or accepted followers of that exact collection, without retaining post content. Private deletion events carry no hashtags and never reach public or hashtag streams.
 
 Two of those deserve a warning.
 
@@ -510,7 +510,7 @@ also keep the hashed recipients from the deleted post's destination rows. The
 daemon emits Mastodon's `delete` event to matching public subscriptions and to
 the direct stream only for an original participant. Direct-message events
 carry no hashtag metadata and are never sent to user, list, public, or hashtag
-streams. Followers-only post deletions remain unsupported.
+streams. Unlisted and followers-only deletions are limited to authorized home/list viewers; the daemon resolves current follow state against the exact cached followers collection saved with the event.
 The root Apache and Nginx examples proxy the streaming endpoints and health
 path to this daemon.
 

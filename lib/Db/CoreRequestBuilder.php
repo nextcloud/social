@@ -622,7 +622,8 @@ class CoreRequestBuilder {
 			'local',
 			'media',
 			'visibility',
-			'recipients'
+			'recipients',
+			'audience_prim'
 		],
 		self::TABLE_FEATURED_TAGS => [
 			'id',

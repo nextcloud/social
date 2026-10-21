@@ -46,8 +46,9 @@ client routes against the route table found 23 genuinely unserved — the raw
 path diff said 45, and 22 of those were catch-alls a textual comparison cannot
 see. Web Push subscription and encrypted delivery are implemented. Streaming
 is implemented as an optional daemon and needs the documented proxy rules;
-public deletions reach matching timelines and direct-message deletions reach
-only their original participants. Followers-only deletions remain open.
+public deletions reach matching timelines, direct-message deletions reach only
+their original participants, and unlisted/followers-only deletions reach only
+authorized home and list streams.
 `emails/confirmations` remains absent because sign-up belongs
 to Nextcloud. Everything else exists, and §3.3 says which of them is a stub.
 
@@ -285,7 +286,7 @@ deletions reach only the original participants' direct streams;
 their audience is recorded as actor hashes and the event contains only the
 status id. Public events retain hashtag and media filters, while direct-message
 events carry no hashtag metadata. The cursor keeps the newest 10,000 deletions.
-Followers-only deletions remain unannounced. Edits emit `status.update` for matching public, hashtag, home and
+Unlisted and followers-only deletion events reach only authorized home and list streams, based on the saved audience collection and original recipients. Edits emit `status.update` for matching public, hashtag, home and
 list streams and `conversation` for accessible direct-message edits.
 `GET /api/v1/streaming/health` is answered by the stream daemon. Web Push is
 implemented at `/api/v1/push/subscription`; the instance
@@ -935,7 +936,7 @@ client reaches *any* of the surface above.
 long-lived daemon serves the timeline types, emits `status.update` for matching
 public, hashtag, home and list streams, `conversation` for accessible direct
 message edits, and `delete` for public and recipient-scoped direct-message
-removals. Followers-only deletions remain a gap. Web Push remains available for
+removals. Unlisted and followers-only deletions are limited to authorized home and list streams. Web Push remains available for
 notifications. The peer-level
 media serialization finding is fixed and covered by a test that hydrates a stored
 status before serializing it.

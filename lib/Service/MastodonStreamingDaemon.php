@@ -11,6 +11,7 @@ namespace OCA\Social\Service;
 
 use OCA\Social\Atproto\Firehose\Subscriber;
 use OCA\Social\Atproto\Firehose\WebSocketServer;
+use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\HashtagsRequest;
 use OCA\Social\Db\ListsRequest;
 use OCA\Social\Db\StatusDeletionEventsRequest;
@@ -50,6 +51,7 @@ class MastodonStreamingDaemon {
 		private StreamRequest $streamRequest,
 		private StatusRevisionsRequest $statusRevisionsRequest,
 		private StatusDeletionEventsRequest $statusDeletionEventsRequest,
+		private FollowsRequest $followsRequest,
 		private StreamService $streamService,
 		private ConversationService $conversationService,
 		private ListsRequest $listsRequest,
@@ -420,19 +422,27 @@ class MastodonStreamingDaemon {
 		foreach ($events as $event) {
 			$matching = [];
 			$isPrivate = $event['visibility'] !== Stream::TYPE_PUBLIC;
+			$isDirect = $event['visibility'] === Stream::TYPE_DIRECT;
 			if ($isPrivate) {
 				$viewer = $subscriber->context['viewer'] ?? null;
-				if (!$viewer instanceof Person || !in_array(md5($viewer->getId()), $event['recipients'], true)) {
+				if (!$viewer instanceof Person) {
+					continue;
+				}
+				$isRecipient = in_array(md5($viewer->getId()), $event['recipients'], true);
+				if (!$isDirect && $event['audience_prim'] !== null) {
+					$isRecipient = $isRecipient || $this->followsRequest->followsCollection($viewer->getId(), $event['audience_prim']);
+				}
+				if (!$isRecipient) {
 					continue;
 				}
 			}
-			if (!$isPrivate && isset($subscriptions['user'])) {
+			if (!$isDirect && isset($subscriptions['user'])) {
 				$matching[] = 'user';
 			}
-			if ($event['visibility'] === Stream::TYPE_DIRECT && isset($subscriptions['direct'])) {
+			if ($isDirect && isset($subscriptions['direct'])) {
 				$matching[] = 'direct';
 			}
-			if (!$isPrivate && $listSubscriptions !== []) {
+			if (!$isDirect && $listSubscriptions !== []) {
 				$matching[] = 'list';
 			}
 			foreach ($isPrivate ? [] : self::PUBLIC_STREAMS as $stream) {

@@ -45,7 +45,7 @@ trait StreamDeletion {
 		try {
 			$candidate = $this->getStreamById($id, false, ACore::FORMAT_LOCAL);
 			if (in_array($candidate->getType(), [Note::TYPE, Question::TYPE], true)
-				&& in_array($candidate->getVisibility(), [Stream::TYPE_PUBLIC, Stream::TYPE_DIRECT], true)) {
+				&& in_array($candidate->getVisibility(), [Stream::TYPE_PUBLIC, Stream::TYPE_UNLISTED, Stream::TYPE_FOLLOWERS, Stream::TYPE_DIRECT], true)) {
 				$status = $candidate;
 			}
 		} catch (Throwable) {

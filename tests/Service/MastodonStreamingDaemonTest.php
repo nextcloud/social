@@ -11,6 +11,7 @@ namespace OCA\Social\Tests\Service;
 
 use OCA\Social\Atproto\Firehose\Subscriber;
 use OCA\Social\Atproto\Firehose\WebSocketServer;
+use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\ListsRequest;
 use OCA\Social\Db\StatusDeletionEventsRequest;
 use OCA\Social\Db\StatusRevisionsRequest;
@@ -44,6 +45,7 @@ class MastodonStreamingDaemonTest extends TestCase {
 	private StreamRequest&MockObject $requests;
 	private StatusRevisionsRequest&MockObject $statusRevisions;
 	private StatusDeletionEventsRequest&MockObject $statusDeletionEvents;
+	private FollowsRequest&MockObject $follows;
 	private StreamService&MockObject $streams;
 	private ConversationService&MockObject $conversations;
 	private ListsRequest&MockObject $lists;
@@ -61,6 +63,7 @@ class MastodonStreamingDaemonTest extends TestCase {
 		$this->statusRevisions->method('newestId')->willReturn(50);
 		$this->statusDeletionEvents = $this->createMock(StatusDeletionEventsRequest::class);
 		$this->statusDeletionEvents->method('newestId')->willReturn(12);
+		$this->follows = $this->createMock(FollowsRequest::class);
 		$this->streams = $this->createMock(StreamService::class);
 		$this->conversations = $this->createMock(ConversationService::class);
 		$this->lists = $this->createMock(ListsRequest::class);
@@ -79,6 +82,7 @@ class MastodonStreamingDaemonTest extends TestCase {
 			$this->requests,
 			$this->statusRevisions,
 			$this->statusDeletionEvents,
+			$this->follows,
 			$this->streams,
 			$this->conversations,
 			$this->lists,
@@ -405,7 +409,7 @@ class MastodonStreamingDaemonTest extends TestCase {
 
 	public function testPublicStreamReceivesDeletedStatusId(): void {
 		$this->statusDeletionEvents->expects(self::once())->method('getAfterId')->with(12, 50)->willReturn([
-			['id' => 13, 'status_nid' => '75', 'hashtags' => [], 'local' => true, 'media' => false, 'visibility' => Stream::TYPE_PUBLIC, 'recipients' => []],
+			['id' => 13, 'status_nid' => '75', 'hashtags' => [], 'local' => true, 'media' => false, 'visibility' => Stream::TYPE_PUBLIC, 'recipients' => [], 'audience_prim' => null],
 		]);
 		$subscriber = $this->subscriber();
 		$subscriber->eventStream = true;
@@ -427,7 +431,7 @@ class MastodonStreamingDaemonTest extends TestCase {
 
 	public function testPublicMediaStreamDoesNotReceiveDeletedTextStatus(): void {
 		$this->statusDeletionEvents->expects(self::once())->method('getAfterId')->willReturn([
-			['id' => 13, 'status_nid' => '75', 'hashtags' => [], 'local' => true, 'media' => false, 'visibility' => Stream::TYPE_PUBLIC, 'recipients' => []],
+			['id' => 13, 'status_nid' => '75', 'hashtags' => [], 'local' => true, 'media' => false, 'visibility' => Stream::TYPE_PUBLIC, 'recipients' => [], 'audience_prim' => null],
 		]);
 		$subscriber = $this->subscriber();
 		$subscriber->eventStream = true;
@@ -447,7 +451,7 @@ class MastodonStreamingDaemonTest extends TestCase {
 
 	public function testDirectDeletionIsSentOnlyToOriginalRecipients(): void {
 		$this->statusDeletionEvents->expects(self::once())->method('getAfterId')->willReturn([
-			['id' => 13, 'status_nid' => '75', 'hashtags' => [], 'local' => true, 'media' => false, 'visibility' => Stream::TYPE_DIRECT, 'recipients' => [md5('https://example.test/users/alice')]],
+			['id' => 13, 'status_nid' => '75', 'hashtags' => [], 'local' => true, 'media' => false, 'visibility' => Stream::TYPE_DIRECT, 'recipients' => [md5('https://example.test/users/alice')], 'audience_prim' => null],
 		]);
 		$viewer = (new Person())->setId('https://example.test/users/alice');
 		$subscriber = $this->subscriber();
@@ -469,12 +473,85 @@ class MastodonStreamingDaemonTest extends TestCase {
 
 	public function testDirectDeletionIsNotSentToNonRecipient(): void {
 		$this->statusDeletionEvents->expects(self::once())->method('getAfterId')->willReturn([
-			['id' => 13, 'status_nid' => '75', 'hashtags' => [], 'local' => true, 'media' => false, 'visibility' => Stream::TYPE_DIRECT, 'recipients' => [md5('https://example.test/users/alice')]],
+			['id' => 13, 'status_nid' => '75', 'hashtags' => [], 'local' => true, 'media' => false, 'visibility' => Stream::TYPE_DIRECT, 'recipients' => [md5('https://example.test/users/alice')], 'audience_prim' => null],
 		]);
 		$viewer = (new Person())->setId('https://example.test/users/bob');
 		$subscriber = $this->subscriber();
 		$subscriber->eventStream = true;
 		$subscriber->context = ['deleteSince' => 12, 'viewer' => $viewer, 'subscriptions' => ['direct' => true]];
+		$server = new WebSocketServer('127.0.0.1:0');
+		try {
+			$this->invoke('sendDeletedStatuses', $server, $subscriber);
+		} finally {
+			$server->shutdown();
+		}
+
+		rewind($subscriber->socket);
+		$payload = stream_get_contents($subscriber->socket);
+		self::assertIsString($payload);
+		self::assertStringNotContainsString('event: delete', $payload);
+	}
+
+	public function testFollowersOnlyDeletionReachesAnOriginalFollower(): void {
+		$collectionPrim = md5('https://example.test/users/alice/followers');
+		$this->statusDeletionEvents->expects(self::once())->method('getAfterId')->willReturn([
+			[
+				'id' => 13,
+				'status_nid' => '75',
+				'hashtags' => [],
+				'local' => true,
+				'media' => false,
+				'visibility' => Stream::TYPE_FOLLOWERS,
+				'recipients' => [md5('https://example.test/users/alice'), $collectionPrim],
+				'audience_prim' => $collectionPrim,
+			],
+		]);
+		$this->follows->expects(self::once())->method('followsCollection')
+			->with('https://example.test/users/bob', $collectionPrim)->willReturn(true);
+		$subscriber = $this->subscriber();
+		$subscriber->eventStream = true;
+		$subscriber->context = [
+			'deleteSince' => 12,
+			'viewer' => (new Person())->setId('https://example.test/users/bob'),
+			'subscriptions' => ['user' => true],
+		];
+		$server = new WebSocketServer('127.0.0.1:0');
+		try {
+			$this->invoke('sendDeletedStatuses', $server, $subscriber);
+		} finally {
+			$server->shutdown();
+		}
+
+		rewind($subscriber->socket);
+		$payload = stream_get_contents($subscriber->socket);
+		self::assertIsString($payload);
+		self::assertStringContainsString('event: delete', $payload);
+		self::assertStringContainsString('data: "75"', $payload);
+	}
+
+	public function testFollowersOnlyDeletionDoesNotReachAnUnrelatedUser(): void {
+		$collectionPrim = md5('https://example.test/users/alice/followers');
+		$this->statusDeletionEvents->expects(self::once())->method('getAfterId')->willReturn([
+			[
+				'id' => 13,
+				'status_nid' => '75',
+				'hashtags' => [],
+				'local' => true,
+				'media' => false,
+				'visibility' => Stream::TYPE_FOLLOWERS,
+				'recipients' => [md5('https://example.test/users/alice'), $collectionPrim],
+				'audience_prim' => $collectionPrim,
+			],
+		]);
+		$this->follows->expects(self::once())->method('followsCollection')
+			->with('https://example.test/users/bob', $collectionPrim)->willReturn(false);
+		$subscriber = $this->subscriber();
+		$subscriber->eventStream = true;
+		$subscriber->context = [
+			'deleteSince' => 12,
+			'viewer' => (new Person())->setId('https://example.test/users/bob'),
+			'subscriptions' => ['user' => true],
+		];
 		$server = new WebSocketServer('127.0.0.1:0');
 		try {
 			$this->invoke('sendDeletedStatuses', $server, $subscriber);

@@ -11,6 +11,7 @@ namespace OCA\Social\Tests\Migration;
 
 use OCA\Social\Migration\Version1000Date20261021000001;
 use OCA\Social\Migration\Version1000Date20261021000002;
+use OCA\Social\Migration\Version1000Date20261021000003;
 use OCP\DB\Types;
 use PHPUnit\Framework\TestCase;
 
@@ -52,6 +53,21 @@ class StatusDeletionEventsTableTest extends TestCase {
 
 		$once = $schema->shape();
 		MigrationReplay::run([Version1000Date20261021000002::class], [], $schema);
+		$this->assertSame($once, $schema->shape());
+	}
+
+	public function testAddsFollowersAudienceToExistingDeletionCursor(): void {
+		$schema = MigrationReplay::run([Version1000Date20261021000001::class]);
+		MigrationReplay::run([Version1000Date20261021000002::class], [], $schema);
+		MigrationReplay::run([Version1000Date20261021000003::class], [], $schema);
+		$table = $schema->getTable('social_stream_del');
+
+		$this->assertSame(Types::STRING, $table->addedColumn('audience_prim')[0]);
+		$this->assertSame(32, $table->addedColumn('audience_prim')[1]['length']);
+		$this->assertFalse($table->addedColumn('audience_prim')[1]['notnull']);
+
+		$once = $schema->shape();
+		MigrationReplay::run([Version1000Date20261021000003::class], [], $schema);
 		$this->assertSame($once, $schema->shape());
 	}
 }
