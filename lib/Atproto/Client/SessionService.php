@@ -18,7 +18,9 @@ use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Atproto\Xrpc\XrpcException;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\AtprotoClientRequest;
+use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\AtprotoIdentityNotFoundException;
+use OCA\Social\Exceptions\MoveErrorException;
 use OCP\Accounts\IAccountManager;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\IUserManager;
@@ -67,14 +69,13 @@ class SessionService {
 		} catch (MaxDelayReached) {
 			throw new XrpcException(429, 'RateLimitExceeded', 'Too many attempts; try again later');
 		}
-		$identity = $this->identityOf($identifier);
-		$userId = $identity === null ? '' : $this->userIdOf($identity);
-		$appPasswordId = $userId === '' ? null : $this->appPasswords->verify($userId, $password);
-		if ($identity === null || $appPasswordId === null) {
-			$this->throttler->registerAttempt(self::THROTTLE, $ip, ['identifier' => substr($identifier, 0, 100)]);
+		$credentials = $this->credentialsOf($identifier, $password);
+		if ($credentials === null) {
+			$this->throttler->registerAttempt(self::THROTTLE, $ip);
 
 			throw new XrpcException(401, 'AuthenticationRequired', 'Invalid identifier or password');
 		}
+		[$identity, $userId, $appPasswordId] = $credentials;
 		if ($identity->state === Identity::STATE_TOMBSTONED || $identity->state === Identity::STATE_MOVED_AWAY) {
 			throw new XrpcException(400, 'AccountTakedown', 'This account is no longer hosted here');
 		}
@@ -95,9 +96,14 @@ class SessionService {
 		if ($session === null || $session['expires'] < $this->time->getTime()) {
 			throw new XrpcException(400, 'ExpiredToken', 'Token has been revoked');
 		}
-		$this->request->removeSession($session['jti']);
+		if (!$this->request->removeSession($session['jti'])) {
+			throw new XrpcException(400, 'ExpiredToken', 'Token has already been used');
+		}
 		$identity = $this->identityByDid($session['did']);
 		self::assertActive($identity);
+		if (!$this->appPasswords->exists($session['user_id'], $session['app_password_id'])) {
+			throw new XrpcException(400, 'ExpiredToken', 'Token has been revoked');
+		}
 
 		return $this->open($identity, $session['user_id'], $session['app_password_id']);
 	}
@@ -127,6 +133,10 @@ class SessionService {
 		if ($session === null || $session['did'] !== ($claims['sub'] ?? '')) {
 			throw new XrpcException(401, 'ExpiredToken', 'Token has been revoked');
 		}
+		if (!$this->appPasswords->exists($session['user_id'], $session['app_password_id'])) {
+			$this->request->removeSession($session['jti']);
+			throw new XrpcException(401, 'ExpiredToken', 'Token has been revoked');
+		}
 		$identity = $this->identityByDid($session['did']);
 		self::assertActive($identity);
 
@@ -149,6 +159,62 @@ class SessionService {
 			'didDoc' => $this->identities->document($session->identity),
 			'active' => $session->identity->isActive(),
 		] + ($session->permissions()->mayReadEmail() ? $this->email($session->userId) : ['emailConfirmed' => false]);
+	}
+
+	/**
+	 * `com.atproto.server.createAppPassword`.
+	 *
+	 * @throws XrpcException
+	 */
+	public function createAppPassword(ClientSession $session, string $name, bool $privileged): array {
+		if ($privileged && !$session->may(ClientSession::CHAT)) {
+			throw new XrpcException(403, 'InsufficientScope', 'This session cannot create an app password with chat access');
+		}
+
+		try {
+			$created = $this->appPasswords->create($session->userId, $name, $privileged);
+		} catch (MoveErrorException $e) {
+			throw XrpcException::invalidRequest($e->getMessage());
+		}
+
+		$metadata = null;
+		foreach ($this->appPasswords->list($session->userId) as $password) {
+			if ($password['id'] === $created['id']) {
+				$metadata = $password;
+				break;
+			}
+		}
+		if ($metadata === null) {
+			throw new XrpcException(500, 'InternalServerError', 'The app password could not be read after creation');
+		}
+
+		return [
+			'name' => $created['name'],
+			'password' => $created['password'],
+			'createdAt' => gmdate('Y-m-d\\TH:i:s\\Z', $metadata['creation']),
+		] + ($privileged ? ['privileged' => true] : []);
+	}
+
+	/**
+	 * `com.atproto.server.listAppPasswords`; password values and internal ids never leave the server.
+	 */
+	public function listAppPasswords(ClientSession $session): array {
+		$passwords = [];
+		foreach ($this->appPasswords->list($session->userId) as $password) {
+			$passwords[] = [
+				'name' => $password['name'],
+				'createdAt' => gmdate('Y-m-d\\TH:i:s\\Z', $password['creation']),
+			] + ($password['privileged'] ? ['privileged' => true] : []);
+		}
+
+		return ['passwords' => $passwords];
+	}
+
+	/**
+	 * `com.atproto.server.revokeAppPassword`.
+	 */
+	public function revokeAppPassword(ClientSession $session, string $name): void {
+		$this->appPasswords->revokeByName($session->userId, $name);
 	}
 
 	/**
@@ -244,25 +310,43 @@ class SessionService {
 	}
 
 	/**
-	 * The identity a sign-in names: a handle, a DID, or the e-mail address of
-	 * the Nextcloud account.
+	 * The account a sign-in names, with the app password that authenticates
+	 * it. An e-mail address may belong to more than one Nextcloud account, so
+	 * each matching account is checked until its own app password matches.
+	 *
+	 * @return array{Identity, string, int}|null
 	 */
-	private function identityOf(string $identifier): ?Identity {
+	private function credentialsOf(string $identifier, string $password): ?array {
 		$identifier = strtolower(trim(ltrim(trim($identifier), '@')));
+		$identities = [];
 		try {
 			if (Syntax::isDid($identifier)) {
-				return $this->identities->getByDid($identifier);
-			}
-			if (Syntax::isHandle($identifier)) {
-				return $this->identities->getByHandle($identifier);
-			}
-			if (str_contains($identifier, '@')) {
+				$identities[] = $this->identities->getByDid($identifier);
+			} elseif (Syntax::isHandle($identifier)) {
+				$identities[] = $this->identities->getByHandle($identifier);
+			} elseif (str_contains($identifier, '@')) {
 				foreach ($this->userManager->getByEmail($identifier) as $user) {
-					return $this->identities->getByActorId($this->actors->getFromUserId($user->getUID())->getId());
+					try {
+						$identity = $this->identities->getByActorId($this->actors->getFromUserId($user->getUID())->getId());
+						$identities[$identity->actorId] = $identity;
+					} catch (ActorDoesNotExistException|AtprotoIdentityNotFoundException) {
+						continue;
+					}
 				}
 			}
-		} catch (AtprotoIdentityNotFoundException) {
 		} catch (Throwable) {
+			return null;
+		}
+
+		foreach ($identities as $identity) {
+			$userId = $this->userIdOf($identity);
+			if ($userId === '') {
+				continue;
+			}
+			$appPasswordId = $this->appPasswords->verify($userId, $password);
+			if ($appPasswordId !== null) {
+				return [$identity, $userId, $appPasswordId];
+			}
 		}
 
 		return null;

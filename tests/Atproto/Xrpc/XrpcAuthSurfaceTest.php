@@ -89,6 +89,7 @@ class XrpcAuthSurfaceTest extends TestCase {
 	/** what a signed-in Bluesky app is served here, so must be refused for want of a sign-in rather than as unknown */
 	private const SIGNED_IN = [
 		'com.atproto.server.getSession', 'com.atproto.server.getServiceAuth',
+		'com.atproto.server.createAppPassword', 'com.atproto.server.listAppPasswords', 'com.atproto.server.revokeAppPassword',
 		'com.atproto.repo.createRecord', 'com.atproto.repo.putRecord', 'com.atproto.repo.deleteRecord', 'com.atproto.repo.applyWrites',
 		'com.atproto.repo.uploadBlob', 'com.atproto.repo.importRepo', 'com.atproto.moderation.createReport',
 		'app.bsky.actor.getPreferences', 'app.bsky.actor.putPreferences', 'app.bsky.feed.getTimeline', 'app.bsky.graph.muteActor',
