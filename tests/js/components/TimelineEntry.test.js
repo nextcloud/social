@@ -106,6 +106,14 @@ describe('a reply in a thread', () => {
 
 		expect(mountEntry(storedPost, { depth: 9 }).wrapper.attributes('style')).toContain('--thread-depth: 4')
 	})
+
+	it('keeps the action row aligned with the thread outer edge as it nests', () => {
+		const source = readFileSync(resolve(process.cwd(), 'src/components/TimelineEntry.vue'), 'utf8')
+		const replyBlock = source.slice(source.indexOf('&--reply {'), source.indexOf('&:last-child'))
+
+		expect(replyBlock).toContain('margin-inline-start: calc(var(--thread-depth, 1) * 24px)')
+		expect(replyBlock).toContain('margin-inline-end: calc(var(--thread-depth, 1) * -24px)')
+	})
 })
 
 function mountEntry(item, props = {}) {
