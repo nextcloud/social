@@ -64,10 +64,13 @@ class BlueskyInteractionSource implements InteractionSource {
 		}
 		$ids = [];
 		foreach ($answer[$key] as $entry) {
+			if (!is_array($entry)) {
+				throw new UnexpectedValueException('Bluesky reaction response contains an invalid entry');
+			}
 			$profile = is_array($entry['actor'] ?? null) ? $entry['actor'] : $entry;
 			$did = is_array($profile) ? (string)($profile['did'] ?? '') : '';
-			if ($did === '' || ($profile['handle'] ?? '') === '') {
-				continue;
+			if ($did === '' || !is_string($profile['handle'] ?? null) || $profile['handle'] === '') {
+				throw new UnexpectedValueException('Bluesky reaction response contains an incomplete actor');
 			}
 			try {
 				$cached = $this->actors->cached($did);
@@ -116,8 +119,8 @@ class BlueskyInteractionSource implements InteractionSource {
 		}
 		$stored = 0;
 		foreach ($answer['posts'] as $view) {
-			if (!is_array($view)) {
-				continue;
+			if (!is_array($view) || !is_string($view['uri'] ?? null) || $view['uri'] === '') {
+				throw new UnexpectedValueException('Bluesky quote response contains an invalid post');
 			}
 			if ($this->store->storePost($view, false)) {
 				$stored++;

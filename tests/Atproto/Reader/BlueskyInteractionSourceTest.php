@@ -174,4 +174,52 @@ class BlueskyInteractionSourceTest extends TestCase {
 		$this->expectExceptionMessage('no posts list');
 		$source->quotes($post, 10);
 	}
+
+	public function testMalformedReactionEntriesAreTreatedAsFailedReads(): void {
+		$config = $this->createMock(AtprotoConfig::class);
+		$config->method('isEnabled')->willReturn(true);
+		$refs = $this->createMock(PostRefs::class);
+		$refs->method('strongRef')->willReturn(['uri' => 'at://did:plc:alice/app.bsky.feed.post/3k', 'cid' => 'bafy']);
+		$appView = $this->createMock(AppViewClient::class);
+		$appView->method('query')->willReturn(['likes' => [null]]);
+		$source = new BlueskyInteractionSource(
+			$config,
+			$appView,
+			$refs,
+			$this->createMock(PostStore::class),
+			$this->createMock(ActorMapper::class),
+			$this->createMock(BlueskyActorService::class),
+			$this->createMock(LabelerService::class),
+			new NullLogger(),
+		);
+		$post = (new Note())->setId('https://social.test/@alice/1');
+
+		$this->expectException(UnexpectedValueException::class);
+		$this->expectExceptionMessage('contains an invalid entry');
+		$source->actors($post, 'Like', 10);
+	}
+
+	public function testMalformedQuoteEntriesAreTreatedAsFailedReads(): void {
+		$config = $this->createMock(AtprotoConfig::class);
+		$config->method('isEnabled')->willReturn(true);
+		$refs = $this->createMock(PostRefs::class);
+		$refs->method('strongRef')->willReturn(['uri' => 'at://did:plc:alice/app.bsky.feed.post/3k', 'cid' => 'bafy']);
+		$appView = $this->createMock(AppViewClient::class);
+		$appView->method('query')->willReturn(['posts' => [null]]);
+		$source = new BlueskyInteractionSource(
+			$config,
+			$appView,
+			$refs,
+			$this->createMock(PostStore::class),
+			$this->createMock(ActorMapper::class),
+			$this->createMock(BlueskyActorService::class),
+			$this->createMock(LabelerService::class),
+			new NullLogger(),
+		);
+		$post = (new Note())->setId('https://social.test/@alice/1');
+
+		$this->expectException(UnexpectedValueException::class);
+		$this->expectExceptionMessage('contains an invalid post');
+		$source->quotes($post, 10);
+	}
 }
