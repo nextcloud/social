@@ -41,6 +41,7 @@ const asyncStubs = {
 	PortfolioSettings: { name: 'PortfolioSettings', template: '<section class="portfolio-settings-stub" />' },
 	// reads the interests on mount
 	InterestsSettings: { name: 'InterestsSettings', template: '<section class="interests-settings-stub" />' },
+	RecommendationTopicsSettings: { name: 'RecommendationTopicsSettings', template: '<section class="recommendation-topics-stub" />' },
 	// reads the delivery settings on mount
 	NotificationDeliverySettings: { name: 'NotificationDeliverySettings', template: '<section class="notification-delivery-settings-stub" />' },
 	NotificationPolicySettings: { name: 'NotificationPolicySettings', template: '<section class="notification-policy-settings-stub" />' },
@@ -428,6 +429,15 @@ describe('Settings', () => {
 
 		expect(headings(on)[0]).toBe('For you')
 		expect(on.find('#interests .interests-settings-stub').exists()).toBe(true)
+	})
+
+	it('offers the separate For You topic controls only when the v4 switch is on', async () => {
+		const off = await mountSettings({ hash: '#recommendation-topics' })
+		expect(off.find('#recommendation-topics').exists()).toBe(false)
+
+		useSettingsStore().setServerData({ interests: { enabled: false, recommendationsEnabled: true } })
+		const on = await mountSettings({ hash: '#recommendation-topics' })
+		expect(on.find('#recommendation-topics .recommendation-topics-stub').exists()).toBe(true)
 	})
 
 	/** How sensitive media is shown is about reading, not about the account. */

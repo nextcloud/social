@@ -13,6 +13,7 @@ use InvalidArgumentException;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\SettingRefusedException;
 use OCA\Social\Service\InterestService;
+use OCA\Social\Service\RecommendationPreferenceService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
@@ -30,8 +31,21 @@ class InterestsAdminController extends Controller {
 	public function __construct(
 		IRequest $request,
 		private InterestService $interestService,
+		private RecommendationPreferenceService $recommendationService,
 	) {
 		parent::__construct(Application::APP_ID, $request);
+	}
+
+	/** The independent For You v4 instance kill switch. */
+	#[FrontpageRoute(verb: 'GET', url: '/admin/recommendations')]
+	public function recommendationSettings(): DataResponse {
+		return new DataResponse(['enabled' => $this->recommendationService->isEnabled()]);
+	}
+
+	/** Only administrators can activate v4 for this instance. */
+	#[FrontpageRoute(verb: 'PUT', url: '/admin/recommendations')]
+	public function saveRecommendationSettings(bool $enabled = false): DataResponse {
+		return new DataResponse(['enabled' => $this->recommendationService->setEnabled($enabled)]);
 	}
 
 	/**

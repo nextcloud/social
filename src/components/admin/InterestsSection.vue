@@ -5,6 +5,19 @@
 <template>
 	<div>
 		<div class="interests-admin">
+			<section class="interests-admin__v4">
+				<h4>{{ t('social', 'For You 4.0 foundation') }}</h4>
+				<NcCheckboxRadioSwitch
+					v-model="form.recommendationsEnabled"
+					type="switch"
+					:disabled="v4Saving"
+					@update:modelValue="saveRecommendations">
+					{{ t('social', 'Enable the For You 4.0 foundation') }}
+				</NcCheckboxRadioSwitch>
+				<p class="interests-admin__hint">
+					{{ t('social', 'This independent instance switch is off by default. Turning it on enables only the explicit topic preference API; recommendations and behavioral learning remain unavailable until their own reviewed stages are released.') }}
+				</p>
+			</section>
 			<NcCheckboxRadioSwitch v-model="form.enabled" type="switch">
 				{{ t('social', 'Enable For you') }}
 			</NcCheckboxRadioSwitch>
@@ -52,7 +65,7 @@ import NcButton from '@nextcloud/vue/components/NcButton'
 import NcCheckboxRadioSwitch from '@nextcloud/vue/components/NcCheckboxRadioSwitch'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
-import { interestsUrl } from '../../services/adminApi.js'
+import { interestsUrl, recommendationsUrl } from '../../services/adminApi.js'
 import { errorOf } from '../../utils/serverError.js'
 import { showError, showSuccess } from '../../services/toast.js'
 
@@ -107,6 +120,7 @@ const FIELDS = [
 function formOf(settings) {
 	return {
 		enabled: settings?.enabled !== false,
+		recommendationsEnabled: settings?.recommendationsEnabled === true,
 		learningDefault: settings?.learningDefault !== false,
 		...Object.fromEntries(FIELDS.map((field) => [field.key, String(settings?.[field.key] ?? field.fallback)])),
 	}
@@ -142,6 +156,7 @@ export default {
 			FIELDS,
 			form: formOf(this.settings),
 			saving: false,
+			v4Saving: false,
 		}
 	},
 
@@ -215,6 +230,25 @@ export default {
 				))
 			} finally {
 				this.saving = false
+			}
+		},
+
+		/**
+		 * Persist the independent v4 kill switch immediately.
+		 *
+		 * @param {boolean} enabled Whether recommendations are enabled for this instance.
+		 */
+		async saveRecommendations(enabled) {
+			this.v4Saving = true
+			try {
+				const { data } = await axios.put(recommendationsUrl(), { enabled })
+				this.form.recommendationsEnabled = data?.enabled === true
+				showSuccess(t('social', 'For You 4.0 setting saved'))
+			} catch (error) {
+				this.form.recommendationsEnabled = !enabled
+				showError(errorOf(error, t('social', 'Could not save the For You 4.0 setting')))
+			} finally {
+				this.v4Saving = false
 			}
 		},
 	},

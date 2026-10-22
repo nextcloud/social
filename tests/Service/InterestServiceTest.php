@@ -319,6 +319,12 @@ class InterestServiceTest extends TestCase {
 		$this->assertFalse($service->pageState('alice')['profile']);
 	}
 
+	public function testPageStateIncludesTheIndependentForYouV4Switch(): void {
+		$this->assertFalse($this->service()->pageState('alice')['recommendationsEnabled']);
+		$this->app[ConfigService::REC_V4_ENABLED] = '1';
+		$this->assertTrue($this->service()->pageState('alice')['recommendationsEnabled']);
+	}
+
 	public function testEachKindOfSignalWeighsWhatTheSpecSays(): void {
 		foreach (['1' => 'skip', '2' => 'open', '3' => 'media', '4' => 'link', '5' => 'mute'] as $nid => $kind) {
 			$this->post((string)$nid, ['t' . $nid]);
