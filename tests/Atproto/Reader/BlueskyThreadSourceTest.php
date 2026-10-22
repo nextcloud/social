@@ -111,6 +111,51 @@ class BlueskyThreadSourceTest extends TestCase {
 		$this->assertLessThanOrEqual(2, $queries[1][2], 'V2 receives only the whole seconds left in the original budget');
 	}
 
+	public function testVisibleReadRecoversRepliesOmittedFromNestedCommentThreads(): void {
+		$root = self::node('at://p/root', [self::node('at://p/child')]);
+		$root['post']['replyCount'] = 1;
+		$root['replies'][0]['post']['replyCount'] = 2;
+		$root['replies'][0]['replies'] = [self::node('at://p/reply-1')];
+		$config = $this->createMock(AtprotoConfig::class);
+		$config->method('isEnabled')->willReturn(true);
+		$refs = $this->createMock(PostRefs::class);
+		$refs->method('strongRef')->willReturn(['uri' => 'at://p/root', 'cid' => 'bafy']);
+		$appView = $this->createMock(AppViewClient::class);
+		$queries = [];
+		$appView->expects($this->exactly(2))->method('query')->willReturnCallback(
+			static function (string $method, array $params, array $headers = [], ?int $timeout = null) use (&$queries, $root): array {
+				$queries[] = [$method, $params, $timeout];
+				if ($method === 'app.bsky.feed.getPostThread') {
+					return ['thread' => $root];
+				}
+
+				return ['thread' => [
+					['depth' => 0, 'value' => ['$type' => 'app.bsky.unspecced.defs#threadItemPost', 'post' => ['uri' => 'at://p/child']]],
+					['depth' => 1, 'value' => ['$type' => 'app.bsky.unspecced.defs#threadItemPost', 'post' => ['uri' => 'at://p/reply-1']]],
+					['depth' => 1, 'value' => ['$type' => 'app.bsky.unspecced.defs#threadItemPost', 'post' => ['uri' => 'at://p/reply-2']]],
+				], 'hasOtherReplies' => false];
+			}
+		);
+		$seen = [];
+		$stored = [];
+		$store = $this->createMock(PostStore::class);
+		$store->method('storePost')->willReturnCallback(static function (array $view) use (&$seen, &$stored): bool {
+			$uri = (string)$view['uri'];
+			$stored[] = $uri;
+			$isNew = !isset($seen[$uri]);
+			$seen[$uri] = true;
+
+			return $isNew;
+		});
+		$store->expects($this->exactly(2))->method('refreshKnownPostCountsFromView');
+		$source = new BlueskyThreadSource($config, $appView, $refs, $store, $this->createMock(LabelerService::class), new NullLogger());
+
+		$this->assertSame(4, $source->fillVisible((new Note())->setId('https://social.test/@alice/root'), 10));
+		$this->assertSame('at://p/child', $queries[1][1]['anchor'], 'the fallback targets the nested comment with missing replies');
+		$this->assertSame(['at://p/root', 'at://p/child', 'at://p/reply-1', 'at://p/child', 'at://p/reply-1', 'at://p/reply-2'], $stored);
+		$this->assertFalse($source->hasDeepRepliesPending(), 'all replies reported by the nested comment were recovered');
+	}
+
 	public function testVisibleFallbackReadsShareTheOriginalThreeSecondBudget(): void {
 		$root = self::node('at://p/2', [self::node('at://r/1')]);
 		$root['post']['replyCount'] = 2;

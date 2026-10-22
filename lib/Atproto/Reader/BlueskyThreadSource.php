@@ -98,20 +98,27 @@ class BlueskyThreadSource implements ThreadSource {
 		$stored = $this->storeThread($thread, $budget);
 		// the replies its author hid on Bluesky are hidden here too
 		$this->store->rememberHiddenReplies(is_array($answer['threadgate'] ?? null) ? $answer['threadgate'] : null);
-		if (self::hasMissingDirectReplies($thread) && $stored < $budget) {
-			$threadRootUri = self::threadRootUri($post, $thread, $uri);
-			$knownReplies = [];
-			foreach (is_array($thread['replies'] ?? null) ? $thread['replies'] : [] as $reply) {
-				$replyUri = (string)($reply['post']['uri'] ?? '');
-				if ($replyUri !== '') {
-					$knownReplies[] = $replyUri;
-				}
+		$threadRootUri = self::threadRootUri($post, $thread, $uri);
+		foreach (self::nodesWithMissingDirectReplies($thread) as $missing) {
+			if ($stored >= $budget) {
+				$this->deepRepliesPending = $deadline !== null;
+
+				break;
 			}
 			if ($this->remainingTimeout($deadline) === 0) {
 				$this->deepRepliesPending = true;
-			} else {
-				$stored += $this->fillMissingDirectReplies($uri, $threadRootUri, $headers, $deadline, $budget - $stored, $knownReplies, (int)($thread['post']['replyCount'] ?? 0));
+
+				break;
 			}
+			$stored += $this->fillMissingDirectReplies(
+				$missing['uri'],
+				$threadRootUri,
+				$headers,
+				$deadline,
+				$budget - $stored,
+				$missing['knownReplies'],
+				$missing['expectedReplies'],
+			);
 		}
 
 		// The public AppView caps getPostThread's reply depth at ten even when
@@ -180,7 +187,7 @@ class BlueskyThreadSource implements ThreadSource {
 					return $searched;
 				}
 
-				$this->deepRepliesPending = $timeout !== null;
+				$this->deepRepliesPending = $this->deepRepliesPending || $timeout !== null;
 
 				return 0;
 			}
@@ -194,7 +201,7 @@ class BlueskyThreadSource implements ThreadSource {
 				return $searched;
 			}
 
-			$this->deepRepliesPending = $timeout !== null;
+			$this->deepRepliesPending = $this->deepRepliesPending || $timeout !== null;
 
 			return 0;
 		}
@@ -220,10 +227,10 @@ class BlueskyThreadSource implements ThreadSource {
 			}
 		}
 		$this->missingReplyContinuations = array_values(array_unique($this->missingReplyContinuations));
-		$this->deepRepliesPending = $deadline !== null && (
+		$this->deepRepliesPending = $this->deepRepliesPending || ($deadline !== null && (
 			($answer['hasOtherReplies'] ?? false) === true
 			|| ($expectedReplies > 0 && count(array_unique($directReplies)) < $expectedReplies)
-		);
+		));
 		usort($views, static fn (array $a, array $b): int => $a[0] <=> $b[0]);
 		$stored = 0;
 		foreach ($views as [, $view]) {
@@ -259,7 +266,7 @@ class BlueskyThreadSource implements ThreadSource {
 	 */
 	private function fillRepliesFromSearch(string $uri, string $threadRootUri, array $headers, ?int $deadline, int $budget, array $knownReplies, int $expectedReplies): ?int {
 		if ($budget <= 0) {
-			$this->deepRepliesPending = $deadline !== null;
+			$this->deepRepliesPending = $this->deepRepliesPending || $deadline !== null;
 
 			return 0;
 		}
@@ -335,8 +342,8 @@ class BlueskyThreadSource implements ThreadSource {
 			return null;
 		}
 
-		$this->deepRepliesPending = $deadline !== null && ($cursor !== ''
-			|| ($expectedReplies > 0 && count($direct) < $expectedReplies));
+		$this->deepRepliesPending = $this->deepRepliesPending || ($deadline !== null && ($cursor !== ''
+			|| ($expectedReplies > 0 && count($direct) < $expectedReplies)));
 
 		return $stored;
 	}
@@ -370,16 +377,39 @@ class BlueskyThreadSource implements ThreadSource {
 		return Syntax::isAtUri($root) ? $root : $uri;
 	}
 
-	/** Whether the stable response's root has fewer visible reply nodes than its current reply count. */
-	private static function hasMissingDirectReplies(array $thread): bool {
-		if (($thread['$type'] ?? '') !== self::THREAD_VIEW) {
-			return false;
+	/** Every node whose visible direct replies do not match its AppView count. */
+	private static function nodesWithMissingDirectReplies(array $thread): array {
+		$missing = [];
+		$pending = [[$thread, 0]];
+		while ($pending !== []) {
+			[$node, $depth] = array_shift($pending);
+			if (!is_array($node) || ($node['$type'] ?? '') !== self::THREAD_VIEW) {
+				continue;
+			}
+			$post = is_array($node['post'] ?? null) ? $node['post'] : [];
+			$replies = is_array($node['replies'] ?? null) ? $node['replies'] : [];
+			$replyCount = $post['replyCount'] ?? null;
+			$knownReplies = [];
+			foreach ($replies as $reply) {
+				$replyUri = is_array($reply) && is_array($reply['post'] ?? null) ? (string)($reply['post']['uri'] ?? '') : '';
+				if ($replyUri !== '') {
+					$knownReplies[] = $replyUri;
+				}
+				if (is_array($reply) && ($reply['$type'] ?? '') === self::THREAD_VIEW) {
+					$pending[] = [$reply, $depth + 1];
+				}
+			}
+			$uri = (string)($post['uri'] ?? '');
+			if ($depth < self::DEPTH && $uri !== '' && is_int($replyCount) && $replyCount > count($replies)) {
+				$missing[] = [
+					'uri' => $uri,
+					'knownReplies' => $knownReplies,
+					'expectedReplies' => $replyCount,
+				];
+			}
 		}
-		$post = is_array($thread['post'] ?? null) ? $thread['post'] : [];
-		$replyCount = $post['replyCount'] ?? null;
-		$replies = is_array($thread['replies'] ?? null) ? $thread['replies'] : [];
 
-		return is_int($replyCount) && $replyCount > count($replies);
+		return $missing;
 	}
 
 	/** Store a thread parent-first and count only new records. */
