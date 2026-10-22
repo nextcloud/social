@@ -167,7 +167,7 @@ class BlueskyThreadSource implements ThreadSource {
 			$pending = array_values(array_unique(array_merge($pending, $retry)));
 			$this->saveContinuations($uri, $pending);
 			$this->deepRepliesPending = $this->deepRepliesPending || $pending !== [];
-		} elseif ($timeout !== null) {
+		} else {
 			$this->deepRepliesPending = $this->deepRepliesPending || $this->savedContinuations($uri) !== [] || self::continuationsOf($thread, self::DEPTH) !== [] || $this->missingReplyContinuations !== [];
 		}
 
