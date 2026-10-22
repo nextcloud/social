@@ -261,10 +261,10 @@ class PostMapper {
 		return $note;
 	}
 
-	/** Whether an unknown embed contains raw blobs needing a PDS lookup. */
+	/** Whether an embed has raw blobs needing a PDS lookup or recovery. */
 	public static function hasGenericBlobs(mixed $embed): bool {
 		if (!is_array($embed) || in_array((string)($embed['$type'] ?? ''), [
-			self::IMAGES, self::RECORD_IMAGES, self::GALLERY, self::VIDEO, self::RECORD_VIDEO,
+			self::IMAGES, self::GALLERY, self::VIDEO, self::RECORD_VIDEO,
 			self::EXTERNAL, self::RECORD_EXTERNAL, self::RECORD, self::RECORD_RECORD,
 			self::RECORD_WITH_MEDIA, self::RECORD_RECORD_WITH_MEDIA,
 		], true)) {
@@ -320,7 +320,7 @@ class PostMapper {
 			case self::IMAGES:
 				return [self::imagesOf(is_array($embed['images'] ?? null) ? $embed['images'] : [], 'thumb'), '', ''];
 			case self::RECORD_IMAGES:
-				return [self::recordImagesOf(is_array($embed['images'] ?? null) ? $embed['images'] : [], $authorDid), '', ''];
+				return [self::recordImagesOf(is_array($embed['images'] ?? null) ? $embed['images'] : [], $authorDid, $pds), '', ''];
 			case self::GALLERY:
 				return [self::imagesOf(is_array($embed['items'] ?? null) ? $embed['items'] : [], 'thumbnail'), '', ''];
 			case self::RECORD:
@@ -549,7 +549,7 @@ class PostMapper {
 	 *
 	 * @return list<array<string, mixed>>
 	 */
-	private static function recordImagesOf(array $images, string $authorDid): array {
+	private static function recordImagesOf(array $images, string $authorDid, string $pds = ''): array {
 		$attachments = [];
 		foreach ($images as $image) {
 			if (!is_array($image)) {
@@ -559,7 +559,15 @@ class PostMapper {
 			$mimeType = strtolower((string)($blob['mimeType'] ?? ''));
 			$url = self::blobImageUrl($blob, $authorDid);
 			if ($url === '') {
-				continue;
+				$ref = is_array($blob['ref'] ?? null) ? $blob['ref'] : [];
+				$cid = (string)($ref['$link'] ?? $blob['cid'] ?? '');
+				if (!str_starts_with($mimeType, 'image/') || !Cid::isValid($cid) || !self::isSafePds($pds)) {
+					continue;
+				}
+				// Bluesky's image CDN only transforms a small set of formats.
+				// For other valid image blobs, keep the post's alt text and ratio
+				// and stream the original from the author's verified PDS.
+				$url = rtrim($pds, '/') . '/xrpc/com.atproto.sync.getBlob?' . http_build_query(['did' => $authorDid, 'cid' => $cid], '', '&', PHP_QUERY_RFC3986);
 			}
 			$attachment = [
 				'type' => 'Image',

@@ -328,6 +328,38 @@ class PostStoreTest extends TestCase {
 		$this->assertSame([], $this->imported, 'the cached post is not re-created');
 	}
 
+	public function testKnownStandardImagePostRecoversAnUnsupportedImageFromItsPds(): void {
+		$id = 'https://bsky.app/profile/' . self::DID . '/post/3kznmn7xqxl22';
+		$this->known[] = $id;
+		$actor = $this->person(self::DID);
+		$this->actors->method('cached')->willReturn($actor);
+		$this->actors->expects($this->once())->method('pdsEndpoint')->with(self::DID)->willReturn('https://pds.example');
+		$this->actors->expects($this->once())->method('store')->with($actor);
+		$this->streams->expects($this->once())->method('setRecoveredRemoteAttachments')->with(
+			$id,
+			$this->callback(static function (string $attachments): bool {
+				$decoded = json_decode($attachments, true);
+
+				return ($decoded[0]['description'] ?? '') === 'Original camera photo'
+					&& ($decoded[0]['media_type'] ?? '') === 'image/heic';
+			}),
+			'',
+		);
+
+		$view = $this->postView();
+		$view['embed'] = ['$type' => 'app.bsky.embed.images#view', 'images' => []];
+		$view['record']['embed'] = [
+			'$type' => 'app.bsky.embed.images',
+			'images' => [[
+				'image' => ['$type' => 'blob', 'ref' => ['$link' => \OCA\Social\Atproto\Protocol\Cid::forRaw('a late standard HEIC image')->toString()], 'mimeType' => 'image/heic'],
+				'alt' => 'Original camera photo',
+			]],
+		];
+
+		$this->assertFalse($this->store->storePost($view), 'media recovery does not create a duplicate post');
+		$this->assertSame([], $this->imported, 'the cached post is not re-created');
+	}
+
 	public function testAThreadViewRefreshesCountsOnAnAlreadyKnownPost(): void {
 		$id = 'https://bsky.app/profile/' . self::DID . '/post/3kznmn7xqxl22';
 		$this->known[] = $id;

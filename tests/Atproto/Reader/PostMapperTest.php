@@ -235,6 +235,35 @@ class PostMapperTest extends TestCase {
 		]], $note['attachment'], 'the post remains viewable when its CDN-enriched embed is missing');
 	}
 
+	public function testRawImageBlobsOutsideTheCdnFormatsStreamFromThePds(): void {
+		$cid = Cid::forRaw('original HEIC image bytes')->toString();
+		$view = $this->postView();
+		$view['embed'] = ['$type' => 'app.bsky.embed.images#view', 'images' => []];
+		$view['record']['embed'] = [
+			'$type' => 'app.bsky.embed.images',
+			'images' => [[
+				'image' => ['$type' => 'blob', 'ref' => ['$link' => $cid], 'mimeType' => 'image/heic', 'size' => 4096],
+				'alt' => 'Original camera photo',
+				'aspectRatio' => ['width' => 1600, 'height' => 1200],
+			]],
+		];
+
+		$mapper = new PostMapper($this->resolver());
+		$this->assertTrue(PostMapper::hasGenericBlobs($view['record']['embed']), 'the unsupported standard image needs a later PDS recovery');
+		$this->assertSame([], $mapper->note($view)['attachment'], 'do not invent a CDN URL when the PDS has not been resolved');
+
+		$note = $mapper->note($view, 'https://pds.example');
+		$this->assertSame([[
+			'type' => 'Image',
+			'mediaType' => 'image/heic',
+			'url' => 'https://pds.example/xrpc/com.atproto.sync.getBlob?did=' . rawurlencode(self::DID) . '&cid=' . $cid,
+			'name' => 'Original camera photo',
+			'width' => 1600,
+			'height' => 1200,
+		]], $note['attachment']);
+		$this->assertSame([$note['attachment'][0]['url']], $note['_atproto']['streamed_blobs']);
+	}
+
 	public function testRawImageBlobReferencesMustHaveAValidCidAndImageMimeType(): void {
 		$view = $this->postView();
 		$view['embed'] = null;
