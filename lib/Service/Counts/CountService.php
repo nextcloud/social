@@ -61,6 +61,8 @@ class CountService {
 	private const VISIBLE_PENDING = 'pending';
 	private const VISIBLE_DONE = 'done';
 	private const VISIBLE_LOCK = 'social-visible-count-';
+	/** Serialize the short cache-check-and-enqueue window across feed requests. */
+	private const QUEUE_LOCK = 'social-counts-queue';
 
 	public function __construct(
 		private StreamRequest $streams,
@@ -98,10 +100,30 @@ class CountService {
 			return false;
 		}
 
-		// The queue deduplicates work already requested by another page or
-		// request. A post is still filling until the worker stamps its new counts,
-		// so callers must keep the refresh signal while the row remains due.
-		$this->queue->refreshCounts($due);
+		// The durable-cache throttle and IJobList check are both read-then-write:
+		// two feed requests arriving together could otherwise pass both checks
+		// and enqueue the same remote read twice. Keep this lock only around the
+		// short queue operation; network I/O remains in the background job.
+		try {
+			$this->locks->acquireLock(self::QUEUE_LOCK, ILockingProvider::LOCK_EXCLUSIVE);
+		} catch (LockedException) {
+			// Another request is either checking the throttle or just queued this
+			// work. Its page should keep polling until the worker refreshes counts.
+			return true;
+		} catch (Throwable $e) {
+			// A lock service outage must not prevent counts from ever being queued.
+			$this->logger->info('Could not lock the count refresh queue', ['exception' => $e]);
+			$this->queue->refreshCounts($due);
+
+			return true;
+		}
+		try {
+			// A post is still filling until the worker stamps its new counts, so
+			// callers must keep the refresh signal while the row remains due.
+			$this->queue->refreshCounts($due);
+		} finally {
+			$this->locks->releaseLock(self::QUEUE_LOCK, ILockingProvider::LOCK_EXCLUSIVE);
+		}
 
 		return true;
 	}

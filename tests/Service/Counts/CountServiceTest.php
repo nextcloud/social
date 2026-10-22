@@ -27,6 +27,7 @@ use OCA\Social\Tests\Helper\InMemoryDurableCacheRequest;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\ICacheFactory;
 use OCP\Lock\ILockingProvider;
+use OCP\Lock\LockedException;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -46,6 +47,7 @@ class CountServiceTest extends TestCase {
 	private CountWriter&MockObject $writer;
 	private RemoteFetchQueue&MockObject $queue;
 	private InMemoryDurableCacheRequest $cacheRows;
+	private ILockingProvider $locks;
 	/** @var array<string, Stream> */
 	private array $posts = [];
 	/** @var array<class-string, CountSource> */
@@ -56,6 +58,7 @@ class CountServiceTest extends TestCase {
 		$this->writer = $this->createMock(CountWriter::class);
 		$this->queue = $this->createMock(RemoteFetchQueue::class);
 		$this->cacheRows = new InMemoryDurableCacheRequest();
+		$this->locks = $this->createStub(ILockingProvider::class);
 		$this->streams->method('getStreamById')->willReturnCallback(fn (string $id): Stream => $this->posts[$id] ?? throw new StreamNotFoundException());
 	}
 
@@ -68,8 +71,7 @@ class CountServiceTest extends TestCase {
 		$container = $this->createStub(ContainerInterface::class);
 		$container->method('get')->willReturnCallback(fn (string $class): ?CountSource => $this->sources[$class] ?? null);
 
-		$locks = $this->createStub(ILockingProvider::class);
-		return new CountService($this->streams, $this->writer, $this->queue, $time, new NullLogger(), $locks, $durableCache, $container);
+		return new CountService($this->streams, $this->writer, $this->queue, $time, new NullLogger(), $this->locks, $durableCache, $container);
 	}
 
 	/**
@@ -297,6 +299,19 @@ class CountServiceTest extends TestCase {
 			$this->post('https://here.example/mine', 60, null, true),
 			$this->post('https://r.example/old', 5 * 86400, 86400),
 		]));
+	}
+
+	public function testAConcurrentPageLeavesCountQueueingToTheRequestHoldingTheLock(): void {
+		$this->locks = $this->createMock(ILockingProvider::class);
+		$this->locks->expects($this->once())
+			->method('acquireLock')
+			->with('social-counts-queue', ILockingProvider::LOCK_EXCLUSIVE)
+			->willThrowException(new LockedException('social-counts-queue'));
+		$this->queue->expects($this->never())->method('refreshCounts');
+
+		$this->assertTrue($this->service()->seen([
+			$this->post('https://r.example/1', 60, null),
+		]), 'the other request will enqueue the due post');
 	}
 
 	public function testABoostStandsForThePostItBoosts(): void {
