@@ -1814,10 +1814,6 @@ export default {
 		// the screen's width is the post's: less of it goes to the frame
 		padding: 14px 16px 12px;
 	}
-
-	.post-actions__groups .post-action-group--reply {
-		margin-inline-end: calc(var(--thread-depth, 0) * -12px);
-	}
 }
 
 .post-content--openable {
@@ -2265,6 +2261,14 @@ export default {
 		.post-action-group--reply {
 			margin-inline-start: auto;
 			margin-inline-end: calc(var(--thread-depth, 0) * -24px);
+		}
+	}
+
+	@include layout.below(layout.$phone) {
+		// Match the narrower reply indent on phones. Keep the full selector
+		// specificity so this wins over the nested desktop rule above.
+		.post-actions__groups .post-action-group--reply {
+			margin-inline-end: calc(var(--thread-depth, 0) * -12px);
 		}
 	}
 
