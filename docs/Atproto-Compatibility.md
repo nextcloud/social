@@ -84,9 +84,9 @@ Taken by the product owner; the date is the interview. **Do not re-ask.**
 | D6 | The firehose is served by a daemon, **`occ social:atproto:serve`**, run under systemd. | 09-25 |
 | D7 | `/xrpc/` reaches the app through the existing root web-server rules (`contrib/webserver/*-social-root.conf`), like `/api/` and `/oauth/`. | 09-25 |
 | D8 | **Every public post goes to Bluesky automatically.** Unlisted, followers-only and direct posts never do. No per-post switch. | 10-06 |
-| D9 | A post that does not fit Bluesky is **truncated with a link** to the full post; **first four pictures**; a poll becomes **the question plus a link**; a content warning becomes a **self-label plus a text prefix**. No threads. | 09-25, fixed 10-06 |
+| D9 | A post that does not fit Bluesky is **truncated with a link** to the full post; up to **ten pictures** (the first four use `app.bsky.embed.images`, five to ten use `app.bsky.embed.gallery`); a poll becomes **the question plus a link**; a content warning becomes **a self-label plus a text prefix**. No threads. | 09-25, fixed 10-06; galleries 10-21 |
 | D10 | **Edits**: within a grace period of five minutes the Bluesky record is deleted and recreated; after that the Bluesky copy keeps its text and its likes, and its link leads to the current version here. | 10-06 |
-| D11 | **Pictures** go with the first posting phase; **video** through Bluesky's video service is a later phase, and until then a video post links here. | 10-06 |
+| D11 | **Pictures and video** are published as native Bluesky embeds. Video is processed by Bluesky's video service; arbitrary file blobs are not a supported `app.bsky.feed.post` embed. | 10-06; video and galleries implemented 10-21 |
 | D12 | **Inbound** reads by **polling** the public AppView per followed author, with a cap and backoff; notifications stay on a one-minute cadence so an empty inbox cannot delay the next interaction for hours. **Jetstream** is an optional daemon an administrator may run for instant feed delivery on a large instance. | 09-25 polling, 10-06 the optional daemon; 10-21 notification cadence |
 | D13 | Bluesky posts appear **in the same timelines**, their authors addressed as bare `@alice.bsky.social` with a **badge**. | 09-25, confirmed 10-06 |
 | D14 | **All Bluesky interactions** (like, repost, follow, reply, mention, quote) show in Activities like their ActivityPub counterparts, under the same **notification policy** and requests inbox. | 10-06 |
@@ -564,9 +564,12 @@ anything but a picture, a video or a sound is kept as
 a sound as `application/octet-stream` with `Content-Disposition:
 attachment`; `listBlobs` lists them per repository; a blob no record refers
 to is deleted by the ordinary document retention. Limits are Bluesky's:
-pictures ≤ 2,000,000 bytes (re-encoded to fit, §8.4), at most four per
-post; a video is one mp4 ≤ 100,000,000 bytes and three minutes, made into
-a stream by Bluesky's video service (D11, built in 3d).
+pictures ≤ 2,000,000 bytes (re-encoded to fit, §8.4), at most ten per
+post (four in `app.bsky.embed.images`, five to ten in
+`app.bsky.embed.gallery`); a video is one mp4 ≤ 100,000,000 bytes and
+three minutes, made into a stream by Bluesky's video service (D11, built
+in 3d). AT Protocol blobs can hold other bytes, but the Bluesky post
+Lexicon does not define arbitrary file attachments.
 
 ## 6. The XRPC surface
 
@@ -856,15 +859,17 @@ go there).
   as a blob (fetched through the cache, resized to ≤ 1,000,000 bytes, the
   lexicon's limit for a card's thumbnail).
 
-### 8.4 Pictures
+### 8.4 Pictures and galleries
 
-Up to four `media_attachments` of image type, in order; more are dropped
+Up to ten `media_attachments` of image type, in order; more are dropped
 and the text gains a line "+N more pictures" before the link. Each is
 re-encoded to fit **2,000,000 bytes** — JPEG at descending quality, then
 downscaled — through `gumlet/php-image-resize` which the app already
-depends on, uploaded as a blob (§5.4), and placed in
-`app.bsky.embed.images` with its `alt` (the Social description) and
-`aspectRatio`. A post with pictures and a link card keeps the pictures.
+depends on, and uploaded as a blob (§5.4). One to four pictures use
+`app.bsky.embed.images`; five to ten use `app.bsky.embed.gallery`. Both
+preserve each picture's `alt` (the Social description) and aspect ratio;
+when dimensions are unavailable, gallery items use a square ratio. A post
+with pictures and a link card keeps the pictures.
 
 ### 8.5 Edits and deletes
 
