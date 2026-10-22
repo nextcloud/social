@@ -730,7 +730,8 @@ after Bluesky is enabled and after the daemon has been unreachable for more
 than the replay window. Failed initial requests retry after 15 minutes; outage
 recovery requests are spaced six hours apart. When a relay accepts a crawl but
 the relay or public AppView still cannot find an active repository after an
-hour, maintenance retries at six-hour intervals. The relay then subscribes,
+hour, maintenance retries hourly while the indexing gap remains. The relay
+then subscribes,
 backfills with `getRepo` per DID, and stays connected. The admin page shows the
 relay's last connection and the lag between the head `seq` and what was served.
 
