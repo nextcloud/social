@@ -2257,18 +2257,11 @@ export default {
 		gap: 4px;
 		min-inline-size: 0;
 
-		// A wrapped reply row stays aligned to the post's outside edge.
+		// Reply entries indent from the start while keeping this same outside
+		// edge. The entry's auto width already accounts for that indent, so a
+		// negative end margin would push the icon and count past the edge.
 		.post-action-group--reply {
 			margin-inline-start: auto;
-			margin-inline-end: calc(var(--thread-depth, 0) * -24px);
-		}
-	}
-
-	@include layout.below(layout.$phone) {
-		// Match the narrower reply indent on phones. Keep the full selector
-		// specificity so this wins over the nested desktop rule above.
-		.post-actions__groups .post-action-group--reply {
-			margin-inline-end: calc(var(--thread-depth, 0) * -12px);
 		}
 	}
 
