@@ -13,6 +13,7 @@ use OCA\Social\AP;
 use OCA\Social\Atproto\AppView\AppViewClient;
 use OCA\Social\Atproto\Moderation\Blocklist;
 use OCA\Social\Atproto\Moderation\LabelerService;
+use OCA\Social\Atproto\Move\PdsClient;
 use OCA\Social\Atproto\Publisher\InteractionPublisher;
 use OCA\Social\Atproto\Reader\ActorMapper;
 use OCA\Social\Atproto\Reader\BlueskyActorService;
@@ -72,6 +73,8 @@ class PostStoreTest extends TestCase {
 	private StreamCardsRequest $cards;
 	/** @var CountWriter&MockObject */
 	private CountWriter $countWriter;
+	/** @var PdsClient&MockObject */
+	private PdsClient $pds;
 
 	protected function setUp(): void {
 		$ap = $this->createMock(AP::class);
@@ -140,7 +143,9 @@ class PostStoreTest extends TestCase {
 		$this->interactions = $this->createMock(InteractionPublisher::class);
 		$this->cards = $this->createMock(StreamCardsRequest::class);
 		$this->countWriter = $this->createMock(CountWriter::class);
-		$this->store = new PostStore(new PostMapper($this->resolver()), $this->appView, $this->interactions, new ActorMapper(), $this->actors, $this->createMock(Blocklist::class), $this->createMock(LabelerService::class), $this->import, $this->streams, $time, new NullLogger(), $this->cards, $this->countWriter);
+		$this->pds = $this->createMock(PdsClient::class);
+		$this->pds->method('origin')->willReturnArgument(0);
+		$this->store = new PostStore(new PostMapper($this->resolver()), $this->appView, $this->interactions, new ActorMapper(), $this->actors, $this->createMock(Blocklist::class), $this->createMock(LabelerService::class), $this->import, $this->streams, $time, new NullLogger(), $this->cards, $this->countWriter, $this->pds);
 	}
 
 	protected function tearDown(): void {
@@ -470,6 +475,12 @@ class PostStoreTest extends TestCase {
 		$gone = 'https://bsky.app/profile/' . self::DID . '/post/3kgone';
 		$blocked = 'https://bsky.app/profile/' . self::DID . '/post/3kblocked';
 		$this->known = [$gone, $blocked];
+		$this->actors->method('pdsEndpoint')->willReturn('https://pds.example');
+		$this->pds->expects($this->once())->method('call')->with('https://pds.example', 'com.atproto.repo.getRecord', 'GET', [
+			'repo' => self::DID,
+			'collection' => 'app.bsky.feed.post',
+			'rkey' => '3kgone',
+		])->willReturn(['status' => 404, 'body' => ['error' => 'RecordNotFound']]);
 		$this->appView->expects($this->once())->method('query')->willReturn(['posts' => [
 			['uri' => 'at://' . self::DID . '/app.bsky.feed.post/3kgone', 'notFound' => true],
 			['uri' => 'at://' . self::DID . '/app.bsky.feed.post/3kblocked', 'blocked' => true],
@@ -484,11 +495,25 @@ class PostStoreTest extends TestCase {
 		$kept = 'https://bsky.app/profile/' . self::DID . '/post/3kkept';
 		$gone = 'https://bsky.app/profile/' . self::DID . '/post/3kgone';
 		$this->known = [$kept, $gone];
+		$this->actors->method('pdsEndpoint')->willReturn('https://pds.example');
+		$this->pds->method('call')->willReturn(['status' => 404, 'body' => ['error' => 'RecordNotFound']]);
 		$view = ['uri' => 'at://' . self::DID . '/app.bsky.feed.post/3kkept', 'likeCount' => 4];
 		$this->appView->method('query')->willReturn(['posts' => [$view, ['uri' => 'at://' . self::DID . '/app.bsky.feed.post/3kgone', 'notFound' => true]]]);
 
 		$this->assertSame(['posts' => [$kept => $view], 'deleted' => 1], $this->store->postViews([$kept, $gone]));
 		$this->assertSame($gone, $this->imported[0]->getObjectId(), 'the one it no longer has is deleted');
+	}
+
+	public function testAnAppViewOmissionIsNotDeletedWhileThePdsStillHasThePost(): void {
+		$id = 'https://bsky.app/profile/' . self::DID . '/post/3kpresent';
+		$this->known = [$id];
+		$this->actors->method('pdsEndpoint')->willReturn('https://pds.example');
+		$this->pds->expects($this->once())->method('call')->willReturn(['status' => 200, 'body' => ['value' => ['text' => 'still here']]]);
+		$this->appView->method('query')->willReturn(['posts' => []]);
+		$this->interactions->expects($this->never())->method('removeAllOf');
+
+		$this->assertSame(['posts' => [], 'deleted' => 0], $this->store->postViews([$id]));
+		$this->assertSame([], $this->imported);
 	}
 
 	public function testNoViewsAreConcludedFromAnAppViewThatDidNotAnswer(): void {

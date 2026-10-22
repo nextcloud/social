@@ -13,6 +13,7 @@ use OCA\Social\AP;
 use OCA\Social\Atproto\AppView\AppViewClient;
 use OCA\Social\Atproto\Moderation\Blocklist;
 use OCA\Social\Atproto\Moderation\LabelerService;
+use OCA\Social\Atproto\Move\PdsClient;
 use OCA\Social\Atproto\Protocol\Syntax;
 use OCA\Social\Atproto\Publisher\InteractionPublisher;
 use OCA\Social\Db\StreamCardsRequest;
@@ -50,6 +51,7 @@ class PostStore {
 		private LoggerInterface $logger,
 		private StreamCardsRequest $cards,
 		private CountWriter $countWriter,
+		private ?PdsClient $pds = null,
 	) {
 	}
 
@@ -337,24 +339,63 @@ class PostStore {
 			}
 			$views[$uri] = $post;
 		}
-		if (count($views) !== count($uris)) {
-			$this->logger->notice('Bluesky posts returned an incomplete getPosts response', ['expected' => count($uris), 'received' => count($views)]);
-
-			return null;
-		}
 		$posts = [];
 		$deleted = 0;
 		foreach ($uris as $id => $uri) {
-			if (($views[$uri]['notFound'] ?? false) === true) {
-				if ($this->delete($id)) {
-					$deleted++;
-				}
-			} else {
+			$view = $views[$uri] ?? null;
+			if (is_array($view) && ($view['notFound'] ?? false) !== true) {
 				$posts[$id] = $views[$uri];
+				continue;
+			}
+
+			// getPosts omits unavailable records on some AppViews; the official
+			// response schema does not promise a notFound item. Confirm absence
+			// against the author's PDS before deleting a stored post. An
+			// unreachable PDS leaves the page retryable instead of guessing.
+			$parsed = BlueskyIds::parsePostId($id);
+			$exists = $parsed === null ? null : $this->postExistsAtPds($parsed);
+			if ($exists === null) {
+				$this->logger->notice('Bluesky post absence could not be confirmed at its PDS', ['post' => $id]);
+
+				return null;
+			}
+			if (!$exists && $this->delete($id)) {
+				$deleted++;
 			}
 		}
 
 		return ['posts' => $posts, 'deleted' => $deleted];
+	}
+
+	/** @param array{did: string, rkey: string} $post */
+	private function postExistsAtPds(array $post): ?bool {
+		if ($this->pds === null) {
+			return null;
+		}
+		$endpoint = $this->actors->pdsEndpoint($post['did']);
+		if ($endpoint === '') {
+			return null;
+		}
+		try {
+			$answer = $this->pds->call($this->pds->origin($endpoint), 'com.atproto.repo.getRecord', 'GET', [
+				'repo' => $post['did'],
+				'collection' => BlueskyIds::POST,
+				'rkey' => $post['rkey'],
+			]);
+		} catch (Throwable $e) {
+			$this->logger->notice('Bluesky post record not checked at its PDS', ['did' => $post['did'], 'exception' => $e]);
+
+			return null;
+		}
+
+		if ($answer['status'] >= 200 && $answer['status'] < 300 && is_array($answer['body']['value'] ?? null)) {
+			return true;
+		}
+		if ($answer['status'] === 404 && ($answer['body']['error'] ?? '') === 'RecordNotFound') {
+			return false;
+		}
+
+		return null;
 	}
 
 	/**
