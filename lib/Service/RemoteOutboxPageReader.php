@@ -116,8 +116,8 @@ class RemoteOutboxPageReader {
 			return $origin . ($base['path'] ?? '/') . $link;
 		}
 
-		$path = (string)($base['path'] ?? '/');
-		$directory = substr($path, 0, (int)strrpos($path, '/') + 1);
+		$path = $base['path'] ?? '/';
+		$directory = substr($path, 0, strrpos($path, '/') + 1);
 		return $origin . $directory . $link;
 	}
 
@@ -127,15 +127,15 @@ class RemoteOutboxPageReader {
 		if (!is_array($page) || !is_array($outbox)) {
 			return false;
 		}
-		$scheme = strtolower((string)($outbox['scheme'] ?? ''));
-		$pageScheme = strtolower((string)($page['scheme'] ?? ''));
+		$scheme = strtolower($outbox['scheme'] ?? '');
+		$pageScheme = strtolower($page['scheme'] ?? '');
 		$defaultPort = $scheme === 'https' ? 443 : 80;
-		$pagePort = (int)($page['port'] ?? ($pageScheme === 'https' ? 443 : 80));
-		$outboxPort = (int)($outbox['port'] ?? $defaultPort);
+		$pagePort = $page['port'] ?? ($pageScheme === 'https' ? 443 : 80);
+		$outboxPort = $outbox['port'] ?? $defaultPort;
 
 		return in_array($scheme, ['http', 'https'], true)
 			&& $pageScheme === $scheme
-			&& strtolower((string)($page['host'] ?? '')) === strtolower((string)($outbox['host'] ?? ''))
+			&& strtolower($page['host'] ?? '') === strtolower($outbox['host'] ?? '')
 			&& $pagePort === $outboxPort;
 	}
 }
