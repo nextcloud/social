@@ -189,10 +189,10 @@ class RemoteFetchQueue {
 		}
 		$key = md5($type . "\0" . $post->getId());
 		try {
-			if ($this->durableCache->get(self::INTERACTIONS_FILLED, $key) !== null) {
+			if ($this->durableCache->getShared(self::INTERACTIONS_FILLED, $key) !== null) {
 				return false;
 			}
-			$this->durableCache->set(self::INTERACTIONS_FILLED, $key, 1, self::INTERACTIONS_INTERVAL);
+			$this->durableCache->setShared(self::INTERACTIONS_FILLED, $key, 1, self::INTERACTIONS_INTERVAL);
 		} catch (Throwable $e) {
 			// the job list's own dedupe still holds
 		}
@@ -201,12 +201,18 @@ class RemoteFetchQueue {
 			// Do not suppress another attempt for the full interval when the
 			// background job could not be persisted. The visible request can
 			// report that the list is still filling and try again shortly.
-			$this->clearThrottle(self::INTERACTIONS_FILLED, $key, $post->getId(), 'interaction fill');
+			$this->clearSharedThrottle(self::INTERACTIONS_FILLED, $key, $post->getId(), 'interaction fill');
 
 			return false;
 		}
 
 		return true;
+	}
+
+	/** Let the next visible request resume a reaction list the last job left incomplete. */
+	public function completeInteractionFill(string $postId, string $type): void {
+		$key = md5($type . "\0" . $postId);
+		$this->clearSharedThrottle(self::INTERACTIONS_FILLED, $key, $postId, 'interaction fill');
 	}
 
 	/**
@@ -465,6 +471,18 @@ class RemoteFetchQueue {
 			$this->durableCache->remove($namespace, $key);
 		} catch (Throwable $e) {
 			$this->logger->info('[RemoteFetchQueue] could not reset ' . $operation . ' throttle', [
+				'resource' => $resource,
+				'exception' => $e,
+			]);
+		}
+	}
+
+	/** A background job and an HTTP request must see the same retry throttle. */
+	private function clearSharedThrottle(string $namespace, string $key, string $resource, string $operation): void {
+		try {
+			$this->durableCache->removeShared($namespace, $key);
+		} catch (Throwable $e) {
+			$this->logger->info('[RemoteFetchQueue] could not reset shared ' . $operation . ' throttle', [
 				'resource' => $resource,
 				'exception' => $e,
 			]);

@@ -11,6 +11,7 @@ namespace OCA\Social\Tests\Service\Interaction;
 
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Service\CurlService;
+use OCA\Social\Service\DurableCache;
 use OCA\Social\Service\Interaction\ActivityPubInteractionSource;
 use OCA\Social\Service\RemoteFetchQueue;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
@@ -34,7 +35,7 @@ class ActivityPubInteractionSourceTest extends TestCase {
 		]]);
 		$queue = $this->createMock(RemoteFetchQueue::class);
 		$queue->expects($this->exactly(2))->method('resolveActors');
-		$source = new ActivityPubInteractionSource($curl, $queue, new NullLogger());
+		$source = new ActivityPubInteractionSource($curl, $queue, new NullLogger(), $this->createMock(DurableCache::class));
 
 		$this->assertTrue($source->supports($post));
 		$this->assertSame(['https://a.example/users/ann', 'https://b.example/users/ben', 'https://c.example/users/cy'], $source->actors($post, 'Like', 10));
@@ -52,7 +53,7 @@ class ActivityPubInteractionSourceTest extends TestCase {
 			->willReturn(['type' => 'OrderedCollection', 'orderedItems' => ['https://a.example/users/ann']]);
 		$queue = $this->createMock(RemoteFetchQueue::class);
 		$queue->expects($this->once())->method('resolveActors')->with(['https://a.example/users/ann']);
-		$source = new ActivityPubInteractionSource($curl, $queue, new NullLogger());
+		$source = new ActivityPubInteractionSource($curl, $queue, new NullLogger(), $this->createMock(DurableCache::class));
 
 		$this->assertSame(['https://a.example/users/ann'], $source->actors($post, 'Like', 10, 3));
 	}
@@ -77,7 +78,7 @@ class ActivityPubInteractionSourceTest extends TestCase {
 			});
 		$queue = $this->createMock(RemoteFetchQueue::class);
 		$queue->expects($this->once())->method('resolveActors')->with(['https://a.example/users/ann']);
-		$source = new ActivityPubInteractionSource($curl, $queue, new NullLogger());
+		$source = new ActivityPubInteractionSource($curl, $queue, new NullLogger(), $this->createMock(DurableCache::class));
 
 		$this->assertSame(['https://a.example/users/ann'], $source->actors($post, 'Like', 10, 2));
 		$this->assertTrue($source->hasMoreActors($post, 'Like'), 'a successful first page stays usable when the next one exceeds the live budget');
@@ -87,25 +88,34 @@ class ActivityPubInteractionSourceTest extends TestCase {
 		$post = (new Note())->setId('https://remote.example/notes/1');
 		$post->setSource((string)json_encode(['likes' => 'https://remote.example/notes/1/likes?page=1']));
 		$curl = $this->createMock(CurlService::class);
-		$curl->expects($this->exactly(4))->method('retrieveObject')->willReturnCallback(
+		$curl->expects($this->exactly(5))->method('retrieveObject')->willReturnCallback(
 			static function (string $id): array {
 				$page = (int)substr($id, -1);
 
 				return [
 					'type' => 'OrderedCollectionPage',
 					'orderedItems' => ['https://actors.example/users/' . $page],
-					'next' => 'https://remote.example/notes/1/likes?page=' . ($page + 1),
-				];
+				] + ($page < 5 ? ['next' => 'https://remote.example/notes/1/likes?page=' . ($page + 1)] : []);
 			}
 		);
 		$queue = $this->createMock(RemoteFetchQueue::class);
-		$queue->expects($this->once())->method('resolveActors')->with([
-			'https://actors.example/users/1',
-			'https://actors.example/users/2',
-			'https://actors.example/users/3',
-			'https://actors.example/users/4',
-		]);
-		$source = new ActivityPubInteractionSource($curl, $queue, new NullLogger());
+		$queue->expects($this->exactly(2))->method('resolveActors')->willReturnCallback(
+			static function (array $ids): void {
+				self::assertNotEmpty($ids);
+			}
+		);
+		$cursor = null;
+		$cache = $this->createMock(DurableCache::class);
+		$cache->method('getShared')->willReturnCallback(static function () use (&$cursor): mixed {
+			return $cursor;
+		});
+		$cache->method('setShared')->willReturnCallback(static function (string $name, string $key, mixed $value) use (&$cursor): void {
+			$cursor = $value;
+		});
+		$cache->method('removeShared')->willReturnCallback(static function () use (&$cursor): void {
+			$cursor = null;
+		});
+		$source = new ActivityPubInteractionSource($curl, $queue, new NullLogger(), $cache);
 
 		$this->assertSame([
 			'https://actors.example/users/1',
@@ -114,6 +124,14 @@ class ActivityPubInteractionSourceTest extends TestCase {
 			'https://actors.example/users/4',
 		], $source->actors($post, 'Like', 80, 3));
 		$this->assertTrue($source->hasMoreActors($post, 'Like'), 'short pages leave the collection incomplete at the page cap');
+		$this->assertSame([
+			'https://actors.example/users/1',
+			'https://actors.example/users/2',
+			'https://actors.example/users/3',
+			'https://actors.example/users/4',
+			'https://actors.example/users/5',
+		], $source->actors($post, 'Like', 80), 'the next read resumes from the saved collection cursor with earlier pages retained');
+		$this->assertFalse($source->hasMoreActors($post, 'Like'));
 	}
 
 	public function testFollowsActivityPubPageLinksEncodedAsObjects(): void {
@@ -147,7 +165,7 @@ class ActivityPubInteractionSourceTest extends TestCase {
 			'https://a.example/users/ann',
 			'https://b.example/users/ben',
 		]);
-		$source = new ActivityPubInteractionSource($curl, $queue, new NullLogger());
+		$source = new ActivityPubInteractionSource($curl, $queue, new NullLogger(), $this->createMock(DurableCache::class));
 
 		$this->assertSame([
 			'https://a.example/users/ann',
@@ -179,7 +197,7 @@ class ActivityPubInteractionSourceTest extends TestCase {
 		);
 		$queue = $this->createMock(RemoteFetchQueue::class);
 		$queue->expects($this->once())->method('resolveActors')->with(['https://a.example/users/ann', 'https://b.example/users/ben']);
-		$source = new ActivityPubInteractionSource($curl, $queue, new NullLogger());
+		$source = new ActivityPubInteractionSource($curl, $queue, new NullLogger(), $this->createMock(DurableCache::class));
 
 		$this->assertSame(['https://a.example/users/ann', 'https://b.example/users/ben'], $source->actors($post, 'Like', 10));
 	}
@@ -208,7 +226,7 @@ class ActivityPubInteractionSourceTest extends TestCase {
 		);
 		$queue = $this->createMock(RemoteFetchQueue::class);
 		$queue->expects($this->once())->method('resolveActors')->with($expected);
-		$source = new ActivityPubInteractionSource($curl, $queue, new NullLogger());
+		$source = new ActivityPubInteractionSource($curl, $queue, new NullLogger(), $this->createMock(DurableCache::class));
 
 		$this->assertSame($expected, $source->actors($post, 'Like', 80));
 	}

@@ -14,6 +14,7 @@ use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\Like;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\CurlService;
+use OCA\Social\Service\DurableCache;
 use OCA\Social\Service\RemoteFetchQueue;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -28,12 +29,16 @@ use Throwable;
 class ActivityPubInteractionSource implements InteractionSource {
 	/** Enough 20-account collection pages to fill the public API's 80-actor cap. */
 	private const PAGES = 4;
+	private const CURSOR = 'social.interactions.activitypub.cursor';
+	private const CURSOR_TTL = 3600;
+	private const CURSOR_VERSION = 1;
 	private ?string $incompleteRead = null;
 
 	public function __construct(
 		private CurlService $curl,
 		private RemoteFetchQueue $queue,
 		private LoggerInterface $logger,
+		private DurableCache $durableCache,
 	) {
 	}
 
@@ -48,8 +53,17 @@ class ActivityPubInteractionSource implements InteractionSource {
 		$this->incompleteRead = null;
 		$source = json_decode($post->getSource(), true);
 		$collection = is_array($source) ? ($source[$type === Like::TYPE ? 'likes' : 'shares'] ?? null) : null;
+		$savedCursor = $this->durableCache->getShared(self::CURSOR, $readKey);
 		$ids = [];
-		$knownActors = [];
+		if (is_array($savedCursor) && ($savedCursor['version'] ?? null) === self::CURSOR_VERSION) {
+			$collection = $savedCursor['collection'] ?? null;
+			$ids = is_array($savedCursor['actors'] ?? null)
+				? array_values(array_filter($savedCursor['actors'], 'is_string'))
+				: [];
+		} elseif (is_string($savedCursor) || is_array($savedCursor)) {
+			$collection = $savedCursor;
+		}
+		$knownActors = array_fill_keys($ids, true);
 		$seen = [];
 		$requests = 0;
 		$deadline = $timeout === null ? null : hrtime(true) + ($timeout * 1_000_000_000);
@@ -88,7 +102,7 @@ class ActivityPubInteractionSource implements InteractionSource {
 						: $this->curl->retrieveObject($collection, true, $requestTimeout);
 				} catch (Throwable $e) {
 					$this->logger->info('A collection of reactions was not read', ['post' => $post->getId(), 'exception' => $e]);
-					if ($timeout !== null && $ids !== []) {
+					if ($ids !== []) {
 						$this->incompleteRead = $readKey;
 
 						break;
@@ -109,10 +123,19 @@ class ActivityPubInteractionSource implements InteractionSource {
 				? ($collection['next'] ?? null)
 				: ($collection['first'] ?? $collection['next'] ?? null);
 			$collection = self::collectionReference($reference);
+			if ($collection === null || count($ids) >= $limit) {
+				$this->durableCache->removeShared(self::CURSOR, $readKey);
+			} else {
+				$this->durableCache->setShared(self::CURSOR, $readKey, [
+					'version' => self::CURSOR_VERSION,
+					'collection' => $collection,
+					'actors' => $ids,
+				], self::CURSOR_TTL);
+			}
 		}
 		if (count($ids) < $limit && (is_string($collection) || is_array($collection))) {
 			// Four full pages cover the normal 80-account response. A server may
-			// return shorter pages, though; do not present those as complete.
+			// return shorter pages, though; keep its next link for the next fill.
 			$this->incompleteRead = $readKey;
 		}
 		$ids = array_slice(array_values(array_unique($ids)), 0, $limit);
@@ -121,13 +144,13 @@ class ActivityPubInteractionSource implements InteractionSource {
 		return $ids;
 	}
 
-	/** Whether the last visible read stopped before exhausting the collection. */
+	/** Whether the last read stopped before exhausting the collection. */
 	public function hasMoreActors(Stream $post, string $type): bool {
 		return $this->incompleteRead === self::readKey($post, $type);
 	}
 
 	private static function readKey(Stream $post, string $type): string {
-		return $post->getId() . "\0" . $type;
+		return hash('sha256', $post->getId() . "\0" . $type);
 	}
 
 	#[\Override]

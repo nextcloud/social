@@ -75,7 +75,7 @@ class InteractionServiceTest extends TestCase {
 		$time->method('getTime')->willReturn(1790000000);
 		$durableCache = new DurableCache($factory, new InMemoryDurableCacheRequest(), $time);
 		$queue = $this->createMock(RemoteFetchQueue::class);
-		$queue->expects($this->once())->method('fillInteractions')->with($post, 'Like')->willReturn(true);
+		$queue->expects($this->exactly(2))->method('fillInteractions')->with($post, 'Like')->willReturn(true);
 		$fediverse = $this->createMock(ActivityPubInteractionSource::class);
 		$fediverse->method('supports')->willReturn(true);
 		$fediverse->expects($this->once())->method('actors')->with($post, 'Like', InteractionService::LIMIT, 3)->willReturn([$actorId]);
@@ -90,6 +90,7 @@ class InteractionServiceTest extends TestCase {
 
 		$this->assertSame([$actorId], array_map(static fn (Person $actor): string => $actor->getId(), $result['accounts']));
 		$this->assertTrue($result['filling'], 'the partial list is shown while its background continuation is queued');
+		$this->assertTrue($service->reactedBy($post, 'Like', 10)['filling'], 'a later visible poll can resume an incomplete background fill');
 	}
 
 	public function testOpeningReactionListReadsTheNetworkBeforeReturningAndKeepsLocalActorsFirst(): void {
@@ -330,7 +331,7 @@ class InteractionServiceTest extends TestCase {
 		$cacheActors = $this->createMock(CacheActorService::class);
 		$cacheActors->method('getCachedFromIds')->willReturnCallback(static fn (array $ids): array => array_combine($ids, array_map(static fn (string $id): Person => self::person($id), $ids)));
 		$queue = $this->createMock(RemoteFetchQueue::class);
-		$queue->expects($this->once())->method('fillInteractions')->with($post, 'Like')->willReturn(true);
+		$queue->expects($this->exactly(2))->method('fillInteractions')->with($post, 'Like')->willReturnOnConsecutiveCalls(true, false);
 		$bluesky = $this->createMock(BlueskyInteractionSource::class);
 		$bluesky->method('supports')->willReturn(true);
 		$bluesky->expects($this->exactly(2))->method('actors')->willReturnCallback(static function () use ($actorId): array {
@@ -351,7 +352,7 @@ class InteractionServiceTest extends TestCase {
 		$waiting = $service->reactedBy($post, 'Like', 12);
 		$this->assertSame([], $waiting['accounts']);
 		$this->assertTrue($waiting['filling']);
-		$this->assertTrue($service->reactedBy($post, 'Like', 12)['filling'], 'polling does not repeat the failed AppView request');
+		$this->assertTrue($service->reactedBy($post, 'Like', 12)['filling'], 'polling does not repeat the failed AppView request while the queued fill is active');
 
 		$now += 5;
 		$ready = $service->reactedBy($post, 'Like', 12);

@@ -236,6 +236,20 @@ class RemoteFetchQueueTest extends TestCase {
 		$this->assertTrue($this->queue->fillInteractions($remote, 'Announce'));
 	}
 
+	public function testAnIncompleteReactionFillCanBeQueuedAgainAfterItFinishes(): void {
+		$this->jobList->method('has')->willReturn(false);
+		$this->jobList->expects($this->exactly(2))->method('add')->with(FillInteractions::class, [
+			'post' => 'https://remote.example/notes/1',
+			'type' => 'Like',
+		]);
+		$post = (new Note())->setId('https://remote.example/notes/1');
+
+		$this->assertTrue($this->queue->fillInteractions($post, 'Like'));
+		$this->assertFalse($this->queue->fillInteractions($post, 'Like'), 'an active fill remains deduplicated');
+		$this->queue->completeInteractionFill($post->getId(), 'Like');
+		$this->assertTrue($this->queue->fillInteractions($post, 'Like'), 'a finished incomplete fill can resume from its cursor');
+	}
+
 	public function testAReactionFillQueueFailureCanBeRetriedOnTheNextRequest(): void {
 		$fail = true;
 		$this->jobList->method('has')->willReturnCallback(static function () use (&$fail): bool {

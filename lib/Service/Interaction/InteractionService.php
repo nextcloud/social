@@ -127,7 +127,14 @@ class InteractionService {
 		$key = self::key($post, $type);
 		$visible = $this->durableCache->getShared(self::VISIBLE, $key);
 		if ($visible !== null) {
-			return $visible === self::VISIBLE_PENDING;
+			$pending = $visible === self::VISIBLE_PENDING;
+			if ($pending) {
+				// If the last fill stopped at an unvisited page, its job releases
+				// the throttle when it ends. The next detail poll can then resume it.
+				$this->queue->fillInteractions($post, $type);
+			}
+
+			return $pending;
 		}
 
 		$lock = self::VISIBLE_LOCK . $key;
@@ -147,7 +154,12 @@ class InteractionService {
 			// acquiring the lock.
 			$visible = $this->durableCache->getShared(self::VISIBLE, $key);
 			if ($visible !== null) {
-				return $visible === self::VISIBLE_PENDING;
+				$pending = $visible === self::VISIBLE_PENDING;
+				if ($pending) {
+					$this->queue->fillInteractions($post, $type);
+				}
+
+				return $pending;
 			}
 			// A post published to both networks can have more than one source.
 			// Bound all of their visible reads together so each protocol cannot
@@ -280,13 +292,14 @@ class InteractionService {
 
 	/**
 	 * The background read (`Cron\FillInteractions`): who the networks list
-	 * for the post, or the posts quoting it stored.
+	 * for the post, or the posts quoting it stored. Returns whether any source
+	 * remains incomplete, so its throttle can be released for the next poll.
 	 */
-	public function fill(string $postId, string $type): void {
+	public function fill(string $postId, string $type): bool {
 		try {
 			$post = $this->streams->getStreamById($postId);
 		} catch (StreamNotFoundException) {
-			return;
+			return false;
 		}
 		$ids = [];
 		$supported = false;
@@ -301,6 +314,9 @@ class InteractionService {
 					$source->quotes($post, self::LIMIT);
 				} else {
 					$ids = array_merge($ids, $source->actors($post, $type, self::LIMIT));
+					if ($source instanceof ActivityPubInteractionSource && $source->hasMoreActors($post, $type)) {
+						$failed = true;
+					}
 				}
 			} catch (Throwable $e) {
 				$failed = true;
@@ -310,11 +326,11 @@ class InteractionService {
 		if ($type !== self::QUOTES) {
 			$key = self::key($post, $type);
 			// A failed source may have omitted actors that were present in the
-			// last complete read. Keep that list until every source can refresh it;
-			// otherwise a transient outage makes known reactions disappear.
-			if (!$failed || !is_array($this->durableCache->getShared(self::CACHE, $key))) {
-				$this->durableCache->setShared(self::CACHE, $key, array_values(array_unique($ids)), self::KEPT);
-			}
+			// last complete read. Keep those while adding any new cursor page; a
+			// final complete pass replaces the accumulated list and drops stale actors.
+			$previous = $failed ? $this->durableCache->getShared(self::CACHE, $key) : [];
+			$actors = $failed && is_array($previous) ? array_merge($previous, $ids) : $ids;
+			$this->durableCache->setShared(self::CACHE, $key, array_values(array_unique($actors)), self::KEPT);
 		}
 		if ($supported) {
 			$this->durableCache->setShared(
@@ -324,6 +340,8 @@ class InteractionService {
 				$failed ? self::VISIBLE_RETRY_INTERVAL : self::VISIBLE_INTERVAL,
 			);
 		}
+
+		return $failed;
 	}
 
 	private static function key(Stream $post, string $type): string {
