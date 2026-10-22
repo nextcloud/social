@@ -2168,8 +2168,9 @@ LAN address.
 The admin health check sends an RFC 6455 upgrade request to the public
 `subscribeRepos` route. It validates the `101` response, `Upgrade`, `Connection`
 and `Sec-WebSocket-Accept` headers, using the same public-address guard and DNS
-pinning as other outbound requests. An HTTP `426` is only a warning: it proves
-the route answers, but not that the reverse proxy reached the daemon.
+pinning as other outbound requests. An HTTP `426` is an error that blocks
+enabling the PDS: it proves the route answers, but not that the reverse proxy
+reached the daemon. Configure the proxy to pass the WebSocket upgrade through.
 
 ### 14.3 Commands
 
