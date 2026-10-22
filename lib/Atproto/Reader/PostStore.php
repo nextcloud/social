@@ -292,11 +292,12 @@ class PostStore {
 	}
 
 	/**
-	 * The AppView's views of these stored Bluesky posts, by id, with the
-	 * ones it no longer has deleted as `deleteGone()` deletes them.
+	 * The AppView's views of these stored Bluesky posts, by id. A post is
+	 * deleted here only when the AppView explicitly marks it not found; an
+	 * incomplete response is not evidence that any post was deleted.
 	 *
 	 * @param string[] $postIds stored ids, at most 25 (one `getPosts`); others are ignored
-	 * @return array{posts: array<string, array>, deleted: int}|null null when the AppView did not answer
+	 * @return array{posts: array<string, array>, deleted: int}|null null when the AppView did not answer completely
 	 */
 	public function postViews(array $postIds, ?int $timeout = null): ?array {
 		$uris = [];
@@ -324,19 +325,32 @@ class PostStore {
 		if (!is_array($answer['posts'] ?? null)) {
 			return null;
 		}
-		$present = [];
+		$requested = array_fill_keys(array_values($uris), true);
+		$views = [];
 		foreach ($answer['posts'] as $post) {
-			if (is_array($post) && is_string($post['uri'] ?? null) && ($post['notFound'] ?? false) !== true) {
-				$present[$post['uri']] = $post;
+			$uri = is_array($post) ? ($post['uri'] ?? null) : null;
+			if (!is_string($uri) || !isset($requested[$uri]) || isset($views[$uri])
+				|| (array_key_exists('notFound', $post) && $post['notFound'] !== true)) {
+				$this->logger->notice('Bluesky posts returned an invalid getPosts response');
+
+				return null;
 			}
+			$views[$uri] = $post;
+		}
+		if (count($views) !== count($uris)) {
+			$this->logger->notice('Bluesky posts returned an incomplete getPosts response', ['expected' => count($uris), 'received' => count($views)]);
+
+			return null;
 		}
 		$posts = [];
 		$deleted = 0;
 		foreach ($uris as $id => $uri) {
-			if (isset($present[$uri])) {
-				$posts[$id] = $present[$uri];
-			} elseif ($this->delete($id)) {
-				$deleted++;
+			if (($views[$uri]['notFound'] ?? false) === true) {
+				if ($this->delete($id)) {
+					$deleted++;
+				}
+			} else {
+				$posts[$id] = $views[$uri];
 			}
 		}
 

@@ -454,17 +454,16 @@ class PostStoreTest extends TestCase {
 		$this->assertCount(1, $this->imported, 'only the feed post is needed before opening the conversation');
 	}
 
-	public function testPostsTheAppViewNoLongerHasAreDeletedAndTheirRecordsWithThem(): void {
+	public function testAnOmittedPostDoesNotProveThatTheAppViewDeletedIt(): void {
 		$kept = 'https://bsky.app/profile/' . self::DID . '/post/3kkept';
 		$gone = 'https://bsky.app/profile/' . self::DID . '/post/3kgone';
 		$this->known = [$kept, $gone];
 		$this->appView->expects($this->once())->method('query')->with('app.bsky.feed.getPosts', ['uris' => ['at://' . self::DID . '/app.bsky.feed.post/3kkept', 'at://' . self::DID . '/app.bsky.feed.post/3kgone']])
 			->willReturn(['posts' => [['uri' => 'at://' . self::DID . '/app.bsky.feed.post/3kkept']]]);
-		$this->interactions->expects($this->once())->method('removeAllOf')->with($gone);
+		$this->interactions->expects($this->never())->method('removeAllOf');
 
-		$this->assertSame(1, $this->store->deleteGone([$kept, $gone, 'https://mastodon.test/x']));
-		$this->assertCount(1, $this->imported);
-		$this->assertSame($gone, $this->imported[0]->getObjectId());
+		$this->assertNull($this->store->postViews([$kept, $gone, 'https://mastodon.test/x']));
+		$this->assertSame([], $this->imported);
 	}
 
 	public function testNotFoundPostViewsAreDeletedButBlockedViewsAreKept(): void {
@@ -486,7 +485,7 @@ class PostStoreTest extends TestCase {
 		$gone = 'https://bsky.app/profile/' . self::DID . '/post/3kgone';
 		$this->known = [$kept, $gone];
 		$view = ['uri' => 'at://' . self::DID . '/app.bsky.feed.post/3kkept', 'likeCount' => 4];
-		$this->appView->method('query')->willReturn(['posts' => [$view]]);
+		$this->appView->method('query')->willReturn(['posts' => [$view, ['uri' => 'at://' . self::DID . '/app.bsky.feed.post/3kgone', 'notFound' => true]]]);
 
 		$this->assertSame(['posts' => [$kept => $view], 'deleted' => 1], $this->store->postViews([$kept, $gone]));
 		$this->assertSame($gone, $this->imported[0]->getObjectId(), 'the one it no longer has is deleted');
