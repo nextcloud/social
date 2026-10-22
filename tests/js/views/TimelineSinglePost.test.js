@@ -275,7 +275,7 @@ describe('TimelineSinglePost', () => {
 			const wrapper = mountView()
 			await flushPromises()
 
-			expect(fetchStatus).toHaveBeenCalledWith('123')
+			expect(fetchStatus).toHaveBeenCalledWith('123', false, true)
 			expect(wrapper.findComponent(TimelineEntryStub).exists()).toBe(true)
 		})
 
@@ -286,7 +286,7 @@ describe('TimelineSinglePost', () => {
 			mountView()
 			await flushPromises()
 
-			expect(fetchStatus).toHaveBeenCalledWith('123')
+			expect(fetchStatus).toHaveBeenCalledWith('123', false, true)
 		})
 
 		it('still says a post is gone when the server does not have it either', async () => {
