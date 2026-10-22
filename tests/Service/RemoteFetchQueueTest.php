@@ -145,6 +145,18 @@ class RemoteFetchQueueTest extends TestCase {
 		$this->queue->resolveActors(['https://remote.example/users/bob']);
 	}
 
+	public function testAnIncompleteActorProfileIsRefreshedInTheBackgroundAtMostOncePerInterval(): void {
+		$id = 'https://bsky.app/profile/did:plc:ann';
+		$this->jobList->method('has')->willReturn(false);
+		$this->jobList->expects($this->exactly(2))->method('add')
+			->with(ResolveActor::class, ['id' => $id, 'refresh' => true]);
+
+		$this->queue->refreshActors([$id . '#main', $id]);
+		$this->queue->refreshActors([$id]);
+		$this->now += RemoteFetchQueue::ACTOR_REFRESH_INTERVAL + 1;
+		$this->queue->refreshActors([$id]);
+	}
+
 	public function testOneCallQueuesABoundedNumberOfJobs(): void {
 		$ids = [];
 		for ($i = 0; $i < 200; $i++) {

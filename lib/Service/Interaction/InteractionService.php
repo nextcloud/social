@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Service\Interaction;
 
 use OCA\Social\Atproto\AppView\AppViewClient;
+use OCA\Social\Atproto\Reader\BlueskyActorService;
 use OCA\Social\Atproto\Reader\BlueskyInteractionSource;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\StreamNotFoundException;
@@ -93,6 +94,15 @@ class InteractionService {
 				$this->queue->resolveActors(array_slice($missing, 0, $limit - count($accounts)));
 				$filling = true;
 			}
+		}
+		$incompleteBlueskyProfiles = [];
+		foreach ($accounts as $account) {
+			if (BlueskyActorService::isBluesky($account) && !$account->hasIcon()) {
+				$incompleteBlueskyProfiles[] = $account->getId();
+			}
+		}
+		if ($incompleteBlueskyProfiles !== []) {
+			$this->queue->refreshActors($incompleteBlueskyProfiles);
 		}
 
 		return ['accounts' => $accounts, 'filling' => $filling];

@@ -38,6 +38,8 @@ use Throwable;
 class RemoteFetchQueue {
 	/** The most jobs one call queues; more than one page of anything names. */
 	public const MAX_PER_CALL = 20;
+	/** How often an incomplete cached actor profile may be refreshed. */
+	public const ACTOR_REFRESH_INTERVAL = 900;
 
 	/** Seconds between two syncs of one account's outbox asked for by its profile. */
 	public const TIMELINE_SYNC_INTERVAL = 900;
@@ -67,6 +69,7 @@ class RemoteFetchQueue {
 
 	private const COUNTS_ASKED = 'social.countsfill';
 	private const VISIBLE_COUNTS_ASKED = 'social.countsfill.visible';
+	private const ACTORS_REFRESHED = 'social.actors.refresh';
 
 	/**
 	 * The longest a job's list of posts is, JSON-encoded: `IJobList` refuses
@@ -378,6 +381,42 @@ class RemoteFetchQueue {
 	}
 
 	/**
+	 * Refreshes cached actor profiles whose lightweight reaction view omitted
+	 * fields such as the avatar. The refresh runs away from the request and is
+	 * throttled per actor so opening a post cannot create a profile-fetch loop.
+	 *
+	 * @param string[] $ids actor ids
+	 */
+	public function refreshActors(array $ids): void {
+		$wanted = [];
+		foreach ($ids as $id) {
+			$anchor = strpos($id, '#');
+			if ($anchor !== false) {
+				$id = substr($id, 0, $anchor);
+			}
+			if (preg_match('#^https?://#i', $id) === 1) {
+				$wanted[$id] = $id;
+			}
+		}
+
+		foreach (array_slice(array_values($wanted), 0, self::MAX_PER_CALL) as $id) {
+			$key = md5($id);
+			try {
+				if ($this->durableCache->get(self::ACTORS_REFRESHED, $key) !== null) {
+					continue;
+				}
+				$this->durableCache->set(self::ACTORS_REFRESHED, $key, 1, self::ACTOR_REFRESH_INTERVAL);
+			} catch (Throwable $e) {
+				// IJobList still deduplicates a refresh that is waiting to run.
+			}
+
+			if (!$this->queue(ResolveActor::class, ['id' => $id, 'refresh' => true])) {
+				$this->clearThrottle(self::ACTORS_REFRESHED, $key, $id, 'actor profile refresh');
+			}
+		}
+	}
+
+	/**
 	 * Queues a lookup of each account named by its `user@host` handle, for
 	 * a page that lists accounts by handle and shows the ones not cached
 	 * here as not found yet.
@@ -400,7 +439,7 @@ class RemoteFetchQueue {
 
 	/**
 	 * @param class-string $job
-	 * @param array<string, string|list<string>> $argument
+	 * @param array<string, string|bool|list<string>> $argument
 	 */
 	private function queue(string $job, array $argument): bool {
 		try {

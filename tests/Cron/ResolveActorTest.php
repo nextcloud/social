@@ -44,6 +44,14 @@ class ResolveActorTest extends TestCase {
 		$this->runJob(['id' => 'https://remote.example/users/bob']);
 	}
 
+	public function testAnIncompleteCachedActorCanBeRefreshed(): void {
+		$this->cacheActorService->expects($this->once())->method('getFromId')
+			->with('https://bsky.app/profile/did:plc:ann', true)
+			->willReturn(new Person());
+
+		$this->runJob(['id' => 'https://bsky.app/profile/did:plc:ann', 'refresh' => true]);
+	}
+
 	public function testAnUnreachableActorEndsTheJobQuietly(): void {
 		$this->cacheActorService->expects($this->once())->method('getFromId')
 			->willThrowException(new RequestNetworkException());

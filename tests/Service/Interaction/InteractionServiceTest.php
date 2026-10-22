@@ -35,6 +35,33 @@ class InteractionServiceTest extends TestCase {
 		return (new Person())->setId($id);
 	}
 
+	public function testAReactionProfileWithoutAnAvatarIsRefreshedOutsideTheRequest(): void {
+		$post = (new Note())->setId('https://social.test/@alice/1');
+		$actorId = 'https://bsky.app/profile/did:plc:ann';
+		$actions = $this->createMock(ActionService::class);
+		$actions->method('reactedBy')->willReturn([self::person($actorId)]);
+		$factory = $this->createStub(ICacheFactory::class);
+		$factory->method('isAvailable')->willReturn(false);
+		$time = $this->createStub(ITimeFactory::class);
+		$time->method('getTime')->willReturn(1790000000);
+		$durableCache = new DurableCache($factory, new InMemoryDurableCacheRequest(), $time);
+		$queue = $this->createMock(RemoteFetchQueue::class);
+		$queue->method('fillInteractions')->willReturn(false);
+		$queue->expects($this->once())->method('refreshActors')->with([$actorId]);
+		$service = new InteractionService(
+			$actions,
+			$this->createMock(CacheActorService::class),
+			$this->createMock(StreamRequest::class),
+			$durableCache,
+			$queue,
+			new NullLogger(),
+		);
+
+		$result = $service->reactedBy($post, 'Like', 10);
+
+		$this->assertSame([$actorId], array_map(static fn (Person $actor): string => $actor->getId(), $result['accounts']));
+	}
+
 	public function testOpeningReactionListReadsTheNetworkBeforeReturningAndKeepsLocalActorsFirst(): void {
 		$post = (new Note())->setId('https://social.test/@alice/1');
 		$streams = $this->createMock(StreamRequest::class);
