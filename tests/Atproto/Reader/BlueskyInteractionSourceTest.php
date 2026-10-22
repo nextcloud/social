@@ -167,6 +167,63 @@ class BlueskyInteractionSourceTest extends TestCase {
 		$this->assertSame(0, $source->quotes($post, 12, 3));
 	}
 
+	public function testVisibleQuoteReadLeavesLaterPagesForTheBackgroundFill(): void {
+		$postUri = 'at://did:plc:alice/app.bsky.feed.post/3k';
+		$config = $this->createMock(AtprotoConfig::class);
+		$config->method('isEnabled')->willReturn(true);
+		$refs = $this->createMock(PostRefs::class);
+		$refs->method('strongRef')->willReturn(['uri' => $postUri, 'cid' => 'bafy']);
+		$asked = [];
+		$appView = $this->createMock(AppViewClient::class);
+		$appView->expects($this->exactly(2))->method('query')->willReturnCallback(
+			static function (string $method, array $params, array $headers = [], ?int $timeout = null) use (&$asked, $postUri): array {
+				$asked[] = [$method, $params, $timeout];
+				if ($method !== 'app.bsky.feed.getQuotes' || $params['uri'] !== $postUri) {
+					throw new \UnexpectedValueException('Unexpected quote query');
+				}
+
+				return ($params['cursor'] ?? '') === ''
+					? ['uri' => $postUri, 'posts' => [['uri' => 'at://did:plc:ann/app.bsky.feed.post/1']], 'cursor' => 'next-page']
+					: ['uri' => $postUri, 'posts' => [['uri' => 'at://did:plc:ben/app.bsky.feed.post/2']]];
+			}
+		);
+		$store = $this->createMock(PostStore::class);
+		$store->expects($this->exactly(2))->method('storePost')->willReturn(true);
+		$cursor = null;
+		$cache = $this->createMock(DurableCache::class);
+		$cache->method('getShared')->willReturnCallback(static function () use (&$cursor): ?string {
+			return $cursor;
+		});
+		$cache->method('setShared')->willReturnCallback(static function (string $name, string $key, mixed $value) use (&$cursor): void {
+			$cursor = $value;
+		});
+		$cache->method('removeShared')->willReturnCallback(static function () use (&$cursor): void {
+			$cursor = null;
+		});
+		$source = new BlueskyInteractionSource(
+			$config,
+			$appView,
+			$refs,
+			$store,
+			$this->createMock(ActorMapper::class),
+			$this->createMock(BlueskyActorService::class),
+			$this->createMock(LabelerService::class),
+			new NullLogger(),
+			$cache,
+		);
+		$post = (new Note())->setId('https://social.test/@alice/1');
+
+		$this->assertSame(1, $source->quotes($post, 12, 3));
+		$this->assertTrue($source->hasMoreQuotes($post));
+		$this->assertSame(1, $source->quotes($post, 12));
+		$this->assertFalse($source->hasMoreQuotes($post));
+		$this->assertSame('', $asked[0][1]['cursor'] ?? '');
+		$this->assertSame('next-page', $asked[1][1]['cursor'] ?? null);
+		$this->assertGreaterThanOrEqual(1, $asked[0][2]);
+		$this->assertLessThanOrEqual(3, $asked[0][2]);
+		$this->assertNull($asked[1][2]);
+	}
+
 	public function testMissingReactionListsAreTreatedAsFailedReads(): void {
 		$config = $this->createMock(AtprotoConfig::class);
 		$config->method('isEnabled')->willReturn(true);

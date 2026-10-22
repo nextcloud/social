@@ -168,8 +168,26 @@ class BlueskyInteractionSource implements InteractionSource {
 			$this->durableCache->setShared(self::QUOTE_CURSOR, $key, $next, self::QUOTE_CURSOR_KEPT);
 			$seen[$next] = true;
 			$cursor = $next;
+			// A reader opening a post needs its first page now. The rest can be
+			// fetched by FillInteractions; spending the whole interactive budget
+			// walking a long quote history delays the page and still cannot finish
+			// before the three-second network deadline.
+			if ($timeout !== null) {
+				return $stored;
+			}
 		}
 
 		throw new UnexpectedValueException('Bluesky quotes have too many pages');
+	}
+
+	/** Whether a visible quote read left a cursor for the background fill. */
+	public function hasMoreQuotes(Stream $post): bool {
+		$uri = $this->refs->strongRef($post->getId())['uri'] ?? '';
+		if ($uri === '') {
+			return false;
+		}
+		$cursor = $this->durableCache->getShared(self::QUOTE_CURSOR, hash('sha256', $uri));
+
+		return is_string($cursor) && $cursor !== '';
 	}
 }

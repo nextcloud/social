@@ -79,7 +79,7 @@ class InteractionServiceTest extends TestCase {
 		$time->method('getTime')->willReturn(1790000000);
 		$durableCache = new DurableCache($factory, new InMemoryDurableCacheRequest(), $time);
 		$queue = $this->createMock(RemoteFetchQueue::class);
-		$queue->method('fillInteractions')->willReturn(false);
+		$queue->expects($this->once())->method('fillInteractions')->with($post, InteractionService::QUOTES)->willReturn(true);
 		$fediverse = $this->createMock(ActivityPubInteractionSource::class);
 		$fediverse->method('supports')->willReturn(false);
 		$bluesky = $this->createMock(BlueskyInteractionSource::class);
@@ -96,6 +96,7 @@ class InteractionServiceTest extends TestCase {
 					: [];
 			});
 		$bluesky->expects($this->once())->method('quotes')->with($post, InteractionService::LIMIT, 3)->willReturn(2);
+		$bluesky->expects($this->once())->method('hasMoreQuotes')->with($post)->willReturn(true);
 		$container = $this->createMock(ContainerInterface::class);
 		$container->method('get')->willReturnMap([[ActivityPubInteractionSource::class, $fediverse], [BlueskyInteractionSource::class, $bluesky]]);
 		$service = new InteractionService($actions, $cacheActors, $streams, $durableCache, $queue, new NullLogger(), $container);
@@ -105,7 +106,7 @@ class InteractionServiceTest extends TestCase {
 			array_map(static fn (Person $p): string => $p->getId(), $service->reactedBy($post, 'Like', 10)['accounts']),
 			'the visible request reads reactions before returning',
 		);
-		$this->assertFalse($service->askForQuotes($post), 'the quote list is read before its first response');
+		$this->assertTrue($service->askForQuotes($post), 'later quote pages are queued after the first visible page');
 
 		$this->assertSame(
 			['https://social.test/@bob', 'https://bsky.app/profile/did:plc:carol'],

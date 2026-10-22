@@ -174,6 +174,11 @@ class InteractionService {
 				try {
 					if ($type === self::QUOTES) {
 						$source->quotes($post, self::LIMIT, $timeout);
+						if ($source instanceof BlueskyInteractionSource && $source->hasMoreQuotes($post)) {
+							// The visible read stored its first page and saved the next
+							// cursor; finish paging off-request without holding the view.
+							$failed = true;
+						}
 					} else {
 						$sourceIds = $source->actors($post, $type, self::LIMIT, $timeout);
 						$ids = array_merge($ids, $sourceIds);
