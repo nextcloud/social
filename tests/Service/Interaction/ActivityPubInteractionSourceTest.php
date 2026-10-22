@@ -150,4 +150,33 @@ class ActivityPubInteractionSourceTest extends TestCase {
 
 		$this->assertSame(['https://a.example/users/ann', 'https://b.example/users/ben'], $source->actors($post, 'Like', 10));
 	}
+
+	public function testReadsFourTwentyActorPagesToFillTheEightyActorLimit(): void {
+		$post = (new Note())->setId('https://remote.example/notes/1');
+		$post->setSource((string)json_encode(['likes' => 'https://remote.example/notes/1/likes?page=1']));
+		$pages = [];
+		$expected = [];
+		for ($page = 1; $page <= 4; $page++) {
+			$actors = [];
+			for ($actor = 0; $actor < 20; $actor++) {
+				$id = 'https://actors.example/users/' . (($page - 1) * 20 + $actor);
+				$actors[] = $id;
+				$expected[] = $id;
+			}
+			$pages['https://remote.example/notes/1/likes?page=' . $page] = [
+				'type' => 'OrderedCollectionPage',
+				'orderedItems' => $actors,
+			] + ($page < 4 ? ['next' => 'https://remote.example/notes/1/likes?page=' . ($page + 1)] : []);
+		}
+
+		$curl = $this->createMock(CurlService::class);
+		$curl->expects($this->exactly(4))->method('retrieveObject')->willReturnCallback(
+			static fn (string $id): array => $pages[$id] ?? throw new \UnexpectedValueException('Unexpected collection URL: ' . $id)
+		);
+		$queue = $this->createMock(RemoteFetchQueue::class);
+		$queue->expects($this->once())->method('resolveActors')->with($expected);
+		$source = new ActivityPubInteractionSource($curl, $queue, new NullLogger());
+
+		$this->assertSame($expected, $source->actors($post, 'Like', 80));
+	}
 }

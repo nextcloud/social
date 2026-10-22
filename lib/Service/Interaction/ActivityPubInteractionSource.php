@@ -26,7 +26,8 @@ use Throwable;
  * fediverse has no collection of the posts quoting one.
  */
 class ActivityPubInteractionSource implements InteractionSource {
-	private const PAGES = 2;
+	/** Enough 20-account collection pages to fill the public API's 80-actor cap. */
+	private const PAGES = 4;
 
 	public function __construct(
 		private CurlService $curl,
