@@ -176,6 +176,17 @@ class RemoteFetchQueue {
 		}
 	}
 
+	/** Allow another thread-fill pass when the worker stopped at a saved cursor. */
+	public function retryThreadFill(string $postId): void {
+		$key = md5($postId);
+		try {
+			$this->durableCache->remove(self::THREAD_FILLED, $key);
+		} catch (Throwable $e) {
+			$this->logger->info('[RemoteFetchQueue] could not clear incomplete thread fill throttle', ['post' => $postId, 'exception' => $e]);
+		}
+		$this->completeThreadFill($postId);
+	}
+
 	/**
 	 * Queues a read of who liked, boosted or quoted a post where it lives
 	 * (`Cron\FillInteractions`), at most once per `INTERACTIONS_INTERVAL` per

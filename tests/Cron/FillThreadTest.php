@@ -26,6 +26,18 @@ class FillThreadTest extends TestCase {
 		(new \ReflectionMethod(FillThread::class, 'run'))->invoke($job, ['post' => 'https://remote.example/notes/1']);
 	}
 
+	public function testTheWorkerAllowsAnotherPassWhenBlueskyHasSavedContinuations(): void {
+		$threads = $this->createMock(ThreadService::class);
+		$threads->expects($this->once())->method('fill')->with('at://did:plc:alice/app.bsky.feed.post/1')->willReturn(20);
+		$threads->expects($this->once())->method('hasPendingBlueskyReplies')->willReturn(true);
+		$queue = $this->createMock(RemoteFetchQueue::class);
+		$queue->expects($this->once())->method('retryThreadFill')->with('at://did:plc:alice/app.bsky.feed.post/1');
+		$queue->expects($this->never())->method('completeThreadFill');
+		$job = new FillThread($this->createStub(ITimeFactory::class), $threads, $queue);
+
+		(new \ReflectionMethod(FillThread::class, 'run'))->invoke($job, ['post' => 'at://did:plc:alice/app.bsky.feed.post/1']);
+	}
+
 	public function testTheWorkerClearsThePendingMarkerWhenTheThreadReadThrows(): void {
 		$threads = $this->createMock(ThreadService::class);
 		$threads->expects($this->once())->method('fill')->willThrowException(new \RuntimeException('remote unavailable'));

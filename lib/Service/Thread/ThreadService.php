@@ -56,6 +56,7 @@ class ThreadService {
 	 * @return int how many replies were stored
 	 */
 	public function fill(string $postId): int {
+		$this->blueskyDeepRepliesPending = false;
 		try {
 			$post = $this->streams->getStreamById($postId);
 		} catch (StreamNotFoundException) {
@@ -68,6 +69,9 @@ class ThreadService {
 			}
 			try {
 				$stored += $source->fill($post, self::BUDGET - $stored);
+				if ($source instanceof BlueskyThreadSource) {
+					$this->blueskyDeepRepliesPending = $source->hasDeepRepliesPending();
+				}
 			} catch (Throwable $e) {
 				$this->logger->info('A conversation was not read', ['post' => $postId, 'source' => $source::class, 'exception' => $e]);
 			}

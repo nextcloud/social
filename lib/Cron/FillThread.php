@@ -32,10 +32,16 @@ class FillThread extends QueuedJob {
 	protected function run($argument): void {
 		$id = is_array($argument) ? (string)($argument['post'] ?? '') : '';
 		if ($id !== '') {
+			$incomplete = false;
 			try {
 				$this->threads->fill($id);
+				$incomplete = $this->threads->hasPendingBlueskyReplies();
 			} finally {
-				$this->queue->completeThreadFill($id);
+				if ($incomplete) {
+					$this->queue->retryThreadFill($id);
+				} else {
+					$this->queue->completeThreadFill($id);
+				}
 			}
 		}
 	}

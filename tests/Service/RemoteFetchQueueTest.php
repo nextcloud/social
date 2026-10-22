@@ -190,7 +190,7 @@ class RemoteFetchQueueTest extends TestCase {
 
 	public function testAConversationIsReadAtMostOncePerIntervalAndOnlyWhereItMayHaveRepliesElsewhere(): void {
 		$this->jobList->method('has')->willReturn(false);
-		$this->jobList->expects($this->exactly(2))->method('add')->with(FillThread::class, $this->anything());
+		$this->jobList->expects($this->exactly(3))->method('add')->with(FillThread::class, $this->anything());
 		$remote = (new Note())->setId('https://remote.example/notes/1');
 		$public = (new Note())->setId('https://social.test/@alice/2')->setLocal(true);
 		$public->setVisibility(Stream::TYPE_PUBLIC);
@@ -203,6 +203,8 @@ class RemoteFetchQueueTest extends TestCase {
 		$this->queue->completeThreadFill($remote->getId());
 		$this->assertFalse($this->queue->isThreadFillPending($remote->getId()));
 		$this->assertFalse($this->queue->fillThread($remote), 'a completed thread is not queued again within its interval');
+		$this->queue->retryThreadFill($remote->getId());
+		$this->assertTrue($this->queue->fillThread($remote), 'a saved continuation can be retried without waiting ten minutes');
 		$this->assertTrue($this->queue->fillThread($public), 'a public post of ours is read on other networks too');
 		$this->assertFalse($this->queue->fillThread($private), 'nobody elsewhere can reply to it');
 		$this->now += RemoteFetchQueue::THREAD_FILL_INTERVAL + 1;

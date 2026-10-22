@@ -18,6 +18,7 @@ use OCA\Social\Atproto\Reader\PostStore;
 use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Exceptions\AtprotoException;
 use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Service\DurableCache;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
@@ -50,7 +51,7 @@ class BlueskyThreadSourceTest extends TestCase {
 			return $post['uri'] !== 'at://p/2';
 		});
 		$store->expects($this->once())->method('refreshKnownPostCountsFromView')->with($this->callback(static fn (array $post): bool => ($post['uri'] ?? '') === 'at://p/2'))->willReturn(true);
-		$source = new BlueskyThreadSource($config, $appView, $refs, $store, $this->createMock(LabelerService::class), new NullLogger());
+		$source = new BlueskyThreadSource($config, $appView, $refs, $store, $this->createMock(LabelerService::class), new NullLogger(), $this->createMock(DurableCache::class));
 		$post = (new Note())->setId('https://social.test/@alice/2');
 
 		$this->assertTrue($source->supports($post));
@@ -93,7 +94,7 @@ class BlueskyThreadSourceTest extends TestCase {
 			return $isNew;
 		});
 		$store->expects($this->exactly(2))->method('refreshKnownPostCountsFromView');
-		$source = new BlueskyThreadSource($config, $appView, $refs, $store, $this->createMock(LabelerService::class), new NullLogger());
+		$source = new BlueskyThreadSource($config, $appView, $refs, $store, $this->createMock(LabelerService::class), new NullLogger(), $this->createMock(DurableCache::class));
 
 		$this->assertSame(4, $source->fillVisible((new Note())->setId('https://social.test/@alice/2'), 10));
 		$this->assertSame(['app.bsky.feed.getPostThread', ['uri' => 'at://p/2', 'depth' => 10, 'parentHeight' => 20], 3], $queries[0]);
@@ -148,7 +149,7 @@ class BlueskyThreadSourceTest extends TestCase {
 			return $isNew;
 		});
 		$store->expects($this->exactly(2))->method('refreshKnownPostCountsFromView');
-		$source = new BlueskyThreadSource($config, $appView, $refs, $store, $this->createMock(LabelerService::class), new NullLogger());
+		$source = new BlueskyThreadSource($config, $appView, $refs, $store, $this->createMock(LabelerService::class), new NullLogger(), $this->createMock(DurableCache::class));
 
 		$this->assertSame(4, $source->fillVisible((new Note())->setId('https://social.test/@alice/root'), 10));
 		$this->assertSame('at://p/child', $queries[1][1]['anchor'], 'the fallback targets the nested comment with missing replies');
@@ -183,7 +184,7 @@ class BlueskyThreadSourceTest extends TestCase {
 		);
 		$store = $this->createMock(PostStore::class);
 		$store->method('storePost')->willReturn(true);
-		$source = new BlueskyThreadSource($config, $appView, $refs, $store, $this->createMock(LabelerService::class), new NullLogger());
+		$source = new BlueskyThreadSource($config, $appView, $refs, $store, $this->createMock(LabelerService::class), new NullLogger(), $this->createMock(DurableCache::class));
 
 		$source->fillVisible((new Note())->setId('https://social.test/@alice/2'), 10);
 
@@ -213,7 +214,7 @@ class BlueskyThreadSourceTest extends TestCase {
 			}
 		);
 		$store = $this->createMock(PostStore::class);
-		$source = new BlueskyThreadSource($config, $appView, $refs, $store, $this->createMock(LabelerService::class), new NullLogger());
+		$source = new BlueskyThreadSource($config, $appView, $refs, $store, $this->createMock(LabelerService::class), new NullLogger(), $this->createMock(DurableCache::class));
 
 		$source->fillVisible((new Note())->setId('https://social.test/@alice/2'), 10);
 
@@ -252,7 +253,7 @@ class BlueskyThreadSourceTest extends TestCase {
 
 			return $isNew;
 		});
-		$source = new BlueskyThreadSource($config, $appView, $refs, $store, $this->createMock(LabelerService::class), new NullLogger());
+		$source = new BlueskyThreadSource($config, $appView, $refs, $store, $this->createMock(LabelerService::class), new NullLogger(), $this->createMock(DurableCache::class));
 
 		$source->fill((new Note())->setId('https://social.test/@alice/2'), 10);
 
@@ -281,7 +282,7 @@ class BlueskyThreadSourceTest extends TestCase {
 		);
 		$store = $this->createMock(PostStore::class);
 		$store->expects($this->exactly(2))->method('storePost')->willReturn(true);
-		$source = new BlueskyThreadSource($config, $appView, $refs, $store, $this->createMock(LabelerService::class), new NullLogger());
+		$source = new BlueskyThreadSource($config, $appView, $refs, $store, $this->createMock(LabelerService::class), new NullLogger(), $this->createMock(DurableCache::class));
 
 		$this->assertSame(2, $source->fillVisible((new Note())->setId('https://social.test/@alice/2'), 10));
 		$this->assertTrue($source->hasDeepRepliesPending(), 'an unavailable V2 read must be retried in the background');
@@ -322,7 +323,7 @@ class BlueskyThreadSourceTest extends TestCase {
 
 			return true;
 		});
-		$source = new BlueskyThreadSource($config, $appView, $refs, $store, $this->createMock(LabelerService::class), new NullLogger());
+		$source = new BlueskyThreadSource($config, $appView, $refs, $store, $this->createMock(LabelerService::class), new NullLogger(), $this->createMock(DurableCache::class));
 
 		$this->assertSame(4, $source->fillVisible((new Note())->setId('https://social.test/@alice/2'), 10));
 		$this->assertSame(['at://p/2', 'at://r/1', 'at://r/2', 'at://r/3'], $stored);
@@ -373,7 +374,7 @@ class BlueskyThreadSourceTest extends TestCase {
 		});
 		$post = (new Note())->setId('https://social.test/@alice/reply');
 		$post->setDetailArray(PostMapper::DETAIL, ['reply_root' => ['uri' => $rootUri, 'cid' => 'bafyroot']]);
-		$source = new BlueskyThreadSource($config, $appView, $refs, $store, $this->createMock(LabelerService::class), new NullLogger());
+		$source = new BlueskyThreadSource($config, $appView, $refs, $store, $this->createMock(LabelerService::class), new NullLogger(), $this->createMock(DurableCache::class));
 
 		$this->assertSame(3, $source->fillVisible($post, 10));
 		$this->assertSame($rootUri, $asked[2][1]['threadRootUri']);
@@ -415,7 +416,7 @@ class BlueskyThreadSourceTest extends TestCase {
 			return true;
 		});
 		$post = (new Note())->setId('https://social.test/@alice/reply');
-		$source = new BlueskyThreadSource($config, $appView, $refs, $store, $this->createMock(LabelerService::class), new NullLogger());
+		$source = new BlueskyThreadSource($config, $appView, $refs, $store, $this->createMock(LabelerService::class), new NullLogger(), $this->createMock(DurableCache::class));
 
 		$this->assertSame(3, $source->fillVisible($post, 10));
 		$this->assertSame($rootUri, $asked[2][1]['threadRootUri']);
@@ -463,11 +464,111 @@ class BlueskyThreadSourceTest extends TestCase {
 
 			return true;
 		});
-		$source = new BlueskyThreadSource($config, $appView, $refs, $store, $this->createMock(LabelerService::class), new NullLogger());
+		$source = new BlueskyThreadSource($config, $appView, $refs, $store, $this->createMock(LabelerService::class), new NullLogger(), $this->createMock(DurableCache::class));
 
 		$this->assertSame(4, $source->fill((new Note())->setId('https://social.test/@alice/2'), 10));
 		$this->assertSame(['at://p/2', 'at://r/1', 'at://r/2', 'at://r/3'], $stored);
 		$this->assertSame('page-two', $searchParams[1]['cursor']);
+	}
+
+	public function testBackgroundSearchFallbackResumesAfterItsPageBudget(): void {
+		$thread = self::node('at://p/2');
+		$thread['post']['replyCount'] = 21;
+		$config = $this->createMock(AtprotoConfig::class);
+		$config->method('isEnabled')->willReturn(true);
+		$refs = $this->createMock(PostRefs::class);
+		$refs->method('strongRef')->willReturn(['uri' => 'at://p/2', 'cid' => 'bafy']);
+		$searchCursors = [];
+		$appView = $this->createMock(AppViewClient::class);
+		$appView->method('query')->willReturnCallback(static function (string $method, array $params) use ($thread, &$searchCursors): array {
+			if ($method === 'app.bsky.feed.getPostThread') {
+				return ['thread' => $thread];
+			}
+			if ($method === 'app.bsky.unspecced.getPostThreadV2') {
+				return ['thread' => [[
+					'depth' => 0,
+					'value' => ['$type' => 'app.bsky.unspecced.defs#threadItemPost', 'post' => ['uri' => 'at://p/2']],
+				]], 'hasOtherReplies' => true];
+			}
+			$cursor = (string)($params['cursor'] ?? '');
+			$searchCursors[] = $cursor;
+			$page = $cursor === '' ? 1 : ((int)substr($cursor, 6) + 1);
+			$answer = ['posts' => [[
+				'uri' => 'at://r/' . $page,
+				'record' => ['reply' => ['root' => ['uri' => 'at://p/2'], 'parent' => ['uri' => 'at://p/2']]],
+			]]];
+			if ($page < 21) {
+				$answer['cursor'] = 'cursor' . $page;
+			}
+
+			return $answer;
+		});
+		$state = [];
+		$cache = $this->createMock(DurableCache::class);
+		$cache->method('getShared')->willReturnCallback(static function (string $namespace, string $key) use (&$state): mixed {
+			return $state[$namespace][$key] ?? null;
+		});
+		$cache->method('setShared')->willReturnCallback(static function (string $namespace, string $key, mixed $value) use (&$state): void {
+			$state[$namespace][$key] = $value;
+		});
+		$cache->method('removeShared')->willReturnCallback(static function (string $namespace, string $key) use (&$state): void {
+			unset($state[$namespace][$key]);
+		});
+		$store = $this->createMock(PostStore::class);
+		$store->method('storePost')->willReturn(false);
+		$source = new BlueskyThreadSource($config, $appView, $refs, $store, $this->createMock(LabelerService::class), new NullLogger(), $cache);
+		$post = (new Note())->setId('https://social.test/@alice/2');
+
+		$source->fill($post, 150);
+		$this->assertTrue($source->hasDeepRepliesPending(), 'a cursor left after the per-run page cap remains incomplete');
+		$this->assertSame(20, count($searchCursors));
+		$this->assertSame('cursor20', $state['social.atproto.thread.search-cursors'][hash('sha256', "at://p/2\0at://p/2")]);
+
+		$source->fill($post, 150);
+		$this->assertSame('cursor20', $searchCursors[20], 'the next background pass starts at the saved page');
+		$this->assertFalse($source->hasDeepRepliesPending(), 'the cursor is cleared when the final page is read');
+		$this->assertArrayNotHasKey(hash('sha256', "at://p/2\0at://p/2"), $state['social.atproto.thread.search-cursors'] ?? []);
+	}
+
+	public function testBackgroundThreadBranchesResumeAfterThePerRunReadLimit(): void {
+		$postUri = 'at://did:plc:alice/app.bsky.feed.post/root';
+		$continuations = array_map(static fn (int $index): string => 'at://did:plc:alice/app.bsky.feed.post/reply-' . $index, range(1, 21));
+		$state = ['social.atproto.thread.continuations' => [hash('sha256', $postUri) => $continuations]];
+		$cache = $this->createMock(DurableCache::class);
+		$cache->method('getShared')->willReturnCallback(static function (string $namespace, string $key) use (&$state): mixed {
+			return $state[$namespace][$key] ?? null;
+		});
+		$cache->method('setShared')->willReturnCallback(static function (string $namespace, string $key, mixed $value) use (&$state): void {
+			$state[$namespace][$key] = $value;
+		});
+		$cache->method('removeShared')->willReturnCallback(static function (string $namespace, string $key) use (&$state): void {
+			unset($state[$namespace][$key]);
+		});
+		$config = $this->createMock(AtprotoConfig::class);
+		$config->method('isEnabled')->willReturn(true);
+		$refs = $this->createMock(PostRefs::class);
+		$refs->method('strongRef')->willReturn(['uri' => $postUri, 'cid' => 'bafy']);
+		$queries = [];
+		$appView = $this->createMock(AppViewClient::class);
+		$appView->method('query')->willReturnCallback(static function (string $method, array $params) use (&$queries, $postUri): array {
+			$queries[] = $params['uri'];
+
+			return ['thread' => self::node($params['uri'])];
+		});
+		$store = $this->createMock(PostStore::class);
+		$store->method('storePost')->willReturn(true);
+		$source = new BlueskyThreadSource($config, $appView, $refs, $store, $this->createMock(LabelerService::class), new NullLogger(), $cache);
+		$post = (new Note())->setId('https://social.test/@alice/root');
+
+		$source->fill($post, 150);
+		$this->assertTrue($source->hasDeepRepliesPending());
+		$this->assertCount(1, $state['social.atproto.thread.continuations'][hash('sha256', $postUri)]);
+		$this->assertSame($continuations[20], $state['social.atproto.thread.continuations'][hash('sha256', $postUri)][0]);
+
+		$source->fill($post, 150);
+		$this->assertFalse($source->hasDeepRepliesPending());
+		$this->assertArrayNotHasKey(hash('sha256', $postUri), $state['social.atproto.thread.continuations'] ?? []);
+		$this->assertSame($continuations[20], $queries[22], 'the next worker pass starts with the one unvisited branch');
 	}
 
 	public function testIncompleteV2ReplyPageRequestsABackgroundFill(): void {
@@ -492,7 +593,7 @@ class BlueskyThreadSourceTest extends TestCase {
 			}
 		);
 		$store = $this->createMock(PostStore::class);
-		$source = new BlueskyThreadSource($config, $appView, $refs, $store, $this->createMock(LabelerService::class), new NullLogger());
+		$source = new BlueskyThreadSource($config, $appView, $refs, $store, $this->createMock(LabelerService::class), new NullLogger(), $this->createMock(DurableCache::class));
 
 		$source->fillVisible((new Note())->setId('https://social.test/@alice/2'), 10);
 
@@ -506,7 +607,7 @@ class BlueskyThreadSourceTest extends TestCase {
 		$refs->method('strongRef')->willReturn(['uri' => 'at://p/2', 'cid' => 'bafy']);
 		$appView = $this->createMock(AppViewClient::class);
 		$appView->expects($this->once())->method('query')->willReturn([]);
-		$source = new BlueskyThreadSource($config, $appView, $refs, $this->createMock(PostStore::class), $this->createMock(LabelerService::class), new NullLogger());
+		$source = new BlueskyThreadSource($config, $appView, $refs, $this->createMock(PostStore::class), $this->createMock(LabelerService::class), new NullLogger(), $this->createMock(DurableCache::class));
 
 		$this->expectException(\UnexpectedValueException::class);
 		$source->fillVisible((new Note())->setId('https://social.test/@alice/2'), 10);
@@ -519,7 +620,7 @@ class BlueskyThreadSourceTest extends TestCase {
 		$refs->method('strongRef')->willReturn(['uri' => 'at://p/2', 'cid' => 'bafy']);
 		$appView = $this->createMock(AppViewClient::class);
 		$appView->expects($this->once())->method('query')->willReturn(['thread' => ['$type' => 'app.bsky.feed.defs#notFoundPost', 'uri' => 'at://p/2']]);
-		$source = new BlueskyThreadSource($config, $appView, $refs, $this->createMock(PostStore::class), $this->createMock(LabelerService::class), new NullLogger());
+		$source = new BlueskyThreadSource($config, $appView, $refs, $this->createMock(PostStore::class), $this->createMock(LabelerService::class), new NullLogger(), $this->createMock(DurableCache::class));
 
 		$this->assertSame(0, $source->fillVisible((new Note())->setId('https://social.test/@alice/2'), 10));
 	}
@@ -533,7 +634,7 @@ class BlueskyThreadSourceTest extends TestCase {
 		$appView->expects($this->once())->method('query')->willReturn(['thread' => self::node('at://p/unrelated')]);
 		$store = $this->createMock(PostStore::class);
 		$store->expects($this->never())->method('storePost');
-		$source = new BlueskyThreadSource($config, $appView, $refs, $store, $this->createMock(LabelerService::class), new NullLogger());
+		$source = new BlueskyThreadSource($config, $appView, $refs, $store, $this->createMock(LabelerService::class), new NullLogger(), $this->createMock(DurableCache::class));
 
 		$this->expectException(\UnexpectedValueException::class);
 		$source->fillVisible((new Note())->setId('https://social.test/@alice/2'), 10);
@@ -569,7 +670,7 @@ class BlueskyThreadSourceTest extends TestCase {
 
 			return $isNew;
 		});
-		$source = new BlueskyThreadSource($config, $appView, $refs, $store, $this->createMock(LabelerService::class), new NullLogger());
+		$source = new BlueskyThreadSource($config, $appView, $refs, $store, $this->createMock(LabelerService::class), new NullLogger(), $this->createMock(DurableCache::class));
 
 		$this->assertSame(12, $source->fill((new Note())->setId('https://social.test/@alice/2'), 150));
 		$this->assertSame(['at://p/10'], BlueskyThreadSource::continuationsOf($thread, 10));
@@ -593,7 +694,7 @@ class BlueskyThreadSourceTest extends TestCase {
 		$refs->method('strongRef')->willReturn(['uri' => 'at://p/0', 'cid' => 'bafy']);
 		$appView = $this->createMock(AppViewClient::class);
 		$appView->expects($this->once())->method('query')->willReturn(['thread' => $thread]);
-		$source = new BlueskyThreadSource($config, $appView, $refs, $this->createMock(PostStore::class), $this->createMock(LabelerService::class), new NullLogger());
+		$source = new BlueskyThreadSource($config, $appView, $refs, $this->createMock(PostStore::class), $this->createMock(LabelerService::class), new NullLogger(), $this->createMock(DurableCache::class));
 
 		$source->fillVisible((new Note())->setId('https://social.test/@alice/2'), 150);
 	}

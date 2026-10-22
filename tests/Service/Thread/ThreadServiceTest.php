@@ -118,9 +118,12 @@ class ThreadServiceTest extends TestCase {
 		$bluesky = $this->createMock(BlueskyThreadSource::class);
 		$bluesky->method('supports')->willReturn(true);
 		$bluesky->expects($this->once())->method('fill')->with($post, ThreadService::BUDGET - 100)->willReturn(7);
+		$bluesky->expects($this->once())->method('hasDeepRepliesPending')->willReturn(true);
 		$container = $this->createMock(ContainerInterface::class);
 		$container->method('get')->willReturnMap([[ActivityPubThreadSource::class, $fediverse], [BlueskyThreadSource::class, $bluesky]]);
 
-		$this->assertSame(107, (new ThreadService($streams, new NullLogger(), $this->createStub(ILockingProvider::class), $container))->fill($post->getId()));
+		$service = new ThreadService($streams, new NullLogger(), $this->createStub(ILockingProvider::class), $container);
+		$this->assertSame(107, $service->fill($post->getId()));
+		$this->assertTrue($service->hasPendingBlueskyReplies());
 	}
 }

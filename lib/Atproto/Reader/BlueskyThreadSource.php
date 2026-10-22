@@ -15,6 +15,7 @@ use OCA\Social\Atproto\Protocol\Syntax;
 use OCA\Social\Atproto\Publisher\PostRefs;
 use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Service\DurableCache;
 use OCA\Social\Service\Thread\ThreadSource;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -32,6 +33,9 @@ class BlueskyThreadSource implements ThreadSource {
 	private const PARENT_HEIGHT = 20;
 	/** Keep a badly branched conversation from turning one job into an unbounded crawl. */
 	private const MAX_CONTINUATION_READS = 20;
+	private const CONTINUATIONS = 'social.atproto.thread.continuations';
+	private const SEARCH_CURSORS = 'social.atproto.thread.search-cursors';
+	private const CONTINUATION_TTL = 3600;
 	private const THREAD_VIEW = 'app.bsky.feed.defs#threadViewPost';
 	private const NOT_FOUND_VIEW = 'app.bsky.feed.defs#notFoundPost';
 	private const BLOCKED_VIEW = 'app.bsky.feed.defs#blockedPost';
@@ -46,6 +50,7 @@ class BlueskyThreadSource implements ThreadSource {
 		private PostStore $store,
 		private LabelerService $labelers,
 		private LoggerInterface $logger,
+		private DurableCache $durableCache,
 	) {
 	}
 
@@ -126,10 +131,12 @@ class BlueskyThreadSource implements ThreadSource {
 		// a larger value is requested. A normal interactive read stays one short
 		// request; the queued fill follows only branches that reached that cap,
 		// so deeply nested replies arrive without making the opened page wait.
-		if ($timeout === null && $stored < $budget) {
-			$pending = array_merge(self::continuationsOf($thread, self::DEPTH), $this->missingReplyContinuations);
+		if ($timeout === null) {
+			$pending = array_merge($this->savedContinuations($uri), self::continuationsOf($thread, self::DEPTH), $this->missingReplyContinuations);
+			$pending = array_values(array_unique($pending));
 			$seen = [$uri => true];
 			$reads = 0;
+			$retry = [];
 			while ($pending !== [] && $stored < $budget && $reads < self::MAX_CONTINUATION_READS) {
 				$nextUri = array_shift($pending);
 				if ($nextUri === '' || isset($seen[$nextUri])) {
@@ -154,10 +161,14 @@ class BlueskyThreadSource implements ThreadSource {
 					// A deep branch can disappear or be unavailable independently of
 					// the rest of the conversation.
 					$this->logger->debug('A deep Bluesky reply branch was not read', ['uri' => $nextUri, 'exception' => $e]);
+					$retry[] = $nextUri;
 				}
 			}
+			$pending = array_values(array_unique(array_merge($pending, $retry)));
+			$this->saveContinuations($uri, $pending);
+			$this->deepRepliesPending = $this->deepRepliesPending || $pending !== [];
 		} elseif ($timeout !== null) {
-			$this->deepRepliesPending = $this->deepRepliesPending || self::continuationsOf($thread, self::DEPTH) !== [] || $this->missingReplyContinuations !== [];
+			$this->deepRepliesPending = $this->deepRepliesPending || $this->savedContinuations($uri) !== [] || self::continuationsOf($thread, self::DEPTH) !== [] || $this->missingReplyContinuations !== [];
 		}
 
 		return $stored;
@@ -285,7 +296,8 @@ class BlueskyThreadSource implements ThreadSource {
 		}
 
 		$direct = array_fill_keys($knownReplies, true);
-		$cursor = '';
+		$cursorKey = self::searchCursorKey($threadRootUri, $uri);
+		$cursor = $this->savedSearchCursor($cursorKey);
 		$seenCursors = [];
 		$stored = 0;
 		$pages = 0;
@@ -294,6 +306,7 @@ class BlueskyThreadSource implements ThreadSource {
 				$timeout = $this->remainingTimeout($deadline);
 				if ($timeout === 0) {
 					$this->deepRepliesPending = true;
+					$this->saveSearchCursor($cursorKey, $cursor);
 
 					return $stored;
 				}
@@ -309,6 +322,8 @@ class BlueskyThreadSource implements ThreadSource {
 					: $this->appView->query('app.bsky.feed.searchPostsV2', $params, $headers, $timeout);
 				$posts = $answer['posts'] ?? null;
 				if (!is_array($posts)) {
+					$this->deepRepliesPending = $this->deepRepliesPending || $cursor !== '';
+
 					return null;
 				}
 
@@ -339,6 +354,8 @@ class BlueskyThreadSource implements ThreadSource {
 
 				$next = $answer['cursor'] ?? '';
 				if (!is_string($next)) {
+					$this->deepRepliesPending = $this->deepRepliesPending || $cursor !== '';
+
 					return null;
 				}
 				if ($next === '' || isset($seenCursors[$next])) {
@@ -347,16 +364,21 @@ class BlueskyThreadSource implements ThreadSource {
 				}
 				$seenCursors[$next] = true;
 				$cursor = $next;
+				$this->saveSearchCursor($cursorKey, $cursor);
 				$pages++;
 			} while ($deadline === null && $cursor !== '' && $stored < $budget && $pages < 20);
 		} catch (Throwable $e) {
 			$this->logger->debug('Bluesky thread search fallback not available', ['uri' => $uri, 'exception' => $e]);
+			$this->deepRepliesPending = $this->deepRepliesPending || $cursor !== '';
 
 			return null;
 		}
 
-		$this->deepRepliesPending = $this->deepRepliesPending || ($deadline !== null && ($cursor !== ''
-			|| ($expectedReplies > 0 && count($direct) < $expectedReplies)));
+		$this->deepRepliesPending = $this->deepRepliesPending || ($cursor !== ''
+			|| ($deadline !== null && $expectedReplies > 0 && count($direct) < $expectedReplies));
+		if ($cursor === '') {
+			$this->saveSearchCursor($cursorKey, '');
+		}
 
 		return $stored;
 	}
@@ -369,6 +391,63 @@ class BlueskyThreadSource implements ThreadSource {
 		$remaining = $deadline - hrtime(true);
 
 		return $remaining <= 0 ? 0 : (int)floor($remaining / 1_000_000_000);
+	}
+
+	/** @return list<string> */
+	private function savedContinuations(string $uri): array {
+		try {
+			$value = $this->durableCache->getShared(self::CONTINUATIONS, hash('sha256', $uri));
+		} catch (Throwable $e) {
+			$this->logger->debug('Bluesky thread continuations were not read from cache', ['uri' => $uri, 'exception' => $e]);
+
+			return [];
+		}
+
+		return is_array($value) ? array_values(array_filter($value, 'is_string')) : [];
+	}
+
+	/** @param list<string> $uris */
+	private function saveContinuations(string $uri, array $uris): void {
+		$key = hash('sha256', $uri);
+		try {
+			if ($uris === []) {
+				$this->durableCache->removeShared(self::CONTINUATIONS, $key);
+
+				return;
+			}
+			$this->durableCache->setShared(self::CONTINUATIONS, $key, $uris, self::CONTINUATION_TTL);
+		} catch (Throwable $e) {
+			$this->logger->debug('Bluesky thread continuations were not saved to cache', ['uri' => $uri, 'exception' => $e]);
+		}
+	}
+
+	private function saveSearchCursor(string $key, string $cursor): void {
+		try {
+			if ($cursor === '') {
+				$this->durableCache->removeShared(self::SEARCH_CURSORS, $key);
+
+				return;
+			}
+			$this->durableCache->setShared(self::SEARCH_CURSORS, $key, $cursor, self::CONTINUATION_TTL);
+		} catch (Throwable $e) {
+			$this->logger->debug('Bluesky thread search cursor was not saved to cache', ['key' => $key, 'exception' => $e]);
+		}
+	}
+
+	private function savedSearchCursor(string $key): string {
+		try {
+			$cursor = $this->durableCache->getShared(self::SEARCH_CURSORS, $key);
+
+			return is_string($cursor) ? $cursor : '';
+		} catch (Throwable $e) {
+			$this->logger->debug('Bluesky thread search cursor was not read from cache', ['key' => $key, 'exception' => $e]);
+
+			return '';
+		}
+	}
+
+	private static function searchCursorKey(string $rootUri, string $parentUri): string {
+		return hash('sha256', $rootUri . "\0" . $parentUri);
 	}
 
 	/** The URI search indexes replies under their conversation root, not the opened reply. */
