@@ -475,12 +475,6 @@ class PostStoreTest extends TestCase {
 		$gone = 'https://bsky.app/profile/' . self::DID . '/post/3kgone';
 		$blocked = 'https://bsky.app/profile/' . self::DID . '/post/3kblocked';
 		$this->known = [$gone, $blocked];
-		$this->actors->method('pdsEndpoint')->willReturn('https://pds.example');
-		$this->pds->expects($this->once())->method('call')->with('https://pds.example', 'com.atproto.repo.getRecord', 'GET', [
-			'repo' => self::DID,
-			'collection' => 'app.bsky.feed.post',
-			'rkey' => '3kgone',
-		])->willReturn(['status' => 404, 'body' => ['error' => 'RecordNotFound']]);
 		$this->appView->expects($this->once())->method('query')->willReturn(['posts' => [
 			['uri' => 'at://' . self::DID . '/app.bsky.feed.post/3kgone', 'notFound' => true],
 			['uri' => 'at://' . self::DID . '/app.bsky.feed.post/3kblocked', 'blocked' => true],
@@ -495,8 +489,6 @@ class PostStoreTest extends TestCase {
 		$kept = 'https://bsky.app/profile/' . self::DID . '/post/3kkept';
 		$gone = 'https://bsky.app/profile/' . self::DID . '/post/3kgone';
 		$this->known = [$kept, $gone];
-		$this->actors->method('pdsEndpoint')->willReturn('https://pds.example');
-		$this->pds->method('call')->willReturn(['status' => 404, 'body' => ['error' => 'RecordNotFound']]);
 		$view = ['uri' => 'at://' . self::DID . '/app.bsky.feed.post/3kkept', 'likeCount' => 4];
 		$this->appView->method('query')->willReturn(['posts' => [$view, ['uri' => 'at://' . self::DID . '/app.bsky.feed.post/3kgone', 'notFound' => true]]]);
 
@@ -512,7 +504,32 @@ class PostStoreTest extends TestCase {
 		$this->appView->method('query')->willReturn(['posts' => []]);
 		$this->interactions->expects($this->never())->method('removeAllOf');
 
-		$this->assertSame(['posts' => [], 'deleted' => 0], $this->store->postViews([$id]));
+		$this->assertSame(0, $this->store->deleteGone([$id]));
+		$this->assertSame([], $this->imported);
+	}
+
+	public function testDeleteSweepRemovesAnAppViewOmissionOnlyWhenThePdsConfirmsItIsGone(): void {
+		$id = 'https://bsky.app/profile/' . self::DID . '/post/3kgone';
+		$this->known = [$id];
+		$this->actors->method('pdsEndpoint')->willReturn('https://pds.example');
+		$this->pds->expects($this->once())->method('call')->with('https://pds.example', 'com.atproto.repo.getRecord', 'GET', [
+			'repo' => self::DID,
+			'collection' => 'app.bsky.feed.post',
+			'rkey' => '3kgone',
+		])->willReturn(['status' => 404, 'body' => ['error' => 'RecordNotFound']]);
+		$this->appView->method('query')->willReturn(['posts' => []]);
+
+		$this->assertSame(1, $this->store->deleteGone([$id]));
+		$this->assertSame($id, $this->imported[0]->getObjectId());
+	}
+
+	public function testAnInteractiveCountReadDoesNotWaitForThePdsWhenAppViewOmitsAPost(): void {
+		$id = 'https://bsky.app/profile/' . self::DID . '/post/3kdelayed';
+		$this->known = [$id];
+		$this->pds->expects($this->never())->method('call');
+		$this->appView->method('query')->willReturn(['posts' => []]);
+
+		$this->assertNull($this->store->postViews([$id]));
 		$this->assertSame([], $this->imported);
 	}
 

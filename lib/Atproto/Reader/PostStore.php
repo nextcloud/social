@@ -290,7 +290,7 @@ class PostStore {
 	 * @return int|null how many were deleted, or null when the AppView did not answer completely
 	 */
 	public function deleteGone(array $postIds): ?int {
-		return $this->postViews($postIds)['deleted'] ?? null;
+		return $this->postViews($postIds, confirmMissing: true)['deleted'] ?? null;
 	}
 
 	/**
@@ -299,9 +299,10 @@ class PostStore {
 	 * incomplete response is not evidence that any post was deleted.
 	 *
 	 * @param string[] $postIds stored ids, at most 25 (one `getPosts`); others are ignored
-	 * @return array{posts: array<string, array>, deleted: int}|null null when the AppView did not answer completely
+	 * @param bool $confirmMissing ask the author's PDS about posts omitted from a complete AppView response; only for the background deletion sweep
+	 * @return array{posts: array<string, array>, deleted: int}|null null when the AppView or required PDS answer was incomplete
 	 */
-	public function postViews(array $postIds, ?int $timeout = null): ?array {
+	public function postViews(array $postIds, ?int $timeout = null, bool $confirmMissing = false): ?array {
 		$uris = [];
 		foreach (array_slice($postIds, 0, 25) as $id) {
 			$parsed = BlueskyIds::parsePostId($id);
@@ -343,9 +344,20 @@ class PostStore {
 		$deleted = 0;
 		foreach ($uris as $id => $uri) {
 			$view = $views[$uri] ?? null;
-			if (is_array($view) && ($view['notFound'] ?? false) !== true) {
+			if (is_array($view) && ($view['notFound'] ?? false) === true) {
+				if ($this->delete($id)) {
+					$deleted++;
+				}
+				continue;
+			}
+			if (is_array($view)) {
 				$posts[$id] = $views[$uri];
 				continue;
+			}
+			if (!$confirmMissing) {
+				$this->logger->notice('Bluesky getPosts omitted a requested post', ['post' => $id]);
+
+				return null;
 			}
 
 			// getPosts omits unavailable records on some AppViews; the official
