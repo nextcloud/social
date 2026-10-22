@@ -24,10 +24,9 @@ use Throwable;
 /**
  * The rest of a conversation, from wherever it lives: a reader opening a
  * post sees the replies its own server knows of, not only the ones somebody
- * here happened to follow. On opening a Bluesky post, its thread is read
- * inline; other network sources are asked in a background job
- * (`Cron\FillThread`). A post written here and published to Bluesky can be
- * read from Bluesky immediately while the Fediverse read continues.
+ * here happened to follow. Opening a thread reads a bounded first page from
+ * ActivityPub or Bluesky inline; background fills continue the conversation
+ * (`Cron\FillThread`) beyond that first page.
  */
 class ThreadService {
 	/** the most replies one fill stores */
@@ -122,6 +121,51 @@ class ThreadService {
 			$this->rememberVisibleRead($key, self::VISIBLE_DONE, self::VISIBLE_TTL);
 		} catch (Throwable $e) {
 			$this->logger->info('Bluesky conversation not read during display', ['post' => $post->getId(), 'exception' => $e]);
+			$this->rememberVisibleRead($key, self::VISIBLE_FAILED, self::VISIBLE_RETRY_TTL);
+
+			return false;
+		} finally {
+			$this->locks->releaseLock($lock, ILockingProvider::LOCK_EXCLUSIVE);
+		}
+
+		return true;
+	}
+
+	/** Read the first page of Fediverse replies while the conversation is opened. */
+	public function fillActivityPub(Stream $post): ?bool {
+		$source = $this->container?->get(ActivityPubThreadSource::class);
+		if (!$source instanceof ActivityPubThreadSource || !$source->supports($post)) {
+			return false;
+		}
+		$key = 'activitypub:' . md5($post->getId());
+		$state = $this->visibleState($key);
+		if ($state !== null) {
+			return $state === self::VISIBLE_DONE;
+		}
+
+		$lock = self::VISIBLE_LOCK . md5($key);
+		if ($this->locks->isLocked($lock, ILockingProvider::LOCK_EXCLUSIVE)) {
+			return null;
+		}
+		try {
+			$this->locks->acquireLock($lock, ILockingProvider::LOCK_EXCLUSIVE);
+		} catch (LockedException) {
+			return null;
+		}
+		try {
+			$state = $this->visibleState($key);
+			if ($state !== null) {
+				return $state === self::VISIBLE_DONE;
+			}
+			$source->fillVisible($post, self::BUDGET);
+			$complete = !$source->hasReadFailures();
+			$this->rememberVisibleRead(
+				$key,
+				$complete ? self::VISIBLE_DONE : self::VISIBLE_FAILED,
+				$complete ? self::VISIBLE_TTL : self::VISIBLE_RETRY_TTL
+			);
+		} catch (Throwable $e) {
+			$this->logger->info('Fediverse conversation not read during display', ['post' => $post->getId(), 'exception' => $e]);
 			$this->rememberVisibleRead($key, self::VISIBLE_FAILED, self::VISIBLE_RETRY_TTL);
 
 			return false;

@@ -1845,14 +1845,21 @@ follows their author. `StreamService::getContextByNid()` asks
 `RemoteFetchQueue::fillThread()` for the conversation's first post and for
 the one opened, at most every ten minutes per post, for a post from another
 server or a public one of this server's (which other networks read too), and
-`Cron\FillThread` hands it to `ThreadService`. That asks every network the
-post is on (`ThreadSource`), with one budget of 150 replies between them:
+`Cron\FillThread` hands it to `ThreadService`. Opening the thread also reads
+the first page of replies inline from its network under a shared three-second
+network budget; the background fill continues paging and following replies
+deeper into the conversation, with one budget of 150 replies:
 
 - `ActivityPubThreadSource` reads the post's `replies` collection as its
   server described it, a few pages, fetches each reply this server does not
   hold from its own server (`StreamQueueService::fetchNow()`, held to the
   same host breaker as the queue), and the replies of those in turn, three
-  levels deep;
+  levels deep. The inline read is limited to 20 direct replies and passes its
+  remaining timeout to both collection and post fetches; additional pages and
+  replies stay on the existing background path. A failed collection or reply
+  fetch keeps any replies already stored, marks the visible read incomplete,
+  and lets the next context poll retry after five seconds instead of caching
+  the partial result as a successful read;
 - `Atproto\Reader\BlueskyThreadSource` asks the AppView for the thread
   (`getPostThread`) of a post that is on Bluesky — read from there, or
   written here and published — and stores each post as any Bluesky post is

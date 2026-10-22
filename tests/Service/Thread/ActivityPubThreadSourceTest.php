@@ -117,6 +117,22 @@ class ActivityPubThreadSourceTest extends TestCase {
 		$this->assertSame([], $this->fetched);
 	}
 
+	public function testAFailedRepliesCollectionIsReportedAsIncompleteForLiveRetry(): void {
+		$post = $this->note('https://remote.example/notes/1', ['replies' => 'https://remote.example/notes/1/replies']);
+
+		$this->assertSame(0, $this->source->fillVisible($post, 20));
+		$this->assertTrue($this->source->hasReadFailures());
+	}
+
+	public function testAFailedReplyFetchIsReportedAsIncompleteForLiveRetry(): void {
+		$post = $this->note('https://remote.example/notes/1', ['replies' => [
+			'type' => 'Collection', 'items' => ['https://remote.example/notes/reply'],
+		]]);
+
+		$this->assertSame(0, $this->source->fillVisible($post, 20));
+		$this->assertTrue($this->source->hasReadFailures());
+	}
+
 	public function testFollowsActivityStreamsHrefLinks(): void {
 		$post = $this->note('https://remote.example/notes/1', ['replies' => [
 			'type' => 'OrderedCollection',

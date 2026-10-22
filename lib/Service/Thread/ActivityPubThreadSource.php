@@ -27,8 +27,10 @@ use Throwable;
  */
 class ActivityPubThreadSource implements ThreadSource {
 	private const DEPTH = 3;
+	private const VISIBLE_TIMEOUT = 3;
 	/** the most collection pages read for one post */
 	private const PAGES = 4;
+	private bool $readIncomplete = false;
 
 	public function __construct(
 		private StreamRequest $streams,
@@ -45,16 +47,36 @@ class ActivityPubThreadSource implements ThreadSource {
 
 	#[\Override]
 	public function fill(Stream $post, int $budget): int {
+		$this->readIncomplete = false;
+		return $this->fillWithin($post, $budget, self::DEPTH, null);
+	}
+
+	/** Read direct replies for an open thread within one shared network budget. */
+	public function fillVisible(Stream $post, int $budget): int {
+		$this->readIncomplete = false;
+		return $this->fillWithin($post, min(20, $budget), 1, hrtime(true) + self::VISIBLE_TIMEOUT * 1_000_000_000);
+	}
+
+	/** A failed collection or reply fetch must not be cached as a complete read. */
+	public function hasReadFailures(): bool {
+		return $this->readIncomplete;
+	}
+
+	private function fillWithin(Stream $post, int $budget, int $depthLimit, ?int $deadline): int {
 		$stored = 0;
 		$level = [$post];
-		for ($depth = 0; $depth < self::DEPTH && $level !== [] && $stored < $budget; $depth++) {
+		for ($depth = 0; $depth < $depthLimit && $level !== [] && $stored < $budget; $depth++) {
 			$next = [];
 			foreach ($level as $parent) {
-				foreach ($this->replyIds($parent) as $id) {
+				foreach ($this->replyIds($parent, $deadline, $budget - $stored) as $id) {
 					if ($stored >= $budget) {
 						break 3;
 					}
-					$reply = $this->known($id) ?? $this->fetch($id);
+					if ($deadline !== null && self::remaining($deadline) < 1) {
+						$this->readIncomplete = true;
+						break 3;
+					}
+					$reply = $this->known($id) ?? $this->fetch($id, $deadline);
 					if ($reply === null) {
 						continue;
 					}
@@ -75,7 +97,7 @@ class ActivityPubThreadSource implements ThreadSource {
 	 *
 	 * @return list<string>
 	 */
-	private function replyIds(Stream $post): array {
+	private function replyIds(Stream $post, ?int $deadline = null, int $limit = 150): array {
 		$collection = self::repliesOf($post);
 		$ids = [];
 		$seen = [];
@@ -85,19 +107,29 @@ class ActivityPubThreadSource implements ThreadSource {
 				continue;
 			}
 			if (is_string($collection)) {
+				if ($deadline !== null && self::remaining($deadline) < 1) {
+					$this->readIncomplete = true;
+					break;
+				}
 				if (isset($seen[$collection])) {
 					break;
 				}
 				$seen[$collection] = true;
 				try {
-					$collection = $this->curl->retrieveObject($collection);
+					$collection = $deadline === null
+						? $this->curl->retrieveObject($collection)
+						: $this->curl->retrieveObject($collection, true, self::remaining($deadline));
 				} catch (Throwable $e) {
+					$this->readIncomplete = true;
 					$this->logger->info('A replies collection was not read', ['post' => $post->getId(), 'exception' => $e]);
 					break;
 				}
 			}
 			$items = $collection['orderedItems'] ?? $collection['items'] ?? [];
 			foreach (is_array($items) ? $items : [] as $item) {
+				if (count($ids) >= $limit) {
+					break 2;
+				}
 				$id = self::idOf($item);
 				if (preg_match('#^https?://#i', $id) === 1) {
 					$ids[] = $id;
@@ -150,16 +182,25 @@ class ActivityPubThreadSource implements ThreadSource {
 	/**
 	 * @return array{post: Stream, new: bool}|null
 	 */
-	private function fetch(string $id): ?array {
+	private function fetch(string $id, ?int $deadline = null): ?array {
 		try {
-			$this->queue->fetchNow($id);
+			if ($deadline === null) {
+				$this->queue->fetchNow($id);
+			} else {
+				$this->queue->fetchNow($id, self::remaining($deadline));
+			}
 
 			return ['post' => $this->streams->getStreamById($id), 'new' => true];
 		} catch (Throwable $e) {
+			$this->readIncomplete = true;
 			$this->logger->info('A reply was not fetched', ['id' => $id, 'exception' => $e]);
 
 			return null;
 		}
+	}
+
+	private static function remaining(int $deadline): int {
+		return (int)floor(max(0, $deadline - hrtime(true)) / 1_000_000_000);
 	}
 
 	/**

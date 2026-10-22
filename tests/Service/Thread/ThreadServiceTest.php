@@ -109,6 +109,27 @@ class ThreadServiceTest extends TestCase {
 		$this->assertNull((new ThreadService($this->createStub(StreamRequest::class), new NullLogger(), $locks, $container))->fillBluesky($post));
 	}
 
+	public function testPartialFediverseReadIsRetriedInsteadOfCachedAsComplete(): void {
+		$post = (new Note())->setId('https://remote.example/notes/1');
+		$fediverse = $this->createMock(ActivityPubThreadSource::class);
+		$fediverse->expects($this->exactly(2))->method('supports')->with($post)->willReturn(true);
+		$fediverse->expects($this->once())->method('fillVisible')->with($post, ThreadService::BUDGET)->willReturn(1);
+		$fediverse->expects($this->once())->method('hasReadFailures')->willReturn(true);
+		$container = $this->createMock(ContainerInterface::class);
+		$container->method('get')->with(ActivityPubThreadSource::class)->willReturn($fediverse);
+		$cache = $this->createMock(DurableCache::class);
+		$key = 'activitypub:' . md5($post->getId());
+		$cache->expects($this->exactly(3))->method('getShared')
+			->with('social.thread.visible', $key)
+			->willReturnOnConsecutiveCalls(null, null, 'failed');
+		$cache->expects($this->once())->method('setShared')
+			->with('social.thread.visible', $key, 'failed', 5);
+		$service = new ThreadService($this->createStub(StreamRequest::class), new NullLogger(), $this->createStub(ILockingProvider::class), $container, $cache);
+
+		$this->assertTrue($service->fillActivityPub($post));
+		$this->assertFalse($service->fillActivityPub($post));
+	}
+
 	/** A post written here and published to Bluesky is asked of both. */
 	public function testEveryNetworkThePostIsOnIsAskedWithWhatIsLeftOfTheBudget(): void {
 		$post = (new Note())->setId('https://social.test/@alice/1');

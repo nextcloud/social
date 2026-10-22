@@ -671,8 +671,10 @@ class StreamService {
 
 		// the rest of the conversation, from wherever it lives, read in the
 		// background: from its first post, and from this one when that is
-		// deeper than one read goes
+		// deeper than one read goes. The Fediverse's first reply page is also
+		// read inline under a short timeout, like Bluesky's thread view.
 		$root = ($ancestors === []) ? $post : end($ancestors);
+		$this->threadService?->fillActivityPub($root);
 		$blueskyResult = $this->threadService?->fillBluesky($root, $this->viewer);
 		$blueskyRead = $blueskyResult === true;
 		$blueskyPending = $this->threadService !== null && $blueskyResult === null;

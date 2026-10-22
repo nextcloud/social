@@ -660,8 +660,12 @@ class Document extends ACore implements JsonSerializable {
 		if (strpos($this->getMediaType(), '/')) {
 			[$type, $mime] = explode('/', $this->getMediaType(), 2);
 			// Mastodon's four kinds, and its word for everything else: a PDF
-			// is not an "application", it is a file a client cannot render
-			$media->setType(in_array($type, ['image', 'video', 'audio', 'gifv'], true) ? $type : 'unknown');
+			// is not an "application", it is a file a client cannot render.
+			// HLS playlists are application/* MIME types too, but they are the
+			// source of a video and must go through the HLS player, not the
+			// generic file download card (notably for Bluesky video embeds).
+			$media->setType(in_array($type, ['image', 'video', 'audio', 'gifv'], true)
+				|| DocumentService::isPlaylist($this->getMediaType()) ? 'video' : 'unknown');
 		}
 
 		// the whole of it, not just the half the client entity shows: what
