@@ -11,6 +11,7 @@ namespace OCA\Social\Service\Interaction;
 
 use OCA\Social\Atproto\AppView\AppViewClient;
 use OCA\Social\Atproto\Reader\BlueskyActorService;
+use OCA\Social\Atproto\Reader\BlueskyIds;
 use OCA\Social\Atproto\Reader\BlueskyInteractionSource;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\StreamNotFoundException;
@@ -46,6 +47,8 @@ class InteractionService {
 	private const VISIBLE_INTERVAL = 5;
 	/** Retry a failed visible read on the same cadence as visible post refreshes. */
 	private const VISIBLE_RETRY_INTERVAL = self::VISIBLE_INTERVAL;
+	/** Resolve a few uncached ActivityPub profiles while the reaction list is open. */
+	private const VISIBLE_ACTOR_LIMIT = 5;
 	private const VISIBLE_DONE = 'done';
 	private const VISIBLE_PENDING = 'pending';
 	private const VISIBLE_LOCK = 'social-visible-reactions-';
@@ -153,6 +156,7 @@ class InteractionService {
 			$supported = false;
 			$failed = false;
 			$ids = [];
+			$activityPubIds = [];
 			$firstSource = true;
 			foreach ($this->sources() as $source) {
 				if (!$source->supports($post)) {
@@ -171,7 +175,11 @@ class InteractionService {
 					if ($type === self::QUOTES) {
 						$source->quotes($post, self::LIMIT, $timeout);
 					} else {
-						$ids = array_merge($ids, $source->actors($post, $type, self::LIMIT, $timeout));
+						$sourceIds = $source->actors($post, $type, self::LIMIT, $timeout);
+						$ids = array_merge($ids, $sourceIds);
+						if ($source instanceof ActivityPubInteractionSource) {
+							$activityPubIds = array_merge($activityPubIds, $sourceIds);
+						}
 					}
 				} catch (Throwable $e) {
 					$failed = true;
@@ -185,6 +193,9 @@ class InteractionService {
 			}
 			if (!$supported) {
 				return null;
+			}
+			if ($activityPubIds !== []) {
+				$this->resolveVisibleActivityPubActors($activityPubIds, $deadline);
 			}
 			if ($type !== self::QUOTES) {
 				$previous = $failed ? $this->durableCache->getShared(self::CACHE, $key) : [];
@@ -209,6 +220,39 @@ class InteractionService {
 		} finally {
 			if ($this->locks !== null) {
 				$this->locks->releaseLock($lock, ILockingProvider::LOCK_EXCLUSIVE);
+			}
+		}
+	}
+
+	/**
+	 * Resolve a small number of uncached Fediverse reaction profiles before
+	 * returning the visible list. Any actor not resolved within the same
+	 * three-second budget remains queued for the normal background fill.
+	 *
+	 * @param list<string> $ids
+	 */
+	private function resolveVisibleActivityPubActors(array $ids, int $deadline): void {
+		$ids = array_values(array_unique(array_filter($ids, static fn (string $id): bool
+			=> preg_match('#^https?://#i', $id) === 1 && !BlueskyIds::isActorId($id)
+		)));
+		if ($ids === []) {
+			return;
+		}
+
+		$cached = $this->cacheActors->getCachedFromIds($ids);
+		$missing = array_values(array_diff($ids, array_keys($cached)));
+		foreach (array_slice($missing, 0, self::VISIBLE_ACTOR_LIMIT) as $id) {
+			$remaining = (int)floor(($deadline - hrtime(true)) / 1_000_000_000);
+			if ($remaining < 1) {
+				break;
+			}
+			try {
+				$this->cacheActors->getFromId($id, false, $remaining);
+			} catch (Throwable $e) {
+				$this->logger->debug('Visible reaction actor was not resolved inline', [
+					'actor' => $id,
+					'exception' => $e,
+				]);
 			}
 		}
 	}

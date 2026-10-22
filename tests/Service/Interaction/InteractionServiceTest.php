@@ -162,6 +162,57 @@ class InteractionServiceTest extends TestCase {
 		$this->assertFalse($service->reactedBy($post, 'Like', 10)['filling']);
 	}
 
+	public function testOpeningFediverseReactionListResolvesMissingProfilesWithinItsVisibleBudget(): void {
+		$post = (new Note())->setId('https://remote.example/notes/1');
+		$actorId = 'https://remote.example/users/ann';
+		$actor = self::person($actorId);
+		$actions = $this->createMock(ActionService::class);
+		$actions->method('reactedBy')->willReturn([]);
+		$cacheActors = $this->createMock(CacheActorService::class);
+		$cachedReads = 0;
+		$cacheActors->method('getCachedFromIds')->willReturnCallback(static function (array $ids) use (&$cachedReads, $actorId, $actor): array {
+			$cachedReads++;
+
+			return $cachedReads === 1 ? [] : [$actorId => $actor];
+		});
+		$cacheActors->expects($this->once())->method('getFromId')->with(
+			$actorId,
+			false,
+			$this->logicalAnd($this->greaterThan(0), $this->lessThanOrEqual(3)),
+		)->willReturn($actor);
+		$factory = $this->createStub(ICacheFactory::class);
+		$factory->method('isAvailable')->willReturn(false);
+		$time = $this->createStub(ITimeFactory::class);
+		$time->method('getTime')->willReturn(1790000000);
+		$durableCache = new DurableCache($factory, new InMemoryDurableCacheRequest(), $time);
+		$queue = $this->createMock(RemoteFetchQueue::class);
+		$queue->method('fillInteractions')->willReturn(false);
+		$queue->expects($this->never())->method('resolveActors');
+		$fediverse = $this->createMock(ActivityPubInteractionSource::class);
+		$fediverse->method('supports')->willReturn(true);
+		$fediverse->method('actors')->willReturn([$actorId]);
+		$bluesky = $this->createMock(BlueskyInteractionSource::class);
+		$bluesky->method('supports')->willReturn(false);
+		$container = $this->createMock(ContainerInterface::class);
+		$container->method('get')->willReturnMap([
+			[ActivityPubInteractionSource::class, $fediverse],
+			[BlueskyInteractionSource::class, $bluesky],
+		]);
+		$service = new InteractionService(
+			$actions,
+			$cacheActors,
+			$this->createMock(StreamRequest::class),
+			$durableCache,
+			$queue,
+			new NullLogger(),
+			$container,
+		);
+
+		$result = $service->reactedBy($post, 'Like', 10);
+
+		$this->assertSame([$actorId], array_map(static fn (Person $person): string => $person->getId(), $result['accounts']));
+	}
+
 	public function testMissingListedActorsKeepTheAvatarListFillingUntilTheirProfilesAreCached(): void {
 		$post = (new Note())->setId('https://remote.example/notes/1');
 		$streams = $this->createMock(StreamRequest::class);
