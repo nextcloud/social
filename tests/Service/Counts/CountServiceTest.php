@@ -222,7 +222,7 @@ class CountServiceTest extends TestCase {
 		$source->method('supports')->with($post)->willReturn(true);
 		$source->expects($this->once())->method('refresh')->with([$post], AppViewClient::INTERACTIVE_TIMEOUT)->willThrowException(new RuntimeException('AppView is temporarily unavailable'));
 		$this->sources[BlueskyCountSource::class] = $source;
-		$this->queue->expects($this->once())->method('refreshCounts')->with([$id => 15], true)->willReturn(true);
+		$this->queue->expects($this->once())->method('refreshCounts')->with([$id => CountService::VISIBLE_INTERVAL], true)->willReturn(true);
 
 		$service = $this->service();
 
@@ -255,7 +255,7 @@ class CountServiceTest extends TestCase {
 		);
 		$this->sources[BlueskyCountSource::class] = $source;
 		$this->queue->expects($this->once())->method('refreshCounts')->with([
-			$post->getId() => 15,
+			$post->getId() => CountService::VISIBLE_INTERVAL,
 		], true)->willReturn(true);
 		$service = $this->service();
 

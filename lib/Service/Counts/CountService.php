@@ -53,7 +53,10 @@ class CountService {
 	public const OLD_INTERVAL = 21600;
 	/** Live reader refresh cadence, separate from the slower background scan. */
 	public const VISIBLE_INTERVAL = 5;
-	private const VISIBLE_RETRY_INTERVAL = 15;
+	// Visible detail views poll every five seconds. Retry a failed inline read
+	// on that same cadence rather than leaving the post stale until the slower
+	// background queue happens to run.
+	private const VISIBLE_RETRY_INTERVAL = self::VISIBLE_INTERVAL;
 	private const VISIBLE_CACHE = 'social.counts.visible';
 	private const VISIBLE_PENDING = 'pending';
 	private const VISIBLE_DONE = 'done';

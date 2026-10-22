@@ -72,7 +72,7 @@ class ThreadServiceTest extends TestCase {
 			->with('social.thread.visible', md5($post->getId()))
 			->willReturnOnConsecutiveCalls(null, null, 'failed');
 		$cache->expects($this->once())->method('setShared')
-			->with('social.thread.visible', md5($post->getId()), 'failed', 15);
+			->with('social.thread.visible', md5($post->getId()), 'failed', 5);
 		$service = new ThreadService($this->createStub(StreamRequest::class), new NullLogger(), $this->createStub(ILockingProvider::class), $container, $cache);
 
 		$this->assertFalse($service->fillBluesky($post));

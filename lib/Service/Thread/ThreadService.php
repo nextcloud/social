@@ -36,7 +36,10 @@ class ThreadService {
 	private const VISIBLE_DONE = 'done';
 	private const VISIBLE_FAILED = 'failed';
 	private const VISIBLE_TTL = 10;
-	private const VISIBLE_RETRY_TTL = 15;
+	// The thread view polls every five seconds while filling. Let a transient
+	// AppView failure be retried on the next poll instead of waiting for the
+	// background scheduler to recover the conversation.
+	private const VISIBLE_RETRY_TTL = 5;
 	private const VISIBLE_LOCK = 'social-visible-thread-';
 	private bool $blueskyDeepRepliesPending = false;
 
