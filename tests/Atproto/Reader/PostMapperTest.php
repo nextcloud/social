@@ -334,6 +334,14 @@ class PostMapperTest extends TestCase {
 		$mapper = new PostMapper($this->resolver());
 		$this->assertSame([], $mapper->note($view)['attachment'], 'without a verified PDS there is no external file URL');
 		$this->assertSame([], $mapper->note($view, 'http://pds.example')['attachment'], 'insecure PDS endpoints are refused');
+		foreach ([
+			'https://user@pds.example',
+			'https://user:password@pds.example',
+			'https://pds.example?mode=unsafe',
+			'https://pds.example#fragment',
+		] as $unsafePds) {
+			$this->assertSame([], $mapper->note($view, $unsafePds)['attachment'], 'PDS endpoints with credentials, query strings, or fragments are refused');
+		}
 
 		$view['labels'] = [['val' => PostMapper::NO_UNAUTHENTICATED]];
 		$this->assertSame([], $mapper->note($view, 'https://pds.example')['attachment'], 'logged-in-only Bluesky posts do not leak through the public media route');

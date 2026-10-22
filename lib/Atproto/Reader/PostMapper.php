@@ -451,7 +451,8 @@ class PostMapper {
 
 		return is_array($parts) && strtolower($parts['scheme'] ?? '') === 'https'
 			&& is_string($parts['host'] ?? null) && $parts['host'] !== ''
-			&& !isset($parts['user'], $parts['pass'], $parts['query'], $parts['fragment'])
+			&& !isset($parts['user']) && !isset($parts['pass'])
+			&& !isset($parts['query']) && !isset($parts['fragment'])
 			&& in_array($parts['path'] ?? '', ['', '/'], true)
 			&& filter_var($parts['host'], FILTER_VALIDATE_IP) === false
 			&& preg_match('/(?:^|\.)(?:localhost|local)$/i', $parts['host']) !== 1;
