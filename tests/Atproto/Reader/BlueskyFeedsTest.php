@@ -30,6 +30,8 @@ use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\ICache;
 use OCP\ICacheFactory;
 use OCP\IConfig;
+use OCP\Lock\ILockingProvider;
+use OCP\Lock\LockedException;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -76,7 +78,7 @@ class BlueskyFeedsTest extends TestCase {
 		];
 	}
 
-	private function feeds(bool $memcache = true): BlueskyFeeds {
+	private function feeds(bool $memcache = true, ?ILockingProvider $locks = null): BlueskyFeeds {
 		$appView = $this->createMock(AppViewClient::class);
 		$answer = function (string $method, array $params, bool $asPerson): array {
 			$this->asked[] = [$method, $params, $asPerson];
@@ -133,7 +135,7 @@ class BlueskyFeedsTest extends TestCase {
 		$time->method('getTime')->willReturnCallback(fn (): int => $this->now);
 		$cursors = new DurableCache($cacheFactory, $this->cursorTable, $time);
 
-		return new BlueskyFeeds($appView, $identities, new Preferences($config, $this->createMock(\OCA\Social\Atproto\Client\MutedWords::class), $this->createMock(\OCA\Social\Service\AccountService::class)), $this->createMock(PostStore::class), $streams, $cursors, new NullLogger(), $this->blockedBy);
+		return new BlueskyFeeds($appView, $identities, new Preferences($config, $this->createMock(\OCA\Social\Atproto\Client\MutedWords::class), $this->createMock(\OCA\Social\Service\AccountService::class)), $this->createMock(PostStore::class), $streams, $cursors, $locks ?? $this->createStub(ILockingProvider::class), new NullLogger(), $this->blockedBy);
 	}
 
 	/** @return list<array> the saved-feeds items as stored */
@@ -318,6 +320,18 @@ class BlueskyFeedsTest extends TestCase {
 		$actor = (new Person())->setId(BlueskyIds::actorId(self::BOB));
 
 		self::assertTrue($this->feeds()->authorPage($actor, '', 20, $this->alice));
+	}
+
+	public function testAConcurrentProfilePageRequestWaitsForTheCurrentCursorRead(): void {
+		$actor = (new Person())->setId(BlueskyIds::actorId(self::BOB));
+		$locks = $this->createMock(ILockingProvider::class);
+		$locks->expects(self::once())
+			->method('acquireLock')
+			->with(self::callback(static fn (string $key): bool => str_starts_with($key, 'social-atproto-profile-page-')), ILockingProvider::LOCK_EXCLUSIVE)
+			->willThrowException(new LockedException('another profile page request is active'));
+
+		self::assertTrue($this->feeds(false, $locks)->authorPage($actor, '', 20, $this->alice));
+		self::assertSame([], $this->asked, 'a concurrent request does not repeat the AppView fetch');
 	}
 
 	public function testAProfileRefillResumesAfterHiddenPagesWhenTheNextPageHasAnInvalidCursor(): void {

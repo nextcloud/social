@@ -22,6 +22,8 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\DurableCache;
+use OCP\Lock\ILockingProvider;
+use OCP\Lock\LockedException;
 use Psr\Log\LoggerInterface;
 use Throwable;
 use UnexpectedValueException;
@@ -51,6 +53,7 @@ class BlueskyFeeds {
 	private const PROFILE_CURSORS = 'social-atproto-profile-cursors';
 	private const PROFILE_CURSOR_PAGES = 'social-atproto-profile-cursor-pages';
 	private const PROFILE_RETRIES = 'social-atproto-profile-retries';
+	private const PROFILE_PAGE_LOCK = 'social-atproto-profile-page-';
 	private const COLLECTIONS = [self::FEED => 'app.bsky.feed.generator', self::LIST => 'app.bsky.graph.list'];
 
 	public function __construct(
@@ -60,6 +63,7 @@ class BlueskyFeeds {
 		private PostStore $postStore,
 		private StreamRequest $streams,
 		private DurableCache $durableCache,
+		private ILockingProvider $locks,
 		private LoggerInterface $logger,
 		private ?BlueskyBlockedBy $blockedBy = null,
 	) {
@@ -242,6 +246,31 @@ class BlueskyFeeds {
 		}
 
 		$key = $this->profileCursorKey($actor, $after);
+		$lock = self::PROFILE_PAGE_LOCK . $key;
+		$acquired = false;
+		try {
+			$this->locks->acquireLock($lock, ILockingProvider::LOCK_EXCLUSIVE);
+			$acquired = true;
+		} catch (LockedException) {
+			// The request holding this cursor's lock will persist its AppView
+			// progress. Tell the profile page to poll instead of fetching it twice.
+			return true;
+		} catch (Throwable $e) {
+			// Profiles remain readable during a lock-provider outage; at worst,
+			// concurrent requests may repeat the short bounded AppView read.
+			$this->logger->info('Could not lock a Bluesky profile page', ['actor' => $actor->getId(), 'exception' => $e]);
+		}
+
+		try {
+			return $this->readAuthorPage($actor, $after, $limit, $viewer, $key);
+		} finally {
+			if ($acquired) {
+				$this->locks->releaseLock($lock, ILockingProvider::LOCK_EXCLUSIVE);
+			}
+		}
+	}
+
+	private function readAuthorPage(Person $actor, string $after, int $limit, ?Person $viewer, string $key): bool {
 		$cursor = '';
 		$retry = $this->durableCache->get(self::PROFILE_RETRIES, $key);
 		if (is_string($retry) && $retry !== '') {
