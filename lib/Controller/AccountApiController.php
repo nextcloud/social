@@ -826,13 +826,14 @@ class AccountApiController extends MastodonApiController {
 			}
 
 			$profileFilling = false;
+			$remoteProfile = !$local->isLocal() && !BlueskyActorService::isBluesky($local);
 			// Bluesky profiles have no ActivityPub outbox. Read their public
 			// author feed into the shared stream before the ordinary profile
 			// timeline query; keep AppView's cursor behind the local max_id so
 			// clients continue paging through this endpoint as usual.
 			if (BlueskyActorService::isBluesky($local) && !$min_id && !$since_id) {
 				$profileFilling = $this->blueskyFeeds->authorPage($local, $max_id ? (string)$max_id : '', $limit, $this->viewer);
-			} elseif ($this->viewer !== null && !$max_id && !$min_id && !$since_id) {
+			} elseif ($remoteProfile && $this->viewer !== null && !$max_id && !$min_id && !$since_id) {
 				// only for a caller with a session: a sync fetches the account's
 				// outbox from its server and stores every post of it, so an
 				// anonymous caller could make this instance fetch and keep the
@@ -841,6 +842,7 @@ class AccountApiController extends MastodonApiController {
 				// once a quarter-hour per account: this page answers with what is
 				// stored, and the next look has what the sync found.
 				$this->remoteFetchQueue->syncTimeline($local);
+				$profileFilling = $this->remoteFetchQueue->isTimelinePending($local->getId());
 			}
 
 			$options = new ProbeOptions($this->request);
@@ -869,6 +871,12 @@ class AccountApiController extends MastodonApiController {
 				$posts,
 				static fn (mixed $post): bool => !($post instanceof Announce) || $post->getObject() instanceof Stream
 			));
+			if ($remoteProfile && $this->viewer !== null && $max_id && !$min_id && !$since_id
+				&& count($shown) < $options->getLimit()) {
+				$profileFilling = $this->remoteFetchQueue->fillTimeline($local)
+					|| $this->remoteFetchQueue->isTimelinePending($local->getId())
+					|| $profileFilling;
+			}
 
 			$response = $this->paged(
 				$this->filterService->apply($shown, Filter::CONTEXT_ACCOUNT, $this->viewer),

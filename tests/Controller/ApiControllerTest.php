@@ -3598,9 +3598,14 @@ class ApiControllerTest extends TestCase {
 		$this->cacheActorService->method('getFromAccount')->with('bob@remote.example')->willReturn($actor);
 		$this->streamService->expects($this->never())->method('syncRemoteTimeline');
 		$this->remoteFetchQueue->expects($this->once())->method('syncTimeline')->with($actor);
+		$this->remoteFetchQueue->expects($this->once())->method('isTimelinePending')->with($actor->getId())->willReturn(true);
 		$this->captureTimelineOptions(['p']);
 
-		$this->assertSame(['p'], $this->controller()->accountStatuses('bob@remote.example')->getData());
+		$response = $this->controller()->accountStatuses('bob@remote.example');
+
+		$this->assertSame(['p'], $response->getData());
+		$this->assertSame('1', $response->getHeaders()['X-Social-Filling'] ?? null);
+		$this->assertSame('1', $response->getHeaders()['X-Social-Profile-Filling'] ?? null);
 	}
 
 	public function testBlueskyProfileStatusesFetchEveryPageThroughTheAuthorFeed(): void {
@@ -3650,6 +3655,21 @@ class ApiControllerTest extends TestCase {
 		$this->controller()->accountStatuses('bob@remote.example', 20, 40);
 		$this->controller()->accountStatuses('bob@remote.example', 20, 0, 10);
 		$this->controller()->accountStatuses('bob@remote.example', 20, 0, 0, '20');
+	}
+
+	public function testAnExhaustedRemoteProfilePageQueuesItsNextOutboxPage(): void {
+		$this->loggedInAs();
+		$actor = $this->createStub(Person::class);
+		$actor->method('getId')->willReturn('https://remote.example/users/bob');
+		$this->cacheActorService->method('getFromAccount')->willReturn($actor);
+		$this->remoteFetchQueue->expects($this->once())->method('fillTimeline')->with($actor)->willReturn(true);
+		$this->captureTimelineOptions([]);
+
+		$response = $this->controller()->accountStatuses('bob@remote.example', 20, 40);
+
+		$this->assertSame([], $response->getData());
+		$this->assertSame('1', $response->getHeaders()['X-Social-Filling'] ?? null);
+		$this->assertSame('1', $response->getHeaders()['X-Social-Profile-Filling'] ?? null);
 	}
 
 	public function testAccountStatusesProbesTheAccountTimeline(): void {

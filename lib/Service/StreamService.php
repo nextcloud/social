@@ -1035,8 +1035,18 @@ class StreamService {
 	 * @param Person $actor
 	 */
 	public function syncRemoteTimeline(Person $actor): int {
+		return $this->syncRemoteTimelinePage($actor)['synced'];
+	}
+
+	/**
+	 * Read one bounded page of a remote outbox and return its continuation.
+	 *
+	 * @return array{synced: int, next: array{url: string, offset: int}|null, success: bool}
+	 */
+	public function syncRemoteTimelinePage(Person $actor, string $pageUrl = '', int $offset = 0): array {
+		$result = ['synced' => 0, 'next' => null, 'success' => false];
 		if ($actor->isLocal()) {
-			return 0;
+			return $result;
 		}
 
 		$synced = 0;
@@ -1044,32 +1054,45 @@ class StreamService {
 			$outboxUrl = $actor->getOutbox();
 			if (empty($outboxUrl)) {
 				$this->logger->info('[syncRemoteTimeline] No outbox URL for actor', ['actor' => $actor->getId()]);
-				return 0;
+				return $result;
 			}
 
-			$this->logger->debug('[syncRemoteTimeline] Fetching outbox', ['url' => $outboxUrl, 'actor' => $actor->getId()]);
-			$outboxData = $this->curlService->retrieveObject($outboxUrl);
+			$pageUrl = $pageUrl !== '' ? $pageUrl : $outboxUrl;
+			if (!$this->isOutboxPageUrl($pageUrl, $actor)) {
+				return $result;
+			}
+			$this->logger->debug('[syncRemoteTimeline] Fetching outbox page', ['url' => $pageUrl, 'actor' => $actor->getId()]);
+			$outboxData = $this->curlService->retrieveObject($pageUrl);
 
-			// Follow 'first' to get the first page
+			// An OrderedCollection may inline its first page, or link to it.
 			$pageData = $outboxData;
 			if (isset($outboxData['first'])) {
 				if (is_array($outboxData['first'])) {
 					$pageData = $outboxData['first'];
 				} elseif (is_string($outboxData['first'])) {
-					$this->logger->debug('[syncRemoteTimeline] Following first page', ['url' => $outboxData['first']]);
-					$pageData = $this->curlService->retrieveObject($outboxData['first']);
+					$firstPage = $this->resolveOutboxPageUrl($outboxData['first'], $pageUrl);
+					if ($firstPage === '' || !$this->isOutboxPageUrl($firstPage, $actor)) {
+						return $result;
+					}
+					$this->logger->debug('[syncRemoteTimeline] Following first page', ['url' => $firstPage]);
+					$pageUrl = $firstPage;
+					$pageData = $this->curlService->retrieveObject($pageUrl);
 				}
 			}
 
 			$items = $pageData['orderedItems'] ?? $pageData['items'] ?? [];
 			if (!is_array($items)) {
 				$this->logger->debug('[syncRemoteTimeline] No items in page', ['actor' => $actor->getId()]);
-				return 0;
+				$result['success'] = true;
+				return $result;
 			}
+			$result['success'] = true;
 
 			$this->logger->info('[syncRemoteTimeline] Processing items', ['actor' => $actor->getId(), 'count' => count($items)]);
 
-			foreach (array_slice($items, 0, self::SYNC_ITEM_LIMIT) as $itemData) {
+			$offset = max(0, $offset);
+			$batch = array_slice($items, $offset, self::SYNC_ITEM_LIMIT);
+			foreach ($batch as $itemData) {
 				try {
 					// An OrderedCollection may list bare ids as well as objects,
 					// and everything below reads the entry as an array.
@@ -1211,6 +1234,23 @@ class StreamService {
 					]);
 				}
 			}
+
+			$nextOffset = $offset + count($batch);
+			if ($nextOffset < count($items)) {
+				$result['next'] = ['url' => $pageUrl, 'offset' => $nextOffset];
+			} else {
+				$next = $this->collectionPageLink($pageData['next'] ?? null);
+				if ($next !== '') {
+					$next = $this->resolveOutboxPageUrl($next, $pageUrl);
+					if ($next !== '' && $this->isOutboxPageUrl($next, $actor)) {
+						$result['next'] = ['url' => $next, 'offset' => 0];
+					} else {
+						$this->logger->warning('[syncRemoteTimeline] Rejected an outbox page on another host', [
+							'actor' => $actor->getId(), 'url' => $next,
+						]);
+					}
+				}
+			}
 		} catch (Exception $e) {
 			$this->logger->warning('[syncRemoteTimeline] Failed to fetch outbox', [
 				'actor' => $actor->getId(),
@@ -1222,7 +1262,64 @@ class StreamService {
 			$this->logger->info('[syncRemoteTimeline] Sync complete', ['actor' => $actor->getId(), 'synced' => $synced]);
 		}
 
-		return $synced;
+		$result['synced'] = $synced;
+
+		return $result;
+	}
+
+	/** @return string the id carried by an ActivityStreams collection link */
+	private function collectionPageLink(mixed $link): string {
+		if (is_string($link)) {
+			return trim($link);
+		}
+		if (is_array($link)) {
+			$id = $link['id'] ?? $link['@id'] ?? '';
+			return is_string($id) ? trim($id) : '';
+		}
+
+		return '';
+	}
+
+	/** Resolve an absolute or same-origin relative page link. */
+	private function resolveOutboxPageUrl(string $link, string $baseUrl): string {
+		if (preg_match('#^https?://#i', $link) === 1) {
+			return $link;
+		}
+		$base = parse_url($baseUrl);
+		if (!is_array($base) || !isset($base['scheme'], $base['host'])) {
+			return '';
+		}
+		$origin = $base['scheme'] . '://' . $base['host'] . (isset($base['port']) ? ':' . $base['port'] : '');
+		if (str_starts_with($link, '//')) {
+			return $base['scheme'] . ':' . $link;
+		}
+		if (str_starts_with($link, '/')) {
+			return $origin . $link;
+		}
+		if (str_starts_with($link, '?')) {
+			return $origin . ($base['path'] ?? '/') . $link;
+		}
+
+		$directory = substr((string)($base['path'] ?? '/'), 0, (int)strrpos((string)($base['path'] ?? '/'), '/') + 1);
+		return $origin . $directory . $link;
+	}
+
+	private function isOutboxPageUrl(string $url, Person $actor): bool {
+		$page = parse_url($url);
+		$outbox = parse_url($actor->getOutbox());
+		if (!is_array($page) || !is_array($outbox)) {
+			return false;
+		}
+		$scheme = strtolower((string)($outbox['scheme'] ?? ''));
+		$pageScheme = strtolower((string)($page['scheme'] ?? ''));
+		$defaultPort = $scheme === 'https' ? 443 : 80;
+		$pagePort = (int)($page['port'] ?? ($pageScheme === 'https' ? 443 : 80));
+		$outboxPort = (int)($outbox['port'] ?? $defaultPort);
+
+		return in_array($scheme, ['http', 'https'], true)
+			&& $pageScheme === $scheme
+			&& strtolower((string)($page['host'] ?? '')) === strtolower((string)($outbox['host'] ?? ''))
+			&& $pagePort === $outboxPort;
 	}
 
 	/**
