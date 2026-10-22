@@ -396,7 +396,7 @@ class BlueskyThreadSource implements ThreadSource {
 		$pending = [[$thread, 0]];
 		while ($pending !== []) {
 			[$node, $depth] = array_shift($pending);
-			if (!is_array($node) || ($node['$type'] ?? '') !== self::THREAD_VIEW) {
+			if (($node['$type'] ?? '') !== self::THREAD_VIEW) {
 				continue;
 			}
 			$post = is_array($node['post'] ?? null) ? $node['post'] : [];

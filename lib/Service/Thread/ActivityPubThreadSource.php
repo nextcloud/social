@@ -96,9 +96,6 @@ class ActivityPubThreadSource implements ThreadSource {
 					break;
 				}
 			}
-			if (!is_array($collection)) {
-				break;
-			}
 			$items = $collection['orderedItems'] ?? $collection['items'] ?? [];
 			foreach (is_array($items) ? $items : [] as $item) {
 				$id = self::idOf($item);
