@@ -423,6 +423,29 @@ class PostMapperTest extends TestCase {
 		$this->assertSame(['PDF document.pdf', 'AVIF image.avif'], array_column($note['attachment'], 'name'));
 	}
 
+	public function testOpaqueBlobKeysAreNotShownAsFilenames(): void {
+		$pdfCid = Cid::forRaw('opaque named PDF')->toString();
+		$uuid = '550e8400-e29b-41d4-a716-446655440000';
+		$opaqueCid = Cid::forRaw('opaque filename CID')->toString();
+		$embed = ['$type' => 'org.example.embed.files', 'files' => [
+			['name' => '123456789', 'blob' => ['$type' => 'blob', 'ref' => ['$link' => $pdfCid], 'mimeType' => 'application/pdf']],
+			['filename' => $uuid . '.pdf', 'blob' => ['$type' => 'blob', 'ref' => ['$link' => Cid::forRaw('uuid named PDF')->toString()], 'mimeType' => 'application/pdf']],
+			['fileName' => $opaqueCid, 'blob' => ['$type' => 'blob', 'ref' => ['$link' => Cid::forRaw('cid named PDF')->toString()], 'mimeType' => 'application/pdf']],
+		]];
+		$view = $this->postView([
+			'embed' => ['$type' => 'org.example.embed.files#view'],
+			'record' => array_merge($this->postView()['record'], ['embed' => $embed]),
+		]);
+
+		$note = (new PostMapper($this->resolver()))->note($view, 'https://pds.example');
+
+		$this->assertSame(
+			['PDF document.pdf', 'PDF document.pdf', 'PDF document.pdf'],
+			array_column($note['attachment'], 'name'),
+			'opaque identifiers must be replaced by readable labels derived from each blob MIME type'
+		);
+	}
+
 	public function testRawExternalEmbedKeepsItsLinkAndBlobThumbnail(): void {
 		$cid = Cid::forRaw('external card image bytes')->toString();
 		$view = $this->postView();

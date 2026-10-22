@@ -423,7 +423,7 @@ class PostMapper {
 		if ($depth > 8 || count($blobs) >= 10 || !is_array($value)) {
 			return;
 		}
-		foreach (['name', 'filename'] as $key) {
+		foreach (['name', 'filename', 'fileName'] as $key) {
 			if (is_string($value[$key] ?? null) && trim($value[$key]) !== '') {
 				$name = trim($value[$key]);
 				break;
@@ -461,7 +461,7 @@ class PostMapper {
 	private static function blobName(string $candidate, string $mime): string {
 		$name = basename(str_replace('\\', '/', $candidate));
 		$name = trim(preg_replace('/[\x00-\x1F\x7F]/u', '', $name) ?? '');
-		if ($name !== '' && $name !== '.' && $name !== '..') {
+		if ($name !== '' && $name !== '.' && $name !== '..' && !self::isOpaqueBlobName($name)) {
 			return mb_substr($name, 0, 180);
 		}
 		[$type, $subtype] = array_pad(explode('/', strtolower($mime), 2), 2, '');
@@ -494,6 +494,16 @@ class PostMapper {
 		[$label, $extension] = $known[$mime] ?? self::genericBlobLabel($type, $subtype);
 
 		return $label . ($extension !== '' ? '.' . $extension : '');
+	}
+
+	/** A blob key can identify its bytes without being a reader-facing filename. */
+	private static function isOpaqueBlobName(string $name): bool {
+		$stem = preg_replace('/\.[^.]+$/', '', $name) ?? $name;
+
+		return preg_match('/^\d+$/', $stem) === 1
+			|| preg_match('/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i', $stem) === 1
+			|| preg_match('/^baf[a-z2-7]{20,}$/i', $stem) === 1
+			|| preg_match('/^[a-z0-9_-]{40,}$/i', $stem) === 1;
 	}
 
 	/** @return array{0: string, 1: string} */
