@@ -60,12 +60,12 @@ class AppViewClient {
 	 * @throws AppViewNotFoundException
 	 * @throws AtprotoException
 	 */
-	public function queryAs(string $did, PrivateKey $key, string $method, array $params = []): array {
+	public function queryAs(string $did, PrivateKey $key, string $method, array $params = [], ?int $timeout = null): array {
 		$serviceDid = $this->config->appViewDid();
 		$token = $this->serviceAuth->token($key, $did, $serviceDid . '#bsky_appview', $method);
 		$legacyToken = fn (): string => $this->serviceAuth->token($key, $did, $serviceDid, $method);
 
-		return $this->get($this->config->appViewAuth(), $method, $params, ['Authorization' => 'Bearer ' . $token], null, $legacyToken);
+		return $this->get($this->config->appViewAuth(), $method, $params, ['Authorization' => 'Bearer ' . $token], null, $legacyToken, $timeout);
 	}
 
 	/**

@@ -53,8 +53,8 @@ class BlueskyPostSource implements PostSource {
 		try {
 			$identity = $viewer === null ? null : $this->identities->activeForActor($viewer);
 			$answer = $identity !== null
-				? $this->appView->queryAs($identity->did, $this->identities->signingKey($identity), 'app.bsky.feed.searchPosts', $params)
-				: $this->appView->query('app.bsky.feed.searchPosts', $params, ['atproto-accept-labelers' => $this->labelers->acceptHeader()]);
+				? $this->appView->queryAs($identity->did, $this->identities->signingKey($identity), 'app.bsky.feed.searchPosts', $params, AppViewClient::INTERACTIVE_TIMEOUT)
+				: $this->appView->query('app.bsky.feed.searchPosts', $params, ['atproto-accept-labelers' => $this->labelers->acceptHeader()], AppViewClient::INTERACTIVE_TIMEOUT);
 		} catch (Throwable $e) {
 			$this->logger->info('Bluesky posts not searched', ['exception' => $e]);
 

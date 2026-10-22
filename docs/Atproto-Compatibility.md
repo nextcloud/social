@@ -1510,7 +1510,9 @@ reaching the chat service another way goes by it.
   posts continue through the profile's pin endpoint.
 - **Addressing**: `@alice.bsky.social` in a post mentions the Bluesky
   account; the composer's mention picker completes Bluesky handles from the
-  AppView typeahead when the typed text has a dot and no second `@`.
+  AppView typeahead when the typed text has a dot and no second `@`. Visible
+  typeahead and post-search requests share the three-second AppView timeout;
+  background reads keep the longer timeout.
 - **The person's own profile** shows both handles under the name, each
   with *Copy*; the Bluesky one links to `https://bsky.app/profile/<handle>`.
   No switch between "Fediverse" and "Bluesky" views: one account, one
