@@ -254,14 +254,30 @@ class PostMapperTest extends TestCase {
 
 		$note = $mapper->note($view, 'https://pds.example');
 		$this->assertSame([[
-			'type' => 'Image',
+			'type' => 'Document',
 			'mediaType' => 'image/heic',
 			'url' => 'https://pds.example/xrpc/com.atproto.sync.getBlob?did=' . rawurlencode(self::DID) . '&cid=' . $cid,
-			'name' => 'Original camera photo',
+			'name' => 'Original camera photo.heic',
 			'width' => 1600,
 			'height' => 1200,
 		]], $note['attachment']);
 		$this->assertSame([$note['attachment'][0]['url']], $note['_atproto']['streamed_blobs']);
+	}
+
+	public function testUnsupportedStandardImageIsStreamedAsInlinePreviewableAvif(): void {
+		$cid = Cid::forRaw('original AVIF image bytes')->toString();
+		$view = $this->postView();
+		$view['embed'] = ['$type' => 'app.bsky.embed.images#view', 'images' => []];
+		$view['record']['embed'] = [
+			'$type' => 'app.bsky.embed.images',
+			'images' => [['image' => ['$type' => 'blob', 'ref' => ['$link' => $cid], 'mimeType' => 'image/avif'], 'alt' => 'Alpine lake']],
+		];
+
+		$note = (new PostMapper($this->resolver()))->note($view, 'https://pds.example');
+
+		$this->assertSame('Image', $note['attachment'][0]['type']);
+		$this->assertSame('image/avif', $note['attachment'][0]['mediaType']);
+		$this->assertSame('Alpine lake', $note['attachment'][0]['name']);
 	}
 
 	public function testRawImageBlobReferencesMustHaveAValidCidAndImageMimeType(): void {

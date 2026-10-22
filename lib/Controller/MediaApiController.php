@@ -515,12 +515,7 @@ class MediaApiController extends MastodonApiController {
 				$nid, $this->request->getHeader('Range')
 			);
 			$document = $opened['document'];
-			$mediaType = strtolower($document->getMediaType());
-			$inlineTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/x-mpegurl', 'application/vnd.apple.mpegurl'];
-			$downloadOnly = $document->isStreamed()
-				&& !in_array($mediaType, $inlineTypes, true)
-				&& !str_starts_with($mediaType, 'audio/')
-				&& !str_starts_with($mediaType, 'video/');
+			$downloadOnly = self::isDownloadOnly($document);
 
 			$headers = [
 				'Content-Type' => $downloadOnly ? 'application/octet-stream' : $document->getMediaType(),
@@ -556,6 +551,17 @@ class MediaApiController extends MastodonApiController {
 
 			return new DataResponse(['error' => 'could not reach the origin'], Http::STATUS_BAD_GATEWAY);
 		}
+	}
+
+	/** Whether a streamed file must be offered as a download instead of inline media. */
+	private static function isDownloadOnly(Document $document): bool {
+		$mediaType = strtolower($document->getMediaType());
+		$inlineTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif', 'application/x-mpegurl', 'application/vnd.apple.mpegurl'];
+
+		return $document->isStreamed()
+			&& !in_array($mediaType, $inlineTypes, true)
+			&& !str_starts_with($mediaType, 'audio/')
+			&& !str_starts_with($mediaType, 'video/');
 	}
 
 	/**

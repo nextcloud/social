@@ -340,7 +340,7 @@ class PostStoreTest extends TestCase {
 			$this->callback(static function (string $attachments): bool {
 				$decoded = json_decode($attachments, true);
 
-				return ($decoded[0]['description'] ?? '') === 'Original camera photo'
+				return ($decoded[0]['description'] ?? '') === 'Original camera photo.heic'
 					&& ($decoded[0]['media_type'] ?? '') === 'image/heic';
 			}),
 			'',

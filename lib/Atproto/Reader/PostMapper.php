@@ -569,11 +569,27 @@ class PostMapper {
 				// and stream the original from the author's verified PDS.
 				$url = rtrim($pds, '/') . '/xrpc/com.atproto.sync.getBlob?' . http_build_query(['did' => $authorDid, 'cid' => $cid], '', '&', PHP_QUERY_RFC3986);
 			}
+			$mimeType = $mimeType === 'image/jpg' ? 'image/jpeg' : $mimeType;
+			$previewable = self::cdnImageFormat($mimeType) !== '' || $mimeType === 'image/avif';
+			$name = (string)($image['alt'] ?? '');
+			$type = 'Image';
+			if (!$previewable && str_starts_with($url, rtrim($pds, '/') . '/xrpc/com.atproto.sync.getBlob?')) {
+				// Keep formats browsers do not reliably render as a file download;
+				// the PDS proxy marks these as attachments and supplies their name.
+				$type = 'Document';
+				$name = self::blobName($name, $mimeType);
+				if (preg_match('/\.[a-z0-9]{1,8}$/i', $name) !== 1) {
+					[, $extension] = self::genericBlobLabel('image', (string)substr($mimeType, strlen('image/')));
+					if ($extension !== '') {
+						$name .= '.' . $extension;
+					}
+				}
+			}
 			$attachment = [
-				'type' => 'Image',
+				'type' => $type,
 				'mediaType' => $mimeType === 'image/jpg' ? 'image/jpeg' : $mimeType,
 				'url' => $url,
-				'name' => (string)($image['alt'] ?? ''),
+				'name' => $name,
 			];
 			$ratio = $image['aspectRatio'] ?? null;
 			if (is_array($ratio) && (int)($ratio['width'] ?? 0) > 0 && (int)($ratio['height'] ?? 0) > 0) {

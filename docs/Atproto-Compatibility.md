@@ -1018,10 +1018,11 @@ ActivityPub; nothing downstream knows a Bluesky post from any other.
 When an AppView omits a usable embed view, standard post-record embeds remain
 visible: image blobs resolve from their validated CID, image MIME type and
 author DID to the Bluesky image CDN. Standard image-record blobs whose format
-the CDN does not transform (such as AVIF or HEIC) are recovered from the
-author's validated HTTPS PDS and streamed through this instance, retaining the
-post's alt text and aspect ratio; a later AppView response can fill media that
-was missing when the post was first indexed. External embeds retain their link
+the CDN does not transform are recovered from the author's validated HTTPS
+PDS and streamed through this instance. AVIF remains an inline preview;
+formats not reliably rendered by browsers, such as HEIC/HEIF, are presented as
+named downloads rather than broken image previews. A later AppView response can
+fill media that was missing when the post was first indexed. External embeds retain their link
 and blob thumbnail; quote-with-media records retain both the quote and its
 images.
 A raw video record remains a link to its post until the AppView supplies the
