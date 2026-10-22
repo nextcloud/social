@@ -501,7 +501,7 @@ class PostStoreTest extends TestCase {
 	public function testNothingIsConcludedFromAnAppViewThatDidNotAnswer(): void {
 		$this->known = ['https://bsky.app/profile/' . self::DID . '/post/3k'];
 		$this->appView->method('query')->willThrowException(new AtprotoException('down'));
-		$this->assertSame(0, $this->store->deleteGone($this->known));
+		$this->assertNull($this->store->deleteGone($this->known));
 		$this->appView = $this->createMock(AppViewClient::class);
 		$this->assertSame([], $this->imported);
 	}

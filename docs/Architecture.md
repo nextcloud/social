@@ -1958,9 +1958,11 @@ people look at are asked for again, one concept with a source per network
   treated as fresh during an interactive read, so the background path can retry;
 - `Atproto\Reader\BlueskyCountSource` asks the AppView's `getPosts`, 25
   posts a call (`PostStore::postViews()`), for `likeCount`, `repostCount`,
-  `replyCount` and `quoteCount`; a `notFound` post placeholder or an omitted
-  post is deleted as `DeletionSweep` deletes it, while a blocked placeholder
-  is kept;
+  `replyCount` and `quoteCount`; a post is deleted as `DeletionSweep` deletes
+  it only when the AppView explicitly returns `notFound`. Every requested URI
+  must occur exactly once in the response; a missing, duplicate or malformed
+  entry leaves the whole batch untouched and keeps the deletion cursor in
+  place for another attempt. A blocked placeholder is kept;
 - `Atproto\Reader\BlueskyPublishedCountSource` does the same for a post of
   this server's own that is also a record on Bluesky (see **A local post's
   counts on Bluesky** below).

@@ -285,10 +285,10 @@ class PostStore {
 	 * deleted here the way a remote `Delete` would.
 	 *
 	 * @param string[] $postIds stored ids, at most 25 (one `getPosts`)
-	 * @return int how many were deleted
+	 * @return int|null how many were deleted, or null when the AppView did not answer completely
 	 */
-	public function deleteGone(array $postIds): int {
-		return $this->postViews($postIds)['deleted'] ?? 0;
+	public function deleteGone(array $postIds): ?int {
+		return $this->postViews($postIds)['deleted'] ?? null;
 	}
 
 	/**
