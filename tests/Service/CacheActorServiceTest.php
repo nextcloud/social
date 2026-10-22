@@ -329,6 +329,22 @@ class CacheActorServiceTest extends TestCase {
 		$this->assertSame('bob@remote.example', $actor->getAccount());
 	}
 
+	public function testActivityPubActorCanBeFetchedWithinAVisibleRequestTimeout(): void {
+		$this->cacheActorsRequest->method('getFromId')->willThrowException(new CacheActorDoesNotExistException());
+		$data = [
+			'id' => self::BOB, 'type' => 'Person', 'preferredUsername' => 'bob',
+			'_host' => 'remote.example', '_contentType' => 'application/activity+json',
+		];
+		$this->curlService->expects($this->once())->method('retrieveObject')
+			->with(self::BOB, true, $this->logicalAnd($this->greaterThan(0), $this->lessThanOrEqual(5)))
+			->willReturn($data);
+		$bob = $this->person(self::BOB);
+		$this->ap->expects($this->once())->method('getItemFromData')->with($data)->willReturn($bob);
+		$this->personInterface->expects($this->once())->method('save')->with($this->identicalTo($bob));
+
+		$this->assertSame($bob, $this->service->getActivityPubActorWithTimeout(self::BOB, 5));
+	}
+
 	public function testGetFromIdWithRefreshSkipsTheCache(): void {
 		$this->cacheActorsRequest->expects($this->never())->method('getFromId');
 		$this->curlService->method('retrieveObject')->willReturn(self::ACTIVITY_JSON);

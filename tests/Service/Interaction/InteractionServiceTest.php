@@ -175,9 +175,8 @@ class InteractionServiceTest extends TestCase {
 
 			return $cachedReads === 1 ? [] : [$actorId => $actor];
 		});
-		$cacheActors->expects($this->once())->method('getFromId')->with(
+		$cacheActors->expects($this->once())->method('getActivityPubActorWithTimeout')->with(
 			$actorId,
-			false,
 			$this->logicalAnd($this->greaterThan(0), $this->lessThanOrEqual(3)),
 		)->willReturn($actor);
 		$factory = $this->createStub(ICacheFactory::class);

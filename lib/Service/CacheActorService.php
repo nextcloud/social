@@ -139,7 +139,20 @@ class CacheActorService {
 	 * @throws RequestResultNotJsonException
 	 * @throws UnauthorizedFediverseException
 	 */
-	public function getFromId(string $id, bool $refresh = false, ?int $timeout = null): Person {
+	public function getFromId(string $id, bool $refresh = false): Person {
+		return $this->getFromIdWithinTimeout($id, $refresh, null);
+	}
+
+	/** Resolve a Fediverse actor with a maximum time for remote document fetches. */
+	public function getActivityPubActorWithTimeout(string $id, int $timeout): Person {
+		if (BlueskyIds::isActorId($id)) {
+			throw new \InvalidArgumentException('A Bluesky actor cannot be resolved through ActivityPub');
+		}
+
+		return $this->getFromIdWithinTimeout($id, false, max(1, $timeout));
+	}
+
+	private function getFromIdWithinTimeout(string $id, bool $refresh, ?int $timeout): Person {
 		$deadline = $timeout === null ? null : hrtime(true) + (max(1, $timeout) * 1_000_000_000);
 		$posAnchor = strpos($id, '#');
 		if ($posAnchor !== false) {

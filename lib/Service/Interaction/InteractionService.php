@@ -247,7 +247,7 @@ class InteractionService {
 				break;
 			}
 			try {
-				$this->cacheActors->getFromId($id, false, $remaining);
+				$this->cacheActors->getActivityPubActorWithTimeout($id, $remaining);
 			} catch (Throwable $e) {
 				$this->logger->debug('Visible reaction actor was not resolved inline', [
 					'actor' => $id,
