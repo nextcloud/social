@@ -1550,6 +1550,34 @@ describe('timeline store actions', () => {
 			}
 		})
 
+		it('continues Bluesky profile fills at a steady cadence instead of backing off', async () => {
+			vi.useFakeTimers()
+			try {
+				await store.changeTimelineTypeAccount('bob@remote.tld')
+				const filling = { 'x-social-filling': '1', 'x-social-profile-filling': '1' }
+				axios.get
+					.mockResolvedValueOnce({ data: [], headers: filling })
+					.mockResolvedValueOnce({ data: [], headers: filling })
+					.mockResolvedValueOnce({ data: [makeStatus('1')], headers: {} })
+
+				await store.fetchTimeline()
+				await vi.advanceTimersByTimeAsync(1999)
+				expect(axios.get).toHaveBeenCalledTimes(1)
+
+				await vi.advanceTimersByTimeAsync(1)
+				expect(axios.get).toHaveBeenCalledTimes(2)
+				await vi.advanceTimersByTimeAsync(1999)
+				expect(axios.get).toHaveBeenCalledTimes(2)
+
+				await vi.advanceTimersByTimeAsync(1)
+				expect(axios.get).toHaveBeenCalledTimes(3)
+				expect(store.profilePageFilling).toBe(false)
+				expect(store.timeline).toEqual(['1'])
+			} finally {
+				vi.useRealTimers()
+			}
+		})
+
 		/**
 		 * The profile's Photos and Videos tabs. `only_media` is Mastodon's own
 		 * parameter and says what the two have in common; `media_type` is the

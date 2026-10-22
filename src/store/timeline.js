@@ -415,6 +415,7 @@ function timelineRequest(list, params) {
 const THREAD_REFETCH_MS = 1000
 const THREAD_REFETCH_MAX_MS = 5000
 const MAX_THREAD_REFETCHES = 30
+const PROFILE_REFETCH_MS = 2000
 const STATUS_REFETCH_MS = 1000
 const STATUS_REFETCH_MAX_MS = 3000
 // Visible count reads back off for fifteen seconds after a failed request.
@@ -428,6 +429,8 @@ export const useTimelineStore = defineStore('timeline', {
 		statusRefetching: {},
 		/** Whether the current page is still being read from its remote source. */
 		timelinePageFilling: false,
+		/** Whether an account profile has another Bluesky AppView page to read. */
+		profilePageFilling: false,
 		/** Whether the last page read for the current timeline had no visible posts. */
 		timelinePageEmpty: false,
 		timeline: [],
@@ -826,6 +829,7 @@ export const useTimelineStore = defineStore('timeline', {
 			this.removedFrom = {}
 			this.hiddenByAuthor = 0
 			this.timelinePageFilling = false
+			this.profilePageFilling = false
 			this.timelinePageEmpty = false
 			// the id lists used to be the only thing cleared, so `statuses` grew
 			// for the whole session: every page of every timeline ever opened.
@@ -1104,6 +1108,7 @@ export const useTimelineStore = defineStore('timeline', {
 				return
 			}
 			this.timelinePageFilling = false
+			this.profilePageFilling = false
 			this.timelinePageEmpty = false
 
 			// a page still on its way for the list being left would be dropped
@@ -1738,6 +1743,7 @@ export const useTimelineStore = defineStore('timeline', {
 			const seeded = this.takeSeededPage(params)
 			if (seeded !== null) {
 				this.timelinePageFilling = false
+				this.profilePageFilling = false
 				this.timelinePageEmpty = seeded.length === 0
 				this.addToTimeline(seeded)
 
@@ -1767,6 +1773,7 @@ export const useTimelineStore = defineStore('timeline', {
 			}
 			this.timelinePageFilling = response.headers?.['x-social-filling'] === '1'
 				|| response.headers?.['x-social-thread-filling'] === '1'
+			this.profilePageFilling = response.headers?.['x-social-profile-filling'] === '1'
 			this.timelinePageEmpty = Array.isArray(response.data)
 				? response.data.length === 0
 				: this.type === 'single-post' && Array.isArray(response.data?.descendants) && response.data.descendants.length === 0
@@ -1822,6 +1829,9 @@ export const useTimelineStore = defineStore('timeline', {
 		 * @param {number} attempt the retry number, starting at zero
 		 */
 		refetchThreadLater(url, params, identity, attempt = 0) {
+			const delay = this.profilePageFilling
+				? PROFILE_REFETCH_MS
+				: Math.min(THREAD_REFETCH_MS * (2 ** attempt), THREAD_REFETCH_MAX_MS)
 			setTimeout(async () => {
 				if (this.getTimelineIdentity !== identity) {
 					return
@@ -1833,6 +1843,7 @@ export const useTimelineStore = defineStore('timeline', {
 					if (this.getTimelineIdentity === identity) {
 						this.timelinePageFilling = response.headers?.['x-social-filling'] === '1'
 							|| response.headers?.['x-social-thread-filling'] === '1'
+						this.profilePageFilling = response.headers?.['x-social-profile-filling'] === '1'
 						this.timelinePageEmpty = Array.isArray(response.data)
 							? response.data.length === 0
 							: this.type === 'single-post' && Array.isArray(response.data?.descendants) && response.data.descendants.length === 0
@@ -1845,7 +1856,7 @@ export const useTimelineStore = defineStore('timeline', {
 				} catch (error) {
 					logger.debug('The rest of the conversation was not read again', { error })
 				}
-			}, Math.min(THREAD_REFETCH_MS * (2 ** attempt), THREAD_REFETCH_MAX_MS))
+			}, delay)
 		},
 	},
 })

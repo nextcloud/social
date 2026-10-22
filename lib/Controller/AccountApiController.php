@@ -881,6 +881,7 @@ class AccountApiController extends MastodonApiController {
 			}
 			if ($profileFilling) {
 				$response->addHeader('X-Social-Filling', '1');
+				$response->addHeader('X-Social-Profile-Filling', '1');
 			}
 
 			return $response;

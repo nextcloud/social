@@ -3618,6 +3618,7 @@ class ApiControllerTest extends TestCase {
 
 		$this->assertSame(['post'], $response->getData());
 		$this->assertSame('1', $response->getHeaders()['X-Social-Filling'] ?? null);
+		$this->assertSame('1', $response->getHeaders()['X-Social-Profile-Filling'] ?? null);
 	}
 
 	public function testBlueskyProfileMediaTabsKeepTheirFilterWhileLoadingAuthorPages(): void {
