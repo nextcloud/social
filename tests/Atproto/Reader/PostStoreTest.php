@@ -560,6 +560,17 @@ class PostStoreTest extends TestCase {
 		$this->assertSame($id, $this->imported[0]->getObjectId());
 	}
 
+	public function testDeleteSweepAcceptsRecordNotFoundFromPdsAsBadRequest(): void {
+		$id = 'https://bsky.app/profile/' . self::DID . '/post/3kgone';
+		$this->known = [$id];
+		$this->actors->method('pdsEndpoint')->willReturn('https://pds.example');
+		$this->pds->expects($this->once())->method('call')->willReturn(['status' => 400, 'body' => ['error' => 'RecordNotFound']]);
+		$this->appView->method('query')->willReturn(['posts' => []]);
+
+		$this->assertSame(1, $this->store->deleteGone([$id]));
+		$this->assertSame($id, $this->imported[0]->getObjectId());
+	}
+
 	public function testAnInteractiveCountReadDoesNotWaitForThePdsWhenAppViewOmitsAPost(): void {
 		$id = 'https://bsky.app/profile/' . self::DID . '/post/3kdelayed';
 		$this->known = [$id];

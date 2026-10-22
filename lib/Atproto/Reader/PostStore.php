@@ -403,7 +403,7 @@ class PostStore {
 		if ($answer['status'] >= 200 && $answer['status'] < 300 && is_array($answer['body']['value'] ?? null)) {
 			return true;
 		}
-		if ($answer['status'] === 404 && ($answer['body']['error'] ?? '') === 'RecordNotFound') {
+		if (in_array($answer['status'], [400, 404], true) && ($answer['body']['error'] ?? '') === 'RecordNotFound') {
 			return false;
 		}
 
