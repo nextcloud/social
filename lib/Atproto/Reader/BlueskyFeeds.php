@@ -55,6 +55,7 @@ class BlueskyFeeds {
 	private const PROFILE_RETRIES = 'social-atproto-profile-retries';
 	private const PROFILE_PAGE_LOCK = 'social-atproto-profile-page-';
 	private const COLLECTIONS = [self::FEED => 'app.bsky.feed.generator', self::LIST => 'app.bsky.graph.list'];
+	private bool $feedPagePending = false;
 
 	public function __construct(
 		private AppViewClient $appView,
@@ -153,6 +154,7 @@ class BlueskyFeeds {
 	 * @throws InvalidArgumentException when the URI is not a feed's or a list's
 	 */
 	public function page(Person $actor, string $uri, string $after, int $limit): array {
+		$this->feedPagePending = false;
 		$type = self::typeOf($uri) ?? throw new InvalidArgumentException('Not a Bluesky feed or list');
 		$key = $this->cursorKey($actor, $uri, $after);
 		$retryCursor = $this->durableCache->get(self::CURSOR_RETRIES, $key);
@@ -168,16 +170,25 @@ class BlueskyFeeds {
 		$method = $type === self::FEED ? 'app.bsky.feed.getFeed' : 'app.bsky.feed.getListFeed';
 		$seen = $cursor === '' ? [] : [$cursor => true];
 		$emptyPages = 0;
-		$profilePages = 0;
-		$visibleCount = 0;
-		$visibleSeen = [];
+		$feedPages = 0;
+		$deadline = hrtime(true) + (AppViewClient::INTERACTIVE_TIMEOUT * 1_000_000_000);
 		$this->streams->setViewer($actor);
 
 		while (true) {
+			$timeout = $feedPages === 0
+				? AppViewClient::INTERACTIVE_TIMEOUT
+				: (int)floor(($deadline - hrtime(true)) / 1_000_000_000);
+			if ($timeout < 1) {
+				$this->durableCache->set(self::CURSOR_RETRIES, $key, $cursor, self::CURSOR_KEPT);
+				$this->feedPagePending = true;
+
+				return [];
+			}
 			$params = [$type === self::FEED ? 'feed' : 'list' => $uri, 'limit' => max(1, min(100, $limit))] + ($cursor !== '' ? ['cursor' => $cursor] : []);
 			$answer = $identity !== null
-				? $this->appView->queryAs($identity->did, $this->identities->signingKey($identity), $method, $params)
-				: $this->appView->query($method, $params);
+				? $this->appView->queryAs($identity->did, $this->identities->signingKey($identity), $method, $params, $timeout)
+				: $this->appView->query($method, $params, [], $timeout);
+			$feedPages++;
 			if (!is_array($answer['feed'] ?? null)) {
 				throw new UnexpectedValueException('Bluesky feed response has no feed array');
 			}
@@ -224,10 +235,17 @@ class BlueskyFeeds {
 			$seen[$next] = true;
 			if (++$emptyPages >= self::MAX_EMPTY_PAGES) {
 				$this->durableCache->set(self::CURSOR_RETRIES, $key, $next, self::CURSOR_KEPT);
-				throw new UnexpectedValueException('Bluesky feed has too many consecutive pages with no visible posts');
+				$this->feedPagePending = true;
+
+				return [];
 			}
 			$cursor = $next;
 		}
+	}
+
+	/** Whether a hidden-page walk stopped at the interactive request budget. */
+	public function hasFeedPagePending(): bool {
+		return $this->feedPagePending;
 	}
 
 	/**

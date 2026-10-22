@@ -1232,9 +1232,10 @@ Bluesky's custom feeds and lists are read here as timelines
   database when the instance has no memcache; it is private to the viewer
   and feed and expires after that hour. A remote page with no visible posts
   but a continuation cursor is not the end of the feed: the reader follows
-  up to ten such pages in the same request. It checkpoints a longer run and
-  reports the incomplete read, so a retry resumes instead of making the
-  timeline look complete. The XRPC specification describes a missing cursor
+  such pages only within the three-second interactive AppView budget, with a
+  ten-page hard cap. If time runs out, it checkpoints the opaque cursor and
+  marks the response for timeline refill, so the client resumes without
+  keeping the original request open. The XRPC specification describes a missing cursor
   as the end of pagination and flags the empty-page-with-cursor case as an
   area needing clarification; Social follows a returned cursor with a bound
   and retry checkpoint.

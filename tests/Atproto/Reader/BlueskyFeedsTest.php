@@ -59,6 +59,7 @@ class BlueskyFeedsTest extends TestCase {
 	/** @var array<string, list<array>> queued AppView pages, by method */
 	private array $answerPages = [];
 	private int $firstAuthorFeedDelayMicros = 0;
+	private int $firstCustomFeedDelayMicros = 0;
 	/** @var string[] posts hidden from the viewer */
 	private array $hidden = [];
 	private ?BlueskyBlockedBy $blockedBy = null;
@@ -82,6 +83,9 @@ class BlueskyFeedsTest extends TestCase {
 		$appView = $this->createMock(AppViewClient::class);
 		$answer = function (string $method, array $params, bool $asPerson): array {
 			$this->asked[] = [$method, $params, $asPerson];
+			if (in_array($method, ['app.bsky.feed.getFeed', 'app.bsky.feed.getListFeed'], true) && count(array_filter($this->asked, static fn (array $request): bool => $request[0] === $method)) === 1 && $this->firstCustomFeedDelayMicros > 0) {
+				usleep($this->firstCustomFeedDelayMicros);
+			}
 			if ($method === 'app.bsky.feed.getAuthorFeed' && count(array_filter($this->asked, static fn (array $request): bool => $request[0] === $method)) === 1 && $this->firstAuthorFeedDelayMicros > 0) {
 				usleep($this->firstAuthorFeedDelayMicros);
 			}
@@ -96,7 +100,11 @@ class BlueskyFeedsTest extends TestCase {
 
 			return $answer($method, $params, false);
 		});
-		$appView->method('queryAs')->willReturnCallback(fn (string $did, PrivateKey $key, string $method, array $params = []): array => $answer($method, $params, true));
+		$appView->method('queryAs')->willReturnCallback(function (string $did, PrivateKey $key, string $method, array $params = [], ?int $timeout = null) use ($answer): array {
+			$this->askedTimeouts[] = $timeout;
+
+			return $answer($method, $params, true);
+		});
 		$identities = $this->createMock(IdentityService::class);
 		$identities->method('forActor')->willReturnCallback(fn (): ?Identity => $this->identity);
 		$identities->method('activeForActor')->willReturnCallback(fn (): ?Identity => $this->identity?->isActive() ? $this->identity : null);
@@ -410,7 +418,30 @@ class BlueskyFeedsTest extends TestCase {
 		self::assertCount(2, $this->asked);
 	}
 
-	public function testLongRunsOfEmptyPagesKeepASeparateRetryCursor(): void {
+	public function testCustomFeedRefillSharesInteractiveBudgetAndResumesOnNextRequest(): void {
+		$hiddenUri = 'at://' . self::BOB . '/app.bsky.feed.post/slow-hidden';
+		$visibleUri = 'at://' . self::BOB . '/app.bsky.feed.post/after-slow-page';
+		$this->hidden = [BlueskyIds::postIdOfUri($hiddenUri)];
+		$this->answerPages['app.bsky.feed.getFeed'] = [
+			['feed' => [['post' => ['uri' => $hiddenUri]]], 'cursor' => 'after-hidden'],
+			['feed' => [['post' => ['uri' => $visibleUri]]], 'cursor' => 'after-visible'],
+		];
+		$this->firstCustomFeedDelayMicros = 2_100_000;
+		$feeds = $this->feeds(false);
+
+		self::assertSame([], $feeds->page($this->alice, self::FEED, '', 20));
+		self::assertTrue($feeds->hasFeedPagePending());
+		self::assertSame(AppViewClient::INTERACTIVE_TIMEOUT, $this->askedTimeouts[0]);
+
+		$page = $feeds->page($this->alice, self::FEED, '', 20);
+
+		self::assertFalse($feeds->hasFeedPagePending());
+		self::assertSame([BlueskyIds::postIdOfUri($visibleUri)], array_map(static fn (Note $note): string => $note->getId(), $page));
+		self::assertSame('after-hidden', $this->asked[1][1]['cursor'], 'the next request resumes after the hidden page already consumed');
+		self::assertSame(AppViewClient::INTERACTIVE_TIMEOUT, $this->askedTimeouts[1]);
+	}
+
+	public function testLongRunsOfEmptyPagesKeepACursorAndAskTheTimelineToContinue(): void {
 		$pages = [];
 		for ($i = 1; $i <= 10; $i++) {
 			$pages[] = ['feed' => [], 'cursor' => 'empty-' . $i];
@@ -420,15 +451,12 @@ class BlueskyFeedsTest extends TestCase {
 		$this->answerPages['app.bsky.feed.getFeed'] = $pages;
 		$feeds = $this->feeds(false);
 
-		try {
-			$feeds->page($this->alice, self::FEED, '', 20);
-			self::fail('A bounded empty-page walk must report that it needs another request');
-		} catch (\UnexpectedValueException $e) {
-			self::assertStringContainsString('too many consecutive pages', $e->getMessage());
-		}
+		self::assertSame([], $feeds->page($this->alice, self::FEED, '', 20));
+		self::assertTrue($feeds->hasFeedPagePending());
 
 		$page = $feeds->page($this->alice, self::FEED, '', 20);
 
+		self::assertFalse($feeds->hasFeedPagePending());
 		self::assertSame([BlueskyIds::postIdOfUri($visibleUri)], array_map(static fn (Note $note): string => $note->getId(), $page));
 		self::assertSame(['feed' => self::FEED, 'limit' => 20, 'cursor' => 'empty-10'], $this->asked[10][1]);
 		self::assertCount(11, $this->asked);
