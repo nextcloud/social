@@ -25,6 +25,8 @@ class RelayCrawlScheduler {
 	private const FAILED_RETRY = 15 * 60;
 	private const OUTAGE_RETRY = 6 * 3600;
 	private const INDEXING_GRACE = 3600;
+	/** A missing AppView/relay index is retried sooner than a missed firehose replay window. */
+	private const INDEXING_RETRY = 3600;
 
 	public function __construct(
 		private AtprotoConfig $config,
@@ -56,7 +58,7 @@ class RelayCrawlScheduler {
 		$indexingRetryDue = $accepted > 0
 			&& $now - $accepted >= self::INDEXING_GRACE
 			&& $attempted > 0
-			&& $now - $attempted >= self::OUTAGE_RETRY;
+			&& $now - $attempted >= self::INDEXING_RETRY;
 		$indexingGap = $indexingRetryDue
 			&& $this->status->hasRelayIndexingGap();
 		$retryAfterIndexingGap = $indexingGap;

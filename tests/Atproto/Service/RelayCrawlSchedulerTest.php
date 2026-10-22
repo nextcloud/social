@@ -96,8 +96,8 @@ class RelayCrawlSchedulerTest extends TestCase {
 		self::assertSame([], $this->values);
 	}
 
-	public function testAcceptedButUnindexedRepositoryIsRecrawledAfterGraceAndCooldown(): void {
-		$now = 1000 + 6 * 3600;
+	public function testAcceptedButUnindexedRepositoryIsRecrawledAfterIndexingRetry(): void {
+		$now = 1000 + 3600;
 		$this->values[ConfigService::ATPROTO_CRAWL_ATTEMPTED] = '1000';
 		$this->values[ConfigService::ATPROTO_CRAWL_ACCEPTED] = '1000';
 		$calls = 0;
@@ -108,5 +108,18 @@ class RelayCrawlSchedulerTest extends TestCase {
 
 		self::assertSame(1, $calls);
 		self::assertSame((string)$now, $this->values[ConfigService::ATPROTO_CRAWL_ATTEMPTED]);
+	}
+
+	public function testAcceptedButUnindexedRepositoryWaitsForTheIndexingRetry(): void {
+		$now = 1000 + 59 * 60;
+		$this->values[ConfigService::ATPROTO_CRAWL_ATTEMPTED] = '1000';
+		$this->values[ConfigService::ATPROTO_CRAWL_ACCEPTED] = '1000';
+		$calls = 0;
+		$scheduler = $this->scheduler($now, null, true, ['https://relay.example' => 'ok'], $calls, true);
+
+		$scheduler->run();
+
+		self::assertSame(0, $calls);
+		self::assertSame('1000', $this->values[ConfigService::ATPROTO_CRAWL_ATTEMPTED]);
 	}
 }
