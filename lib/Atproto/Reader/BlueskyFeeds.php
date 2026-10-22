@@ -316,6 +316,18 @@ class BlueskyFeeds {
 		} else {
 			$this->streams->setViewer($viewer);
 		}
+		$identity = null;
+		$signingKey = null;
+		if ($viewer !== null) {
+			try {
+				$identity = $this->identities->activeForActor($viewer);
+				$signingKey = $identity !== null ? $this->identities->signingKey($identity) : null;
+			} catch (Throwable $e) {
+				$this->logger->info('Bluesky profile feed could not use the linked identity', ['actor' => $viewer->getId(), 'exception' => $e]);
+				$identity = null;
+				$signingKey = null;
+			}
+		}
 
 		// A profile request may need several AppView pages when locally hidden
 		// posts are interleaved. Keep the whole refill within one interactive
@@ -333,13 +345,16 @@ class BlueskyFeeds {
 
 					return true;
 				}
-				$answer = $this->appView->query('app.bsky.feed.getAuthorFeed', [
+				$params = [
 					'actor' => BlueskyIds::didOf($actor->getId()),
 					'filter' => 'posts_with_replies',
 					// Include one post beyond the API page so max_id can continue
 					// when firehose rows and AppView rows differ at the page edge.
 					'limit' => min(100, max(1, $limit + 1)),
-				] + ($cursor !== '' ? ['cursor' => $cursor] : []), [], $timeout);
+				] + ($cursor !== '' ? ['cursor' => $cursor] : []);
+				$answer = $identity !== null && $signingKey !== null
+					? $this->appView->queryAs($identity->did, $signingKey, 'app.bsky.feed.getAuthorFeed', $params, $timeout)
+					: $this->appView->query('app.bsky.feed.getAuthorFeed', $params, [], $timeout);
 				if (!is_array($answer['feed'] ?? null)) {
 					throw new UnexpectedValueException('Bluesky author feed response has no feed array');
 				}

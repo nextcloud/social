@@ -186,6 +186,29 @@ class AtprotoReadingTest extends TestCase {
 		}
 	}
 
+	public function testABlueskyProfileFeedUsesTheLinkedViewersAuthenticatedAppView(): void {
+		$this->network->createUser('authprofile' . bin2hex(random_bytes(3)));
+		$handle = $this->network->userHandle();
+		$words = 'Authenticated profile read ' . bin2hex(random_bytes(4));
+		$this->network->postText($words);
+		$this->assertNotNull(Server::get(IdentityService::class)->forActor($this->alice->actor), 'the reader has a linked Bluesky identity');
+
+		$this->assertNotNull($this->network->await(function () use ($words): ?bool {
+			foreach ($this->network->authorFeed($this->network->userDid()) as $item) {
+				if (str_contains((string)($item['post']['record']['text'] ?? ''), $words)) {
+					return true;
+				}
+			}
+
+			return null;
+		}), 'the post is indexed before the profile read');
+		$actorId = $this->network->await(fn (): ?string => $this->tryResolve($handle));
+		$this->assertNotNull($actorId, 'the author resolves without a follow');
+
+		$statuses = $this->alice->get('/api/v1/accounts/' . rawurlencode($actorId) . '/statuses', ['limit' => '5']);
+		$this->assertNotEmpty(array_filter($statuses, static fn (array $status): bool => str_contains(strip_tags((string)($status['content'] ?? '')), $words)), 'the authenticated profile request shows the indexed post');
+	}
+
 	private function tryResolve(string $handle): ?string {
 		try {
 			return $this->alice->resolve($handle);

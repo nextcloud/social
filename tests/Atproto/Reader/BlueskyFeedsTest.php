@@ -237,7 +237,7 @@ class BlueskyFeedsTest extends TestCase {
 		$this->assertCount(2, $this->asked, 'without asking again');
 	}
 
-	public function testUnwatchedProfileFeedUsesItsAppViewCursorOnTheNextPage(): void {
+	public function testUnwatchedProfileFeedUsesItsAppViewCursorAsTheLinkedViewer(): void {
 		$actor = (new Person())->setId(BlueskyIds::actorId(self::BOB));
 		$firstPage = [];
 		$secondPage = [];
@@ -260,16 +260,29 @@ class BlueskyFeedsTest extends TestCase {
 			'actor' => self::BOB,
 			'filter' => 'posts_with_replies',
 			'limit' => 21,
-		], false], $this->asked[0]);
+		], true], $this->asked[0]);
 		self::assertSame(['app.bsky.feed.getAuthorFeed', [
 			'actor' => self::BOB,
 			'filter' => 'posts_with_replies',
 			'limit' => 21,
 			'cursor' => 'profile-next',
-		], false], $this->asked[1]);
+		], true], $this->asked[1]);
 
 		self::assertFalse($feeds->authorPage($actor, $after, 20, $this->alice));
 		self::assertCount(2, $this->asked, 'a consumed AppView page is not fetched again while local max_id pages through its posts');
+	}
+
+	public function testProfileFeedUsesThePublicAppViewWhenTheViewerHasNoLinkedIdentity(): void {
+		$actor = (new Person())->setId(BlueskyIds::actorId(self::BOB));
+		$this->identity = null;
+		$this->answerPages['app.bsky.feed.getAuthorFeed'] = [['feed' => []]];
+
+		self::assertFalse($this->feeds(false)->authorPage($actor, '', 20, $this->alice));
+		self::assertSame(['app.bsky.feed.getAuthorFeed', [
+			'actor' => self::BOB,
+			'filter' => 'posts_with_replies',
+			'limit' => 21,
+		], false], $this->asked[0]);
 	}
 
 	public function testAProfileWithHiddenPostsContinuesInBoundedRefillsUntilItHasAFullPage(): void {

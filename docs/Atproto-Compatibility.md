@@ -1492,14 +1492,15 @@ reaching the chat service another way goes by it.
 - **Profiles**: a Bluesky account's profile is the ordinary profile page at
   `/@alice.bsky.social` (the handle has no second `@`, which is how the
   router tells it apart), the follow button, the counts, the posts from
-  the author feed (fetched live, with one post of overlap beyond the API page
+  the author feed (fetched live as the reader's linked Bluesky identity when
+  available, and publicly when no usable identity is linked, with one post of overlap beyond the API page
   and AppView cursors expanded once while local `max_id` pages through cached
   posts, when the account is not watched), and a **Bluesky badge** next to the name — the
   butterfly glyph with `title="On Bluesky"`; beside it, the one verified
   check (`VerifiedBadge`) for Bluesky's trusted verifications and this
   instance's own (§12.6). The badge appears on every card the author
   appears in: post header, notification, follower list, search result. The
-  profile status API reads the public `getAuthorFeed` into the shared stream
+  profile status API reads `getAuthorFeed` into the shared stream
   before its regular account query; opaque cursors are stored against local
   status ids, and each AppView page is read once while its cached posts are
   traversed, preserving the profile's existing `max_id` pagination. A bounded
