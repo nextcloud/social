@@ -339,6 +339,22 @@ class PostMapperTest extends TestCase {
 		$this->assertSame([], $mapper->note($view, 'https://pds.example')['attachment'], 'logged-in-only Bluesky posts do not leak through the public media route');
 	}
 
+	public function testGenericFileBlobsNestedInRecordWithMediaAreEligibleForPdsRecovery(): void {
+		$blob = [
+			'$type' => 'blob',
+			'ref' => ['$link' => Cid::forRaw('nested custom file')->toString()],
+			'mimeType' => 'application/pdf',
+		];
+		foreach (['app.bsky.embed.recordWithMedia', 'app.bsky.embed.recordWithMedia#view'] as $wrapperType) {
+			$embed = [
+				'$type' => $wrapperType,
+				'media' => ['$type' => 'org.example.embed.file', 'file' => ['name' => 'notes.pdf', 'blob' => $blob]],
+				'record' => [],
+			];
+			$this->assertTrue(PostMapper::hasGenericBlobs($embed), $wrapperType . ' must recurse into its media union');
+		}
+	}
+
 	public function testImagesInThirdPartyEmbedsUseTheValidatedBlueskyCdn(): void {
 		$cid = Cid::forRaw('custom image')->toString();
 		$embed = ['$type' => 'org.example.embed.file', 'file' => [

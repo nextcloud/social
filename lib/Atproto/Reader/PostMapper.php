@@ -263,10 +263,19 @@ class PostMapper {
 
 	/** Whether an embed has raw blobs needing a PDS lookup or recovery. */
 	public static function hasGenericBlobs(mixed $embed): bool {
-		if (!is_array($embed) || in_array((string)($embed['$type'] ?? ''), [
+		if (!is_array($embed)) {
+			return false;
+		}
+		$type = (string)($embed['$type'] ?? '');
+		if (in_array($type, [self::RECORD_WITH_MEDIA, self::RECORD_RECORD_WITH_MEDIA], true)) {
+			// The wrapper itself is a known lexicon, but its media union can be
+			// supplied by another lexicon. Follow it just as embed() does so a
+			// file blob can be recovered when the PDS endpoint becomes available.
+			return self::hasGenericBlobs($embed['media'] ?? null);
+		}
+		if (in_array($type, [
 			self::IMAGES, self::GALLERY, self::VIDEO, self::RECORD_VIDEO,
 			self::EXTERNAL, self::RECORD_EXTERNAL, self::RECORD, self::RECORD_RECORD,
-			self::RECORD_WITH_MEDIA, self::RECORD_RECORD_WITH_MEDIA,
 		], true)) {
 			return false;
 		}
