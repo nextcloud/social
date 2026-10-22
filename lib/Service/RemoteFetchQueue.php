@@ -38,6 +38,8 @@ use Throwable;
 class RemoteFetchQueue {
 	/** The most jobs one call queues; more than one page of anything names. */
 	public const MAX_PER_CALL = 20;
+	/** How often an incomplete cached actor profile may be refreshed. */
+	public const ACTOR_REFRESH_INTERVAL = 900;
 
 	/** Seconds between two syncs of one account's outbox asked for by its profile. */
 	public const TIMELINE_SYNC_INTERVAL = 900;
@@ -48,6 +50,7 @@ class RemoteFetchQueue {
 	public const THREAD_FILL_INTERVAL = 600;
 
 	private const THREAD_FILLED = 'social.threadfill';
+	private const THREAD_PENDING = 'social.threadfill.pending';
 
 	/** Seconds between two reads of who reacted to one post. */
 	public const INTERACTIONS_INTERVAL = 600;
@@ -65,6 +68,8 @@ class RemoteFetchQueue {
 	private const POSTS_FILLED = 'social.postsfill';
 
 	private const COUNTS_ASKED = 'social.countsfill';
+	private const VISIBLE_COUNTS_ASKED = 'social.countsfill.visible';
+	private const ACTORS_REFRESHED = 'social.actors.refresh';
 
 	/**
 	 * The longest a job's list of posts is, JSON-encoded: `IJobList` refuses
@@ -105,7 +110,11 @@ class RemoteFetchQueue {
 			// pending sync per account
 		}
 
-		$this->queue(SyncRemoteTimeline::class, ['actor' => $actor->getId()]);
+		if (!$this->queue(SyncRemoteTimeline::class, ['actor' => $actor->getId()])) {
+			$this->clearThrottle(self::TIMELINE_SYNCED, $key, $actor->getId(), 'timeline sync');
+
+			return false;
+		}
 
 		return true;
 	}
@@ -124,17 +133,61 @@ class RemoteFetchQueue {
 		}
 		$key = md5($post->getId());
 		try {
-			if ($this->durableCache->get(self::THREAD_FILLED, $key) !== null) {
-				return false;
+			// The web request asks cron to do the work, and cron may allow a
+			// continuation pass. Keep this throttle in the shared store so both
+			// processes see the same state, even with local-only APCu caching.
+			if ($this->durableCache->getShared(self::THREAD_FILLED, $key) !== null) {
+				return $this->isThreadFillPending($post->getId());
 			}
-			$this->durableCache->set(self::THREAD_FILLED, $key, 1, self::THREAD_FILL_INTERVAL);
+			$this->durableCache->setShared(self::THREAD_FILLED, $key, 1, self::THREAD_FILL_INTERVAL);
+			$this->durableCache->setShared(self::THREAD_PENDING, $key, 1, self::THREAD_FILL_INTERVAL + 60);
 		} catch (Throwable $e) {
 			// the job list's own dedupe still holds
 		}
 
-		$this->queue(FillThread::class, ['post' => $post->getId()]);
+		if (!$this->queue(FillThread::class, ['post' => $post->getId()])) {
+			$this->completeThreadFill($post->getId());
+			try {
+				$this->durableCache->removeShared(self::THREAD_FILLED, $key);
+			} catch (Throwable $e) {
+				$this->logger->info('[RemoteFetchQueue] could not reset thread fill throttle', ['post' => $post->getId(), 'exception' => $e]);
+			}
+
+			return false;
+		}
 
 		return true;
+	}
+
+	/** Whether a queued conversation read has finished, as the HTTP reader can see it. */
+	public function isThreadFillPending(string $postId): bool {
+		try {
+			return $this->durableCache->getShared(self::THREAD_PENDING, md5($postId)) !== null;
+		} catch (Throwable $e) {
+			$this->logger->info('[RemoteFetchQueue] could not read thread fill state', ['post' => $postId, 'exception' => $e]);
+
+			return false;
+		}
+	}
+
+	/** Clears the shared pending state when the queued conversation read ends. */
+	public function completeThreadFill(string $postId): void {
+		try {
+			$this->durableCache->removeShared(self::THREAD_PENDING, md5($postId));
+		} catch (Throwable $e) {
+			$this->logger->info('[RemoteFetchQueue] could not clear thread fill state', ['post' => $postId, 'exception' => $e]);
+		}
+	}
+
+	/** Allow another thread-fill pass when the worker stopped at a saved cursor. */
+	public function retryThreadFill(string $postId): void {
+		$key = md5($postId);
+		try {
+			$this->durableCache->removeShared(self::THREAD_FILLED, $key);
+		} catch (Throwable $e) {
+			$this->logger->info('[RemoteFetchQueue] could not clear incomplete thread fill throttle', ['post' => $postId, 'exception' => $e]);
+		}
+		$this->completeThreadFill($postId);
 	}
 
 	/**
@@ -150,17 +203,30 @@ class RemoteFetchQueue {
 		}
 		$key = md5($type . "\0" . $post->getId());
 		try {
-			if ($this->durableCache->get(self::INTERACTIONS_FILLED, $key) !== null) {
+			if ($this->durableCache->getShared(self::INTERACTIONS_FILLED, $key) !== null) {
 				return false;
 			}
-			$this->durableCache->set(self::INTERACTIONS_FILLED, $key, 1, self::INTERACTIONS_INTERVAL);
+			$this->durableCache->setShared(self::INTERACTIONS_FILLED, $key, 1, self::INTERACTIONS_INTERVAL);
 		} catch (Throwable $e) {
 			// the job list's own dedupe still holds
 		}
 
-		$this->queue(FillInteractions::class, ['post' => $post->getId(), 'type' => $type]);
+		if (!$this->queue(FillInteractions::class, ['post' => $post->getId(), 'type' => $type])) {
+			// Do not suppress another attempt for the full interval when the
+			// background job could not be persisted. The visible request can
+			// report that the list is still filling and try again shortly.
+			$this->clearSharedThrottle(self::INTERACTIONS_FILLED, $key, $post->getId(), 'interaction fill');
+
+			return false;
+		}
 
 		return true;
+	}
+
+	/** Let the next visible request resume a reaction list the last job left incomplete. */
+	public function completeInteractionFill(string $postId, string $type): void {
+		$key = md5($type . "\0" . $postId);
+		$this->clearSharedThrottle(self::INTERACTIONS_FILLED, $key, $postId, 'interaction fill');
 	}
 
 	/**
@@ -185,7 +251,11 @@ class RemoteFetchQueue {
 			// the job list's own dedupe still holds
 		}
 
-		$this->queue(FillFollowLists::class, ['actor' => $account->getId(), 'direction' => $direction]);
+		if (!$this->queue(FillFollowLists::class, ['actor' => $account->getId(), 'direction' => $direction])) {
+			$this->clearThrottle(self::FOLLOW_LISTS_FILLED, $key, $account->getId(), 'follow-list fill');
+
+			return false;
+		}
 
 		return true;
 	}
@@ -206,7 +276,12 @@ class RemoteFetchQueue {
 
 		$term = trim(mb_strtolower($term));
 		$viewerId = ($viewer === null || $kind !== 'search') ? '' : $viewer->getId();
-		$this->queue(FillPosts::class, ['kind' => $kind, 'term' => $term, 'viewer' => $viewerId]);
+		if (!$this->queue(FillPosts::class, ['kind' => $kind, 'term' => $term, 'viewer' => $viewerId])) {
+			$key = md5($kind . "\0" . $term . "\0" . $viewerId);
+			$this->clearThrottle(self::POSTS_FILLED, $key, $term, 'post fill');
+
+			return false;
+		}
 
 		return true;
 	}
@@ -246,7 +321,7 @@ class RemoteFetchQueue {
 	 * @param array<string, int> $intervals post id => seconds until it may be asked for again
 	 * @return bool whether a read was asked for
 	 */
-	public function refreshCounts(array $intervals): bool {
+	public function refreshCounts(array $intervals, bool $force = false): bool {
 		$wanted = [];
 		foreach ($intervals as $id => $interval) {
 			if (count($wanted) >= self::MAX_PER_CALL) {
@@ -257,30 +332,49 @@ class RemoteFetchQueue {
 				continue;
 			}
 			$key = md5($id);
+			$throttle = $force ? self::VISIBLE_COUNTS_ASKED : self::COUNTS_ASKED;
 			try {
-				if ($this->durableCache->get(self::COUNTS_ASKED, $key) !== null) {
+				if ($this->durableCache->get($throttle, $key) !== null) {
 					continue;
 				}
-				$this->durableCache->set(self::COUNTS_ASKED, $key, 1, $interval);
+				$this->durableCache->set($throttle, $key, 1, $interval);
 			} catch (Throwable $e) {
 				// the post's own stamp, written when it is asked, still holds
 			}
 			$wanted[] = $id;
 		}
 
+		$queued = false;
+		$enqueueBatch = function (array $batch) use (&$queued, $force): void {
+			if ($batch === []) {
+				return;
+			}
+			if ($this->queue(RefreshCounts::class, ['posts' => $batch] + ($force ? ['force' => true] : []))) {
+				$queued = true;
+
+				return;
+			}
+
+			// A post whose refresh job could not be stored must remain eligible
+			// for a later request; otherwise the interval marker would make its
+			// counts look as though a refresh were already in progress.
+			foreach ($batch as $id) {
+				$throttle = $force ? self::VISIBLE_COUNTS_ASKED : self::COUNTS_ASKED;
+				$this->clearThrottle($throttle, md5($id), $id, 'count refresh');
+			}
+		};
 		$batch = [];
 		foreach ($wanted as $id) {
-			if ($batch !== [] && strlen((string)json_encode(['posts' => [...$batch, $id]])) > self::ARGUMENT_LENGTH) {
-				$this->queue(RefreshCounts::class, ['posts' => $batch]);
+			$argument = ['posts' => [...$batch, $id]] + ($force ? ['force' => true] : []);
+			if ($batch !== [] && strlen((string)json_encode($argument)) > self::ARGUMENT_LENGTH) {
+				$enqueueBatch($batch);
 				$batch = [];
 			}
 			$batch[] = $id;
 		}
-		if ($batch !== []) {
-			$this->queue(RefreshCounts::class, ['posts' => $batch]);
-		}
+		$enqueueBatch($batch);
 
-		return $wanted !== [];
+		return $queued;
 	}
 
 	/**
@@ -307,6 +401,42 @@ class RemoteFetchQueue {
 	}
 
 	/**
+	 * Refreshes cached actor profiles whose lightweight reaction view omitted
+	 * fields such as the avatar. The refresh runs away from the request and is
+	 * throttled per actor so opening a post cannot create a profile-fetch loop.
+	 *
+	 * @param string[] $ids actor ids
+	 */
+	public function refreshActors(array $ids): void {
+		$wanted = [];
+		foreach ($ids as $id) {
+			$anchor = strpos($id, '#');
+			if ($anchor !== false) {
+				$id = substr($id, 0, $anchor);
+			}
+			if (preg_match('#^https?://#i', $id) === 1) {
+				$wanted[$id] = $id;
+			}
+		}
+
+		foreach (array_slice(array_values($wanted), 0, self::MAX_PER_CALL) as $id) {
+			$key = md5($id);
+			try {
+				if ($this->durableCache->get(self::ACTORS_REFRESHED, $key) !== null) {
+					continue;
+				}
+				$this->durableCache->set(self::ACTORS_REFRESHED, $key, 1, self::ACTOR_REFRESH_INTERVAL);
+			} catch (Throwable $e) {
+				// IJobList still deduplicates a refresh that is waiting to run.
+			}
+
+			if (!$this->queue(ResolveActor::class, ['id' => $id, 'refresh' => true])) {
+				$this->clearThrottle(self::ACTORS_REFRESHED, $key, $id, 'actor profile refresh');
+			}
+		}
+	}
+
+	/**
 	 * Queues a lookup of each account named by its `user@host` handle, for
 	 * a page that lists accounts by handle and shows the ones not cached
 	 * here as not found yet.
@@ -329,9 +459,9 @@ class RemoteFetchQueue {
 
 	/**
 	 * @param class-string $job
-	 * @param array<string, string|list<string>> $argument
+	 * @param array<string, string|bool|list<string>> $argument
 	 */
-	private function queue(string $job, array $argument): void {
+	private function queue(string $job, array $argument): bool {
 		try {
 			if (!$this->jobList->has($job, $argument)) {
 				$this->jobList->add($job, $argument);
@@ -341,6 +471,34 @@ class RemoteFetchQueue {
 			// the next look at the page asks for again
 			$this->logger->info('[RemoteFetchQueue] could not queue ' . $job, [
 				'argument' => $argument, 'exception' => $e,
+			]);
+
+			return false;
+		}
+
+		return true;
+	}
+
+	/** Let a later request retry work whose queue write failed. */
+	private function clearThrottle(string $namespace, string $key, string $resource, string $operation): void {
+		try {
+			$this->durableCache->remove($namespace, $key);
+		} catch (Throwable $e) {
+			$this->logger->info('[RemoteFetchQueue] could not reset ' . $operation . ' throttle', [
+				'resource' => $resource,
+				'exception' => $e,
+			]);
+		}
+	}
+
+	/** A background job and an HTTP request must see the same retry throttle. */
+	private function clearSharedThrottle(string $namespace, string $key, string $resource, string $operation): void {
+		try {
+			$this->durableCache->removeShared($namespace, $key);
+		} catch (Throwable $e) {
+			$this->logger->info('[RemoteFetchQueue] could not reset shared ' . $operation . ' throttle', [
+				'resource' => $resource,
+				'exception' => $e,
 			]);
 		}
 	}

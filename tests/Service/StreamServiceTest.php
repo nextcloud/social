@@ -42,6 +42,7 @@ use OCA\Social\Service\PostDecorationService;
 use OCA\Social\Service\ReactionSummaryService;
 use OCA\Social\Service\RemoteFetchQueue;
 use OCA\Social\Service\StreamService;
+use OCA\Social\Service\Thread\ThreadService;
 use OCA\Social\Tools\Exceptions\RequestNetworkException;
 use OCP\IURLGenerator;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
@@ -1057,6 +1058,20 @@ class StreamServiceTest extends TestCase {
 		$service->getTimeline(new ProbeOptions());
 	}
 
+	public function testAClientPageRemainsMarkedAsFillingUntilRemoteCountsAreStored(): void {
+		$note = $this->note('https://remote.example/notes/1');
+		$this->streamRequest->method('getTimeline')->willReturn([$note]);
+		$counts = $this->createMock(CountService::class);
+		$counts->expects($this->once())->method('seen')->with([$note])->willReturn(true);
+		$service = $this->serviceCounting($counts);
+		$options = new ProbeOptions();
+		$options->setFormat(ACore::FORMAT_LOCAL);
+
+		$service->getTimeline($options);
+
+		$this->assertTrue($service->lastTimelineCountsFilling());
+	}
+
 	public function testAConversationHasEveryPostInItsCountsAskedFor(): void {
 		$post = $this->note('https://remote.example/notes/2', self::ACTOR_ID, 'https://remote.example/notes/1');
 		$parent = $this->note('https://remote.example/notes/1');
@@ -1223,6 +1238,71 @@ class StreamServiceTest extends TestCase {
 		$context = $this->serviceWithTags($this->createStub(MediaTagsRequest::class), $queue)->getContextByNid(2);
 
 		$this->assertSame(['https://remote.example/notes/1', 'https://remote.example/notes/2'], $asked);
+		$this->assertTrue($context['filling']);
+	}
+
+	public function testOpeningABlueskyConversationReadsRepliesBeforeReturningContext(): void {
+		$post = $this->note('at://did:plc:alice/app.bsky.feed.post/2', self::ACTOR_ID);
+		$reply = $this->note('at://did:plc:bob/app.bsky.feed.post/3', 'https://remote.example/users/bob', $post->getId());
+		$this->streamRequest->method('getStreamByNid')->willReturn($post);
+		$this->streamRequest->expects($this->once())->method('getDescendants')->with($post->getId())->willReturn([$reply]);
+		$threads = $this->createMock(ThreadService::class);
+		$viewer = (new Person())->setId(self::ACTOR_ID);
+		$threads->expects($this->once())->method('fillBluesky')->with($post, $viewer)->willReturn(true);
+		$threads->expects($this->once())->method('hasPendingBlueskyReplies')->willReturn(true);
+		$queue = $this->createMock(RemoteFetchQueue::class);
+		$queue->expects($this->once())->method('fillThread')->with($post)->willReturn(true);
+
+		$service = $this->serviceWithTags($this->createStub(MediaTagsRequest::class), $queue, $threads);
+		$service->setViewer($viewer);
+		$context = $service->getContextByNid(2);
+
+		$this->assertSame([$reply], $context['descendants']);
+		$this->assertTrue($context['filling'], 'the background fill follows reply branches beyond Bluesky\'s depth limit');
+	}
+
+	public function testACompleteVisibleBlueskyThreadDoesNotQueueAnUnneededSecondRead(): void {
+		$post = $this->note('at://did:plc:alice/app.bsky.feed.post/2', self::ACTOR_ID);
+		$this->streamRequest->method('getStreamByNid')->willReturn($post);
+		$this->streamRequest->method('getDescendants')->willReturn([]);
+		$threads = $this->createMock(ThreadService::class);
+		$threads->expects($this->once())->method('fillBluesky')->with($post, null)->willReturn(true);
+		$threads->expects($this->once())->method('hasPendingBlueskyReplies')->willReturn(false);
+		$queue = $this->createMock(RemoteFetchQueue::class);
+		$queue->expects($this->never())->method('fillThread');
+
+		$context = $this->serviceWithTags($this->createStub(MediaTagsRequest::class), $queue, $threads)->getContextByNid(2);
+
+		$this->assertFalse($context['filling']);
+	}
+
+	public function testCachedBlueskyReadKeepsPollingWhileTheDeepReplyJobIsPending(): void {
+		$post = $this->note('at://did:plc:alice/app.bsky.feed.post/2', self::ACTOR_ID);
+		$this->streamRequest->method('getStreamByNid')->willReturn($post);
+		$this->streamRequest->method('getDescendants')->willReturn([]);
+		$threads = $this->createMock(ThreadService::class);
+		$threads->expects($this->once())->method('fillBluesky')->with($post, null)->willReturn(true);
+		$threads->expects($this->never())->method('hasPendingBlueskyReplies');
+		$queue = $this->createMock(RemoteFetchQueue::class);
+		$queue->expects($this->once())->method('isThreadFillPending')->with($post->getId())->willReturn(true);
+		$queue->expects($this->never())->method('fillThread');
+
+		$context = $this->serviceWithTags($this->createStub(MediaTagsRequest::class), $queue, $threads)->getContextByNid(2);
+
+		$this->assertTrue($context['filling'], 'the context poll stays active until the queued deep-reply fill finishes');
+	}
+
+	public function testConcurrentBlueskyConversationReadKeepsContextRefreshActive(): void {
+		$post = $this->note('at://did:plc:alice/app.bsky.feed.post/2', self::ACTOR_ID);
+		$this->streamRequest->method('getStreamByNid')->willReturn($post);
+		$this->streamRequest->method('getDescendants')->willReturn([]);
+		$threads = $this->createMock(ThreadService::class);
+		$threads->expects($this->once())->method('fillBluesky')->with($post, null)->willReturn(null);
+		$queue = $this->createMock(RemoteFetchQueue::class);
+		$queue->expects($this->never())->method('fillThread');
+
+		$context = $this->serviceWithTags($this->createStub(MediaTagsRequest::class), $queue, $threads)->getContextByNid(2);
+
 		$this->assertTrue($context['filling']);
 	}
 
@@ -1962,7 +2042,7 @@ class StreamServiceTest extends TestCase {
 		$this->assertContains('https://cloud.example.org/notes/reply', $batched);
 	}
 
-	private function serviceWithTags(MediaTagsRequest $mediaTagsRequest, RemoteFetchQueue $remoteFetchQueue): StreamService {
+	private function serviceWithTags(MediaTagsRequest $mediaTagsRequest, RemoteFetchQueue $remoteFetchQueue, ?ThreadService $threads = null): StreamService {
 		return new StreamService(
 			$this->urlGenerator,
 			$this->streamRequest,
@@ -1977,7 +2057,9 @@ class StreamServiceTest extends TestCase {
 			$this->decoration($mediaTagsRequest, $remoteFetchQueue),
 			$this->accountService,
 			$this->channelService,
-			$remoteFetchQueue
+			$remoteFetchQueue,
+			null,
+			$threads,
 		);
 	}
 

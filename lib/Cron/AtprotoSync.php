@@ -19,21 +19,21 @@ use Psr\Log\LoggerInterface;
 use Throwable;
 
 /**
- * Reads Bluesky every two minutes: the feeds of the authors somebody here
- * follows, then what Bluesky did to local accounts, then the direct
+ * Reads Bluesky every minute: what Bluesky did to local accounts first, then
+ * the feeds of the authors somebody here follows, then the direct
  * messages they received, as many of each as are due within the request
  * ceiling and the pass's wall-clock budget — a slow AppView ends the pass
  * at the budget, and what is still due is read on the next one.
  */
 class AtprotoSync extends TimedJob {
-	private const INTERVAL = 2 * 60;
+	private const INTERVAL = 60;
 	/**
 	 * How long one pass may spend on the three steps, in seconds: well
 	 * inside the interval, so two passes cannot meet, the way `Cron\Cache`
 	 * budgets its own. Each step takes what is due and checks the clock
 	 * between accounts, so nothing is lost when it runs out.
 	 */
-	public const MAX_DURATION = 90;
+	public const MAX_DURATION = 45;
 
 	public function __construct(
 		ITimeFactory $time,
@@ -54,8 +54,8 @@ class AtprotoSync extends TimedJob {
 		}
 		$deadline = $this->time->getTime() + self::MAX_DURATION;
 		$steps = [
-			'feeds' => fn (): array => $this->poller->poll(FeedPoller::BATCH, $deadline),
 			'notifications' => fn (): array => $this->notifications->poll(NotificationPoller::BATCH, $deadline),
+			'feeds' => fn (): array => $this->poller->poll(FeedPoller::BATCH, $deadline),
 			'direct messages' => fn (): array => $this->chat->poll(ChatPoller::BATCH, $deadline),
 		];
 		foreach ($steps as $step => $run) {

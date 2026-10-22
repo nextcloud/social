@@ -566,8 +566,18 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 */
 	private static int $quoteDepth = 0;
 
+	/** @var list<string> ATProto blob URLs explicitly allowed to remain streamed for this import */
+	private array $atprotoStreamedBlobs = [];
+
 	public function __construct(?ACore $parent = null) {
 		parent::__construct($parent);
+	}
+
+	/** Mark only mapper-produced ATProto blob URLs as stream-only attachments. */
+	public function setAtprotoStreamedBlobs(array $urls): self {
+		$this->atprotoStreamedBlobs = array_values(array_unique(array_filter($urls, static fn (mixed $url): bool => is_string($url) && str_starts_with($url, 'https://'))));
+
+		return $this;
 	}
 
 	/**
@@ -2132,6 +2142,9 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 				$dropped[] = ['reason' => 'no url'];
 				continue;
 			}
+			if (in_array($attachment->getUrl(), $this->atprotoStreamedBlobs, true)) {
+				$attachment->setLocalCopy(Document::COPY_STREAMED);
+			}
 
 			try {
 				$interface = AP::instance()->getInterfaceFromType($attachment->getType());
@@ -2176,6 +2189,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		}
 
 		$this->setAttachments($new);
+		$this->atprotoStreamedBlobs = [];
 	}
 
 	/**

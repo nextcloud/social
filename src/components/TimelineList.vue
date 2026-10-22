@@ -344,6 +344,9 @@ export default {
 			infoHidden: false,
 			state: [],
 			intervalId: -1,
+			countRefreshIntervalId: -1,
+			countRefreshLastAsked: new Map(),
+			countRefreshOffset: 0,
 			pollEvery: 30000,
 			/** how long the poll is waiting after failures, 0 while the server answers */
 			pollWait: 0,
@@ -577,6 +580,16 @@ export default {
 		/** @return {string} which list the store is holding */
 		timelineIdentity() {
 			return this.timelineStore.getTimelineIdentity
+		},
+
+		/** @return {boolean} whether the current remote page can still grow */
+		timelinePageFilling() {
+			return this.timelineStore.timelinePageFilling
+		},
+
+		/** @return {boolean} whether the last timeline page was empty */
+		timelinePageEmpty() {
+			return this.timelineStore.timelinePageEmpty
 		},
 
 		/** @return {boolean} nothing to show, and nothing went wrong */
@@ -918,6 +931,23 @@ export default {
 			this.startTracking()
 		},
 
+		// A Bluesky profile can have an empty intermediate page while the
+		// server continues past hidden or unavailable records. Keep the end
+		// sentinel active until the background refill confirms the end.
+		timelinePageFilling(filling) {
+			if (filling) {
+				this.allLoaded = false
+			} else if (this.timelinePageEmpty && !this.loading) {
+				this.allLoaded = true
+			}
+		},
+
+		timelinePageEmpty(empty) {
+			if (empty && !this.timelinePageFilling && !this.loading) {
+				this.allLoaded = true
+			}
+		},
+
 		// turning learning off, or on, from the notice above the list
 		interestContext() {
 			this.startTracking()
@@ -961,6 +991,7 @@ export default {
 		entries: {
 			handler() {
 				this.syncTracked()
+				this.refreshVisiblePostCounts()
 			},
 
 			flush: 'post',
@@ -1006,6 +1037,12 @@ export default {
 		eventBus.on(NOTIFICATIONS_READ, this.onMarkedAllRead)
 
 		this.loadFirstPage()
+		// Counts on remote posts can change after their first render. Refresh
+		// only what is on screen, for either protocol, and let the server's
+		// per-post freshness window cap requests to the origin.
+		this.refreshVisiblePostCounts()
+		this.countRefreshIntervalId = window.setInterval(() => this.refreshVisiblePostCounts(), 5000)
+		document.addEventListener('scroll', this.refreshVisiblePostCounts, { capture: true, passive: true })
 		// with notify_push the server tells us about new entries; polling
 		// remains as a slow safety net. Without it, poll every 30 seconds.
 		const hasPush = onTimelinePush(this.onPushed)
@@ -1032,6 +1069,8 @@ export default {
 		eventBus.off('shortcut:previous', this.focusPrevious)
 		eventBus.off(NOTIFICATIONS_READ, this.onMarkedAllRead)
 		clearInterval(this.intervalId)
+		clearInterval(this.countRefreshIntervalId)
+		document.removeEventListener('scroll', this.refreshVisiblePostCounts, true)
 		this.unwatchComposer()
 		if (this.observer) {
 			this.observer.disconnect()
@@ -1254,6 +1293,45 @@ export default {
 				.map((element) => [element, this.timelineStore.getStatus(element.dataset.statusId)])
 				.filter(([, status]) => status !== undefined)
 			this.tracker.sync(pairs)
+		},
+
+		/** Refresh counts for visible remote posts without waiting for cron. */
+		refreshVisiblePostCounts() {
+			if (document.visibilityState !== 'visible' || this.display !== 'list' || this.showParents || !this.$el) {
+				return
+			}
+
+			const now = Date.now()
+			const visible = []
+			for (const element of this.$el.querySelectorAll('[data-status-id]')) {
+				const bounds = element.getBoundingClientRect()
+				if (bounds.bottom <= 0 || bounds.top >= window.innerHeight) {
+					continue
+				}
+				const indexed = this.timelineStore.getStatus(element.dataset.statusId)
+				const status = indexed?.reblog ?? indexed
+				if (status?.id && status.visibility !== 'direct'
+					&& now - (this.countRefreshLastAsked.get(status.id) ?? 0) >= 5000) {
+					visible.push(String(status.id))
+				}
+			}
+
+			// Keep simultaneous origin requests bounded and rotate through the
+			// visible cards, so the same first four do not starve the rest.
+			const ids = [...new Set(visible)]
+			const start = ids.length === 0 ? 0 : this.countRefreshOffset % ids.length
+			const selected = ids.length <= 4
+				? ids
+				: [...ids.slice(start), ...ids.slice(0, start)].slice(0, 4)
+			this.countRefreshOffset = ids.length > 4 ? (start + selected.length) % ids.length : 0
+			for (const id of selected) {
+				this.countRefreshLastAsked.set(id, now)
+				// Status counts are refreshed at the origin by this request. Bypass
+				// any cached status response so the updated counters reach the card.
+				this.timelineStore.fetchStatus(id, true).catch((error) => {
+					logger.debug('Visible post counts were not refreshed', { error, id })
+				})
+			}
 		},
 
 		/**
@@ -1527,7 +1605,9 @@ export default {
 				// page of one, and its `.length` is undefined — so `=== 0` was
 				// never true and the sentinel kept asking for a next page that
 				// does not exist
-				this.allLoaded = Array.isArray(response) ? response.length === 0 : true
+				this.allLoaded = Array.isArray(response)
+					? response.length === 0 && !this.timelinePageFilling
+					: !this.timelinePageFilling
 			} catch (error) {
 				if (generation !== this.generation) {
 					return

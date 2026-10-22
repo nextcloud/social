@@ -202,6 +202,15 @@ class NotificationPollerTest extends TestCase {
 		$this->assertCount(2, $this->imported);
 	}
 
+	public function testAnEmptyInboxDoesNotBackOffInteractionSync(): void {
+		$this->appView->method('queryAs')->willReturn(['notifications' => []]);
+		$this->cursors->expects($this->once())->method('synced')->with(self::LOCAL, '', self::NOW, self::NOW + NotificationPoller::INTERVAL, self::TABLE);
+
+		$this->poller->pollAccount(new Watch(self::LOCAL, 'alice.social.test', '', self::NOW - 3600, self::NOW - 3600, 0, '', 0));
+
+		$this->assertSame(60, NotificationPoller::INTERVAL);
+	}
+
 	public function testAPassEnrolsEveryActiveIdentityAndVisitsTheDueOnes(): void {
 		$this->cursors->expects($this->once())->method('add')->with(self::LOCAL, 'alice.social.test', self::TABLE);
 		$this->cursors->method('getDue')->with(self::NOW, NotificationPoller::BATCH, self::TABLE)->willReturn([new Watch(self::LOCAL, 'alice.social.test', '', 0, self::NOW, 0, '', 0)]);

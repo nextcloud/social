@@ -55,14 +55,16 @@ class BlueskyPublishedCountSource implements CountSource {
 	}
 
 	#[\Override]
-	public function refresh(array $posts): int {
+	public function refresh(array $posts, ?int $timeout = null): int {
 		$answered = 0;
 		foreach (array_chunk($posts, BlueskyCountSource::BATCH) as $chunk) {
 			$uris = [];
 			foreach ($chunk as $post) {
 				$uri = $this->uriOf($post);
 				if ($uri === '') {
-					$this->writer->stamp($post->getId());
+					if ($timeout === null) {
+						$this->writer->stamp($post->getId());
+					}
 				} else {
 					$uris[$post->getId()] = $uri;
 				}
@@ -71,12 +73,14 @@ class BlueskyPublishedCountSource implements CountSource {
 				continue;
 			}
 
-			$views = $this->views(array_values($uris));
+			$views = $this->views(array_values($uris), $timeout);
 			foreach ($uris as $id => $uri) {
 				$view = $views[$uri] ?? null;
 				if ($view === null) {
 					// not indexed yet, or not answered: asked again one interval on
-					$this->writer->stamp($id);
+					if ($timeout === null) {
+						$this->writer->stamp($id);
+					}
 					continue;
 				}
 				$stated = [
@@ -85,6 +89,12 @@ class BlueskyPublishedCountSource implements CountSource {
 					Details::REPLIES => BlueskyCountSource::count($view, 'replyCount'),
 					Details::QUOTES => BlueskyCountSource::count($view, 'quoteCount'),
 				];
+				if (!array_filter($stated, static fn (?int $count): bool => $count !== null)) {
+					if ($timeout === null) {
+						$this->writer->stamp($id);
+					}
+					continue;
+				}
 				if ($this->writer->writeBeyond($id, $stated, $this->records->countHeldOnBluesky($id))) {
 					$answered++;
 				}
@@ -128,9 +138,11 @@ class BlueskyPublishedCountSource implements CountSource {
 	 * @param list<string> $uris
 	 * @return array<string, array> the AppView's views, by URI; empty when it did not answer
 	 */
-	private function views(array $uris): array {
+	private function views(array $uris, ?int $timeout = null): array {
 		try {
-			$answer = $this->appView->query('app.bsky.feed.getPosts', ['uris' => $uris]);
+			$answer = $timeout === null
+				? $this->appView->query('app.bsky.feed.getPosts', ['uris' => $uris])
+				: $this->appView->query('app.bsky.feed.getPosts', ['uris' => $uris], [], $timeout);
 		} catch (Throwable $e) {
 			$this->logger->notice('Counts of posts on Bluesky not read', ['exception' => $e]);
 

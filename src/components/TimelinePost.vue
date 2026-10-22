@@ -345,19 +345,6 @@
 						<!-- the same three controls on every post, so nothing moves
 						     from one post to the next: one that cannot be used
 						     here is there, disabled, and says why -->
-						<div class="post-action-group" :title="refusedBecause.reply || undefined">
-							<NcButton
-								:title="refusedBecause.reply || t('social', 'Reply')"
-								:aria-label="t('social', 'Reply')"
-								:disabled="!canReply"
-								variant="tertiary"
-								@click="reply">
-								<template #icon>
-									<Reply :size="20" />
-								</template>
-							</NcButton>
-							<RollingCount v-if="!hidesCounts" :count="item.replies_count || 0" />
-						</div>
 						<div
 							class="post-action-group"
 							:class="{ 'post-action-group--refused': refused === 'boost' }"
@@ -426,6 +413,22 @@
 							:title="n('social', '%n account here opened this post', '%n accounts here opened this post', item.view_count)">
 							<IconEyeOutline :size="20" />
 							<RollingCount :count="item.view_count" />
+						</div>
+						<!-- Replies finish the row at its outside edge. In a thread,
+						     this keeps the comment glyph and its count aligned across
+						     nesting levels instead of stepping left with each reply. -->
+						<div class="post-action-group post-action-group--reply" :title="refusedBecause.reply || undefined">
+							<NcButton
+								:title="refusedBecause.reply || t('social', 'Reply')"
+								:aria-label="t('social', 'Reply')"
+								:disabled="!canReply"
+								variant="tertiary"
+								@click="reply">
+								<template #icon>
+									<Reply :size="20" />
+								</template>
+							</NcButton>
+							<RollingCount v-if="!hidesCounts" :count="item.replies_count || 0" />
 						</div>
 					</div>
 				</div>
@@ -2247,10 +2250,19 @@ export default {
 
 	.post-actions__groups {
 		display: flex;
+		flex: 1 1 auto;
 		flex-wrap: wrap;
 		align-items: center;
+		justify-content: flex-end;
 		gap: 4px;
 		min-inline-size: 0;
+
+		// Reply entries indent from the start while keeping this same outside
+		// edge. The entry's auto width already accounts for that indent, so a
+		// negative end margin would push the icon and count past the edge.
+		.post-action-group--reply {
+			margin-inline-start: auto;
+		}
 	}
 
 	/* it had a top margin from when it was a row of its own */

@@ -22,7 +22,9 @@ use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\Details;
 use OCA\Social\Service\ActorService;
+use OCA\Social\Service\CurlService;
 use OCA\Social\Service\VerificationService;
+use OCP\IConfig;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -123,6 +125,53 @@ class BlueskyActorServiceTest extends TestCase {
 		$this->appView->method('query')->willReturn(['did' => 'did:web:example.com', 'handle' => 'example.com']);
 		$this->plc->expects($this->never())->method('document');
 		$this->assertSame('', $this->service->resolve('example.com')->getDetails(ActorMapper::DETAIL)['pds']);
+	}
+
+	public function testPdsEndpointIsValidatedAndCachedForTheRequest(): void {
+		$this->plc->expects($this->exactly(2))->method('document')->willReturnOnConsecutiveCalls(
+			['service' => [['id' => '#atproto_pds', 'serviceEndpoint' => 'https://PDS.example/']]],
+			['service' => [['id' => '#atproto_pds', 'serviceEndpoint' => 'https://127.0.0.1']]],
+		);
+
+		$this->assertSame('https://pds.example', $this->service->pdsEndpoint(self::DID));
+		$this->assertSame('https://pds.example', $this->service->pdsEndpoint(self::DID), 'one DID document read per service instance');
+		$this->assertSame('', $this->service->pdsEndpoint('did:plc:aaaaaaaaaaaaaaaaaaaaaaaa'), 'a private IP is never used as a blob origin');
+	}
+
+	public function testAnAdminAllowedLocalDevelopmentPdsCanBeUsedForDeletionChecks(): void {
+		$config = $this->createMock(IConfig::class);
+		$config->method('getSystemValueBool')->with('allow_local_remote_servers', false)->willReturn(true);
+		$this->plc->expects($this->once())->method('document')->with(self::DID)->willReturn([
+			'service' => [['id' => '#atproto_pds', 'serviceEndpoint' => 'http://127.0.0.1:2583/']],
+		]);
+		$service = new BlueskyActorService(
+			$this->config, $this->appView, $this->plc, $this->createMock(ActorMapper::class),
+			$this->cache, $this->actors, $this->createMock(Blocklist::class), new NullLogger(),
+			systemConfig: $config,
+		);
+
+		$this->assertSame('http://127.0.0.1:2583', $service->pdsEndpoint(self::DID));
+	}
+
+	public function testDidWebPdsIsResolvedThroughTheGuardedHttpsClient(): void {
+		$did = 'did:web:example.com:users:alice';
+		$curl = $this->createMock(CurlService::class);
+		$curl->expects($this->once())->method('doRequest')->with(
+			'get', 'https://example.com/users/alice/did.json', $this->callback(static fn (array $options): bool => $options['timeout'] === 5 && $options['json_headers'] === false),
+			$this->anything(), $this->anything(),
+		)->willReturnCallback(static function (string $method, string $url, array $options, ?string &$contentType, ?int &$statusCode) use ($did): string {
+			$contentType = 'application/did+json';
+			$statusCode = 200;
+
+			return (string)json_encode([
+				'id' => $did,
+				'service' => [['id' => '#atproto_pds', 'serviceEndpoint' => 'https://pds.example/']],
+			]);
+		});
+		$service = new BlueskyActorService($this->config, $this->appView, $this->plc, $this->createMock(ActorMapper::class), $this->cache, $this->actors, $this->createMock(Blocklist::class), new NullLogger(), null, $curl);
+
+		$this->assertSame('https://pds.example', $service->pdsEndpoint($did));
+		$this->assertSame('', $service->pdsEndpoint('did:web:localhost'), 'local DID web hosts are not fetched');
 	}
 
 	public function testABlockedAccountIsNotResolvedByDidOrByItsHost(): void {

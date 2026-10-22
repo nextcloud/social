@@ -98,12 +98,17 @@ class AtprotoFeedsController extends Controller {
 	#[NoAdminRequired]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/timelines/bluesky')]
 	public function timeline(string $feed, int $limit = 20, string $max_id = ''): DataResponse {
-		return $this->answer(function (Person $viewer) use ($feed, $limit, $max_id): array {
+		$response = $this->answer(function (Person $viewer) use ($feed, $limit, $max_id): array {
 			$posts = $this->feeds->page($viewer, $feed, $max_id, $limit);
 			$this->postDecorationService->decorate($posts, $viewer->getId());
 
 			return $posts;
 		});
+		if ($response->getStatus() === Http::STATUS_OK && $this->feeds->hasFeedPagePending()) {
+			$response->addHeader('X-Social-Filling', '1');
+		}
+
+		return $response;
 	}
 
 	/**

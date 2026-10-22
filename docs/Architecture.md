@@ -528,7 +528,15 @@ path to this daemon.
 
 ## ActivityPub Federation
 
-ActivityPub is the federation protocol this app speaks; it is also a Bluesky host (AT Protocol), with every local account a `did:plc` identity whose repository, firehose and XRPC surface live in `lib/Atproto/` — [Atproto-Compatibility.md](Atproto-Compatibility.md) is the specification, with "as built" notes per phase. Reading Bluesky (`lib/Atproto/Reader/`) goes through the ActivityPub import path: a Bluesky account is a cached actor with id `https://bsky.app/profile/<did>` and the bare handle as account (`BlueskyActorService`, `ActorMapper`), a post read off the public AppView by `FeedPoller` arrives as the `Create` of a `Note` from that actor (`PostMapper`, `FacetRenderer`, `PostStore` — `ImportService::parseIncomingRequest()` with origin `bsky.app`), a repost as the reposter's `Announce`, and what Bluesky did to a local account — follows, likes, reposts, replies, mentions, quotes — comes from the AppView's notifications asked for as that user (`NotificationPoller`, `AppViewClient::queryAs()` with a token `ServiceAuth` mints; on `BadJwtAudience` it retries with the legacy bare AppView DID for older deployments) and arrives as the `Follow`, `Like`, `Announce` or post it stands for. Bluesky apps signed in here read through the same authenticated AppView, with `AppViewProxy` applying the same one-time audience fallback. A local follow, like or boost of something that exists on Bluesky is a record in the local repository (`BlueskyGraphService`, `InteractionPublisher`, through the queued `AtprotoPublish`). `LocalRecordResolver` turns an `at://` reference to one of this instance's own records back into the local post or account.
+ActivityPub is the federation protocol this app speaks; it is also a Bluesky host (AT Protocol), with every local account a `did:plc` identity whose repository, firehose and XRPC surface live in `lib/Atproto/` — [Atproto-Compatibility.md](Atproto-Compatibility.md) is the specification, with "as built" notes per phase. Reading Bluesky (`lib/Atproto/Reader/`) goes through the ActivityPub import path: a Bluesky account is a cached actor with id `https://bsky.app/profile/<did>` and the bare handle as account (`BlueskyActorService`, `ActorMapper`), a post read off the public AppView by `FeedPoller` arrives as the `Create` of a `Note` from that actor (`PostMapper`, `FacetRenderer`, `PostStore` — `ImportService::parseIncomingRequest()` with origin `bsky.app`; image galleries, video playlists and external link cards are retained), a repost as the reposter's `Announce`, and what Bluesky did to a local account — follows, likes, reposts, replies, mentions, quotes — comes from the AppView's notifications asked for as that user (`NotificationPoller`, `AppViewClient::queryAs()` with a token `ServiceAuth` mints; on `BadJwtAudience` it retries with the legacy bare AppView DID for older deployments) and arrives as the `Follow`, `Like`, `Announce` or post it stands for. A Bluesky profile's author feed is fetched on demand through `BlueskyFeeds::authorPage()` before the ordinary account-status query, authenticated as the current reader when they have a linked Bluesky identity and public otherwise; one post beyond the requested page is fetched to cover posts already ingested by the firehose, and each opaque AppView cursor page is expanded once while local statuses are paged by `max_id`. An interactive profile request reads at most two cursor pages with a three-second timeout per page; posts beyond them are fetched as scrolling supplies the next `max_id`. AppView failures leave cached profile posts readable. Bluesky apps signed in here read through the same authenticated AppView, with `AppViewProxy` applying the same one-time audience fallback. A local follow, like or boost of something that exists on Bluesky is a record in the local repository (`BlueskyGraphService`, `InteractionPublisher`, through the queued `AtprotoPublish`). `LocalRecordResolver` turns an `at://` reference to one of this instance's own records back into the local post or account.
+
+Outbound Bluesky posts with up to four pictures keep the existing
+`app.bsky.embed.images` record. Posts with five to ten pictures use
+`app.bsky.embed.gallery`; each gallery item includes alt text and an aspect
+ratio, falling back to a square when image dimensions are unavailable. The
+20-item Lexicon ceiling is not treated as the authoring limit.
+
+The AT Protocol admin checks compare the public relay and AppView views with a sampled local DID and post. If a relay cannot find the PDS host, the diagnostic distinguishes a crawl that has not happened yet from a private/reserved endpoint that cannot be crawled from a public relay; the latter requires public DNS, HTTPS and an externally reachable web server before retrying.
 
 The public `com.atproto.server.describeServer` answer advertises the same
 handle suffix the instance issues (`.<handleHost>`) and the upload ceiling
@@ -552,8 +560,15 @@ profile back to Bluesky.
 
 ### Resuming Bluesky synchronization
 
-`FeedPoller` and `NotificationPoller` read at most one AppView page per due
-account and pass. A feed's first read walks pages to the end, so its cursor
+`Cron\AtprotoSync` runs once a minute and spends its 45-second budget on
+notifications before feeds and direct messages, so a slow feed cannot keep
+likes, reposts and replies to local posts waiting behind it. Notification
+cursors stay on that one-minute cadence even when an inbox is empty; the
+empty result is not evidence that the next event will arrive soon. The
+effective delay still depends on how often Nextcloud runs background jobs and
+how quickly the Bluesky AppView indexes an event. `FeedPoller` and
+`NotificationPoller` read at most one AppView page per due account and pass.
+A feed's first read walks pages to the end, so its cursor
 starts without a committed timestamp and advances only when the walk finishes;
 notification polling starts with a snapshot of its newest page. `Reader\PollCursor` keeps their committed timestamp separate
 from the AppView's opaque pagination cursor. While walking a backlog, the
@@ -1830,18 +1845,45 @@ follows their author. `StreamService::getContextByNid()` asks
 `RemoteFetchQueue::fillThread()` for the conversation's first post and for
 the one opened, at most every ten minutes per post, for a post from another
 server or a public one of this server's (which other networks read too), and
-`Cron\FillThread` hands it to `ThreadService`. That asks every network the
-post is on (`ThreadSource`), with one budget of 150 replies between them:
+`Cron\FillThread` hands it to `ThreadService`. Opening the thread also reads
+the first page of replies inline from its network under a shared three-second
+network budget; the background fill continues paging and following replies
+deeper into the conversation, with one budget of 150 replies:
 
 - `ActivityPubThreadSource` reads the post's `replies` collection as its
   server described it, a few pages, fetches each reply this server does not
   hold from its own server (`StreamQueueService::fetchNow()`, held to the
   same host breaker as the queue), and the replies of those in turn, three
-  levels deep;
+  levels deep. The inline read is limited to 20 direct replies and passes its
+  remaining timeout to both collection and post fetches; additional pages and
+  replies stay on the existing background path. A failed collection or reply
+  fetch keeps any replies already stored, marks the visible read incomplete,
+  and lets the next context poll retry after five seconds instead of caching
+  the partial result as a successful read;
 - `Atproto\Reader\BlueskyThreadSource` asks the AppView for the thread
   (`getPostThread`) of a post that is on Bluesky — read from there, or
   written here and published — and stores each post as any Bluesky post is
   stored, parents first.
+
+Opening a conversation also asks this source inline with a three-second
+timeout, guarded by a per-post lock. Each returned root and continuation is
+checked against the requested AT-URI before it can be stored. A missing,
+unrecognized, or mismatched `thread` view is a failed read, so the queued fill
+remains available; an explicit `notFoundPost` or `blockedPost` is a valid
+empty result only when it names the requested URI. Bluesky caps the
+standard `getPostThread` reply depth at ten. On both inline and background
+reads, every returned post is checked against its `replyCount`; if a node has
+fewer visible direct replies than that count, the AppView's V2 thread view is
+tried with that node as the anchor, with the specced cursor-paged post search
+as fallback. This applies to nested comments as well as the opened post, and
+all inline fallback reads share the same three-second budget. Unfilled
+branches remain pending for the background fill. A successful read also
+queues a background fill when it reached the ten-level limit and a deeper
+branch remains; that fill follows such branches, each with its own bounded
+request, up to twenty continuation reads and the shared 150-new-reply budget.
+A timeout or missing branch does not discard replies already stored. Local
+posts still queue the background fill as well, since their Fediverse replies
+may not yet be known here.
 
 The page is never held up by another server: the answer says so with
 `X-Social-Thread-Filling`, and the web app asks once more a few seconds
@@ -1855,7 +1897,12 @@ ones from here and the ones from wherever the post lives, merged, with
 nothing to tell them apart. `InteractionService` asks each network the post
 is on (`InteractionSource`) in the background (`Cron\FillInteractions`,
 queued by `RemoteFetchQueue::fillInteractions()` at most every ten minutes
-per post and kind):
+per post and kind). Opening a reaction or quote list first asks supported
+sources inline with a three-second timeout and a per-post-and-kind lock, then
+returns fresh actor ids or stored quote posts and queues profile resolution
+for avatars not cached yet.
+The five-second shared freshness marker bounds duplicate work from concurrent
+or rapidly repeated requests; failures fall back to the background queue:
 
 - `ActivityPubInteractionSource` reads the post's `likes` and `shares`
   collections as its server describes them — Mastodon lists only the
@@ -1863,7 +1910,10 @@ per post and kind):
   cached here fetched (`RemoteFetchQueue::resolveActors()`);
 - `Atproto\Reader\BlueskyInteractionSource` asks the AppView
   (`getLikes`, `getRepostedBy`, `getQuotes`) for a post that is on Bluesky,
-  caches each account as it is found and stores each quoting post.
+  checks that the returned subject URI matches the post it asked about,
+  caches each account as it is found and stores each quoting post. A
+  mismatched or malformed answer is a failed read, so it cannot replace the
+  last complete reaction list and is retried through the background queue.
 
 Who reacted is kept an hour in the durable cache's table (`DurableCache::setShared()`, which the cron and the web server share even where APCu is the only memcache), not as actions: the
 counts on a post, and the notifications, stay what they were. Quoting
@@ -1917,14 +1967,20 @@ people look at are asked for again, one concept with a source per network
 
 - `ActivityPubCountSource` reads the post's document at its `id` and takes
   the `totalItems` of its `likes`, `shares` and `replies` collections
-  (`Stream::statedCount()`), twenty documents a round; an answer naming some
-  other document, or none — a post deleted at its source among them — leaves
-  what is stored;
+  (`Stream::statedCount()`), twenty documents a round. If an origin gives a
+  collection URL without an inline total, those collection URLs are fetched
+  together in a second round. Mastodon's `quoteCount` extension is retained as
+  the quote total. Requests to origins have a five-second timeout; an answer
+  naming some other document, or none — a post deleted at its source among
+  them — leaves what is stored. An answer with no usable counter is not
+  treated as fresh during an interactive read, so the background path can retry;
 - `Atproto\Reader\BlueskyCountSource` asks the AppView's `getPosts`, 25
   posts a call (`PostStore::postViews()`), for `likeCount`, `repostCount`,
-  `replyCount` and `quoteCount`; a `notFound` post placeholder or an omitted
-  post is deleted as `DeletionSweep` deletes it, while a blocked placeholder
-  is kept;
+  `replyCount` and `quoteCount`; a post is deleted as `DeletionSweep` deletes
+  it only when the AppView explicitly returns `notFound`. Every requested URI
+  must occur exactly once in the response; a missing, duplicate or malformed
+  entry leaves the whole batch untouched and keeps the deletion cursor in
+  place for another attempt. A blocked placeholder is kept;
 - `Atproto\Reader\BlueskyPublishedCountSource` does the same for a post of
   this server's own that is also a record on Bluesky (see **A local post's
   counts on Bluesky** below).
@@ -1933,8 +1989,16 @@ people look at are asked for again, one concept with a source per network
 (`StatusApiController::statusGet()`), a conversation
 (`StreamService::getContextByNid()`) and every timeline page a client reads
 (`StreamService::getTimeline()` in the local format, `visiblePosts()`, the
-list timeline) — and does no network I/O: a boost stands for the post it
-boosts, direct messages are skipped, and so is a local post unless a source
+list timeline) — and queues background reads. `seen()` keeps reporting a page as filling while any count remains due, even when the durable queue has already deduplicated that request. Timeline, profile and list responses carry `X-Social-Filling` during that period; the web app re-requests the page with a fresh URL so an ETag cannot turn the count refresh into a `304`, and stops polling when the worker stamps the new counts. Opening a post also attempts a
+per-post locked refresh with a three-second network budget; concurrent viewers
+reuse that attempt, and an unavailable or incomplete answer falls back to the
+background queue without marking unknown numbers fresh. A status response that
+reports `X-Social-Filling` is read again with bounded exponential backoff, at
+most ten times, so a background result that lands after the initial request is
+merged into the open post. Timeline pages use the same filling signal with bounded backoff and
+a cache-busting query value, so unchanged ETags cannot hide newly stored counts.
+A boost stands for the post it boosts, direct messages are skipped,
+and so is a local post unless a source
 supports it (one that goes to Bluesky, `Publisher::goesToBluesky()`), and a
 post is due when its `counts_at` is older than a quarter of an hour while the post
 is less than a day old, six hours after that. The due ones are handed to
@@ -1961,6 +2025,25 @@ up to fifty more of this server's own posts of the last seven days that have
 a Bluesky record (`StreamRequest::getPublishedStreamsDueForCounts()`, a join
 on `social_atproto_record`); an older one is asked about when somebody looks
 at it.
+
+Posts opened in their detail view have a faster path:
+`TimelineList` refreshes up to four visible non-direct posts on entry, scroll
+and every five seconds, rotating through the visible posts when there are more
+than four. This includes local posts mirrored to Bluesky; the backend chooses
+the source that supports each post. `TimelineSinglePost` also asks for the
+status again when opened, even if a copy is already in the timeline.
+`StatusApiController::statusGet()` asks the matching ActivityPub or Bluesky
+count source directly when `counts_at` is at least five seconds old, with a
+three-second network timeout and a per-post lock, then reads the updated row
+for the response. A failed or timed-out read leaves stored counts untouched
+and queues the normal background retry; the follow-up status read is
+read-only, so it cannot start another slow request. This keeps reader-facing
+counts independent of Nextcloud's cron cadence; posts outside the viewport
+still use the queued background path above. Bluesky thread reads use the same
+three-second timeout and per-post lock, and failed reads remain eligible for
+the background thread queue. When a response says counts or a conversation are
+still being filled, the client checks again after three seconds while the
+reader stays on the page.
 
 `CountWriter` stores an answer: the origin's total less what is counted here
 into `remote_likes`, `remote_boosts` and `remote_replies` — only those keys,
@@ -3196,15 +3279,18 @@ third state.
 **What else a post's own page says.** Four things that belong to a post being
 read rather than to a post being scrolled past.
 
-`PostReactedBy` puts the faces behind the two counts under the post, through
-`GET /api/v1/statuses/{nid}/reblogged_by` and `/favourited_by` — both of which
-the server has answered since the moderation tier and neither of which the web
-client called until now. Nothing is requested when a count is zero, which is
-most posts, so the page costs the two requests only when there is something to
-answer with; a refusal draws nothing, since the counts are still on the post and
-this row is only the elaboration. A dozen faces at most, with the count saying
-how many there are in all, and each row reloads on its own when its own count
-changes — the reader's own boost lands in the row it just changed.
+`PostReactedBy` puts the faces behind likes, boosts and quotes under the post,
+through `GET /api/v1/statuses/{nid}/reblogged_by`, `/favourited_by` and
+`/quotes`. ActivityPub collections and Bluesky's AppView supply actor ids or
+quoted posts; cached profiles become avatar-bearing account objects, and
+unresolved ActivityPub actors are queued for profile resolution.
+`X-Social-Filling` stays set while either the network list or those profile
+pictures are still being filled, so the visible row can reload after the
+background work. Retries stop after eight attempts if a remote profile never
+resolves. Nothing is requested when a count is zero, unless the reader hides
+counts, in which case the number cannot establish that the list is empty. A
+dozen faces at most, with the count saying how many there are in all, and each
+row reloads on its own when its own count changes.
 
 `PostDetails` is the fine print: the full date, the audience in the words the
 composer uses, the language named rather than coded (`Intl.DisplayNames`, the

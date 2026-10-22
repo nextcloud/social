@@ -77,6 +77,7 @@ class AtprotoStatusService {
 				'repositories' => $this->repoRequest->countHeads(),
 				'events_in_window' => $this->events->countInWindow(),
 				'head_seq' => $this->events->latestSeq(),
+				'relay_crawl' => $this->relayCrawlStatus(),
 				// reading Bluesky: the followed authors and the local accounts
 				// whose notifications are asked for, and how far behind the
 				// slowest of each is
@@ -88,6 +89,17 @@ class AtprotoStatusService {
 				'listener' => $this->config->jetstream() === '' ? null : $this->listener?->status(),
 			],
 			'checks' => $this->checks(),
+		];
+	}
+
+	/** The last automatic request and whether any relay accepted it. */
+	private function relayCrawlStatus(): array {
+		$results = json_decode((string)$this->configService->getAppValue(ConfigService::ATPROTO_CRAWL_RESULTS), true);
+
+		return [
+			'attempted_at' => (int)$this->configService->getAppValue(ConfigService::ATPROTO_CRAWL_ATTEMPTED),
+			'accepted_at' => (int)$this->configService->getAppValue(ConfigService::ATPROTO_CRAWL_ACCEPTED),
+			'results' => is_array($results) ? $results : [],
 		];
 	}
 
@@ -124,7 +136,7 @@ class AtprotoStatusService {
 		];
 		$checks[] = $this->firehoseCheck();
 		$checks[] = $this->relayCheck();
-		$identity = $this->identities->firstActive();
+		$identity = $this->identities->latestActive();
 		$checks[] = $this->relayRepoCheck($identity);
 		$checks[] = $this->didResolutionCheck($identity);
 		$checks[] = $this->appViewProfileCheck($identity);
@@ -148,6 +160,21 @@ class AtprotoStatusService {
 		}
 
 		return true;
+	}
+
+	/** Whether an active repository is still missing from configured relays or the public AppView. */
+	public function hasRelayIndexingGap(): bool {
+		if ($this->identities->latestActive() === null) {
+			return false;
+		}
+		$watched = ['relay_repo', 'appview_profile', 'appview_post'];
+		foreach ($this->checks() as $check) {
+			if (in_array($check['id'] ?? '', $watched, true) && ($check['state'] ?? '') !== 'ok') {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	private function trustedDomainCheck(): array {
@@ -270,16 +297,17 @@ class AtprotoStatusService {
 			$upgraded = $this->curlService->doWebSocketHandshake($endpoint . '/xrpc/com.atproto.sync.subscribeRepos', $status);
 		} catch (Throwable) {
 		}
-		// HTTP 426 confirms the XRPC path exists, but only a valid WebSocket
-		// accept response proves the reverse proxy reached the firehose daemon.
-		$responds = $upgraded || $status === 426;
+		// HTTP 426 confirms that the path exists, but it is not a WebSocket
+		// connection. Relays need the firehose to see repository commits, so
+		// enabling this PDS without a successful upgrade leaves its posts
+		// invisible to Bluesky clients.
 
 		return [
 			'id' => 'firehose',
-			'state' => $upgraded ? 'ok' : ($responds ? 'warning' : 'error'),
+			'state' => $upgraded ? 'ok' : 'error',
 			'detail' => $upgraded
 				? ''
-				: ($responds
+				: ($status === 426
 					? 'The endpoint answers HTTP 426 but did not accept a WebSocket upgrade; verify the reverse proxy and firehose daemon'
 					: $endpoint . '/xrpc/com.atproto.sync.subscribeRepos is not served (' . $status . '): the web server must proxy the WebSocket to the daemon'
 				),
@@ -300,6 +328,7 @@ class AtprotoStatusService {
 		if ($host === '' || $relays === []) {
 			return ['id' => 'relay_host', 'state' => 'warning', 'detail' => 'No relay is configured, so nothing on Bluesky reads this server'];
 		}
+		$nonPublicReason = $this->nonPublicHostReason($host);
 		$state = 'ok';
 		$details = [];
 		foreach ($relays as $relay) {
@@ -308,7 +337,8 @@ class AtprotoStatusService {
 			$status = (string)($answer['status'] ?? '');
 			$accounts = (int)($answer['accountCount'] ?? 0);
 			[$ok, $detail] = match (true) {
-				($answer['error'] ?? '') === 'HostNotFound' => [false, $name . ' has not crawled this server yet: run occ social:atproto:crawl'],
+				($answer['error'] ?? '') === 'HostNotFound' && $nonPublicReason !== null => [false, $name . ' cannot crawl this PDS because ' . $host . ' is ' . $nonPublicReason . '; configure public DNS, HTTPS and an externally reachable web server before requesting a crawl'],
+				($answer['error'] ?? '') === 'HostNotFound' => [false, $name . ' has not crawled this server: verify public DNS, HTTPS and firehose reachability, then run occ social:atproto:crawl'],
 				$status === 'active', $status === 'idle' => [true, $name . ': ' . $status . ', ' . $accounts . ' accounts'],
 				$status === 'throttled' => [false, $name . ' throttles this server at ' . $accounts . ' accounts: ask its operator to raise the limit for this host'],
 				$status === 'banned' => [false, $name . ' has banned this server: nothing it publishes reaches Bluesky through this relay'],
@@ -320,6 +350,22 @@ class AtprotoStatusService {
 		}
 
 		return ['id' => 'relay_host', 'state' => $state, 'detail' => implode('; ', $details)];
+	}
+
+	private function nonPublicHostReason(string $host): ?string {
+		if (filter_var($host, FILTER_VALIDATE_IP) !== false
+			&& filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+			return 'a private or reserved IP address';
+		}
+
+		$host = strtolower(rtrim($host, '.'));
+		if (in_array($host, ['localhost', 'ip6-localhost'], true)
+			|| preg_match('/\.(?:localhost|local|test|invalid|example|internal)$/D', $host) === 1
+			|| str_ends_with($host, '.home.arpa')) {
+			return 'a local or reserved hostname';
+		}
+
+		return null;
 	}
 
 	private function didResolutionCheck(?Identity $identity): array {

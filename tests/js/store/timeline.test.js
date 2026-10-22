@@ -730,18 +730,98 @@ describe('timeline store actions', () => {
 			expect(tl().statuses['42']).toBeDefined()
 		})
 
-		it('reads the post once more when its counts are on their way', async () => {
+		it('bypasses HTTP caches when a visible post needs fresh counts', async () => {
+			axios.get.mockResolvedValue({ data: makeStatus('42') })
+
+			await store.fetchStatus('42', true)
+
+			expect(axios.get).toHaveBeenCalledWith(`${API}/statuses/42`, {
+				params: { _social_refresh: expect.any(Number) },
+			})
+		})
+
+		it('asks the server for a fresh count snapshot when opening a post', async () => {
+			axios.get.mockResolvedValue({ data: makeStatus('42') })
+
+			await store.fetchStatus('42', false, true)
+
+			expect(axios.get).toHaveBeenCalledWith(`${API}/statuses/42`, {
+				params: { force_counts: true },
+			})
+		})
+
+		it('does not force another origin read during the short status-fill polling loop', async () => {
+			vi.useFakeTimers()
+			try {
+				axios.get.mockResolvedValueOnce({ data: makeStatus('42'), headers: { 'x-social-filling': '1' } })
+				axios.get.mockResolvedValueOnce({ data: makeStatus('42'), headers: {} })
+
+				await store.fetchStatus('42', false, true)
+				await vi.advanceTimersByTimeAsync(1000)
+
+				expect(axios.get).toHaveBeenNthCalledWith(1, `${API}/statuses/42`, { params: { force_counts: true } })
+				expect(axios.get).toHaveBeenNthCalledWith(2, `${API}/statuses/42`)
+			} finally {
+				vi.useRealTimers()
+			}
+		})
+
+		it('retries live counts while a status is still being filled', async () => {
 			vi.useFakeTimers()
 			try {
 				axios.get.mockResolvedValueOnce({ data: { ...makeStatus('42'), favourites_count: 1 }, headers: { 'x-social-filling': '1' } })
+				axios.get.mockResolvedValueOnce({ data: { ...makeStatus('42'), favourites_count: 3 }, headers: { 'x-social-filling': '1' } })
 				axios.get.mockResolvedValueOnce({ data: { ...makeStatus('42'), favourites_count: 7 }, headers: {} })
 
 				await store.fetchStatus('42')
 				expect(tl().statuses['42'].favourites_count).toBe(1)
-				await vi.advanceTimersByTimeAsync(6000)
+				await vi.advanceTimersByTimeAsync(1000)
+				expect(tl().statuses['42'].favourites_count).toBe(3)
+				await vi.advanceTimersByTimeAsync(3000)
 
-				expect(axios.get).toHaveBeenCalledTimes(2)
+				expect(axios.get).toHaveBeenCalledTimes(3)
+				expect(axios.get).toHaveBeenLastCalledWith(`${API}/statuses/42`)
 				expect(tl().statuses['42'].favourites_count).toBe(7)
+			} finally {
+				vi.useRealTimers()
+			}
+		})
+
+		it('keeps refreshing an opened status long enough for a queued count refresh', async () => {
+			vi.useFakeTimers()
+			try {
+				let calls = 0
+				axios.get.mockImplementation(async () => {
+					calls++
+					const completed = calls >= 7
+
+					return {
+						data: { ...makeStatus('42'), favourites_count: completed ? 9 : 1 },
+						headers: completed ? {} : { 'x-social-filling': '1' },
+					}
+				})
+
+				await store.fetchStatus('42')
+				await vi.advanceTimersByTimeAsync(60000)
+
+				expect(axios.get).toHaveBeenCalledTimes(7)
+				expect(tl().statuses['42'].favourites_count).toBe(9)
+				expect(tl().statusRefetching['42']).toBeUndefined()
+			} finally {
+				vi.useRealTimers()
+			}
+		})
+
+		it('caps count refetches when a remote source keeps failing', async () => {
+			vi.useFakeTimers()
+			try {
+				axios.get.mockResolvedValue({ data: makeStatus('42'), headers: { 'x-social-filling': '1' } })
+
+				await store.fetchStatus('42')
+				await vi.advanceTimersByTimeAsync(120000)
+
+				expect(axios.get).toHaveBeenCalledTimes(11)
+				expect(tl().statusRefetching['42']).toBeUndefined()
 			} finally {
 				vi.useRealTimers()
 			}
@@ -1448,6 +1528,56 @@ describe('timeline store actions', () => {
 			expect(tl().timeline).toEqual(['1', '2'])
 		})
 
+		it('keeps an empty profile page open while Bluesky continues past hidden records', async () => {
+			vi.useFakeTimers()
+			try {
+				await store.changeTimelineTypeAccount('bob@remote.tld')
+				axios.get
+					.mockResolvedValueOnce({ data: [], headers: { 'x-social-filling': '1' } })
+					.mockResolvedValueOnce({ data: [makeStatus('1')], headers: {} })
+
+				await store.fetchTimeline()
+				expect(store.timelinePageFilling).toBe(true)
+				expect(store.timelinePageEmpty).toBe(true)
+
+				await vi.advanceTimersByTimeAsync(1000)
+
+				expect(store.timelinePageFilling).toBe(false)
+				expect(store.timelinePageEmpty).toBe(false)
+				expect(store.timeline).toEqual(['1'])
+			} finally {
+				vi.useRealTimers()
+			}
+		})
+
+		it('continues Bluesky profile fills at a steady cadence instead of backing off', async () => {
+			vi.useFakeTimers()
+			try {
+				await store.changeTimelineTypeAccount('bob@remote.tld')
+				const filling = { 'x-social-filling': '1', 'x-social-profile-filling': '1' }
+				axios.get
+					.mockResolvedValueOnce({ data: [], headers: filling })
+					.mockResolvedValueOnce({ data: [], headers: filling })
+					.mockResolvedValueOnce({ data: [makeStatus('1')], headers: {} })
+
+				await store.fetchTimeline()
+				await vi.advanceTimersByTimeAsync(1999)
+				expect(axios.get).toHaveBeenCalledTimes(1)
+
+				await vi.advanceTimersByTimeAsync(1)
+				expect(axios.get).toHaveBeenCalledTimes(2)
+				await vi.advanceTimersByTimeAsync(1999)
+				expect(axios.get).toHaveBeenCalledTimes(2)
+
+				await vi.advanceTimersByTimeAsync(1)
+				expect(axios.get).toHaveBeenCalledTimes(3)
+				expect(store.profilePageFilling).toBe(false)
+				expect(store.timeline).toEqual(['1'])
+			} finally {
+				vi.useRealTimers()
+			}
+		})
+
 		/**
 		 * The profile's Photos and Videos tabs. `only_media` is Mastodon's own
 		 * parameter and says what the two have in common; `media_type` is the
@@ -1763,18 +1893,41 @@ describe('a conversation read from where it lives', () => {
 		store = useTimelineStore()
 	})
 
-	it('asks once more a little later while the server reads the rest of it', async () => {
+	it('keeps checking while the server reads the rest of the conversation', async () => {
 		await store.changeTimelineType({ type: 'single-post', params: { id: '7' } })
 		axios.get
+			.mockResolvedValueOnce({ data: { ancestors: [], descendants: [makeStatus('8')] }, headers: { 'x-social-thread-filling': '1' } })
 			.mockResolvedValueOnce({ data: { ancestors: [], descendants: [makeStatus('8')] }, headers: { 'x-social-thread-filling': '1' } })
 			.mockResolvedValueOnce({ data: { ancestors: [], descendants: [makeStatus('8'), makeStatus('9')] }, headers: {} })
 
 		await store.fetchTimeline()
 		expect(store.timeline).toEqual(['8'])
+		await vi.advanceTimersByTimeAsync(999)
+		expect(axios.get).toHaveBeenCalledTimes(1)
+		await vi.advanceTimersByTimeAsync(1)
+		expect(axios.get).toHaveBeenCalledTimes(2)
+		expect(axios.get.mock.calls[1][1].params._social_refresh).toEqual(expect.any(Number))
 
 		await vi.runAllTimersAsync()
-		expect(axios.get).toHaveBeenCalledTimes(2)
+		expect(axios.get).toHaveBeenCalledTimes(3)
 		expect(store.timeline).toEqual(['8', '9'])
+		vi.useRealTimers()
+	})
+
+	it('keeps an empty conversation pending until the thread refill completes', async () => {
+		await store.changeTimelineType({ type: 'single-post', params: { id: '7' } })
+		axios.get
+			.mockResolvedValueOnce({ data: { ancestors: [], descendants: [] }, headers: { 'x-social-thread-filling': '1' } })
+			.mockResolvedValueOnce({ data: { ancestors: [], descendants: [] }, headers: {} })
+
+		await store.fetchTimeline()
+		expect(store.timelinePageFilling).toBe(true)
+		expect(store.timelinePageEmpty).toBe(true)
+
+		await vi.advanceTimersByTimeAsync(1000)
+
+		expect(store.timelinePageFilling).toBe(false)
+		expect(store.timelinePageEmpty).toBe(true)
 		vi.useRealTimers()
 	})
 
@@ -1790,6 +1943,18 @@ describe('a conversation read from where it lives', () => {
 		await store.fetchTimeline()
 		await vi.runAllTimersAsync()
 		expect(axios.get).toHaveBeenCalledTimes(2)
+		vi.useRealTimers()
+	})
+
+	it('backs off and caps thread status polls while a remote fetch is queued', async () => {
+		await store.changeTimelineType({ type: 'single-post', params: { id: '7' } })
+		axios.get.mockResolvedValue({ data: { ancestors: [], descendants: [] }, headers: { 'x-social-thread-filling': '1' } })
+
+		await store.fetchTimeline()
+		await vi.runAllTimersAsync()
+
+		expect(axios.get).toHaveBeenCalledTimes(31)
+		expect(vi.getTimerCount()).toBe(0)
 		vi.useRealTimers()
 	})
 })

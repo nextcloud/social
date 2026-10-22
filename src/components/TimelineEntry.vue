@@ -906,6 +906,13 @@ export default {
  * leaves for it. Same number as `PHONE_WIDTH` in services/phone.js.
  */
 @include layout.below(layout.$phone) {
+	// Nested replies otherwise lose too much of the narrow card to indentation.
+	// Keep the elbow visible while reserving room for post content and actions.
+	.timeline-entry--reply {
+		margin-inline-start: calc(var(--thread-depth, 1) * 12px);
+		padding-inline-start: 10px;
+	}
+
 	// a notification has no face in that corner (its faces are in the
 	// summary), and a direct message draws neither face nor header
 	.timeline-entry:not(.notification, .timeline-entry--direct) .wrapper {

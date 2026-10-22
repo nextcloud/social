@@ -99,6 +99,24 @@ class RemoteFetchQueueTest extends TestCase {
 		$this->queue->syncTimeline($this->remote());
 	}
 
+	public function testATimelineSyncQueueFailureCanBeRetried(): void {
+		$fail = true;
+		$this->jobList->method('has')->willReturnCallback(static function () use (&$fail): bool {
+			if ($fail) {
+				throw new \RuntimeException('queue storage unavailable');
+			}
+
+			return false;
+		});
+		$this->jobList->expects($this->once())->method('add')->with(SyncRemoteTimeline::class, ['actor' => 'https://remote.example/users/bob']);
+		$actor = $this->remote();
+
+		$this->assertFalse($this->queue->syncTimeline($actor));
+		$fail = false;
+		$this->assertTrue($this->queue->syncTimeline($actor));
+		$this->assertFalse($this->queue->syncTimeline($actor));
+	}
+
 	public function testEachActorIsQueuedOnceWithoutItsKeyFragment(): void {
 		$this->jobList->method('has')->willReturn(false);
 		$added = [];
@@ -125,6 +143,18 @@ class RemoteFetchQueueTest extends TestCase {
 		$this->jobList->expects($this->never())->method('add');
 
 		$this->queue->resolveActors(['https://remote.example/users/bob']);
+	}
+
+	public function testAnIncompleteActorProfileIsRefreshedInTheBackgroundAtMostOncePerInterval(): void {
+		$id = 'https://bsky.app/profile/did:plc:ann';
+		$this->jobList->method('has')->willReturn(false);
+		$this->jobList->expects($this->exactly(2))->method('add')
+			->with(ResolveActor::class, ['id' => $id, 'refresh' => true]);
+
+		$this->queue->refreshActors([$id . '#main', $id]);
+		$this->queue->refreshActors([$id]);
+		$this->now += RemoteFetchQueue::ACTOR_REFRESH_INTERVAL + 1;
+		$this->queue->refreshActors([$id]);
 	}
 
 	public function testOneCallQueuesABoundedNumberOfJobs(): void {
@@ -160,7 +190,7 @@ class RemoteFetchQueueTest extends TestCase {
 
 	public function testAConversationIsReadAtMostOncePerIntervalAndOnlyWhereItMayHaveRepliesElsewhere(): void {
 		$this->jobList->method('has')->willReturn(false);
-		$this->jobList->expects($this->exactly(2))->method('add')->with(FillThread::class, $this->anything());
+		$this->jobList->expects($this->exactly(3))->method('add')->with(FillThread::class, $this->anything());
 		$remote = (new Note())->setId('https://remote.example/notes/1');
 		$public = (new Note())->setId('https://social.test/@alice/2')->setLocal(true);
 		$public->setVisibility(Stream::TYPE_PUBLIC);
@@ -168,10 +198,65 @@ class RemoteFetchQueueTest extends TestCase {
 		$private->setVisibility(Stream::TYPE_FOLLOWERS);
 
 		$this->assertTrue($this->queue->fillThread($remote));
-		$this->assertFalse($this->queue->fillThread($remote), 'once per interval');
+		$this->assertTrue($this->queue->fillThread($remote), 'the context endpoint keeps reporting a job that is still queued');
+		$this->assertTrue($this->queue->isThreadFillPending($remote->getId()));
+		$this->queue->completeThreadFill($remote->getId());
+		$this->assertFalse($this->queue->isThreadFillPending($remote->getId()));
+		$this->assertFalse($this->queue->fillThread($remote), 'a completed thread is not queued again within its interval');
+		$this->queue->retryThreadFill($remote->getId());
+		$this->assertTrue($this->queue->fillThread($remote), 'a saved continuation can be retried without waiting ten minutes');
 		$this->assertTrue($this->queue->fillThread($public), 'a public post of ours is read on other networks too');
 		$this->assertFalse($this->queue->fillThread($private), 'nobody elsewhere can reply to it');
 		$this->now += RemoteFetchQueue::THREAD_FILL_INTERVAL + 1;
+	}
+
+	public function testThreadFillThrottleUsesSharedCacheForWebAndCron(): void {
+		$post = (new Note())->setId('https://remote.example/notes/shared-cache');
+		$key = md5($post->getId());
+		$cache = $this->createMock(DurableCache::class);
+		$cache->expects($this->exactly(2))->method('getShared')->willReturnCallback(
+			static fn (string $namespace, string $askedKey): mixed => match ([$namespace, $askedKey]) {
+				['social.threadfill', $key] => null,
+				['social.threadfill.pending', $key] => 1,
+				default => throw new \RuntimeException('Unexpected shared cache key'),
+			}
+		);
+		$cache->expects($this->exactly(2))->method('setShared')->willReturnCallback(
+			static function (string $namespace, string $askedKey, mixed $value, int $ttl) use ($key): void {
+				self::assertSame($key, $askedKey);
+				self::assertSame(1, $value);
+				self::assertSame(match ($namespace) {
+					'social.threadfill' => RemoteFetchQueue::THREAD_FILL_INTERVAL,
+					'social.threadfill.pending' => RemoteFetchQueue::THREAD_FILL_INTERVAL + 60,
+					default => throw new \RuntimeException('Unexpected shared cache namespace'),
+				}, $ttl);
+			}
+		);
+		$jobList = $this->createMock(IJobList::class);
+		$jobList->expects($this->once())->method('has')->with(FillThread::class, ['post' => $post->getId()])->willReturn(false);
+		$jobList->expects($this->once())->method('add')->with(FillThread::class, ['post' => $post->getId()]);
+		$queue = new RemoteFetchQueue($jobList, $cache, new NullLogger());
+
+		$this->assertTrue($queue->fillThread($post));
+		$this->assertTrue($queue->isThreadFillPending($post->getId()));
+	}
+
+	public function testAQueueFailureCanBeRetriedOnTheNextContextRequest(): void {
+		$fail = true;
+		$this->jobList->method('has')->willReturnCallback(static function () use (&$fail): bool {
+			if ($fail) {
+				throw new \RuntimeException('queue storage unavailable');
+			}
+
+			return false;
+		});
+		$this->jobList->expects($this->once())->method('add')->with(FillThread::class, ['post' => 'https://remote.example/notes/1']);
+		$post = (new Note())->setId('https://remote.example/notes/1');
+
+		$this->assertFalse($this->queue->fillThread($post));
+		$this->assertFalse($this->queue->isThreadFillPending($post->getId()));
+		$fail = false;
+		$this->assertTrue($this->queue->fillThread($post));
 	}
 
 	public function testWhoReactedIsReadOncePerIntervalAndKind(): void {
@@ -184,6 +269,41 @@ class RemoteFetchQueueTest extends TestCase {
 		$this->assertTrue($this->queue->fillInteractions($remote, 'Announce'));
 	}
 
+	public function testAnIncompleteReactionFillCanBeQueuedAgainAfterItFinishes(): void {
+		$this->jobList->method('has')->willReturn(false);
+		$this->jobList->expects($this->exactly(2))->method('add')->with(FillInteractions::class, [
+			'post' => 'https://remote.example/notes/1',
+			'type' => 'Like',
+		]);
+		$post = (new Note())->setId('https://remote.example/notes/1');
+
+		$this->assertTrue($this->queue->fillInteractions($post, 'Like'));
+		$this->assertFalse($this->queue->fillInteractions($post, 'Like'), 'an active fill remains deduplicated');
+		$this->queue->completeInteractionFill($post->getId(), 'Like');
+		$this->assertTrue($this->queue->fillInteractions($post, 'Like'), 'a finished incomplete fill can resume from its cursor');
+	}
+
+	public function testAReactionFillQueueFailureCanBeRetriedOnTheNextRequest(): void {
+		$fail = true;
+		$this->jobList->method('has')->willReturnCallback(static function () use (&$fail): bool {
+			if ($fail) {
+				throw new \RuntimeException('queue storage unavailable');
+			}
+
+			return false;
+		});
+		$this->jobList->expects($this->once())->method('add')->with(FillInteractions::class, [
+			'post' => 'https://remote.example/notes/1',
+			'type' => 'Like',
+		]);
+		$post = (new Note())->setId('https://remote.example/notes/1');
+
+		$this->assertFalse($this->queue->fillInteractions($post, 'Like'));
+		$fail = false;
+		$this->assertTrue($this->queue->fillInteractions($post, 'Like'));
+		$this->assertFalse($this->queue->fillInteractions($post, 'Like'), 'a queued read remains deduplicated');
+	}
+
 	public function testAFollowListIsReadOncePerIntervalAndDirection(): void {
 		$this->jobList->method('has')->willReturn(false);
 		$this->jobList->expects($this->exactly(2))->method('add')->with(FillFollowLists::class, $this->anything());
@@ -193,6 +313,27 @@ class RemoteFetchQueueTest extends TestCase {
 		$this->assertFalse($this->queue->fillFollowList($this->remote(), 'followers'), 'once per interval');
 		$this->assertTrue($this->queue->fillFollowList($this->remote(), 'following'));
 		$this->assertFalse($this->queue->fillFollowList($local, 'followers'), 'this server knows its own accounts');
+	}
+
+	public function testAFollowListQueueFailureCanBeRetried(): void {
+		$fail = true;
+		$this->jobList->method('has')->willReturnCallback(static function () use (&$fail): bool {
+			if ($fail) {
+				throw new \RuntimeException('queue storage unavailable');
+			}
+
+			return false;
+		});
+		$this->jobList->expects($this->once())->method('add')->with(FillFollowLists::class, [
+			'actor' => 'https://remote.example/users/bob',
+			'direction' => 'followers',
+		]);
+		$account = $this->remote();
+
+		$this->assertFalse($this->queue->fillFollowList($account, 'followers'));
+		$fail = false;
+		$this->assertTrue($this->queue->fillFollowList($account, 'followers'));
+		$this->assertFalse($this->queue->fillFollowList($account, 'followers'));
 	}
 
 	public function testAHashtagIsReadOncePerIntervalAndASearchPerPerson(): void {
@@ -216,6 +357,27 @@ class RemoteFetchQueueTest extends TestCase {
 		$this->assertFalse($this->queue->claimPostsFill('tag', '  '));
 	}
 
+	public function testAPostFillQueueFailureCanBeRetried(): void {
+		$fail = true;
+		$this->jobList->method('has')->willReturnCallback(static function () use (&$fail): bool {
+			if ($fail) {
+				throw new \RuntimeException('queue storage unavailable');
+			}
+
+			return false;
+		});
+		$this->jobList->expects($this->once())->method('add')->with(FillPosts::class, [
+			'kind' => 'tag',
+			'term' => 'nextcloud',
+			'viewer' => '',
+		]);
+
+		$this->assertFalse($this->queue->fillPosts('tag', 'Nextcloud'));
+		$fail = false;
+		$this->assertTrue($this->queue->fillPosts('tag', 'Nextcloud'));
+		$this->assertFalse($this->queue->fillPosts('tag', 'Nextcloud'));
+	}
+
 	public function testAPostsCountsAreAskedForAtMostOncePerItsInterval(): void {
 		$this->jobList->method('has')->willReturn(false);
 		$added = [];
@@ -230,6 +392,44 @@ class RemoteFetchQueueTest extends TestCase {
 		$this->assertTrue($this->queue->refreshCounts(['https://r.example/1' => 900, 'https://r.example/2' => 21600]));
 
 		$this->assertSame([['https://r.example/1', 'https://r.example/2'], ['https://r.example/1']], $added);
+	}
+
+	public function testAForcedVisibleCountRetryHasItsOwnThrottleAndJobFlag(): void {
+		$this->jobList->method('has')->willReturn(false);
+		$added = [];
+		$this->jobList->method('add')->willReturnCallback(function (string $job, array $argument) use (&$added): void {
+			$this->assertSame(RefreshCounts::class, $job);
+			$added[] = $argument;
+		});
+
+		$this->assertTrue($this->queue->refreshCounts(['https://r.example/1' => 900]));
+		$this->assertTrue($this->queue->refreshCounts(['https://r.example/1' => 15], true));
+		$this->assertFalse($this->queue->refreshCounts(['https://r.example/1' => 15], true));
+
+		$this->assertSame([
+			['posts' => ['https://r.example/1']],
+			['posts' => ['https://r.example/1'], 'force' => true],
+		], $added);
+	}
+
+	public function testACountRefreshQueueFailureCanBeRetriedOnTheNextRequest(): void {
+		$fail = true;
+		$this->jobList->method('has')->willReturnCallback(static function () use (&$fail): bool {
+			if ($fail) {
+				throw new \RuntimeException('queue storage unavailable');
+			}
+
+			return false;
+		});
+		$this->jobList->expects($this->once())->method('add')->with(RefreshCounts::class, [
+			'posts' => ['https://remote.example/notes/1', 'https://remote.example/notes/2'],
+		]);
+		$posts = ['https://remote.example/notes/1' => 900, 'https://remote.example/notes/2' => 900];
+
+		$this->assertFalse($this->queue->refreshCounts($posts));
+		$fail = false;
+		$this->assertTrue($this->queue->refreshCounts($posts));
+		$this->assertFalse($this->queue->refreshCounts($posts), 'a successfully queued refresh remains deduplicated');
 	}
 
 	public function testOneCallAsksAboutABoundedNumberOfPostsInJobsTheJobListAccepts(): void {

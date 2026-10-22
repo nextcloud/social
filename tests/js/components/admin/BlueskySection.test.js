@@ -139,6 +139,19 @@ describe('the Bluesky card', () => {
 		expect(text).toContain('Running as pid 4242 for 2 hours, serving 2 subscribers')
 	})
 
+	it('shows the last automatic relay crawl and its per-relay result', () => {
+		const text = mountCard(admin({ status: { relay_crawl: {
+			attempted_at: Math.floor(Date.now() / 1000) - 120,
+			accepted_at: Math.floor(Date.now() / 1000) - 60,
+			results: { 'https://bsky.network': 'ok', 'https://relay.example': 'refused (400): host is private' },
+		} } })).text()
+
+		expect(text).toContain('Automatic relay crawl')
+		expect(text).toContain('A relay accepted a request 1 minute ago; last attempted 2 minutes ago')
+		expect(text).toContain('https://bsky.network')
+		expect(text).toContain('host is private')
+	})
+
 	it('counts the identities their owners switched off apart', () => {
 		const cells = (wrapper) => wrapper.findAll('.bluesky__number-cell').map((cell) => [cell.find('dt').text(), cell.find('dd').text()])
 

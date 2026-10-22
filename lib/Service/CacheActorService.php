@@ -140,6 +140,20 @@ class CacheActorService {
 	 * @throws UnauthorizedFediverseException
 	 */
 	public function getFromId(string $id, bool $refresh = false): Person {
+		return $this->getFromIdWithinTimeout($id, $refresh, null);
+	}
+
+	/** Resolve a Fediverse actor with a maximum time for remote document fetches. */
+	public function getActivityPubActorWithTimeout(string $id, int $timeout): Person {
+		if (BlueskyIds::isActorId($id)) {
+			throw new \InvalidArgumentException('A Bluesky actor cannot be resolved through ActivityPub');
+		}
+
+		return $this->getFromIdWithinTimeout($id, false, max(1, $timeout));
+	}
+
+	private function getFromIdWithinTimeout(string $id, bool $refresh, ?int $timeout): Person {
+		$deadline = $timeout === null ? null : hrtime(true) + (max(1, $timeout) * 1_000_000_000);
 		$posAnchor = strpos($id, '#');
 		if ($posAnchor !== false) {
 			$id = substr($id, 0, $posAnchor);
@@ -194,7 +208,7 @@ class CacheActorService {
 			}
 
 			try {
-				$actor = $this->fetchActor($id, $refresh);
+				$actor = $this->fetchActor($id, $refresh, $deadline);
 			} catch (Exception $e) {
 				$this->durableCache?->set(self::MISS_NAMESPACE, md5($id), 1, self::MISS_SECONDS);
 
@@ -215,9 +229,12 @@ class CacheActorService {
 	 * Fetches an actor this instance does not hold, checks it is the actor at
 	 * that id, and stores it.
 	 */
-	private function fetchActor(string $id, bool $refresh): Person {
+	private function fetchActor(string $id, bool $refresh, ?int $deadline = null): Person {
 		try {
-			$object = $this->curlService->retrieveObject($id);
+			$timeout = $this->remainingFetchTimeout($deadline);
+			$object = $timeout === null
+				? $this->curlService->retrieveObject($id)
+				: $this->curlService->retrieveObject($id, true, $timeout);
 		} catch (RequestContentException $e) {
 			// in case of refresh but remote tells us that actor is gone, we delete it.
 			if ($refresh && $e->getCode() === Http::STATUS_GONE) {
@@ -235,7 +252,7 @@ class CacheActorService {
 			throw new InvalidResourceException();
 		}
 
-		$actor = $this->theActorOf($id, $actor, $this->get('_contentType', $object));
+		$actor = $this->theActorOf($id, $actor, $this->get('_contentType', $object), $deadline);
 
 		$actor->setAccount($actor->getPreferredUsername() . '@' . $this->get('_host', $object));
 		try {
@@ -411,7 +428,7 @@ class CacheActorService {
 	 * @throws InvalidResourceException the claimed id serves no actor
 	 * @throws Exception anything the fetch raises
 	 */
-	private function theActorOf(string $id, Person $actor, string $contentType): Person {
+	private function theActorOf(string $id, Person $actor, string $contentType, ?int $deadline = null): Person {
 		if (!CurlService::isActivityPubMediaType($contentType)) {
 			throw new InvalidOriginException(
 				'CacheActorService::getFromId - id: ' . $id . ' - contentType: ' . $contentType
@@ -430,7 +447,10 @@ class CacheActorService {
 			);
 		}
 
-		$object = $this->curlService->retrieveObject($actorId);
+		$timeout = $this->remainingFetchTimeout($deadline);
+		$object = $timeout === null
+			? $this->curlService->retrieveObject($actorId)
+			: $this->curlService->retrieveObject($actorId, true, $timeout);
 		/** @var Person $served */
 		$served = AP::instance()->getItemFromData($object);
 		if (!AP::instance()->isActor($served)) {
@@ -447,6 +467,20 @@ class CacheActorService {
 		$this->durableCache?->set(self::ALIAS_NAMESPACE, $id, $actorId, self::ALIAS_TTL);
 
 		return $served;
+	}
+
+	/** Return the remaining whole seconds for a bounded inline actor fetch. */
+	private function remainingFetchTimeout(?int $deadline): ?int {
+		if ($deadline === null) {
+			return null;
+		}
+
+		$remaining = (int)floor(($deadline - hrtime(true)) / 1_000_000_000);
+		if ($remaining < 1) {
+			throw new \RuntimeException('Actor fetch exceeded its visible request budget');
+		}
+
+		return $remaining;
 	}
 
 	/**

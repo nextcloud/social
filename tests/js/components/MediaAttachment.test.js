@@ -119,6 +119,89 @@ describe('MediaAttachment', () => {
 		expect(wrapper.find('.attachment__file-kind').text()).toBe('DOCX')
 	})
 
+	it.each([
+		'123',
+		'123456789',
+		'550e8400-e29b-41d4-a716-446655440000',
+		'bafkreiaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+	])('does not present opaque storage id %s as a filename', (key) => {
+		const wrapper = mount(MediaAttachment, {
+			props: { attachment: { id: '9', type: 'unknown', url: `https://cloud.example.org/media/${key}`, media_type: 'application/pdf', preview_url: null, description: null } },
+		})
+
+		expect(wrapper.find('.attachment__file-name').text()).toBe('PDF document')
+		expect(wrapper.find('.attachment__file-kind').text()).toBe('PDF')
+	})
+
+	it.each(['123.pdf', '123456789.pdf'])('keeps the file kind without exposing a numeric storage key: %s', (key) => {
+		const wrapper = mount(MediaAttachment, {
+			props: { attachment: { id: '9', type: 'unknown', url: `https://cloud.example.org/media/${key}`, preview_url: null, description: null } },
+		})
+
+		expect(wrapper.find('.attachment__file-name').text()).toBe('PDF file')
+		expect(wrapper.find('.attachment__file-kind').text()).toBe('PDF')
+	})
+
+	it('shows a Bluesky file type from its name when the stream URL has no extension', () => {
+		const wrapper = mount(MediaAttachment, {
+			props: {
+				attachment: {
+					id: '9',
+					type: 'unknown',
+					url: 'https://cloud.example.org/media/stream/9',
+					media_type: 'image/avif',
+					preview_url: null,
+					description: 'AVIF image.avif',
+				},
+			},
+		})
+
+		expect(wrapper.find('.attachment__file-name').text()).toBe('AVIF image.avif')
+		expect(wrapper.find('.attachment__file-kind').text()).toBe('AVIF')
+	})
+
+	it.each([
+		['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'DOCX'],
+		['audio/opus', 'OPUS'],
+		['video/quicktime', 'MOV'],
+	])('shows a useful type label for the streamed MIME type %s', (mediaType, label) => {
+		const wrapper = mount(MediaAttachment, {
+			props: {
+				attachment: {
+					id: '9',
+					type: 'unknown',
+					url: 'https://cloud.example.org/media/stream/9',
+					media_type: mediaType,
+					preview_url: null,
+					description: 'File',
+				},
+			},
+		})
+
+		expect(wrapper.find('.attachment__file-kind').text()).toBe(label)
+	})
+
+	it.each([
+		'123',
+		'123456789',
+		'bafkreiaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+	])('does not use opaque descriptions as a filename: %s', (description) => {
+		const wrapper = mount(MediaAttachment, {
+			props: { attachment: { id: '9', type: 'unknown', url: 'https://cloud.example.org/media/', media_type: 'application/pdf', preview_url: null, description } },
+		})
+
+		expect(wrapper.find('.attachment__file-name').text()).toBe('PDF document')
+		expect(wrapper.find('.attachment__file-kind').text()).toBe('PDF')
+	})
+
+	it('does not fail on an invalid escaped filename', () => {
+		const wrapper = mount(MediaAttachment, {
+			props: { attachment: { id: '9', type: 'unknown', url: 'https://cloud.example.org/media/bad%name', preview_url: null, description: null } },
+		})
+
+		expect(wrapper.find('.attachment__file-name').text()).toBe('bad%name')
+	})
+
 	it('renders the small preview image', () => {
 		const wrapper = mount(MediaAttachment, { props: { attachment } })
 		expect(wrapper.find('img.attachment__preview').attributes('src')).toBe(attachment.preview_url)

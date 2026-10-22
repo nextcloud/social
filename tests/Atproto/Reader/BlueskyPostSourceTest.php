@@ -31,8 +31,8 @@ class BlueskyPostSourceTest extends TestCase {
 		$config->method('isEnabled')->willReturn(true);
 		$asked = [];
 		$appView = $this->createMock(AppViewClient::class);
-		$appView->method('query')->willReturnCallback(static function (string $method, array $params) use (&$asked): array {
-			$asked[] = $params;
+		$appView->method('query')->willReturnCallback(static function (string $method, array $params, array $headers = [], ?int $timeout = null) use (&$asked): array {
+			$asked[] = [$params, $headers, $timeout];
 
 			return ['posts' => [['uri' => 'at://a/1'], ['uri' => 'at://a/2']]];
 		});
@@ -43,8 +43,8 @@ class BlueskyPostSourceTest extends TestCase {
 		$this->assertSame(1, $source->tagged('nextcloud', 25, null));
 		$this->assertSame(1, $source->matching('open source', 25, null));
 		$this->assertSame([
-			['q' => '#nextcloud', 'tag' => ['nextcloud'], 'sort' => 'latest', 'limit' => 25],
-			['q' => 'open source', 'sort' => 'latest', 'limit' => 25],
+			[['q' => '#nextcloud', 'tag' => ['nextcloud'], 'sort' => 'latest', 'limit' => 25], ['atproto-accept-labelers' => ''], AppViewClient::INTERACTIVE_TIMEOUT],
+			[['q' => 'open source', 'sort' => 'latest', 'limit' => 25], ['atproto-accept-labelers' => ''], AppViewClient::INTERACTIVE_TIMEOUT],
 		], $asked);
 	}
 
@@ -53,7 +53,13 @@ class BlueskyPostSourceTest extends TestCase {
 		$config->method('isEnabled')->willReturn(true);
 		$answer = ['posts' => [['uri' => 'at://did:plc:bob/app.bsky.feed.post/1', 'author' => ['did' => 'did:plc:bob', 'viewer' => ['blockedBy' => true]]]]];
 		$appView = $this->createMock(AppViewClient::class);
-		$appView->method('queryAs')->willReturn($answer);
+		$appView->expects($this->once())->method('queryAs')->with(
+			'did:plc:alice',
+			$this->isInstanceOf(PrivateKey::class),
+			'app.bsky.feed.searchPosts',
+			['q' => 'cats', 'sort' => 'latest', 'limit' => 20],
+			AppViewClient::INTERACTIVE_TIMEOUT,
+		)->willReturn($answer);
 		$identities = $this->createMock(IdentityService::class);
 		$identities->method('activeForActor')->willReturn(new Identity(1, 'https://social.test/@alice', 'did:plc:alice', 'alice.social.test', 'sealed', '', '', Identity::STATE_ACTIVE, '', 0));
 		$identities->method('signingKey')->willReturn(PrivateKey::generate(Curve::K256));

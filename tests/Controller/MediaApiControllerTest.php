@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Controller;
 
 use OCA\Social\Controller\MediaApiController;
+use OCA\Social\Model\ActivityPub\Object\Document;
 use OCP\AppFramework\Http\Attribute\AnonRateLimit;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\UserRateLimit;
@@ -108,6 +109,18 @@ class MediaApiControllerTest extends TestCase {
 		}
 
 		$this->assertSame([], $bare, 'these writes have no ceiling');
+	}
+
+	public function testAvifImagesAreInlineAndUnsupportedImageFormatsAreDownloads(): void {
+		$method = new ReflectionMethod(MediaApiController::class, 'isDownloadOnly');
+		$streamed = static fn (string $mime): Document => (new Document())
+			->setLocalCopy(Document::COPY_STREAMED)
+			->setMediaType($mime);
+
+		$this->assertFalse($method->invoke(null, $streamed('image/avif')));
+		$this->assertTrue($method->invoke(null, $streamed('image/heic')));
+		$this->assertTrue($method->invoke(null, $streamed('application/pdf')));
+		$this->assertFalse($method->invoke(null, $streamed('video/mp4')));
 	}
 
 	/** The verb a route was declared with. */

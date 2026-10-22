@@ -412,11 +412,27 @@ function timelineRequest(list, params) {
  * the reader does to a post in it.
  */
 /** How long after a conversation is opened its replies from elsewhere are asked for again. */
-const THREAD_REFETCH_MS = 6000
+const THREAD_REFETCH_MS = 1000
+const THREAD_REFETCH_MAX_MS = 5000
+const MAX_THREAD_REFETCHES = 30
+const PROFILE_REFETCH_MS = 2000
+const STATUS_REFETCH_MS = 1000
+const STATUS_REFETCH_MAX_MS = 3000
+// Visible count reads back off for fifteen seconds after a failed request.
+// Keep the opened post fresh long enough to cross that cooldown and to show
+// the result of the queued refresh, while bounding both requests and lifetime.
+const MAX_STATUS_REFETCHES = 10
 
 export const useTimelineStore = defineStore('timeline', {
 	state: () => ({
 		statuses: {},
+		statusRefetching: {},
+		/** Whether the current page is still being read from its remote source. */
+		timelinePageFilling: false,
+		/** Whether an account profile has another Bluesky AppView page to read. */
+		profilePageFilling: false,
+		/** Whether the last page read for the current timeline had no visible posts. */
+		timelinePageEmpty: false,
 		timeline: [],
 		parentsTimeline: [],
 		/** which list a removed status came from, so a rollback restores it there */
@@ -812,6 +828,9 @@ export const useTimelineStore = defineStore('timeline', {
 			this.parentsTimeline = []
 			this.removedFrom = {}
 			this.hiddenByAuthor = 0
+			this.timelinePageFilling = false
+			this.profilePageFilling = false
+			this.timelinePageEmpty = false
 			// the id lists used to be the only thing cleared, so `statuses` grew
 			// for the whole session: every page of every timeline ever opened.
 			// Pruned rather than emptied, because the remembered lists read it
@@ -1088,6 +1107,9 @@ export const useTimelineStore = defineStore('timeline', {
 			if (this.getTimelineIdentity === left.identity) {
 				return
 			}
+			this.timelinePageFilling = false
+			this.profilePageFilling = false
+			this.timelinePageEmpty = false
 
 			// a page still on its way for the list being left would be dropped
 			// on arrival; cancelled, it costs the server nothing more either
@@ -1436,23 +1458,43 @@ export const useTimelineStore = defineStore('timeline', {
 		 * offer to try again rather than call the post deleted.
 		 *
 		 * @param {string} id the status id
+		 * @param {boolean} [refresh] bypass an HTTP cache when refreshing visible counts
+		 * @param {boolean} [forceCounts] ask the origin even when the last count refresh was recent
 		 * @return {Promise<object|null>} the status, or null if it is not there
 		 */
-		async fetchStatus(id) {
+		async fetchStatus(id, refresh = false, forceCounts = false) {
 			try {
 				const url = generateUrl(`apps/social/api/v1/statuses/${id}`)
-				const response = await axios.get(url)
+				const get = (includeForceCounts = forceCounts) => refresh
+					? axios.get(url, { params: { _social_refresh: Date.now(), ...(includeForceCounts ? { force_counts: true } : {}) } })
+					: includeForceCounts
+						? axios.get(url, { params: { force_counts: true } })
+						: axios.get(url)
+				const response = await get()
 				this.addToStatuses(response.data)
 				// its counts are being asked for where it lives: read once more
 				// a little later, so the page shows them without a reload
-				if (response.headers?.['x-social-filling'] === '1') {
-					setTimeout(async () => {
+				if (response.headers?.['x-social-filling'] === '1' && !this.statusRefetching[id]) {
+					this.statusRefetching = { ...this.statusRefetching, [id]: true }
+					const refetch = (attempt) => setTimeout(async () => {
 						try {
-							this.addToStatuses((await axios.get(url)).data)
+							const refreshed = await get(false)
+							this.addToStatuses(refreshed.data)
+							if (attempt < MAX_STATUS_REFETCHES && refreshed.headers?.['x-social-filling'] === '1') {
+								refetch(attempt + 1)
+							} else {
+								const refetching = { ...this.statusRefetching }
+								delete refetching[id]
+								this.statusRefetching = refetching
+							}
 						} catch (error) {
+							const refetching = { ...this.statusRefetching }
+							delete refetching[id]
+							this.statusRefetching = refetching
 							logger.debug('The counts of a status were not read again', { error, id })
 						}
-					}, THREAD_REFETCH_MS)
+					}, Math.min(STATUS_REFETCH_MS * (2 ** (attempt - 1)), STATUS_REFETCH_MAX_MS))
+					refetch(1)
 				}
 
 				return response.data
@@ -1700,6 +1742,9 @@ export const useTimelineStore = defineStore('timeline', {
 			// different question.
 			const seeded = this.takeSeededPage(params)
 			if (seeded !== null) {
+				this.timelinePageFilling = false
+				this.profilePageFilling = false
+				this.timelinePageEmpty = seeded.length === 0
 				this.addToTimeline(seeded)
 
 				return seeded
@@ -1726,6 +1771,12 @@ export const useTimelineStore = defineStore('timeline', {
 				logger.debug('Dropped a page that belongs to a timeline no longer on screen', { identity })
 				return []
 			}
+			this.timelinePageFilling = response.headers?.['x-social-filling'] === '1'
+				|| response.headers?.['x-social-thread-filling'] === '1'
+			this.profilePageFilling = response.headers?.['x-social-profile-filling'] === '1'
+			this.timelinePageEmpty = Array.isArray(response.data)
+				? response.data.length === 0
+				: this.type === 'single-post' && Array.isArray(response.data?.descendants) && response.data.descendants.length === 0
 
 			this.addToTimeline(response.data)
 			if (this.type === 'single-post') {
@@ -1775,21 +1826,37 @@ export const useTimelineStore = defineStore('timeline', {
 		 * @param {string} url the context the page was read from
 		 * @param {object} params its query
 		 * @param {string} identity the timeline it belongs to
+		 * @param {number} attempt the retry number, starting at zero
 		 */
-		refetchThreadLater(url, params, identity) {
+		refetchThreadLater(url, params, identity, attempt = 0) {
+			const delay = this.profilePageFilling
+				? PROFILE_REFETCH_MS
+				: Math.min(THREAD_REFETCH_MS * (2 ** attempt), THREAD_REFETCH_MAX_MS)
 			setTimeout(async () => {
 				if (this.getTimelineIdentity !== identity) {
 					return
 				}
 				try {
-					const { data } = await axios.get(url, { params })
+					// Each poll must reach the server afresh. Reusing a timeline URL
+					// can let its ETag short-circuit the count refresh as a 304.
+					const response = await axios.get(url, { params: { ...params, _social_refresh: Date.now() } })
 					if (this.getTimelineIdentity === identity) {
-						this.addToTimeline(data)
+						this.timelinePageFilling = response.headers?.['x-social-filling'] === '1'
+							|| response.headers?.['x-social-thread-filling'] === '1'
+						this.profilePageFilling = response.headers?.['x-social-profile-filling'] === '1'
+						this.timelinePageEmpty = Array.isArray(response.data)
+							? response.data.length === 0
+							: this.type === 'single-post' && Array.isArray(response.data?.descendants) && response.data.descendants.length === 0
+						this.addToTimeline(response.data)
+						if ((response.headers?.['x-social-thread-filling'] === '1' || response.headers?.['x-social-filling'] === '1')
+							&& attempt + 1 < MAX_THREAD_REFETCHES) {
+							this.refetchThreadLater(url, params, identity, attempt + 1)
+						}
 					}
 				} catch (error) {
 					logger.debug('The rest of the conversation was not read again', { error })
 				}
-			}, THREAD_REFETCH_MS)
+			}, delay)
 		},
 	},
 })

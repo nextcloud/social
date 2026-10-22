@@ -261,7 +261,7 @@ class CurlService {
 	 * @throws SocialAppConfigException
 	 * @throws UnauthorizedFediverseException
 	 */
-	public function retrieveObject(string $id, bool $acceptActivityJson = true): array {
+	public function retrieveObject(string $id, bool $acceptActivityJson = true, ?int $timeout = null): array {
 		$this->logger->debug('retrieveObject id=' . $id);
 
 		$parsed = parse_url($id);
@@ -278,9 +278,11 @@ class CurlService {
 		$status = 0;
 		$contentType = '';
 		try {
-			$result = $this->retrieveJson(
-				'get', $id, ['headers' => $headers + $signature], $status, $contentType
-			);
+			$options = ['headers' => $headers + $signature];
+			if ($timeout !== null) {
+				$options['timeout'] = max(1, $timeout);
+			}
+			$result = $this->retrieveJson('get', $id, $options, $status, $contentType);
 		} catch (RequestContentException $e) {
 			if ($signature === [] || !$this->refusedTheSignature($e->getCode())) {
 				throw $e;
@@ -295,7 +297,11 @@ class CurlService {
 				'id' => $id, 'status' => $e->getCode(),
 			]);
 
-			$result = $this->retrieveJson('get', $id, ['headers' => $headers], $status, $contentType);
+			$options = ['headers' => $headers];
+			if ($timeout !== null) {
+				$options['timeout'] = max(1, $timeout);
+			}
+			$result = $this->retrieveJson('get', $id, $options, $status, $contentType);
 		}
 
 		$result['_host'] = $parsed['host'];

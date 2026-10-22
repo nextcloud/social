@@ -19,6 +19,11 @@ vi.mock('../../../src/services/logger.js', () => ({
 }))
 
 const API = '/index.php/apps/social/api/v1'
+function freshParams() {
+	return expect.objectContaining({
+		params: expect.objectContaining({ limit: 12, _social_refresh: expect.any(Number) }),
+	})
+}
 
 const account = (acct) => ({ id: `https://cloud.example.org/users/${acct}`, acct, username: acct, display_name: acct, avatar: '' })
 const post = (overrides = {}) => ({ id: '42', reblogs_count: 0, favourites_count: 0, ...overrides })
@@ -28,9 +33,13 @@ const post = (overrides = {}) => ({ id: '42', reblogs_count: 0, favourites_count
  *
  * @param {object} lists `{ reblogged_by, favourited_by }`, either one optional
  */
-function serve({ reblogged_by: boosted = [], favourited_by: favourited = [] } = {}) {
+function serve({ reblogged_by: boosted = [], favourited_by: favourited = [], quotes = [] } = {}) {
 	axios.get.mockImplementation(async (url) => ({
-		data: url.endsWith('/reblogged_by') ? boosted : favourited,
+		data: url.endsWith('/reblogged_by')
+			? boosted
+			: url.endsWith('/favourited_by')
+				? favourited
+				: quotes,
 	}))
 }
 
@@ -70,8 +79,19 @@ describe('PostReactedBy', () => {
 		await flushPromises()
 
 		expect(wrapper.find('.reacted-by').text()).toContain('Quoted 3 times')
+		expect(axios.get).toHaveBeenCalledWith(`${API}/statuses/42/quotes`, freshParams())
 		expect(mountReactions(post({ quotes_count: 3 }), { hideCounts: true }).find('.reacted-by').exists()).toBe(false)
 		expect(mountReactions(post({ quotes_count: 0 })).find('.reacted-by').exists()).toBe(false)
+	})
+
+	it('shows the faces of authors whose quotes are available', async () => {
+		serve({ quotes: [{ account: account('bob') }, { account: account('carol') }, { account: account('bob') }] })
+		const wrapper = mountReactions(post({ quotes_count: 3 }))
+		await flushPromises()
+
+		expect(wrapper.findAll('.reacted-by__group')).toHaveLength(1)
+		expect(wrapper.find('.reacted-by__group').text()).toContain('Quoted 3 times')
+		expect(wrapper.findAll('.reacted-by__face')).toHaveLength(2)
 	})
 
 	/** The server sends zero for every post then, so a zero cannot mean "nobody". */
@@ -92,8 +112,8 @@ describe('PostReactedBy', () => {
 		const wrapper = mountReactions(post({ reblogs_count: 1, favourites_count: 2 }))
 		await flushPromises()
 
-		expect(axios.get).toHaveBeenCalledWith(`${API}/statuses/42/reblogged_by`, { params: { limit: 12 } })
-		expect(axios.get).toHaveBeenCalledWith(`${API}/statuses/42/favourited_by`, { params: { limit: 12 } })
+		expect(axios.get).toHaveBeenCalledWith(`${API}/statuses/42/reblogged_by`, freshParams())
+		expect(axios.get).toHaveBeenCalledWith(`${API}/statuses/42/favourited_by`, freshParams())
 
 		const rows = wrapper.findAll('.reacted-by__group')
 		expect(rows).toHaveLength(2)
@@ -131,7 +151,7 @@ describe('PostReactedBy', () => {
 		await flushPromises()
 
 		expect(axios.get).toHaveBeenCalledTimes(1)
-		expect(axios.get).toHaveBeenCalledWith(`${API}/statuses/42/favourited_by`, { params: { limit: 12 } })
+		expect(axios.get).toHaveBeenCalledWith(`${API}/statuses/42/favourited_by`, freshParams())
 	})
 
 	it('starts over for another post', async () => {
@@ -143,8 +163,24 @@ describe('PostReactedBy', () => {
 		await wrapper.setProps({ status: post({ id: '99', favourites_count: 1, reblogs_count: 1 }) })
 		await flushPromises()
 
-		expect(axios.get).toHaveBeenCalledWith(`${API}/statuses/99/favourited_by`, { params: { limit: 12 } })
-		expect(axios.get).toHaveBeenCalledWith(`${API}/statuses/99/reblogged_by`, { params: { limit: 12 } })
+		expect(axios.get).toHaveBeenCalledWith(`${API}/statuses/99/favourited_by`, freshParams())
+		expect(axios.get).toHaveBeenCalledWith(`${API}/statuses/99/reblogged_by`, freshParams())
+	})
+
+	it('does not let an older reaction-list response replace the latest count result', async () => {
+		const requests = []
+		axios.get.mockImplementation((url) => new Promise((resolve) => requests.push({ url, resolve })))
+		const wrapper = mountReactions(post({ favourites_count: 1 }))
+		expect(requests).toHaveLength(1)
+
+		await wrapper.setProps({ status: post({ favourites_count: 2 }) })
+		expect(requests).toHaveLength(2)
+		requests[1].resolve({ data: [account('newer')] })
+		await flushPromises()
+		requests[0].resolve({ data: [account('older')] })
+		await flushPromises()
+
+		expect(wrapper.vm.favourited.map((entry) => entry.acct)).toEqual(['newer'])
 	})
 
 	it('shows at most a dozen faces however many the server sends', async () => {
@@ -178,6 +214,25 @@ describe('PostReactedBy', () => {
 		await flushPromises()
 		expect(calls).toBe(2)
 		expect(wrapper.findAll('.reacted-by__face')).toHaveLength(2)
+		vi.useRealTimers()
+	})
+
+	it('stops polling when a remote reactor profile never becomes available', async () => {
+		vi.useFakeTimers()
+		axios.get.mockResolvedValue({ data: [], headers: { 'x-social-filling': '1' } })
+		mountReactions(post({ favourites_count: 2 }))
+		await flushPromises()
+
+		for (let attempt = 0; attempt < 12; attempt++) {
+			await vi.advanceTimersByTimeAsync(REFILL_MS)
+			await flushPromises()
+		}
+		const completedCalls = axios.get.mock.calls.length
+		await vi.advanceTimersByTimeAsync(REFILL_MS * 4)
+		await flushPromises()
+
+		expect(completedCalls).toBe(13)
+		expect(axios.get).toHaveBeenCalledTimes(completedCalls)
 		vi.useRealTimers()
 	})
 })

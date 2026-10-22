@@ -250,6 +250,9 @@ class InterestsController extends ClientApiController {
 			$this->filterService->apply($posts, Filter::CONTEXT_PUBLIC, $this->viewer()),
 			Http::STATUS_OK
 		);
+		if ($this->interestFeedService->lastPageCountsFilling()) {
+			$response->addHeader('X-Social-Filling', '1');
+		}
 
 		if (count($posts) >= $limit) {
 			$last = end($posts);

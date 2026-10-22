@@ -660,8 +660,13 @@ class Document extends ACore implements JsonSerializable {
 		if (strpos($this->getMediaType(), '/')) {
 			[$type, $mime] = explode('/', $this->getMediaType(), 2);
 			// Mastodon's four kinds, and its word for everything else: a PDF
-			// is not an "application", it is a file a client cannot render
-			$media->setType(in_array($type, ['image', 'video', 'audio', 'gifv'], true) ? $type : 'unknown');
+			// is not an "application", it is a file a client cannot render.
+			// HLS playlists are application/* MIME types too, but they are the
+			// source of a video and must go through the HLS player, not the
+			// generic file download card (notably for Bluesky video embeds).
+			$media->setType(DocumentService::isPlaylist($this->getMediaType())
+				? 'video'
+				: (in_array($type, ['image', 'video', 'audio', 'gifv'], true) ? $type : 'unknown'));
 		}
 
 		// the whole of it, not just the half the client entity shows: what
@@ -688,10 +693,14 @@ class Document extends ACore implements JsonSerializable {
 				// no local copy to name: the bytes are fetched from the origin
 				// as they are played, and the route that does it is addressed
 				// by the row rather than by a uuid there is none of. The
-				// preview is left empty -- a streamed video's still is a
-				// document of its own, and the caller that knows which one
-				// sets it (see PeerTubeService).
-				$media->setUrl($this->streamUrl($urlGenerator));
+				// preview of an image can be the image itself; a video's still is
+				// a document of its own, and the caller that knows which one sets
+				// it (see PeerTubeService).
+				$streamUrl = $this->streamUrl($urlGenerator);
+				$media->setUrl($streamUrl);
+				if (str_starts_with($this->getMediaType(), 'image/')) {
+					$media->setPreviewUrl($streamUrl);
+				}
 			} else {
 				$media->setUrl($this->getMediaUrl($urlGenerator, $mime));
 				if ($this->hasLadder()) {

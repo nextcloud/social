@@ -19,6 +19,24 @@ use PHPUnit\Framework\TestCase;
 
 #[AllowMockObjectsWithoutExpectations]
 class DeletionSweepTest extends TestCase {
+	public function testAnUnansweredAppViewDoesNotAdvanceTheDeletionCursor(): void {
+		$streams = $this->createMock(StreamRequest::class);
+		$store = $this->createMock(PostStore::class);
+		$config = $this->createMock(ConfigService::class);
+		$time = $this->createMock(ITimeFactory::class);
+		$time->method('getTime')->willReturn(1760000000);
+		$cursor = '0';
+		$config->method('getAppValue')->willReturnCallback(static fn (string $key): string => $key === ConfigService::ATPROTO_DELETE_CURSOR ? $cursor : '');
+		$config->expects($this->never())->method('setAppValue');
+		$streams->method('getBlueskyPostIds')->willReturn([11 => 'https://bsky.app/profile/did:plc:a/post/1']);
+		$store->expects($this->once())->method('deleteGone')->willReturn(null);
+
+		$sweep = new DeletionSweep($streams, $store, $config, $time);
+
+		$this->assertSame(0, $sweep->run());
+		$this->assertSame('0', $cursor);
+	}
+
 	public function testAPageIsCheckedAndThePlaceKeptThenItStartsOver(): void {
 		$streams = $this->createMock(StreamRequest::class);
 		$store = $this->createMock(PostStore::class);
