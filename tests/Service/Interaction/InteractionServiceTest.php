@@ -62,6 +62,36 @@ class InteractionServiceTest extends TestCase {
 		$this->assertSame([$actorId], array_map(static fn (Person $actor): string => $actor->getId(), $result['accounts']));
 	}
 
+	public function testVisibleFediverseReactionPagesRemainAvailableWhenTheCollectionIsIncomplete(): void {
+		$post = (new Note())->setId('https://remote.example/notes/1');
+		$actorId = 'https://remote.example/users/ann';
+		$actions = $this->createMock(ActionService::class);
+		$actions->method('reactedBy')->willReturn([]);
+		$cacheActors = $this->createMock(CacheActorService::class);
+		$cacheActors->method('getCachedFromIds')->willReturnCallback(static fn (array $ids): array => array_combine($ids, array_map(static fn (string $id): Person => self::person($id), $ids)));
+		$factory = $this->createStub(ICacheFactory::class);
+		$factory->method('isAvailable')->willReturn(false);
+		$time = $this->createStub(ITimeFactory::class);
+		$time->method('getTime')->willReturn(1790000000);
+		$durableCache = new DurableCache($factory, new InMemoryDurableCacheRequest(), $time);
+		$queue = $this->createMock(RemoteFetchQueue::class);
+		$queue->expects($this->once())->method('fillInteractions')->with($post, 'Like')->willReturn(true);
+		$fediverse = $this->createMock(ActivityPubInteractionSource::class);
+		$fediverse->method('supports')->willReturn(true);
+		$fediverse->expects($this->once())->method('actors')->with($post, 'Like', InteractionService::LIMIT, 3)->willReturn([$actorId]);
+		$fediverse->expects($this->once())->method('hasMoreActors')->with($post, 'Like')->willReturn(true);
+		$bluesky = $this->createMock(BlueskyInteractionSource::class);
+		$bluesky->method('supports')->willReturn(false);
+		$container = $this->createMock(ContainerInterface::class);
+		$container->method('get')->willReturnMap([[ActivityPubInteractionSource::class, $fediverse], [BlueskyInteractionSource::class, $bluesky]]);
+		$service = new InteractionService($actions, $cacheActors, $this->createMock(StreamRequest::class), $durableCache, $queue, new NullLogger(), $container);
+
+		$result = $service->reactedBy($post, 'Like', 10);
+
+		$this->assertSame([$actorId], array_map(static fn (Person $actor): string => $actor->getId(), $result['accounts']));
+		$this->assertTrue($result['filling'], 'the partial list is shown while its background continuation is queued');
+	}
+
 	public function testOpeningReactionListReadsTheNetworkBeforeReturningAndKeepsLocalActorsFirst(): void {
 		$post = (new Note())->setId('https://social.test/@alice/1');
 		$streams = $this->createMock(StreamRequest::class);

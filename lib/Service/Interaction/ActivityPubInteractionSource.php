@@ -28,6 +28,7 @@ use Throwable;
 class ActivityPubInteractionSource implements InteractionSource {
 	/** Enough 20-account collection pages to fill the public API's 80-actor cap. */
 	private const PAGES = 4;
+	private ?string $incompleteRead = null;
 
 	public function __construct(
 		private CurlService $curl,
@@ -43,9 +44,12 @@ class ActivityPubInteractionSource implements InteractionSource {
 
 	#[\Override]
 	public function actors(Stream $post, string $type, int $limit, ?int $timeout = null): array {
+		$readKey = self::readKey($post, $type);
+		$this->incompleteRead = null;
 		$source = json_decode($post->getSource(), true);
 		$collection = is_array($source) ? ($source[$type === Like::TYPE ? 'likes' : 'shares'] ?? null) : null;
 		$ids = [];
+		$knownActors = [];
 		$seen = [];
 		$requests = 0;
 		$deadline = $timeout === null ? null : hrtime(true) + ($timeout * 1_000_000_000);
@@ -70,7 +74,12 @@ class ActivityPubInteractionSource implements InteractionSource {
 					if ($deadline !== null && $requests > 1) {
 						$remaining = (int)floor(max(0, $deadline - hrtime(true)) / 1_000_000_000);
 						if ($remaining < 1) {
-							throw new \RuntimeException('visible reaction read exceeded its time budget');
+							if ($ids === []) {
+								throw new \RuntimeException('visible reaction read exceeded its time budget');
+							}
+							$this->incompleteRead = $readKey;
+
+							break;
 						}
 						$requestTimeout = min($timeout ?? $remaining, $remaining);
 					}
@@ -79,13 +88,19 @@ class ActivityPubInteractionSource implements InteractionSource {
 						: $this->curl->retrieveObject($collection, true, $requestTimeout);
 				} catch (Throwable $e) {
 					$this->logger->info('A collection of reactions was not read', ['post' => $post->getId(), 'exception' => $e]);
+					if ($timeout !== null && $ids !== []) {
+						$this->incompleteRead = $readKey;
+
+						break;
+					}
 					throw $e;
 				}
 			}
 			$items = $collection['orderedItems'] ?? $collection['items'] ?? [];
 			foreach (is_array($items) ? $items : [] as $item) {
 				$id = self::actorOf($item, $type);
-				if ($id !== '') {
+				if ($id !== '' && !isset($knownActors[$id])) {
+					$knownActors[$id] = true;
 					$ids[] = $id;
 				}
 			}
@@ -95,10 +110,24 @@ class ActivityPubInteractionSource implements InteractionSource {
 				: ($collection['first'] ?? $collection['next'] ?? null);
 			$collection = self::collectionReference($reference);
 		}
+		if (count($ids) < $limit && (is_string($collection) || is_array($collection))) {
+			// Four full pages cover the normal 80-account response. A server may
+			// return shorter pages, though; do not present those as complete.
+			$this->incompleteRead = $readKey;
+		}
 		$ids = array_slice(array_values(array_unique($ids)), 0, $limit);
 		$this->queue->resolveActors($ids);
 
 		return $ids;
+	}
+
+	/** Whether the last visible read stopped before exhausting the collection. */
+	public function hasMoreActors(Stream $post, string $type): bool {
+		return $this->incompleteRead === self::readKey($post, $type);
+	}
+
+	private static function readKey(Stream $post, string $type): string {
+		return $post->getId() . "\0" . $type;
 	}
 
 	#[\Override]

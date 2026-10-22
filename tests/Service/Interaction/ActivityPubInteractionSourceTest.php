@@ -76,11 +76,44 @@ class ActivityPubInteractionSourceTest extends TestCase {
 				];
 			});
 		$queue = $this->createMock(RemoteFetchQueue::class);
+		$queue->expects($this->once())->method('resolveActors')->with(['https://a.example/users/ann']);
 		$source = new ActivityPubInteractionSource($curl, $queue, new NullLogger());
 
-		$this->expectException(\RuntimeException::class);
-		$this->expectExceptionMessage('visible reaction read exceeded its time budget');
-		$source->actors($post, 'Like', 10, 2);
+		$this->assertSame(['https://a.example/users/ann'], $source->actors($post, 'Like', 10, 2));
+		$this->assertTrue($source->hasMoreActors($post, 'Like'), 'a successful first page stays usable when the next one exceeds the live budget');
+	}
+
+	public function testAVisibleReadReportsUnvisitedPagesAfterSeveralShortPages(): void {
+		$post = (new Note())->setId('https://remote.example/notes/1');
+		$post->setSource((string)json_encode(['likes' => 'https://remote.example/notes/1/likes?page=1']));
+		$curl = $this->createMock(CurlService::class);
+		$curl->expects($this->exactly(4))->method('retrieveObject')->willReturnCallback(
+			static function (string $id): array {
+				$page = (int)substr($id, -1);
+
+				return [
+					'type' => 'OrderedCollectionPage',
+					'orderedItems' => ['https://actors.example/users/' . $page],
+					'next' => 'https://remote.example/notes/1/likes?page=' . ($page + 1),
+				];
+			}
+		);
+		$queue = $this->createMock(RemoteFetchQueue::class);
+		$queue->expects($this->once())->method('resolveActors')->with([
+			'https://actors.example/users/1',
+			'https://actors.example/users/2',
+			'https://actors.example/users/3',
+			'https://actors.example/users/4',
+		]);
+		$source = new ActivityPubInteractionSource($curl, $queue, new NullLogger());
+
+		$this->assertSame([
+			'https://actors.example/users/1',
+			'https://actors.example/users/2',
+			'https://actors.example/users/3',
+			'https://actors.example/users/4',
+		], $source->actors($post, 'Like', 80, 3));
+		$this->assertTrue($source->hasMoreActors($post, 'Like'), 'short pages leave the collection incomplete at the page cap');
 	}
 
 	public function testFollowsActivityPubPageLinksEncodedAsObjects(): void {

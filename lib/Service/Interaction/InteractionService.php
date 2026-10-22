@@ -182,6 +182,11 @@ class InteractionService {
 					} else {
 						$sourceIds = $source->actors($post, $type, self::LIMIT, $timeout);
 						$ids = array_merge($ids, $sourceIds);
+						if ($source instanceof ActivityPubInteractionSource && $source->hasMoreActors($post, $type)) {
+							// Keep the successful collection pages visible while the
+							// background fill retries the incomplete list.
+							$failed = true;
+						}
 						if ($source instanceof ActivityPubInteractionSource) {
 							$activityPubIds = array_merge($activityPubIds, $sourceIds);
 						}
