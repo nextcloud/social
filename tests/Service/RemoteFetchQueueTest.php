@@ -82,6 +82,34 @@ class RemoteFetchQueueTest extends TestCase {
 		$this->assertTrue($this->queue->syncTimeline($this->remote('https://remote.example/users/carol')));
 	}
 
+	public function testAShortProfilePageQueuesItsSavedOutboxCursor(): void {
+		$id = 'https://remote.example/users/bob';
+		$cursor = ['url' => 'https://remote.example/outbox?page=2', 'offset' => 0];
+		$this->jobList->method('has')->willReturn(false);
+		$this->jobList->expects($this->once())->method('add')->with(SyncRemoteTimeline::class, [
+			'actor' => $id,
+			'continuation' => '1',
+		]);
+
+		$this->queue->finishTimelinePage($id, true, $cursor);
+		$this->assertTrue($this->queue->fillTimeline($this->remote($id)));
+		$this->assertTrue($this->queue->isTimelinePending($id));
+	}
+
+	public function testTheOutboxCursorRemainsAvailableUntilEveryPageIsRead(): void {
+		$id = 'https://remote.example/users/bob';
+		$cursor = ['url' => 'https://remote.example/outbox?page=2', 'offset' => 0];
+		$this->jobList->method('has')->willReturn(false);
+		$this->jobList->expects($this->exactly(2))->method('add');
+
+		$this->queue->finishTimelinePage($id, true, $cursor);
+		$this->assertTrue($this->queue->fillTimeline($this->remote($id)));
+		$this->queue->finishTimelinePage($id, true, ['url' => 'https://remote.example/outbox?page=3', 'offset' => 0]);
+		$this->assertTrue($this->queue->fillTimeline($this->remote($id)));
+		$this->queue->finishTimelinePage($id, true, null);
+		$this->assertFalse($this->queue->fillTimeline($this->remote($id)));
+	}
+
 	public function testALocalAccountHasNoOutboxToSync(): void {
 		$alice = $this->remote('https://cloud.example/apps/social/@alice');
 		$alice->setLocal(true);

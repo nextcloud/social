@@ -45,6 +45,10 @@ class RemoteFetchQueue {
 	public const TIMELINE_SYNC_INTERVAL = 900;
 
 	private const TIMELINE_SYNCED = 'social.outboxsync';
+	private const TIMELINE_CURSOR = 'social.outbox.cursor';
+	private const TIMELINE_PENDING = 'social.outbox.pending';
+	private const TIMELINE_CURSOR_TTL = 31536000;
+	private const TIMELINE_PENDING_TTL = 300;
 
 	/** Seconds between two reads of one conversation asked for by opening it. */
 	public const THREAD_FILL_INTERVAL = 600;
@@ -101,22 +105,120 @@ class RemoteFetchQueue {
 
 		$key = md5($actor->getId());
 		try {
-			if ($this->durableCache->get(self::TIMELINE_SYNCED, $key) !== null) {
+			if ($this->isTimelinePending($actor->getId())) {
 				return false;
 			}
-			$this->durableCache->set(self::TIMELINE_SYNCED, $key, 1, self::TIMELINE_SYNC_INTERVAL);
+		} catch (Throwable $e) {
+			$this->logger->info('[RemoteFetchQueue] could not read timeline sync state', [
+				'actor' => $actor->getId(), 'exception' => $e,
+			]);
+		}
+
+		try {
+			if ($this->durableCache->getShared(self::TIMELINE_SYNCED, $key) !== null) {
+				return false;
+			}
+			$this->durableCache->setShared(self::TIMELINE_SYNCED, $key, 1, self::TIMELINE_SYNC_INTERVAL);
 		} catch (Throwable $e) {
 			// without the stamp the job list's own dedupe still holds: one
 			// pending sync per account
 		}
 
-		if (!$this->queue(SyncRemoteTimeline::class, ['actor' => $actor->getId()])) {
-			$this->clearThrottle(self::TIMELINE_SYNCED, $key, $actor->getId(), 'timeline sync');
+		$cursor = $this->timelineCursor($actor->getId());
+		$argument = ['actor' => $actor->getId()];
+		if ($cursor !== null) {
+			$argument['refresh_only'] = '1';
+		}
+		try {
+			$this->durableCache->setShared(self::TIMELINE_PENDING, $key, 1, self::TIMELINE_PENDING_TTL);
+		} catch (Throwable $e) {
+			$this->clearSharedThrottle(self::TIMELINE_SYNCED, $key, $actor->getId(), 'timeline sync');
+			$this->logger->info('[RemoteFetchQueue] could not mark timeline sync pending', [
+				'actor' => $actor->getId(), 'exception' => $e,
+			]);
+			return false;
+		}
+		if (!$this->queue(SyncRemoteTimeline::class, $argument)) {
+			$this->clearSharedThrottle(self::TIMELINE_SYNCED, $key, $actor->getId(), 'timeline sync');
+			$this->durableCache->removeShared(self::TIMELINE_PENDING, $key);
 
 			return false;
 		}
 
 		return true;
+	}
+
+	/**
+	 * Ask for the next page of an account's outbox when the local profile page
+	 * ran out of posts. Every queue item reads only one bounded page.
+	 */
+	public function fillTimeline(Person $actor): bool {
+		if ($actor->isLocal() || $actor->getId() === '') {
+			return false;
+		}
+
+		$key = md5($actor->getId());
+		try {
+			if ($this->isTimelinePending($actor->getId())) {
+				return true;
+			}
+
+			$cursor = $this->timelineCursor($actor->getId());
+			if (!is_array($cursor) || !is_string($cursor['url'] ?? null) || $cursor['url'] === '') {
+				return false;
+			}
+
+			$argument = ['actor' => $actor->getId(), 'continuation' => '1'];
+			$this->durableCache->setShared(self::TIMELINE_PENDING, $key, 1, self::TIMELINE_PENDING_TTL);
+			if (!$this->queue(SyncRemoteTimeline::class, $argument)) {
+				$this->durableCache->removeShared(self::TIMELINE_PENDING, $key);
+				return false;
+			}
+
+			return true;
+		} catch (Throwable $e) {
+			$this->logger->info('[RemoteFetchQueue] could not request the next timeline page', [
+				'actor' => $actor->getId(), 'exception' => $e,
+			]);
+			return false;
+		}
+	}
+
+	/** Whether the queued profile outbox read is still expected to finish. */
+	public function isTimelinePending(string $actorId): bool {
+		if ($actorId === '') {
+			return false;
+		}
+
+		return $this->durableCache->getShared(self::TIMELINE_PENDING, md5($actorId)) !== null;
+	}
+
+	/** @return array{url: string, offset: int}|array{complete: true}|null */
+	public function timelineCursor(string $actorId): ?array {
+		$cursor = $this->durableCache->getShared(self::TIMELINE_CURSOR, md5($actorId));
+
+		return is_array($cursor) ? $cursor : null;
+	}
+
+	/** @param array{url: string, offset: int}|null $cursor */
+	public function finishTimelinePage(string $actorId, bool $success, ?array $cursor, bool $updateCursor = true): void {
+		$key = md5($actorId);
+		if (!$success) {
+			$this->clearSharedThrottle(self::TIMELINE_SYNCED, $key, $actorId, 'timeline sync');
+			$this->durableCache->removeShared(self::TIMELINE_PENDING, $key);
+
+			return;
+		}
+
+		if ($updateCursor) {
+			$this->durableCache->setShared(
+				self::TIMELINE_CURSOR,
+				$key,
+				$cursor ?? ['complete' => true],
+				self::TIMELINE_CURSOR_TTL
+			);
+		}
+		$this->durableCache->removeShared(self::TIMELINE_PENDING, $key);
 	}
 
 	/**

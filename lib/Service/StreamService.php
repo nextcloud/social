@@ -62,6 +62,8 @@ class StreamService {
 	/** Whether posts read through `visiblePosts()` still have counts due. */
 	private bool $visiblePostsCountsFilling = false;
 
+	private RemoteOutboxPageReader $remoteOutboxPageReader;
+
 	/** How far up a thread one context request walks; Mastodon's cap. */
 	private const ANCESTOR_LIMIT = 40;
 
@@ -92,7 +94,9 @@ class StreamService {
 		private ?RemoteFetchQueue $remoteFetchQueue = null,
 		private ?CountService $countService = null,
 		private ?ThreadService $threadService = null,
+		?RemoteOutboxPageReader $remoteOutboxPageReader = null,
 	) {
+		$this->remoteOutboxPageReader = $remoteOutboxPageReader ?? new RemoteOutboxPageReader($curlService, $logger);
 	}
 
 	/**
@@ -1035,41 +1039,32 @@ class StreamService {
 	 * @param Person $actor
 	 */
 	public function syncRemoteTimeline(Person $actor): int {
-		if ($actor->isLocal()) {
-			return 0;
+		return $this->syncRemoteTimelinePage($actor)['synced'];
+	}
+
+	/**
+	 * Read one bounded page of a remote outbox and return its continuation.
+	 *
+	 * @return array{synced: int, next: array{url: string, offset: int}|null, success: bool}
+	 */
+	public function syncRemoteTimelinePage(Person $actor, string $pageUrl = '', int $offset = 0): array {
+		$result = ['synced' => 0, 'next' => null, 'success' => false];
+		$page = $this->remoteOutboxPageReader->read($actor, $pageUrl);
+		if (!$page['success']) {
+			return $result;
 		}
 
+		$result['success'] = true;
 		$synced = 0;
+		$items = $page['items'];
+		$pageUrl = $page['pageUrl'];
 		try {
-			$outboxUrl = $actor->getOutbox();
-			if (empty($outboxUrl)) {
-				$this->logger->info('[syncRemoteTimeline] No outbox URL for actor', ['actor' => $actor->getId()]);
-				return 0;
-			}
-
-			$this->logger->debug('[syncRemoteTimeline] Fetching outbox', ['url' => $outboxUrl, 'actor' => $actor->getId()]);
-			$outboxData = $this->curlService->retrieveObject($outboxUrl);
-
-			// Follow 'first' to get the first page
-			$pageData = $outboxData;
-			if (isset($outboxData['first'])) {
-				if (is_array($outboxData['first'])) {
-					$pageData = $outboxData['first'];
-				} elseif (is_string($outboxData['first'])) {
-					$this->logger->debug('[syncRemoteTimeline] Following first page', ['url' => $outboxData['first']]);
-					$pageData = $this->curlService->retrieveObject($outboxData['first']);
-				}
-			}
-
-			$items = $pageData['orderedItems'] ?? $pageData['items'] ?? [];
-			if (!is_array($items)) {
-				$this->logger->debug('[syncRemoteTimeline] No items in page', ['actor' => $actor->getId()]);
-				return 0;
-			}
 
 			$this->logger->info('[syncRemoteTimeline] Processing items', ['actor' => $actor->getId(), 'count' => count($items)]);
 
-			foreach (array_slice($items, 0, self::SYNC_ITEM_LIMIT) as $itemData) {
+			$offset = max(0, $offset);
+			$batch = array_slice($items, $offset, self::SYNC_ITEM_LIMIT);
+			foreach ($batch as $itemData) {
 				try {
 					// An OrderedCollection may list bare ids as well as objects,
 					// and everything below reads the entry as an array.
@@ -1211,8 +1206,15 @@ class StreamService {
 					]);
 				}
 			}
+
+			$nextOffset = $offset + count($batch);
+			if ($nextOffset < count($items)) {
+				$result['next'] = ['url' => $pageUrl, 'offset' => $nextOffset];
+			} elseif ($page['nextUrl'] !== '') {
+				$result['next'] = ['url' => $page['nextUrl'], 'offset' => 0];
+			}
 		} catch (Exception $e) {
-			$this->logger->warning('[syncRemoteTimeline] Failed to fetch outbox', [
+			$this->logger->warning('[syncRemoteTimeline] Failed to process outbox page', [
 				'actor' => $actor->getId(),
 				'error' => $e->getMessage()
 			]);
@@ -1222,7 +1224,9 @@ class StreamService {
 			$this->logger->info('[syncRemoteTimeline] Sync complete', ['actor' => $actor->getId(), 'synced' => $synced]);
 		}
 
-		return $synced;
+		$result['synced'] = $synced;
+
+		return $result;
 	}
 
 	/**

@@ -1709,6 +1709,37 @@ class StreamServiceTest extends TestCase {
 		$this->assertSame(20, $saved);
 	}
 
+	/** A Mastodon outbox page is read in bounded batches and followed by its next link. */
+	public function testSyncRemoteTimelinePageCarriesItsCursorAcrossBoundedBatches(): void {
+		$bob = $this->remoteActor();
+		$pageUrl = $bob->getOutbox() . '?page=1';
+		$items = [];
+		for ($i = 0; $i < 21; $i++) {
+			$items[] = [
+				'type' => 'Note',
+				'id' => 'https://remote.example/notes/' . $i,
+				'attributedTo' => $bob->getId(),
+				'content' => 'post ' . $i,
+			];
+		}
+		$this->curlService->expects($this->exactly(2))
+			->method('retrieveObject')
+			->with($pageUrl, true)
+			->willReturn(['orderedItems' => $items, 'next' => '?page=2']);
+		$this->streamRequest->method('getStreamById')->willThrowException(new StreamNotFoundException());
+		$this->streamRequest->expects($this->exactly(21))->method('save');
+
+		$first = $this->service->syncRemoteTimelinePage($bob, $pageUrl);
+		$this->assertSame(20, $first['synced']);
+		$this->assertTrue($first['success']);
+		$this->assertSame(['url' => $pageUrl, 'offset' => 20], $first['next']);
+
+		$second = $this->service->syncRemoteTimelinePage($bob, $first['next']['url'], $first['next']['offset']);
+		$this->assertSame(1, $second['synced']);
+		$this->assertTrue($second['success']);
+		$this->assertSame(['url' => $bob->getOutbox() . '?page=2', 'offset' => 0], $second['next']);
+	}
+
 	public function testSyncRemoteTimelineSanitisesWhatItStores(): void {
 		// This path bypasses NoteInterface::save(), so nothing else validates what
 		// the remote server sent. Content and summary are saved by a read-time
