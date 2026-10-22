@@ -1027,6 +1027,13 @@ describe('TimelinePost', () => {
 			expect(groups.map((group) => group.find('button').attributes('aria-label'))).toEqual(['Boost', 'Like', 'Reply'])
 		})
 
+		it('compensates the reply action for nested thread indentation', () => {
+			const source = readFileSync(resolve(process.cwd(), 'src/components/TimelinePost.vue'), 'utf8')
+
+			expect(source).toContain('margin-inline-end: calc(var(--thread-depth, 0) * -24px)')
+			expect(source).toContain('margin-inline-end: calc(var(--thread-depth, 0) * -12px)')
+		})
+
 		/** The page counts on its own when the reader likes, so the server's zero is not enough. */
 		it('draws no counter at all for a reader who hides the numbers', () => {
 			const { wrapper } = mountPost({

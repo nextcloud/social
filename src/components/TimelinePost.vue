@@ -1814,6 +1814,10 @@ export default {
 		// the screen's width is the post's: less of it goes to the frame
 		padding: 14px 16px 12px;
 	}
+
+	.post-actions__groups .post-action-group--reply {
+		margin-inline-end: calc(var(--thread-depth, 0) * -12px);
+	}
 }
 
 .post-content--openable {
@@ -2260,6 +2264,7 @@ export default {
 		// A wrapped reply row stays aligned to the post's outside edge.
 		.post-action-group--reply {
 			margin-inline-start: auto;
+			margin-inline-end: calc(var(--thread-depth, 0) * -24px);
 		}
 	}
 
