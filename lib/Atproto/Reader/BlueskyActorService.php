@@ -23,6 +23,7 @@ use OCA\Social\Model\Details;
 use OCA\Social\Service\ActorService;
 use OCA\Social\Service\CurlService;
 use OCA\Social\Service\VerificationService;
+use OCP\IConfig;
 use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -46,6 +47,7 @@ class BlueskyActorService {
 		private LoggerInterface $logger,
 		private ?ContainerInterface $container = null,
 		private ?CurlService $curlService = null,
+		private ?IConfig $systemConfig = null,
 	) {
 	}
 
@@ -159,7 +161,10 @@ class BlueskyActorService {
 		}
 		foreach (($document['service'] ?? []) as $service) {
 			if (is_array($service) && ($service['id'] ?? '') === '#atproto_pds') {
-				$endpoint = self::validatedPdsEndpoint((string)($service['serviceEndpoint'] ?? ''));
+				$endpoint = self::validatedPdsEndpoint(
+					(string)($service['serviceEndpoint'] ?? ''),
+					$this->systemConfig?->getSystemValueBool('allow_local_remote_servers', false) ?? false,
+				);
 				$this->pdsEndpoints[$did] = $endpoint;
 
 				return $endpoint;
@@ -220,22 +225,23 @@ class BlueskyActorService {
 		return $this->pdsOf($did);
 	}
 
-	private static function validatedPdsEndpoint(string $endpoint): string {
+	private static function validatedPdsEndpoint(string $endpoint, bool $allowLocal): string {
 		$parts = parse_url($endpoint);
-		if (!is_array($parts) || strtolower($parts['scheme'] ?? '') !== 'https'
+		$scheme = is_array($parts) ? strtolower($parts['scheme'] ?? '') : '';
+		if (!is_array($parts) || ($scheme !== 'https' && !($allowLocal && $scheme === 'http'))
 			|| !is_string($parts['host'] ?? null) || $parts['host'] === ''
 			|| isset($parts['user']) || isset($parts['pass']) || isset($parts['query']) || isset($parts['fragment'])
 			|| !in_array($parts['path'] ?? '', ['', '/'], true)) {
 			return '';
 		}
 		$host = strtolower($parts['host']);
-		if ($host === 'localhost' || filter_var($host, FILTER_VALIDATE_IP) !== false
-			|| preg_match('/(?:^|\.)localhost$/', $host) === 1 || preg_match('/(?:^|\.)local$/', $host) === 1) {
+		if (!$allowLocal && ($host === 'localhost' || filter_var(trim($host, '[]'), FILTER_VALIDATE_IP) !== false
+			|| preg_match('/(?:^|\.)localhost$/', $host) === 1 || preg_match('/(?:^|\.)local$/', $host) === 1)) {
 			return '';
 		}
 		$port = isset($parts['port']) ? ':' . $parts['port'] : '';
 
-		return 'https://' . $host . $port;
+		return $scheme . '://' . $host . $port;
 	}
 
 	/**
