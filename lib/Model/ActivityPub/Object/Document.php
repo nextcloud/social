@@ -664,8 +664,9 @@ class Document extends ACore implements JsonSerializable {
 			// HLS playlists are application/* MIME types too, but they are the
 			// source of a video and must go through the HLS player, not the
 			// generic file download card (notably for Bluesky video embeds).
-			$media->setType(in_array($type, ['image', 'video', 'audio', 'gifv'], true)
-				|| DocumentService::isPlaylist($this->getMediaType()) ? 'video' : 'unknown');
+			$media->setType(DocumentService::isPlaylist($this->getMediaType())
+				? 'video'
+				: (in_array($type, ['image', 'video', 'audio', 'gifv'], true) ? $type : 'unknown'));
 		}
 
 		// the whole of it, not just the half the client entity shows: what

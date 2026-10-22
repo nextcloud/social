@@ -205,6 +205,18 @@ class DocumentTest extends TestCase {
 		$this->assertSame($media->getUrl(), $media->getPreviewUrl(), 'no resized copy: the media is the preview');
 	}
 
+	/** An HLS playlist is playable video, though its MIME type starts with application/. */
+	public function testHlsPlaylistConvertsToAVideoAttachment(): void {
+		$document = new Document();
+		$document->setNid(10)
+			->setMediaType('application/vnd.apple.mpegurl')
+			->setLocalCopy(Document::COPY_STREAMED);
+
+		$media = $document->convertToMediaAttachment($this->urlGenerator);
+
+		$this->assertSame('video', $media->getType());
+	}
+
 	/** A streamed image, such as an AVIF blob, uses its same-origin stream as its preview. */
 	public function testStreamedImageUsesItsStreamAsThePreview(): void {
 		$document = new Document();
