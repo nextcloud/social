@@ -137,6 +137,27 @@ describe('ProfilePageIntegration', () => {
 		expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/timelines/public', { params: { limit: 20, local: false } })
 	})
 
+	it('keeps paging a short profile page while the server is filling Bluesky posts', async () => {
+		get.mockImplementation(async (url, config) => {
+			if (url.endsWith('/statuses')) {
+				return config?.params?.max_id
+					? { data: [statuses[1]], headers: {} }
+					: { data: [statuses[0]], headers: { 'x-social-filling': '1' } }
+			}
+			return { data: bob, headers: {} }
+		})
+		const wrapper = mountSection('bob')
+		await flushPromises()
+
+		const loadMore = wrapper.find('.social-profile__load-more')
+		expect(loadMore).toBeTruthy()
+		await loadMore.trigger('click')
+		await flushPromises()
+
+		expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/accounts/bob/statuses', { params: { limit: 20, max_id: '1' } })
+		expect(wrapper.findAllComponents(ProfileStatusCardStub).map((entry) => entry.props('status').id)).toEqual(['1', '2'])
+	})
+
 	it('keeps the post a boost on the profile repeats where its card reads it', async () => {
 		const boosted = { id: '7', content: '<p>passed on</p>', account: { ...bob, acct: 'carol' }, reblog: null }
 		const boost = { id: '8', content: '', account: bob, reblog: boosted }

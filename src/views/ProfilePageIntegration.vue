@@ -216,7 +216,7 @@ export default {
 					url = generateUrl('apps/social/api/v1/timelines/public')
 					params.local = feed === 'timeline'
 				}
-				const { data } = await axios.get(url, { params })
+				const { data, headers } = await axios.get(url, { params })
 				if (request !== this.feedRequest || feed !== this.activeFeed) {
 					return
 				}
@@ -238,7 +238,10 @@ export default {
 				this.feedTimeline = maxId
 					? [...this.feedTimeline, ...page.filter((status) => !seen.has(String(status.id)))]
 					: page
-				this.feedHasMore = page.length === PAGE_SIZE
+				// A Bluesky profile can return a short page while its AppView
+				// cursor is still being filled past hidden records. Keep paging
+				// available until the server confirms that refill is complete.
+				this.feedHasMore = page.length === PAGE_SIZE || headers?.['x-social-filling'] === '1'
 				if (feed === 'profile' && !maxId) {
 					await this.restorePostAnchor(request)
 				}
@@ -266,7 +269,7 @@ export default {
 				try {
 					const params = { limit: PAGE_SIZE, max_id: (BigInt(statusId) + 1n).toString() }
 					const url = generateUrl(`apps/social/api/v1/accounts/${encodeURIComponent(this.account)}/statuses`)
-					const { data } = await axios.get(url, { params })
+					const { data, headers } = await axios.get(url, { params })
 					const page = Array.isArray(data) ? data : []
 					if (request === this.feedRequest && this.activeFeed === 'profile'
 						&& page.some((status) => String(status.id) === statusId)) {
@@ -279,7 +282,7 @@ export default {
 							const rightId = BigInt(right.id)
 							return leftId === rightId ? 0 : leftId > rightId ? -1 : 1
 						})
-						this.feedHasMore = page.length === PAGE_SIZE
+						this.feedHasMore = page.length === PAGE_SIZE || headers?.['x-social-filling'] === '1'
 					}
 				} catch (error) {
 					logger.error('Failed to load the linked Social post on the Nextcloud profile', { error, statusId })
