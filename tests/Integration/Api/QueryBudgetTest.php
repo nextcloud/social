@@ -242,7 +242,9 @@ class QueryBudgetTest extends ReaderTestCase {
 		$replies = 0;
 
 		$this->assertFlatCostWithin(
-			'status and context', 17,
+			// Opening a post checks one shared live-count refresh marker before
+			// it decides whether another interactive read should be queued.
+			'status and context', 18,
 			function (int $count) use (&$replies, $root): void {
 				for ($i = 0; $i < $count; $i++, $replies++) {
 					$this->post(
