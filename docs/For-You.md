@@ -592,3 +592,21 @@ Resolved 2026-09-24:
    removed as confusing (§8). Actions taken in apps still count.
 
 No open points remain.
+# For You 4.0 foundation (F0)
+
+The first v4 foundation is separate from the existing hashtag based For You feed. The instance switch `rec_v4_enabled` defaults to off and is exposed in Administration → Social → For you. With it off, the existing feed and its routes keep their current behavior; v4 preference routes and the user's **Settings → Reading → For You topics** panel are unavailable. Enabling the switch exposes only the static topic catalog and explicit topic preference operations. It does not enable discovery, ranking changes, telemetry, or behavioral learning.
+
+The catalog has stable IDs, German and English labels, reviewed local aliases, version, policy tags and language hints. Policy tags classify catalog entries only; they are never inferred or applied to a reader. Manual topic preferences are stored per Nextcloud account in additive tables. Updates require `if_revision`; stale writes receive HTTP 409 with the current state. `HIDE` on a parent applies to descendants, while a child preference may replace an inherited soft value. The preference export is owner-only. Reset is revision-protected, idempotent, increments the generation before clearing choices, and account deletion purges the records.
+
+## Routes
+
+| Method | Route | Purpose |
+|---|---|---|
+| GET | `/api/v1/recommendations/catalog` | Local, versioned topics and labels |
+| GET | `/api/v1/recommendations/preferences` | Authenticated reader's own topics and revision |
+| PUT | `/api/v1/recommendations/preferences` | Replace explicit choices with `if_revision` and `topics` |
+| POST | `/api/v1/recommendations/reset` | Clear topic choices with `if_revision` |
+| GET | `/api/v1/recommendations/export` | Export the authenticated reader's preference state |
+| GET/PUT | `/admin/recommendations` | Administrator-only instance kill switch |
+
+For local checks, run `composer test:unit -- --filter 'RecommendationPreferenceServiceTest|RecommendationPreferencesMigrationTest|UserDeletedListenerTest'`, then `npm test -- --run` and `npm run build`. Disable the instance switch to roll back v4; the additive schema is retained and the existing feed remains available.

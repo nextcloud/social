@@ -164,6 +164,9 @@ class ConfigService {
 	 */
 	public const SOCIAL_PUBLISH_BLOCKS = 'publish_blocks';
 
+	/** Independent, instance-wide kill switch for the For You v4 rollout. */
+	public const REC_V4_ENABLED = 'rec_v4_enabled';
+
 	/**
 	 * How far the closed-poll sweep has got, as a timestamp.
 	 *

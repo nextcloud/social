@@ -7,12 +7,13 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import InterestsSection from '../../../../src/components/admin/InterestsSection.vue'
 
-const { post } = vi.hoisted(() => ({ post: vi.fn() }))
-vi.mock('@nextcloud/axios', () => ({ default: { post } }))
+const { post, put } = vi.hoisted(() => ({ post: vi.fn(), put: vi.fn() }))
+vi.mock('@nextcloud/axios', () => ({ default: { post, put } }))
 const { showError, showSuccess } = vi.hoisted(() => ({ showError: vi.fn(), showSuccess: vi.fn() }))
 vi.mock('../../../../src/services/toast.js', () => ({ showError, showSuccess }))
 
 const ROUTE = '/index.php/apps/social/admin/interests'
+const RECOMMENDATIONS_ROUTE = '/index.php/apps/social/admin/recommendations'
 const DEFAULTS = { enabled: true, learningDefault: true, halfLife: 30, threshold: 3, cap: 30, window: 7 }
 
 /**
@@ -39,6 +40,7 @@ async function type(wrapper, index, value) {
 describe('the For you card', () => {
 	beforeEach(() => {
 		post.mockReset().mockImplementation((url, body) => Promise.resolve({ data: body }))
+		put.mockReset().mockImplementation((url, body) => Promise.resolve({ data: body }))
 		showError.mockReset()
 		showSuccess.mockReset()
 	})
@@ -46,7 +48,7 @@ describe('the For you card', () => {
 	it('shows what stands now', () => {
 		const wrapper = mountCard({ ...DEFAULTS, learningDefault: false, threshold: 2.5 })
 
-		expect(switches(wrapper).map((box) => box.props('modelValue'))).toEqual([true, false])
+		expect(switches(wrapper).map((box) => box.props('modelValue'))).toEqual([false, true, false])
 		expect(fields(wrapper).map((field) => field.props('modelValue'))).toEqual(['30', '2.5', '30', '7'])
 	})
 
@@ -59,13 +61,13 @@ describe('the For you card', () => {
 	it('fills in the defaults for an instance that never saved the card', () => {
 		const wrapper = mountCard({})
 
-		expect(switches(wrapper).map((box) => box.props('modelValue'))).toEqual([true, true])
+		expect(switches(wrapper).map((box) => box.props('modelValue'))).toEqual([false, true, true])
 		expect(fields(wrapper).map((field) => field.props('modelValue'))).toEqual(['30', '3', '30', '7'])
 	})
 
 	it('saves all six values in one request, the numbers as numbers', async () => {
 		const wrapper = mountCard()
-		await switches(wrapper)[1].vm.$emit('update:modelValue', false)
+		await switches(wrapper)[2].vm.$emit('update:modelValue', false)
 		await type(wrapper, 0, '60')
 		await type(wrapper, 1, '4.5')
 
@@ -81,6 +83,16 @@ describe('the For you card', () => {
 			window: 7,
 		})
 		expect(showSuccess).toHaveBeenCalledWith('Saved')
+	})
+
+	it('saves the independent v4 kill switch separately and keeps it off by default', async () => {
+		const wrapper = mountCard()
+		expect(switches(wrapper)[0].props('modelValue')).toBe(false)
+		await switches(wrapper)[0].vm.$emit('update:modelValue', true)
+		await flushPromises()
+
+		expect(put).toHaveBeenCalledWith(RECOMMENDATIONS_ROUTE, { enabled: true })
+		expect(switches(wrapper)[0].props('modelValue')).toBe(true)
 	})
 
 	it('draws what the server saved', async () => {

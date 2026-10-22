@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Listeners;
 
 use OCA\Social\Db\ActorsRequest;
+use OCA\Social\Db\RecommendationPreferenceRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ConfigService;
@@ -36,6 +37,7 @@ class UserDeletedListener implements IEventListener {
 		private AccountService $accountService,
 		private IConfig $config,
 		private LoggerInterface $logger,
+		private RecommendationPreferenceRequest $recommendationPreferences,
 	) {
 	}
 
@@ -46,6 +48,13 @@ class UserDeletedListener implements IEventListener {
 		}
 
 		$userId = $event->getUser()->getUID();
+		try {
+			$this->recommendationPreferences->purge($userId);
+		} catch (\Throwable $e) {
+			$this->logger->error('could not clear recommendation preferences for a deleted user', [
+				'userId' => $userId, 'exception' => $e,
+			]);
+		}
 		try {
 			$this->config->deleteUserValue($userId, 'social', ConfigService::USER_EXTERNAL_SIGNUP_NOTICE_VERSION);
 			$this->config->deleteUserValue($userId, 'social', ConfigService::USER_EXTERNAL_SIGNUP_NOTICE_ACCEPTED);

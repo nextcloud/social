@@ -729,6 +729,21 @@ The `history` of a `Tag` from any of these routes is the one the trends endpoint
 
 ### For you
 
+#### For You 4.0 preferences (foundation)
+
+These additive routes are controlled by the separate instance-wide `rec_v4_enabled` switch in Administration → Social → For you. It defaults to off. They do not change the existing hashtag feed or enable remote discovery, ranking, telemetry or behavioral learning. All preference data is scoped to the authenticated Nextcloud account; clients cannot choose another owner. Updates use optimistic revisions and a stale write returns **409** with the current owner state.
+
+| Method | Route | Access and parameters | Outcome |
+|---|---|---|---|
+| GET | `/api/v1/recommendations/catalog` | authenticated reader | Static versioned topic IDs, parent IDs, English and German labels, aliases |
+| GET | `/api/v1/recommendations/preferences` | `read:accounts` | Reader's explicit topic choices, revision, reset generation and effective hierarchy |
+| PUT | `/api/v1/recommendations/preferences` | `write:accounts`; `if_revision`, complete `topics` list | Validates known topic IDs and modes (`HIDE`, `LESS`, `NEUTRAL`, `INTERESTED`, `PRIORITISE`), then atomically replaces choices |
+| POST | `/api/v1/recommendations/reset` | `write:accounts`; `if_revision` | Increments generation before clearing choices; does not touch follows, mutes or blocks |
+| GET | `/api/v1/recommendations/export` | `read:accounts` | Versioned export of the reader's own recommendation preferences |
+| GET/PUT | `/admin/recommendations` | administrator, CSRF | Reads or sets the instance-wide v4 kill switch |
+
+An ancestor `HIDE` is inherited by descendants and cannot be overridden in this foundation release. A child choice overrides an inherited soft value. The catalog and persistence layer perform no remote requests.
+
 The hashtags the reader lingers on, learned while they read, and the feed made of them. Everything here is the viewer's own: no route reads or changes anybody else's interests, and nothing learned here is federated or shown to anyone else. With the feature switched off by an administrator (`interests`, see Admin.md) **every route below is a 404**. The feed is this app's own and is shown by its web interface; no Mastodon API names a feed like it, so Mastodon apps do not show it — though what a reader does in one (see *Learning from actions*) still teaches it.
 
 | Method | Route | Auth | Parameters | Description |

@@ -60,6 +60,11 @@ export function interestsUrl() {
 	return generateUrl('/apps/social/admin/interests')
 }
 
+/** @return {string} the instance-wide For You v4 kill-switch URL */
+export function recommendationsUrl() {
+	return generateUrl('/apps/social/admin/recommendations')
+}
+
 /**
  * The relays this instance subscribes to.
  *

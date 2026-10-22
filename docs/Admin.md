@@ -1453,3 +1453,6 @@ of this costs on the hardware in front of you.
   past.
 - **The audit log**, if `admin_audit` is enabled: every moderation decision,
   with the moderator who took it.
+# For You 4.0 foundation switch
+
+Administration → Social → For you includes an independent **For You 4.0 foundation** switch. It is off by default and is separate from the legacy hashtag For You setting below it. Enabling it exposes the first v4 topic catalog and owner-only explicit preference APIs; it does not enable any discovery, ranked timeline, behavioral learning, analytics or experiments. Turn it off to immediately disable those APIs. The additive preference tables remain in place for reversible rollback.
