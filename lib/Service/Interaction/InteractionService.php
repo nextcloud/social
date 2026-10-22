@@ -44,8 +44,8 @@ class InteractionService {
 	/** A reaction list is freshly read for five seconds after a visible request. */
 	private const VISIBLE = 'social.reactors.visible';
 	private const VISIBLE_INTERVAL = 5;
-	/** Don't repeat a failed interactive request while its queued fallback runs. */
-	private const VISIBLE_RETRY_INTERVAL = 15;
+	/** Retry a failed visible read on the same cadence as visible post refreshes. */
+	private const VISIBLE_RETRY_INTERVAL = self::VISIBLE_INTERVAL;
 	private const VISIBLE_DONE = 'done';
 	private const VISIBLE_PENDING = 'pending';
 	private const VISIBLE_LOCK = 'social-visible-reactions-';
