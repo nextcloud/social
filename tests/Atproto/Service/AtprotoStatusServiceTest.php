@@ -214,10 +214,10 @@ class AtprotoStatusServiceTest extends TestCase {
 		$this->assertSame('bsky.network has not synchronized alice.social.example yet', $check['detail']);
 	}
 
-	public function testHttp426WarnsThatTheFirehoseWebsocketIsNotProxied(): void {
+	public function testHttp426BlocksEnablingThePdsUntilTheFirehoseWebsocketIsProxied(): void {
 		$firehose = array_values(array_filter($this->service([])->checks(true), static fn (array $check): bool => $check['id'] === 'firehose'))[0];
 
-		$this->assertSame('warning', $firehose['state']);
+		$this->assertSame('error', $firehose['state']);
 		$this->assertStringContainsString('did not accept a WebSocket upgrade', $firehose['detail']);
 	}
 

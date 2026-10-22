@@ -297,16 +297,17 @@ class AtprotoStatusService {
 			$upgraded = $this->curlService->doWebSocketHandshake($endpoint . '/xrpc/com.atproto.sync.subscribeRepos', $status);
 		} catch (Throwable) {
 		}
-		// HTTP 426 confirms the XRPC path exists, but only a valid WebSocket
-		// accept response proves the reverse proxy reached the firehose daemon.
-		$responds = $upgraded || $status === 426;
+		// HTTP 426 confirms that the path exists, but it is not a WebSocket
+		// connection. Relays need the firehose to see repository commits, so
+		// enabling this PDS without a successful upgrade leaves its posts
+		// invisible to Bluesky clients.
 
 		return [
 			'id' => 'firehose',
-			'state' => $upgraded ? 'ok' : ($responds ? 'warning' : 'error'),
+			'state' => $upgraded ? 'ok' : 'error',
 			'detail' => $upgraded
 				? ''
-				: ($responds
+				: ($status === 426
 					? 'The endpoint answers HTTP 426 but did not accept a WebSocket upgrade; verify the reverse proxy and firehose daemon'
 					: $endpoint . '/xrpc/com.atproto.sync.subscribeRepos is not served (' . $status . '): the web server must proxy the WebSocket to the daemon'
 				),
