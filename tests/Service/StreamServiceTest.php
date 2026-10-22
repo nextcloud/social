@@ -1247,12 +1247,15 @@ class StreamServiceTest extends TestCase {
 		$this->streamRequest->method('getStreamByNid')->willReturn($post);
 		$this->streamRequest->expects($this->once())->method('getDescendants')->with($post->getId())->willReturn([$reply]);
 		$threads = $this->createMock(ThreadService::class);
-		$threads->expects($this->once())->method('fillBluesky')->with($post)->willReturn(true);
+		$viewer = (new Person())->setId(self::ACTOR_ID);
+		$threads->expects($this->once())->method('fillBluesky')->with($post, $viewer)->willReturn(true);
 		$threads->expects($this->once())->method('hasPendingBlueskyReplies')->willReturn(true);
 		$queue = $this->createMock(RemoteFetchQueue::class);
 		$queue->expects($this->once())->method('fillThread')->with($post)->willReturn(true);
 
-		$context = $this->serviceWithTags($this->createStub(MediaTagsRequest::class), $queue, $threads)->getContextByNid(2);
+		$service = $this->serviceWithTags($this->createStub(MediaTagsRequest::class), $queue, $threads);
+		$service->setViewer($viewer);
+		$context = $service->getContextByNid(2);
 
 		$this->assertSame([$reply], $context['descendants']);
 		$this->assertTrue($context['filling'], 'the background fill follows reply branches beyond Bluesky\'s depth limit');
@@ -1263,7 +1266,7 @@ class StreamServiceTest extends TestCase {
 		$this->streamRequest->method('getStreamByNid')->willReturn($post);
 		$this->streamRequest->method('getDescendants')->willReturn([]);
 		$threads = $this->createMock(ThreadService::class);
-		$threads->expects($this->once())->method('fillBluesky')->with($post)->willReturn(true);
+		$threads->expects($this->once())->method('fillBluesky')->with($post, null)->willReturn(true);
 		$threads->expects($this->once())->method('hasPendingBlueskyReplies')->willReturn(false);
 		$queue = $this->createMock(RemoteFetchQueue::class);
 		$queue->expects($this->never())->method('fillThread');
@@ -1278,7 +1281,7 @@ class StreamServiceTest extends TestCase {
 		$this->streamRequest->method('getStreamByNid')->willReturn($post);
 		$this->streamRequest->method('getDescendants')->willReturn([]);
 		$threads = $this->createMock(ThreadService::class);
-		$threads->expects($this->once())->method('fillBluesky')->with($post)->willReturn(true);
+		$threads->expects($this->once())->method('fillBluesky')->with($post, null)->willReturn(true);
 		$threads->expects($this->never())->method('hasPendingBlueskyReplies');
 		$queue = $this->createMock(RemoteFetchQueue::class);
 		$queue->expects($this->once())->method('isThreadFillPending')->with($post->getId())->willReturn(true);
@@ -1294,7 +1297,7 @@ class StreamServiceTest extends TestCase {
 		$this->streamRequest->method('getStreamByNid')->willReturn($post);
 		$this->streamRequest->method('getDescendants')->willReturn([]);
 		$threads = $this->createMock(ThreadService::class);
-		$threads->expects($this->once())->method('fillBluesky')->with($post)->willReturn(null);
+		$threads->expects($this->once())->method('fillBluesky')->with($post, null)->willReturn(null);
 		$queue = $this->createMock(RemoteFetchQueue::class);
 		$queue->expects($this->never())->method('fillThread');
 

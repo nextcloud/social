@@ -12,6 +12,7 @@ namespace OCA\Social\Service\Thread;
 use OCA\Social\Atproto\Reader\BlueskyThreadSource;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\StreamNotFoundException;
+use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\DurableCache;
 use OCP\Lock\ILockingProvider;
@@ -88,7 +89,7 @@ class ThreadService {
 	 * @return ?bool true when read, false when unavailable or unsupported, null
 	 *               when another request is already reading it
 	 */
-	public function fillBluesky(Stream $post): ?bool {
+	public function fillBluesky(Stream $post, ?Person $viewer = null): ?bool {
 		$this->blueskyDeepRepliesPending = false;
 		$source = $this->container?->get(BlueskyThreadSource::class);
 		if (!$source instanceof BlueskyThreadSource || !$source->supports($post)) {
@@ -116,7 +117,7 @@ class ThreadService {
 			if ($state !== null) {
 				return $state === self::VISIBLE_DONE;
 			}
-			$source->fillVisible($post, self::BUDGET);
+			$source->fillVisible($post, self::BUDGET, $viewer);
 			$this->blueskyDeepRepliesPending = $source->hasDeepRepliesPending();
 			$this->rememberVisibleRead($key, self::VISIBLE_DONE, self::VISIBLE_TTL);
 		} catch (Throwable $e) {

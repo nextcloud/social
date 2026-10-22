@@ -10,6 +10,10 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Atproto\Reader;
 
 use OCA\Social\Atproto\AppView\AppViewClient;
+use OCA\Social\Atproto\Crypto\Curve;
+use OCA\Social\Atproto\Crypto\PrivateKey;
+use OCA\Social\Atproto\Identity\IdentityService;
+use OCA\Social\Atproto\Model\Identity;
 use OCA\Social\Atproto\Moderation\LabelerService;
 use OCA\Social\Atproto\Publisher\PostRefs;
 use OCA\Social\Atproto\Reader\BlueskyThreadSource;
@@ -17,6 +21,7 @@ use OCA\Social\Atproto\Reader\PostMapper;
 use OCA\Social\Atproto\Reader\PostStore;
 use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Exceptions\AtprotoException;
+use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Service\DurableCache;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
@@ -29,6 +34,37 @@ class BlueskyThreadSourceTest extends TestCase {
 
 	private static function node(string $uri, array $replies = [], ?array $parent = null): array {
 		return ['$type' => self::VIEW, 'post' => ['uri' => $uri], 'replies' => $replies] + ($parent === null ? [] : ['parent' => $parent]);
+	}
+
+	public function testVisibleThreadUsesTheLinkedBlueskyIdentity(): void {
+		$thread = self::node('at://did:plc:alice/app.bsky.feed.post/1');
+		$config = $this->createMock(AtprotoConfig::class);
+		$config->method('isEnabled')->willReturn(true);
+		$refs = $this->createMock(PostRefs::class);
+		$refs->method('strongRef')->willReturn(['uri' => 'at://did:plc:alice/app.bsky.feed.post/1', 'cid' => 'bafy']);
+		$key = PrivateKey::generate(Curve::K256);
+		$identity = new Identity(1, 'https://social.test/@alice', 'did:plc:alice', 'alice.social.test', '', '', '', Identity::STATE_ACTIVE, '', 0);
+		$viewer = (new Person())->setId('https://social.test/@alice');
+		$identities = $this->createMock(IdentityService::class);
+		$identities->expects($this->once())->method('activeForActor')->with($viewer)->willReturn($identity);
+		$identities->expects($this->once())->method('signingKey')->with($identity)->willReturn($key);
+		$labelers = $this->createMock(LabelerService::class);
+		$labelers->method('acceptHeader')->willReturn('did:plc:labeler');
+		$appView = $this->createMock(AppViewClient::class);
+		$appView->expects($this->never())->method('query');
+		$appView->expects($this->once())->method('queryAs')->with(
+			'did:plc:alice',
+			$key,
+			'app.bsky.feed.getPostThread',
+			['uri' => 'at://did:plc:alice/app.bsky.feed.post/1', 'depth' => 10, 'parentHeight' => 20],
+			3,
+			['atproto-accept-labelers' => 'did:plc:labeler'],
+		)->willReturn(['thread' => $thread]);
+		$store = $this->createMock(PostStore::class);
+		$store->method('storePost')->willReturn(false);
+		$source = new BlueskyThreadSource($config, $appView, $refs, $store, $labelers, new NullLogger(), $this->createMock(DurableCache::class), $identities);
+
+		$this->assertSame(0, $source->fillVisible((new Note())->setId('https://social.test/@alice/1'), 10, $viewer));
 	}
 
 	public function testTheThreadIsStoredParentsFirstThenTheRepliesLevelByLevel(): void {

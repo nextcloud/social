@@ -11,6 +11,7 @@ namespace OCA\Social\Tests\Service\Thread;
 
 use OCA\Social\Atproto\Reader\BlueskyThreadSource;
 use OCA\Social\Db\StreamRequest;
+use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Service\DurableCache;
 use OCA\Social\Service\Thread\ActivityPubThreadSource;
@@ -31,10 +32,11 @@ class ThreadServiceTest extends TestCase {
 		$container = $this->createMock(ContainerInterface::class);
 		$container->method('get')->with(BlueskyThreadSource::class)->willReturn($bluesky);
 
-		$bluesky->expects($this->once())->method('fillVisible')->with($post, ThreadService::BUDGET)->willReturn(2);
+		$viewer = (new Person())->setId('https://social.test/@alice');
+		$bluesky->expects($this->once())->method('fillVisible')->with($post, ThreadService::BUDGET, $viewer)->willReturn(2);
 		$bluesky->expects($this->once())->method('hasDeepRepliesPending')->willReturn(true);
 		$service = new ThreadService($streams, new NullLogger(), $this->createStub(ILockingProvider::class), $container);
-		$this->assertTrue($service->fillBluesky($post));
+		$this->assertTrue($service->fillBluesky($post, $viewer));
 		$this->assertTrue($service->hasPendingBlueskyReplies());
 	}
 
@@ -42,7 +44,7 @@ class ThreadServiceTest extends TestCase {
 		$post = (new Note())->setId('at://did:plc:alice/app.bsky.feed.post/1');
 		$bluesky = $this->createMock(BlueskyThreadSource::class);
 		$bluesky->expects($this->exactly(2))->method('supports')->with($post)->willReturn(true);
-		$bluesky->expects($this->once())->method('fillVisible')->with($post, ThreadService::BUDGET)->willReturn(0);
+		$bluesky->expects($this->once())->method('fillVisible')->with($post, ThreadService::BUDGET, null)->willReturn(0);
 		$container = $this->createMock(ContainerInterface::class);
 		$container->method('get')->with(BlueskyThreadSource::class)->willReturn($bluesky);
 		$cache = $this->createMock(DurableCache::class);
@@ -64,7 +66,7 @@ class ThreadServiceTest extends TestCase {
 		$post = (new Note())->setId('at://did:plc:alice/app.bsky.feed.post/1');
 		$bluesky = $this->createMock(BlueskyThreadSource::class);
 		$bluesky->expects($this->exactly(2))->method('supports')->with($post)->willReturn(true);
-		$bluesky->expects($this->once())->method('fillVisible')->with($post, ThreadService::BUDGET)->willThrowException(new \RuntimeException('AppView unavailable'));
+		$bluesky->expects($this->once())->method('fillVisible')->with($post, ThreadService::BUDGET, null)->willThrowException(new \RuntimeException('AppView unavailable'));
 		$container = $this->createMock(ContainerInterface::class);
 		$container->method('get')->with(BlueskyThreadSource::class)->willReturn($bluesky);
 		$cache = $this->createMock(DurableCache::class);
@@ -86,7 +88,7 @@ class ThreadServiceTest extends TestCase {
 		$streams = $this->createStub(StreamRequest::class);
 		$bluesky = $this->createMock(BlueskyThreadSource::class);
 		$bluesky->method('supports')->with($post)->willReturn(true);
-		$bluesky->expects($this->once())->method('fillVisible')->with($post, ThreadService::BUDGET)->willThrowException(new \RuntimeException('AppView unavailable'));
+		$bluesky->expects($this->once())->method('fillVisible')->with($post, ThreadService::BUDGET, null)->willThrowException(new \RuntimeException('AppView unavailable'));
 		$container = $this->createMock(ContainerInterface::class);
 		$container->method('get')->with(BlueskyThreadSource::class)->willReturn($bluesky);
 

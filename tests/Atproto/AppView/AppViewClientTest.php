@@ -70,6 +70,37 @@ class AppViewClientTest extends TestCase {
 		));
 	}
 
+	public function testAuthenticatedQueriesPreserveLabelerHeadersAlongsideAuthorization(): void {
+		$config = $this->createMock(AtprotoConfig::class);
+		$config->method('appViewAuth')->willReturn('https://api.bsky.app');
+		$config->method('appViewDid')->willReturn('did:web:api.bsky.app');
+		$auth = $this->createMock(ServiceAuth::class);
+		$auth->method('token')->willReturn('signed');
+		$curl = $this->createMock(CurlService::class);
+		$curl->expects($this->once())->method('doRequest')->with(
+			'get',
+			'https://api.bsky.app/xrpc/app.bsky.feed.getPostThread?uri=at%3A%2F%2Fdid%3Aplc%3Aalice%2Fapp.bsky.feed.post%2F1',
+			$this->callback(static fn (array $options): bool => $options['headers']['Authorization'] === 'Bearer signed'
+				&& $options['headers']['atproto-accept-labelers'] === 'did:plc:labeler'
+				&& $options['timeout'] === AppViewClient::INTERACTIVE_TIMEOUT),
+			$this->anything(),
+			$this->anything(),
+		)->willReturnCallback(static function (string $method, string $url, array $options, &$contentType, &$status): string {
+			$status = 200;
+
+			return '{"thread":{}}';
+		});
+
+		$this->assertSame(['thread' => []], (new AppViewClient($config, $auth, $curl, new NullLogger()))->queryAs(
+			'did:plc:alice',
+			PrivateKey::generate(Curve::K256),
+			'app.bsky.feed.getPostThread',
+			['uri' => 'at://did:plc:alice/app.bsky.feed.post/1'],
+			AppViewClient::INTERACTIVE_TIMEOUT,
+			['atproto-accept-labelers' => 'did:plc:labeler'],
+		));
+	}
+
 	public function testAProcedureIsAPostOfItsInputAsThePerson(): void {
 		$config = $this->createMock(AtprotoConfig::class);
 		$config->method('appViewAuth')->willReturn('https://api.bsky.app');

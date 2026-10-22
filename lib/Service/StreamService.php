@@ -673,7 +673,7 @@ class StreamService {
 		// background: from its first post, and from this one when that is
 		// deeper than one read goes
 		$root = ($ancestors === []) ? $post : end($ancestors);
-		$blueskyResult = $this->threadService?->fillBluesky($root);
+		$blueskyResult = $this->threadService?->fillBluesky($root, $this->viewer);
 		$blueskyRead = $blueskyResult === true;
 		$blueskyPending = $this->threadService !== null && $blueskyResult === null;
 		// A cached successful visible read may still have a deeper reply fill

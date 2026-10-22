@@ -10,10 +10,14 @@ declare(strict_types=1);
 namespace OCA\Social\Atproto\Reader;
 
 use OCA\Social\Atproto\AppView\AppViewClient;
+use OCA\Social\Atproto\Crypto\PrivateKey;
+use OCA\Social\Atproto\Identity\IdentityService;
+use OCA\Social\Atproto\Model\Identity;
 use OCA\Social\Atproto\Moderation\LabelerService;
 use OCA\Social\Atproto\Protocol\Syntax;
 use OCA\Social\Atproto\Publisher\PostRefs;
 use OCA\Social\Atproto\Service\AtprotoConfig;
+use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\DurableCache;
 use OCA\Social\Service\Thread\ThreadSource;
@@ -51,6 +55,7 @@ class BlueskyThreadSource implements ThreadSource {
 		private LabelerService $labelers,
 		private LoggerInterface $logger,
 		private DurableCache $durableCache,
+		private ?IdentityService $identities = null,
 	) {
 	}
 
@@ -65,8 +70,8 @@ class BlueskyThreadSource implements ThreadSource {
 	}
 
 	/** Short bounded read for a thread currently being opened; background fills retain the normal timeout. */
-	public function fillVisible(Stream $post, int $budget): int {
-		return $this->fillWithTimeout($post, $budget, AppViewClient::INTERACTIVE_TIMEOUT);
+	public function fillVisible(Stream $post, int $budget, ?Person $viewer = null): int {
+		return $this->fillWithTimeout($post, $budget, AppViewClient::INTERACTIVE_TIMEOUT, $viewer);
 	}
 
 	/** Whether the last interactive read needs a background fill for omitted or depth-limited replies. */
@@ -74,12 +79,26 @@ class BlueskyThreadSource implements ThreadSource {
 		return $this->deepRepliesPending;
 	}
 
-	private function fillWithTimeout(Stream $post, int $budget, ?int $timeout): int {
+	private function fillWithTimeout(Stream $post, int $budget, ?int $timeout, ?Person $viewer = null): int {
 		$this->deepRepliesPending = false;
 		$this->missingReplyContinuations = [];
 		$uri = $this->refs->strongRef($post->getId())['uri'] ?? '';
 		if ($uri === '' || $budget <= 0) {
 			return 0;
+		}
+		$identity = null;
+		$key = null;
+		if ($timeout !== null && $viewer !== null && $this->identities !== null) {
+			try {
+				$identity = $this->identities->activeForActor($viewer);
+				$key = $identity === null ? null : $this->identities->signingKey($identity);
+			} catch (Throwable $e) {
+				// A missing or unreadable linked key should not make public replies
+				// disappear; fall back to the public AppView for this read.
+				$this->logger->info('Bluesky thread read could not use the linked account', ['exception' => $e]);
+				$identity = null;
+				$key = null;
+			}
 		}
 		try {
 			$params = ['uri' => $uri, 'depth' => self::DEPTH, 'parentHeight' => self::PARENT_HEIGHT];
@@ -87,9 +106,7 @@ class BlueskyThreadSource implements ThreadSource {
 			// Count the AppView's network time, not local URI resolution, toward
 			// the shared interactive request budget.
 			$deadline = $timeout === null ? null : hrtime(true) + ($timeout * 1_000_000_000);
-			$answer = $deadline === null
-				? $this->appView->query('app.bsky.feed.getPostThread', $params, $headers)
-				: $this->appView->query('app.bsky.feed.getPostThread', $params, $headers, $timeout);
+			$answer = $this->query('app.bsky.feed.getPostThread', $params, $headers, $timeout, $identity, $key);
 			$thread = $answer['thread'] ?? null;
 			if (!is_array($thread) || !in_array($thread['$type'] ?? null, [self::THREAD_VIEW, self::NOT_FOUND_VIEW, self::BLOCKED_VIEW], true)) {
 				throw new \UnexpectedValueException('Bluesky thread response has no recognized thread view');
@@ -124,6 +141,8 @@ class BlueskyThreadSource implements ThreadSource {
 				$budget - $stored,
 				$missing['knownReplies'],
 				$missing['expectedReplies'],
+				$identity,
+				$key,
 			);
 		}
 
@@ -145,11 +164,11 @@ class BlueskyThreadSource implements ThreadSource {
 				$seen[$nextUri] = true;
 				$reads++;
 				try {
-					$answer = $this->appView->query('app.bsky.feed.getPostThread', [
+					$answer = $this->query('app.bsky.feed.getPostThread', [
 						'uri' => $nextUri,
 						'depth' => self::DEPTH,
 						'parentHeight' => self::PARENT_HEIGHT,
-					], $headers, AppViewClient::INTERACTIVE_TIMEOUT);
+					], $headers, AppViewClient::INTERACTIVE_TIMEOUT, null, null);
 					$continued = $answer['thread'] ?? null;
 					if (!is_array($continued) || ($continued['$type'] ?? null) !== self::THREAD_VIEW) {
 						continue;
@@ -186,7 +205,7 @@ class BlueskyThreadSource implements ThreadSource {
 	}
 
 	/** The stable thread endpoint can omit direct replies; V2 and search can recover them. */
-	private function fillMissingDirectReplies(string $uri, string $threadRootUri, array $headers, ?int $deadline, int $budget, array $knownReplies, int $expectedReplies): int {
+	private function fillMissingDirectReplies(string $uri, string $threadRootUri, array $headers, ?int $deadline, int $budget, array $knownReplies, int $expectedReplies, ?Identity $identity, ?PrivateKey $key): int {
 		$timeout = $this->remainingTimeout($deadline);
 		if ($timeout === 0) {
 			$this->deepRepliesPending = true;
@@ -201,12 +220,10 @@ class BlueskyThreadSource implements ThreadSource {
 				'branchingFactor' => 0,
 				'sort' => 'oldest',
 			];
-			$answer = $timeout === null
-				? $this->appView->query('app.bsky.unspecced.getPostThreadV2', $params, $headers)
-				: $this->appView->query('app.bsky.unspecced.getPostThreadV2', $params, $headers, $timeout);
+			$answer = $this->query('app.bsky.unspecced.getPostThreadV2', $params, $headers, $timeout, $identity, $key);
 			$items = $answer['thread'] ?? null;
 			if (!is_array($items)) {
-				$searched = $this->fillRepliesFromSearch($uri, $threadRootUri, $headers, $deadline, $budget, $knownReplies, $expectedReplies);
+				$searched = $this->fillRepliesFromSearch($uri, $threadRootUri, $headers, $deadline, $budget, $knownReplies, $expectedReplies, $identity, $key);
 				if ($searched !== null) {
 					return $searched;
 				}
@@ -220,7 +237,7 @@ class BlueskyThreadSource implements ThreadSource {
 			$this->logger->debug('Bluesky V2 thread view not available; keeping the standard thread response', ['uri' => $uri, 'exception' => $e]);
 			// SearchPostsV2 is a specced, cursor-paged route. Use it to recover
 			// replies when this older AppView has no thread V2 endpoint.
-			$searched = $this->fillRepliesFromSearch($uri, $threadRootUri, $headers, $deadline, $budget, $knownReplies, $expectedReplies);
+			$searched = $this->fillRepliesFromSearch($uri, $threadRootUri, $headers, $deadline, $budget, $knownReplies, $expectedReplies, $identity, $key);
 			if ($searched !== null) {
 				return $searched;
 			}
@@ -272,13 +289,24 @@ class BlueskyThreadSource implements ThreadSource {
 			// Some AppViews return a valid but truncated V2 page without setting
 			// hasOtherReplies. The specced, cursor-paged search route can still
 			// recover the rest of the thread.
-			$searched = $this->fillRepliesFromSearch($uri, $threadRootUri, $headers, $deadline, $budget - $stored, $directReplies, $expectedReplies);
+			$searched = $this->fillRepliesFromSearch($uri, $threadRootUri, $headers, $deadline, $budget - $stored, $directReplies, $expectedReplies, $identity, $key);
 			if ($searched !== null) {
 				$stored += $searched;
 			}
 		}
 
 		return $stored;
+	}
+
+	/** Read this thread as its viewer when they linked Bluesky; otherwise use the public AppView. */
+	private function query(string $method, array $params, array $headers, ?int $timeout, ?Identity $identity, ?PrivateKey $key): array {
+		if ($identity !== null && $key !== null) {
+			return $this->appView->queryAs($identity->did, $key, $method, $params, $timeout, $headers);
+		}
+
+		return $timeout === null
+			? $this->appView->query($method, $params, $headers)
+			: $this->appView->query($method, $params, $headers, $timeout);
 	}
 
 	/**
@@ -288,7 +316,7 @@ class BlueskyThreadSource implements ThreadSource {
 	 *
 	 * @return int|null stored new posts, or null when this AppView cannot answer
 	 */
-	private function fillRepliesFromSearch(string $uri, string $threadRootUri, array $headers, ?int $deadline, int $budget, array $knownReplies, int $expectedReplies): ?int {
+	private function fillRepliesFromSearch(string $uri, string $threadRootUri, array $headers, ?int $deadline, int $budget, array $knownReplies, int $expectedReplies, ?Identity $identity = null, ?PrivateKey $key = null): ?int {
 		if ($budget <= 0) {
 			$this->deepRepliesPending = $this->deepRepliesPending || $deadline !== null;
 
@@ -317,9 +345,7 @@ class BlueskyThreadSource implements ThreadSource {
 					'sort' => 'recent',
 					'limit' => min(100, max(1, $budget - $stored)),
 				] + ($cursor === '' ? [] : ['cursor' => $cursor]);
-				$answer = $deadline === null
-					? $this->appView->query('app.bsky.feed.searchPostsV2', $params, $headers)
-					: $this->appView->query('app.bsky.feed.searchPostsV2', $params, $headers, $timeout);
+				$answer = $this->query('app.bsky.feed.searchPostsV2', $params, $headers, $timeout, $identity, $key);
 				$posts = $answer['posts'] ?? null;
 				if (!is_array($posts)) {
 					$this->deepRepliesPending = $this->deepRepliesPending || $cursor !== '';
