@@ -198,7 +198,27 @@ class AtprotoReadingTest extends TestCase {
 	private function runQueuedJobs(): void {
 		$jobs = Server::get(IJobList::class);
 		foreach ($jobs->getJobsIterator(AtprotoPublish::class, 50, 0) as $job) {
-			$job->start($jobs);
+			for ($attempt = 0; ; $attempt++) {
+				try {
+					$job->start($jobs);
+					break;
+				} catch (\Throwable $e) {
+					if (!self::isSqliteLock($e) || $attempt >= 3) {
+						throw $e;
+					}
+					usleep(50_000 * ($attempt + 1));
+				}
+			}
 		}
+	}
+
+	private static function isSqliteLock(\Throwable $exception): bool {
+		for ($error = $exception; $error !== null; $error = $error->getPrevious()) {
+			if (str_contains(strtolower($error->getMessage()), 'database is locked')) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 }
