@@ -133,10 +133,13 @@ class RemoteFetchQueue {
 		}
 		$key = md5($post->getId());
 		try {
-			if ($this->durableCache->get(self::THREAD_FILLED, $key) !== null) {
+			// The web request asks cron to do the work, and cron may allow a
+			// continuation pass. Keep this throttle in the shared store so both
+			// processes see the same state, even with local-only APCu caching.
+			if ($this->durableCache->getShared(self::THREAD_FILLED, $key) !== null) {
 				return $this->isThreadFillPending($post->getId());
 			}
-			$this->durableCache->set(self::THREAD_FILLED, $key, 1, self::THREAD_FILL_INTERVAL);
+			$this->durableCache->setShared(self::THREAD_FILLED, $key, 1, self::THREAD_FILL_INTERVAL);
 			$this->durableCache->setShared(self::THREAD_PENDING, $key, 1, self::THREAD_FILL_INTERVAL + 60);
 		} catch (Throwable $e) {
 			// the job list's own dedupe still holds
@@ -145,7 +148,7 @@ class RemoteFetchQueue {
 		if (!$this->queue(FillThread::class, ['post' => $post->getId()])) {
 			$this->completeThreadFill($post->getId());
 			try {
-				$this->durableCache->remove(self::THREAD_FILLED, $key);
+				$this->durableCache->removeShared(self::THREAD_FILLED, $key);
 			} catch (Throwable $e) {
 				$this->logger->info('[RemoteFetchQueue] could not reset thread fill throttle', ['post' => $post->getId(), 'exception' => $e]);
 			}
@@ -180,7 +183,7 @@ class RemoteFetchQueue {
 	public function retryThreadFill(string $postId): void {
 		$key = md5($postId);
 		try {
-			$this->durableCache->remove(self::THREAD_FILLED, $key);
+			$this->durableCache->removeShared(self::THREAD_FILLED, $key);
 		} catch (Throwable $e) {
 			$this->logger->info('[RemoteFetchQueue] could not clear incomplete thread fill throttle', ['post' => $postId, 'exception' => $e]);
 		}

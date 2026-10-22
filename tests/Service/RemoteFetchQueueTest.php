@@ -210,6 +210,37 @@ class RemoteFetchQueueTest extends TestCase {
 		$this->now += RemoteFetchQueue::THREAD_FILL_INTERVAL + 1;
 	}
 
+	public function testThreadFillThrottleUsesSharedCacheForWebAndCron(): void {
+		$post = (new Note())->setId('https://remote.example/notes/shared-cache');
+		$key = md5($post->getId());
+		$cache = $this->createMock(DurableCache::class);
+		$cache->expects($this->exactly(2))->method('getShared')->willReturnCallback(
+			static fn (string $namespace, string $askedKey): mixed => match ([$namespace, $askedKey]) {
+				['social.threadfill', $key] => null,
+				['social.threadfill.pending', $key] => 1,
+				default => throw new \RuntimeException('Unexpected shared cache key'),
+			}
+		);
+		$cache->expects($this->exactly(2))->method('setShared')->willReturnCallback(
+			static function (string $namespace, string $askedKey, mixed $value, int $ttl) use ($key): void {
+				self::assertSame($key, $askedKey);
+				self::assertSame(1, $value);
+				self::assertSame(match ($namespace) {
+					'social.threadfill' => RemoteFetchQueue::THREAD_FILL_INTERVAL,
+					'social.threadfill.pending' => RemoteFetchQueue::THREAD_FILL_INTERVAL + 60,
+					default => throw new \RuntimeException('Unexpected shared cache namespace'),
+				}, $ttl);
+			}
+		);
+		$jobList = $this->createMock(IJobList::class);
+		$jobList->expects($this->once())->method('has')->with(FillThread::class, ['post' => $post->getId()])->willReturn(false);
+		$jobList->expects($this->once())->method('add')->with(FillThread::class, ['post' => $post->getId()]);
+		$queue = new RemoteFetchQueue($jobList, $cache, new NullLogger());
+
+		$this->assertTrue($queue->fillThread($post));
+		$this->assertTrue($queue->isThreadFillPending($post->getId()));
+	}
+
 	public function testAQueueFailureCanBeRetriedOnTheNextContextRequest(): void {
 		$fail = true;
 		$this->jobList->method('has')->willReturnCallback(static function () use (&$fail): bool {
