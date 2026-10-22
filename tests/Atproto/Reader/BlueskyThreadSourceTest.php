@@ -524,6 +524,21 @@ class BlueskyThreadSourceTest extends TestCase {
 		$this->assertSame(0, $source->fillVisible((new Note())->setId('https://social.test/@alice/2'), 10));
 	}
 
+	public function testAThreadForAnotherPostIsAReadFailure(): void {
+		$config = $this->createMock(AtprotoConfig::class);
+		$config->method('isEnabled')->willReturn(true);
+		$refs = $this->createMock(PostRefs::class);
+		$refs->method('strongRef')->willReturn(['uri' => 'at://p/2', 'cid' => 'bafy']);
+		$appView = $this->createMock(AppViewClient::class);
+		$appView->expects($this->once())->method('query')->willReturn(['thread' => self::node('at://p/unrelated')]);
+		$store = $this->createMock(PostStore::class);
+		$store->expects($this->never())->method('storePost');
+		$source = new BlueskyThreadSource($config, $appView, $refs, $store, $this->createMock(LabelerService::class), new NullLogger());
+
+		$this->expectException(\UnexpectedValueException::class);
+		$source->fillVisible((new Note())->setId('https://social.test/@alice/2'), 10);
+	}
+
 	public function testBackgroundFillContinuesAReplyBranchPastTheAppViewDepthLimit(): void {
 		$thread = self::node('at://p/0');
 		$cursor = &$thread;

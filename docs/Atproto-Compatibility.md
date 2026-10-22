@@ -1091,6 +1091,9 @@ Opening a post that is on Bluesky reads its thread from the AppView
 (`BlueskyThreadSource`, `getPostThread`, ten reply levels and 20 parents up)
 inline within one shared three-second budget across the sequential AppView
 requests, so fallback reads cannot add another full timeout to the page load.
+Thread roots and depth-continuation responses are accepted only when their
+post URI matches the requested AT-URI; unavailable-post results must identify
+that same URI as well.
 Replies appear without waiting for cron. The reader compares every post's
 visible direct replies with its `replyCount`, including replies nested below
 the opened post. Where a node is incomplete, it tries the first-party

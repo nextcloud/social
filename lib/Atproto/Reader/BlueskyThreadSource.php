@@ -89,6 +89,7 @@ class BlueskyThreadSource implements ThreadSource {
 			if (!is_array($thread) || !in_array($thread['$type'] ?? null, [self::THREAD_VIEW, self::NOT_FOUND_VIEW, self::BLOCKED_VIEW], true)) {
 				throw new \UnexpectedValueException('Bluesky thread response has no recognized thread view');
 			}
+			$this->assertThreadTarget($thread, $uri);
 		} catch (Throwable $e) {
 			$this->logger->info('Bluesky thread not read', ['uri' => $uri, 'exception' => $e]);
 
@@ -146,6 +147,7 @@ class BlueskyThreadSource implements ThreadSource {
 					if (!is_array($continued) || ($continued['$type'] ?? null) !== self::THREAD_VIEW) {
 						continue;
 					}
+					$this->assertThreadTarget($continued, $nextUri);
 					$stored += $this->storeThread($continued, $budget - $stored);
 					$pending = array_merge($pending, self::continuationsOf($continued, self::DEPTH));
 				} catch (Throwable $e) {
@@ -159,6 +161,17 @@ class BlueskyThreadSource implements ThreadSource {
 		}
 
 		return $stored;
+	}
+
+	/** Reject a valid-looking AppView thread that belongs to another requested post. */
+	private function assertThreadTarget(array $thread, string $expectedUri): void {
+		$post = $thread['post'] ?? null;
+		$actualUri = ($thread['$type'] ?? null) === self::THREAD_VIEW && is_array($post)
+			? ($post['uri'] ?? null)
+			: ($thread['uri'] ?? null);
+		if (!is_string($actualUri) || $actualUri !== $expectedUri) {
+			throw new \UnexpectedValueException('Bluesky thread response does not match the requested post URI');
+		}
 	}
 
 	/** The stable thread endpoint can omit direct replies; V2 and search can recover them. */

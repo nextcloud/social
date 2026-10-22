@@ -1859,9 +1859,11 @@ post is on (`ThreadSource`), with one budget of 150 replies between them:
   stored, parents first.
 
 Opening a conversation also asks this source inline with a three-second
-timeout, guarded by a per-post lock. A missing or unrecognized `thread` view
-is a failed read, so the queued fill remains available; an explicit
-`notFoundPost` or `blockedPost` is a valid empty result. Bluesky caps the
+timeout, guarded by a per-post lock. Each returned root and continuation is
+checked against the requested AT-URI before it can be stored. A missing,
+unrecognized, or mismatched `thread` view is a failed read, so the queued fill
+remains available; an explicit `notFoundPost` or `blockedPost` is a valid
+empty result only when it names the requested URI. Bluesky caps the
 standard `getPostThread` reply depth at ten. On both inline and background
 reads, every returned post is checked against its `replyCount`; if a node has
 fewer visible direct replies than that count, the AppView's V2 thread view is
