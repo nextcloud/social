@@ -46,7 +46,7 @@
 			</NcButton>
 		</div>
 		<p v-else-if="feedTimeline.length === 0 && !feedLoading" class="social-profile__feed-state">
-			{{ emptyFeedMessage }}
+			{{ feedHasMore ? t('social', 'Loading…') : emptyFeedMessage }}
 		</p>
 		<transition-group
 			v-else
@@ -61,14 +61,18 @@
 		<p v-if="feedError && feedTimeline.length" class="social-profile__feed-state" role="alert">
 			{{ t('social', 'Could not load this feed') }}
 		</p>
-		<NcButton
-			v-if="feedTimeline.length && feedHasMore"
-			variant="secondary"
-			class="social-profile__load-more"
-			:disabled="feedLoading"
-			@click="loadFeed(feedTimeline[feedTimeline.length - 1]?.id)">
-			{{ feedLoading ? t('social', 'Loading…') : t('social', 'Load more') }}
-		</NcButton>
+		<div
+			v-if="feedHasMore"
+			ref="loadMoreSentinel"
+			class="social-profile__load-more-sentinel">
+			<NcButton
+				variant="secondary"
+				class="social-profile__load-more"
+				:disabled="feedLoading"
+				@click="loadNextPage">
+				{{ feedLoading ? t('social', 'Loading…') : t('social', 'Load more') }}
+			</NcButton>
+		</div>
 	</section>
 </template>
 
@@ -76,6 +80,7 @@
 import { translate as t } from '@nextcloud/l10n'
 import { generateUrl } from '@nextcloud/router'
 import { loadState } from '@nextcloud/initial-state'
+import { markRaw } from 'vue'
 import axios from '@nextcloud/axios'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import IconAccountCircle from 'vue-material-design-icons/AccountCircle.vue'
@@ -119,6 +124,11 @@ export default {
 			feedLoading: false,
 			feedError: false,
 			feedHasMore: false,
+			feedAutoLoadPaused: false,
+			/** @type {IntersectionObserver|null} observes the profile feed's paging sentinel */
+			loadMoreObserver: null,
+			/** @type {Element|null} the currently observed paging sentinel */
+			loadMoreObserved: null,
 			feedRequest: 0,
 			anchorRequest: false,
 		}
@@ -166,6 +176,19 @@ export default {
 		this.loadFeed()
 	},
 
+	mounted() {
+		this.updateLoadMoreObserver()
+	},
+
+	updated() {
+		this.updateLoadMoreObserver()
+	},
+
+	beforeUnmount() {
+		this.loadMoreObserver?.disconnect()
+		this.loadMoreObserver = null
+	},
+
 	methods: {
 		t,
 
@@ -188,7 +211,48 @@ export default {
 			this.loadFeed()
 		},
 
-		async loadFeed(maxId = '') {
+		loadNextPage() {
+			this.feedAutoLoadPaused = false
+			const lastId = this.feedTimeline[this.feedTimeline.length - 1]?.id || ''
+
+			return this.loadFeed(lastId)
+		},
+
+		updateLoadMoreObserver() {
+			if (typeof IntersectionObserver === 'undefined') {
+				return
+			}
+			if (!this.loadMoreObserver) {
+				this.loadMoreObserver = markRaw(new IntersectionObserver((entries) => {
+					if (entries.some((entry) => entry.isIntersecting)
+						&& !this.feedLoading
+						&& !this.feedAutoLoadPaused
+						&& this.feedHasMore
+						&& this.feedTimeline.length > 0) {
+						const lastId = this.feedTimeline[this.feedTimeline.length - 1]?.id
+						if (lastId) {
+							this.loadFeed(lastId, true)
+						}
+					}
+				}, { rootMargin: '320px 0px' }))
+			}
+
+			const target = this.feedHasMore && this.feedTimeline.length > 0
+				? /** @type {Element|null} */ (this.$refs.loadMoreSentinel)
+				: null
+			if (target === this.loadMoreObserved) {
+				return
+			}
+			if (this.loadMoreObserved) {
+				this.loadMoreObserver.unobserve(this.loadMoreObserved)
+			}
+			this.loadMoreObserved = target || null
+			if (target) {
+				this.loadMoreObserver.observe(target)
+			}
+		},
+
+		async loadFeed(maxId = '', automatic = false) {
 			if (!this.userId || !this.account || (maxId && this.feedLoading) || (this.activeFeed === 'home' && !this.isOwnProfile)) {
 				return
 			}
@@ -200,6 +264,7 @@ export default {
 			if (!maxId) {
 				this.feedTimeline = []
 				this.feedHasMore = false
+				this.feedAutoLoadPaused = false
 			}
 
 			try {
@@ -235,19 +300,22 @@ export default {
 					}
 				}
 				const seen = new Set(this.feedTimeline.map((status) => String(status.id)))
+				const nextPage = page.filter((status) => !seen.has(String(status.id)))
 				this.feedTimeline = maxId
-					? [...this.feedTimeline, ...page.filter((status) => !seen.has(String(status.id)))]
+					? [...this.feedTimeline, ...nextPage]
 					: page
 				// A Bluesky profile can return a short page while its AppView
 				// cursor is still being filled past hidden records. Keep paging
 				// available until the server confirms that refill is complete.
 				this.feedHasMore = page.length === PAGE_SIZE || headers?.['x-social-filling'] === '1'
+				this.feedAutoLoadPaused = Boolean(automatic && nextPage.length === 0 && this.feedHasMore)
 				if (feed === 'profile' && !maxId) {
 					await this.restorePostAnchor(request)
 				}
 			} catch (error) {
 				if (request === this.feedRequest) {
 					this.feedError = true
+					this.feedAutoLoadPaused = automatic
 					logger.error('Failed to load the Social profile feed', { error, uid: this.userId, feed })
 				}
 			} finally {
@@ -384,5 +452,9 @@ export default {
 
 .social-profile__load-more {
 	margin-block: 1rem 2rem;
+}
+
+.social-profile__load-more-sentinel {
+	min-height: 1px;
 }
 </style>
