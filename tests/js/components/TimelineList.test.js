@@ -168,7 +168,7 @@ describe('TimelineList', () => {
 		wrapper.vm.refreshVisiblePostCounts()
 
 		expect(refresh).toHaveBeenCalledTimes(1)
-		expect(refresh).toHaveBeenCalledWith('bsky')
+		expect(refresh).toHaveBeenCalledWith('bsky', true)
 		wrapper.unmount()
 	})
 
@@ -183,7 +183,7 @@ describe('TimelineList', () => {
 
 		wrapper.vm.refreshVisiblePostCounts()
 
-		expect(refresh).toHaveBeenCalledWith('fediverse')
+		expect(refresh).toHaveBeenCalledWith('fediverse', true)
 		wrapper.unmount()
 	})
 

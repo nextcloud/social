@@ -1326,7 +1326,9 @@ export default {
 			this.countRefreshOffset = ids.length > 4 ? (start + selected.length) % ids.length : 0
 			for (const id of selected) {
 				this.countRefreshLastAsked.set(id, now)
-				this.timelineStore.fetchStatus(id).catch((error) => {
+				// Status counts are refreshed at the origin by this request. Bypass
+				// any cached status response so the updated counters reach the card.
+				this.timelineStore.fetchStatus(id, true).catch((error) => {
 					logger.debug('Visible post counts were not refreshed', { error, id })
 				})
 			}
