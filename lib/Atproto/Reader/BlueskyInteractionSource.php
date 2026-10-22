@@ -66,6 +66,9 @@ class BlueskyInteractionSource implements InteractionSource {
 
 			throw $e;
 		}
+		if (($answer['uri'] ?? null) !== $uri) {
+			throw new UnexpectedValueException('Bluesky reaction response names a different post');
+		}
 		if (!is_array($answer[$key] ?? null)) {
 			throw new UnexpectedValueException('Bluesky reaction response has no ' . $key . ' list');
 		}

@@ -34,7 +34,7 @@ class BlueskyInteractionSourceTest extends TestCase {
 		$refs = $this->createMock(PostRefs::class);
 		$refs->method('strongRef')->willReturn(['uri' => 'at://did:plc:alice/app.bsky.feed.post/3k', 'cid' => 'bafy']);
 		$appView = $this->createMock(AppViewClient::class);
-		$appView->method('query')->willReturn(['likes' => [[
+		$appView->method('query')->willReturn(['uri' => 'at://did:plc:alice/app.bsky.feed.post/3k', 'likes' => [[
 			'actor' => ['did' => 'did:plc:ann', 'handle' => 'ann.test'],
 		]]]);
 		$actors = $this->createMock(BlueskyActorService::class);
@@ -68,7 +68,7 @@ class BlueskyInteractionSourceTest extends TestCase {
 		$refs = $this->createMock(PostRefs::class);
 		$refs->method('strongRef')->willReturn(['uri' => 'at://did:plc:alice/app.bsky.feed.post/3k', 'cid' => 'bafy']);
 		$appView = $this->createMock(AppViewClient::class);
-		$appView->method('query')->willReturn(['likes' => [[
+		$appView->method('query')->willReturn(['uri' => 'at://did:plc:alice/app.bsky.feed.post/3k', 'likes' => [[
 			'actor' => ['did' => 'did:plc:ann', 'handle' => 'ann.test', 'avatar' => 'https://cdn.bsky.app/avatar/new.jpeg'],
 		]]]);
 		$cached = (new Person())->setName('Cached display name')->setSummary('Cached full bio');
@@ -110,11 +110,11 @@ class BlueskyInteractionSourceTest extends TestCase {
 		$refs->method('strongRef')->willReturn(['uri' => 'at://did:plc:alice/app.bsky.feed.post/3k', 'cid' => 'bafy']);
 		$appView = $this->createMock(AppViewClient::class);
 		$appView->method('query')->willReturnCallback(static fn (string $method): array => match ($method) {
-			'app.bsky.feed.getLikes' => ['likes' => [
+			'app.bsky.feed.getLikes' => ['uri' => 'at://did:plc:alice/app.bsky.feed.post/3k', 'likes' => [
 				['actor' => ['did' => 'did:plc:ann', 'handle' => 'ann.test'], 'createdAt' => 'x'],
 				['actor' => ['did' => 'did:plc:ben', 'handle' => 'ben.test'], 'createdAt' => 'x'],
 			]],
-			'app.bsky.feed.getRepostedBy' => ['repostedBy' => [['did' => 'did:plc:cy', 'handle' => 'cy.test']]],
+			'app.bsky.feed.getRepostedBy' => ['uri' => 'at://did:plc:alice/app.bsky.feed.post/3k', 'repostedBy' => [['did' => 'did:plc:cy', 'handle' => 'cy.test']]],
 			'app.bsky.feed.getQuotes' => ['uri' => 'at://did:plc:alice/app.bsky.feed.post/3k', 'posts' => [['uri' => 'at://q/1'], ['uri' => 'at://q/2']]],
 		});
 		$actors = $this->createMock(BlueskyActorService::class);
@@ -146,7 +146,7 @@ class BlueskyInteractionSourceTest extends TestCase {
 				$this->assertLessThanOrEqual(3, $timeout);
 
 				return $method === 'app.bsky.feed.getLikes'
-					? ['likes' => []]
+					? ['uri' => 'at://did:plc:alice/app.bsky.feed.post/3k', 'likes' => []]
 					: ['uri' => 'at://did:plc:alice/app.bsky.feed.post/3k', 'posts' => []];
 			}
 		);
@@ -192,6 +192,33 @@ class BlueskyInteractionSourceTest extends TestCase {
 		$source->actors($post, 'Like', 10);
 	}
 
+	public function testReactionListsForAnotherPostAreRejected(): void {
+		$config = $this->createMock(AtprotoConfig::class);
+		$config->method('isEnabled')->willReturn(true);
+		$refs = $this->createMock(PostRefs::class);
+		$refs->method('strongRef')->willReturn(['uri' => 'at://did:plc:alice/app.bsky.feed.post/3k', 'cid' => 'bafy']);
+		$appView = $this->createMock(AppViewClient::class);
+		$appView->method('query')->willReturn([
+			'uri' => 'at://did:plc:alice/app.bsky.feed.post/another',
+			'likes' => [],
+		]);
+		$source = new BlueskyInteractionSource(
+			$config,
+			$appView,
+			$refs,
+			$this->createMock(PostStore::class),
+			$this->createMock(ActorMapper::class),
+			$this->createMock(BlueskyActorService::class),
+			$this->createMock(LabelerService::class),
+			new NullLogger(),
+			$this->createMock(DurableCache::class),
+		);
+
+		$this->expectException(UnexpectedValueException::class);
+		$this->expectExceptionMessage('names a different post');
+		$source->actors((new Note())->setId('https://social.test/@alice/1'), 'Like', 10);
+	}
+
 	public function testMissingQuoteListsAreTreatedAsFailedReads(): void {
 		$config = $this->createMock(AtprotoConfig::class);
 		$config->method('isEnabled')->willReturn(true);
@@ -223,7 +250,7 @@ class BlueskyInteractionSourceTest extends TestCase {
 		$refs = $this->createMock(PostRefs::class);
 		$refs->method('strongRef')->willReturn(['uri' => 'at://did:plc:alice/app.bsky.feed.post/3k', 'cid' => 'bafy']);
 		$appView = $this->createMock(AppViewClient::class);
-		$appView->method('query')->willReturn(['likes' => [null]]);
+		$appView->method('query')->willReturn(['uri' => 'at://did:plc:alice/app.bsky.feed.post/3k', 'likes' => [null]]);
 		$source = new BlueskyInteractionSource(
 			$config,
 			$appView,

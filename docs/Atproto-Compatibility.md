@@ -1113,7 +1113,10 @@ there, or written here and published — have Bluesky's in them too
 (`BlueskyInteractionSource`: `getLikes`, `getRepostedBy`, `getQuotes`), read
 in the background beside the fediverse's collections. A visible read also
 refreshes changed avatars on already cached Bluesky reactors, preserving their
-full cached profile. See **Who liked, boosted or quoted** in Architecture.md.
+full cached profile. The source checks each response's required `uri` against
+the requested post before accepting actors, so a misrouted response cannot
+replace the cached reactions. See **Who liked, boosted or quoted** in
+Architecture.md.
 
 ### 9.4c Hashtags and searches
 

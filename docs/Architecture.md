@@ -1901,7 +1901,10 @@ or rapidly repeated requests; failures fall back to the background queue:
   cached here fetched (`RemoteFetchQueue::resolveActors()`);
 - `Atproto\Reader\BlueskyInteractionSource` asks the AppView
   (`getLikes`, `getRepostedBy`, `getQuotes`) for a post that is on Bluesky,
-  caches each account as it is found and stores each quoting post.
+  checks that the returned subject URI matches the post it asked about,
+  caches each account as it is found and stores each quoting post. A
+  mismatched or malformed answer is a failed read, so it cannot replace the
+  last complete reaction list and is retried through the background queue.
 
 Who reacted is kept an hour in the durable cache's table (`DurableCache::setShared()`, which the cron and the web server share even where APCu is the only memcache), not as actions: the
 counts on a post, and the notifications, stay what they were. Quoting
