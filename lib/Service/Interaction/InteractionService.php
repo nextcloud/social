@@ -151,6 +151,7 @@ class InteractionService {
 			// independently consume the full interactive timeout.
 			$deadline = hrtime(true) + (AppViewClient::INTERACTIVE_TIMEOUT * 1_000_000_000);
 			$supported = false;
+			$failed = false;
 			$ids = [];
 			$firstSource = true;
 			foreach ($this->sources() as $source) {
@@ -162,20 +163,39 @@ class InteractionService {
 					? AppViewClient::INTERACTIVE_TIMEOUT
 					: (int)floor(($deadline - hrtime(true)) / 1_000_000_000);
 				if ($timeout < 1) {
-					throw new \RuntimeException('visible interaction read exceeded its shared time budget');
+					$failed = true;
+					continue;
 				}
 				$firstSource = false;
-				if ($type === self::QUOTES) {
-					$source->quotes($post, self::LIMIT, $timeout);
-				} else {
-					$ids = array_merge($ids, $source->actors($post, $type, self::LIMIT, $timeout));
+				try {
+					if ($type === self::QUOTES) {
+						$source->quotes($post, self::LIMIT, $timeout);
+					} else {
+						$ids = array_merge($ids, $source->actors($post, $type, self::LIMIT, $timeout));
+					}
+				} catch (Throwable $e) {
+					$failed = true;
+					$this->logger->info('A visible reaction source was not read', [
+						'post' => $post->getId(),
+						'source' => $source::class,
+						'type' => $type,
+						'exception' => $e,
+					]);
 				}
 			}
 			if (!$supported) {
 				return null;
 			}
 			if ($type !== self::QUOTES) {
-				$this->durableCache->setShared(self::CACHE, $key, array_values(array_unique($ids)), self::KEPT);
+				$previous = $failed ? $this->durableCache->getShared(self::CACHE, $key) : [];
+				$actors = $failed && is_array($previous) ? array_merge($previous, $ids) : $ids;
+				$this->durableCache->setShared(self::CACHE, $key, array_values(array_unique($actors)), self::KEPT);
+			}
+			if ($failed) {
+				$this->queue->fillInteractions($post, $type);
+				$this->durableCache->setShared(self::VISIBLE, $key, self::VISIBLE_PENDING, self::VISIBLE_RETRY_INTERVAL);
+
+				return true;
 			}
 			$this->durableCache->setShared(self::VISIBLE, $key, self::VISIBLE_DONE, self::VISIBLE_INTERVAL);
 
