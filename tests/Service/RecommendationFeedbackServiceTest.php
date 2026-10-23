@@ -94,6 +94,32 @@ class RecommendationFeedbackServiceTest extends TestCase {
 		$this->assertSame(hash('sha256', 'https://remote.example/users/bob'), $result['applied_scope']['key']);
 	}
 
+	public function testFeedbackContextOnlyOffersMatchedNonsensitiveTopicsForVisiblePosts(): void {
+		$post = $this->applePost()->setContent('<p>Apple released a new iPhone. International politics and elections.</p>');
+		$this->streams->expects($this->once())->method('setViewer')->with($this->isInstanceOf(Person::class));
+		$this->streams->expects($this->once())->method('getVisibleByNids')->with(['123'])->willReturn(['123' => $post]);
+
+		$context = $this->service()->context($this->viewer(), '123');
+
+		$this->assertSame('text', $context['format']);
+		$this->assertContains(['id' => 'tech.apple', 'labels' => ['en' => 'Apple', 'de' => 'Apple']], $context['topics']);
+		$this->assertNotContains('politics.international', array_column($context['topics'], 'id'));
+	}
+
+	public function testFeedbackContextDoesNotExposeUnreadablePosts(): void {
+		$this->streams->method('getVisibleByNids')->willReturn([]);
+		$this->expectException(ItemNotFoundException::class);
+		$this->service()->context($this->viewer(), '123');
+	}
+
+	public function testFeedbackContextDoesNotExposeOwnPosts(): void {
+		$this->streams->method('getVisibleByNids')->willReturn([
+			'124' => (new Note())->setNid('124')->setAttributedTo('https://social.example/users/alice'),
+		]);
+		$this->expectException(ItemNotFoundException::class);
+		$this->service()->context($this->viewer(), '124');
+	}
+
 	public function testCannotApplyFeedbackToAnUnreadablePostOrAFalseSensitiveTopicLabel(): void {
 		$this->request->expects($this->never())->method('record');
 		$this->streams->method('getVisibleByNids')->willReturn([]);

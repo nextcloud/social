@@ -134,6 +134,18 @@ class RecommendationsControllerTest extends TestCase {
 		$this->assertSame($result, $response->getData());
 	}
 
+	public function testFeedbackContextUsesTheAuthenticatedReaderAndPost(): void {
+		$context = ['topics' => [], 'format' => 'text'];
+		$this->feedbackService->expects($this->once())->method('context')->with(
+			$this->callback(static fn (Person $viewer): bool => $viewer->getUserId() === 'alice'), '1150000123'
+		)->willReturn($context);
+
+		$response = $this->controller()->feedbackContext('1150000123');
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame($context, $response->getData());
+	}
+
 	public function testFeedbackUndoIsBoundToAuthenticatedOwner(): void {
 		$this->feedbackService->expects($this->once())->method('undo')->with(
 			$this->callback(static fn (Person $viewer): bool => $viewer->getUserId() === 'alice'),

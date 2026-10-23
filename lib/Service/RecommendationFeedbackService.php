@@ -84,6 +84,35 @@ class RecommendationFeedbackService {
 		return $this->request->undo($viewer->getUserId(), strtolower($feedbackId), $this->timeFactory->getTime());
 	}
 
+	/** Return only feedback choices that match a currently visible post. */
+	public function context(Person $viewer, string $postId): array {
+		$postId = trim($postId);
+		if (preg_match('/^[0-9]{1,20}$/', $postId) !== 1) {
+			throw new InvalidArgumentException('post_id must be a stream identifier');
+		}
+		if (!$this->preferences->isEnabled()) {
+			throw new ItemNotFoundException('Recommendations are disabled');
+		}
+
+		$this->streams->setViewer($viewer);
+		$post = $this->streams->getVisibleByNids([$postId])[$postId] ?? null;
+		if (!$post instanceof Stream || $post->getAttributedTo() === $viewer->getId()) {
+			throw new ItemNotFoundException('Post not found');
+		}
+
+		$features = $this->features->extract($post);
+		$topics = [];
+		foreach (array_keys($features['topics']) as $topicId) {
+			$topic = $this->catalog->find($topicId);
+			if ($topic === null || in_array('sensitive-topic', $topic['policyTags'], true)) {
+				continue;
+			}
+			$topics[] = ['id' => $topicId, 'labels' => $topic['labels']];
+		}
+
+		return ['topics' => $topics, 'format' => $features['format']];
+	}
+
 	/** @return array{hidden_nids: list<string>, topics: array<string, string>, authors: array<string, string>, formats: array<string, string>} */
 	public function current(string $actorKey): array {
 		$state = ['hidden_nids' => [], 'topics' => [], 'authors' => [], 'formats' => []];
