@@ -45,6 +45,6 @@ class RecommendationExplanationServiceTest extends TestCase {
 		$this->assertSame('EXPLORATION', $reason['primary']);
 		$this->assertSame(['tech.apple'], $reason['topic_ids']);
 		$this->assertSame('EXPLORATION_SLOT', $reason['rerank_note']);
-		$this->assertSame(['CACHED_CANDIDATE'], $reason['also']);
+		$this->assertSame(['AUTOMATIC_PROFILE', 'CACHED_CANDIDATE'], $reason['also']);
 	}
 }
