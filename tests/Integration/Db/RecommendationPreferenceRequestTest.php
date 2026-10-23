@@ -24,10 +24,13 @@ class RecommendationPreferenceRequestTest extends TestCase {
 	private RecommendationSignalRequest $signals;
 	private string $owner;
 	private string $otherOwner;
+	private bool $recommendationsEnabledBeforeTest;
 
 	protected function setUp(): void {
 		parent::setUp();
 		$this->preferences = Server::get(RecommendationPreferenceService::class);
+		$this->recommendationsEnabledBeforeTest = $this->preferences->isEnabled();
+		$this->preferences->setEnabled(true);
 		$this->request = Server::get(RecommendationPreferenceRequest::class);
 		$this->feedback = Server::get(RecommendationFeedbackRequest::class);
 		$this->signals = Server::get(RecommendationSignalRequest::class);
@@ -39,6 +42,7 @@ class RecommendationPreferenceRequestTest extends TestCase {
 	protected function tearDown(): void {
 		$this->request->purge($this->owner);
 		$this->request->purge($this->otherOwner);
+		$this->preferences->setEnabled($this->recommendationsEnabledBeforeTest);
 		parent::tearDown();
 	}
 
