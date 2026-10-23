@@ -34,6 +34,7 @@ class RecommendationCandidateService {
 		private RecommendationRanker $ranker,
 		private RecommendationReRanker $reRanker,
 		private RecommendationSnapshotStore $snapshotStore,
+		private RecommendationFeedbackService $feedbackService,
 	) {
 	}
 
@@ -74,8 +75,9 @@ class RecommendationCandidateService {
 		}
 
 		$this->streams->setViewer($viewer);
+		$feedback = $this->feedbackService->current($viewer->getUserId());
 		if ($cursor !== '') {
-			return $this->continueSnapshot($viewer, $topicId, $mode, $state['revision'], $state['generation'], $limit, $cursor, $empty);
+			return $this->continueSnapshot($viewer, $topicId, $mode, $state['revision'], $state['generation'], $limit, $cursor, $empty, $feedback);
 		}
 
 		$now = $this->timeFactory->getTime();
@@ -87,13 +89,13 @@ class RecommendationCandidateService {
 			$aliases,
 			$sinceNid,
 			min(100, max($limit * 5, self::MIN_COVERAGE_TARGET)),
-			$this->interests->hiddenFor($viewer),
+			array_values(array_unique(array_merge($this->interests->hiddenFor($viewer), $feedback['hidden_nids']))),
 			$this->interests->languagesFor($viewer->getUserId())
 		);
 
 		$candidates = [];
 		foreach ($posts as $nid => $post) {
-			$candidate = $this->candidate($post, (string)$nid, $topicId, $now);
+			$candidate = $this->candidate($post, (string)$nid, $topicId, $now, $feedback);
 			if ($candidate !== null) {
 				$candidates[] = $candidate;
 			}
@@ -151,7 +153,7 @@ class RecommendationCandidateService {
 	}
 
 	/** @param array<string, mixed> $empty @return array<string, mixed> */
-	private function continueSnapshot(Person $viewer, string $topicId, string $mode, int $revision, int $generation, int $limit, string $cursor, array $empty): array {
+	private function continueSnapshot(Person $viewer, string $topicId, string $mode, int $revision, int $generation, int $limit, string $cursor, array $empty, array $feedback): array {
 		$now = $this->timeFactory->getTime();
 		$page = $this->snapshotStore->nextPage($cursor, $viewer->getUserId(), 'topic:' . $topicId, 'all', $revision, $generation, $now, $limit);
 		if ($page === null) {
@@ -166,11 +168,14 @@ class RecommendationCandidateService {
 			$visible = $this->streams->getVisibleByNids($page['nids']);
 			$orderedNids = $page['nids'];
 			foreach ($orderedNids as $nid) {
+				if (in_array($nid, $feedback['hidden_nids'], true)) {
+					continue;
+				}
 				$post = $visible[$nid] ?? null;
 				if ($post === null) {
 					continue;
 				}
-				$candidate = $this->candidate($post, $nid, $topicId, $now);
+				$candidate = $this->candidate($post, $nid, $topicId, $now, $feedback);
 				if ($candidate !== null) {
 					$candidates[] = $candidate;
 					if (count($candidates) >= $limit) {
@@ -212,7 +217,7 @@ class RecommendationCandidateService {
 	}
 
 	/** @return array<string, mixed>|null */
-	private function candidate(Stream $post, string $nid, string $topicId, int $now): ?array {
+	private function candidate(Stream $post, string $nid, string $topicId, int $now, array $feedback): ?array {
 		$features = $this->features->extract($post);
 		$match = $features['topics'][$topicId] ?? null;
 		if ($match === null) {
@@ -220,7 +225,7 @@ class RecommendationCandidateService {
 		}
 		$protocol = str_starts_with($post->getId(), 'at://') ? 'atproto' : 'activitypub';
 
-		return [
+		$candidate = [
 			'nid' => $nid,
 			'author_key' => $post->getActorId(),
 			'topic_ids' => array_keys($features['topics']),
@@ -234,6 +239,9 @@ class RecommendationCandidateService {
 			'source_reliability' => 0.5,
 			'evidence' => $match['evidence'],
 		];
+		$candidate = $this->feedbackService->apply($candidate, $topicId, $feedback);
+		unset($candidate['feedback_applied']);
+		return $candidate;
 	}
 
 	/** @param list<array<string, mixed>> $candidates @return list<array<string, mixed>> */

@@ -46,6 +46,16 @@ final class RecommendationTopicCatalog {
 		return false;
 	}
 
+	/** @return array{id: string, parentId: ?string, labels: array{en: string, de: string}, aliases: list<string>, policyTags: list<string>, languageHints: list<string>, version: int, enabled: bool}|null */
+	public function find(string $topicId): ?array {
+		foreach ($this->all() as $topic) {
+			if ($topic['id'] === $topicId) {
+				return $topic;
+			}
+		}
+		return null;
+	}
+
 	public function parentOf(string $topicId): ?string {
 		foreach (self::TOPICS as $topic) {
 			if ($topic['id'] === $topicId) {
