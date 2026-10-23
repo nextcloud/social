@@ -20,6 +20,7 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\MediaAttachment;
 use OCA\Social\Model\Details;
+use OCA\Social\Tools\ActivityPubEvent;
 use OCA\Social\Service\ChannelService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\PeerTubeService;
@@ -127,6 +128,12 @@ class Note extends Stream implements JsonSerializable {
 	#[\Override]
 	public function import(array $data): void {
 		parent::import($data);
+		if (($data['type'] ?? '') === 'Event') {
+			$event = ActivityPubEvent::metadata($data);
+			if ($event !== null) {
+				$this->setDetailArray(Details::EVENT, $event);
+			}
+		}
 
 		$this->fillHashtags();
 		$this->fillMentions();

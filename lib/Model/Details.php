@@ -124,6 +124,9 @@ final class Details {
 	 */
 	public const VIDEO = 'video';
 
+	/** The public schedule and venue stated on an ActivityStreams Event. */
+	public const EVENT = 'event';
+
 	/**
 	 * How many levels up the climb to this post's ancestors already is.
 	 *

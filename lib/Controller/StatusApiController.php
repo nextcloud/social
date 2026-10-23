@@ -25,6 +25,7 @@ use OCA\Social\Model\Client\Filter;
 use OCA\Social\Model\Client\MediaAttachment;
 use OCA\Social\Model\Client\Status;
 use OCA\Social\Model\Post;
+use OCA\Social\Tools\ActivityPubEvent;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ActionService;
 use OCA\Social\Service\BlockedBy\BlockedByService;
@@ -62,6 +63,7 @@ use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\Attribute\UserRateLimit;
+use OCP\AppFramework\Http\DataDisplayResponse;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\IRequest;
@@ -573,6 +575,30 @@ class StatusApiController extends MastodonApiController {
 				->getCard();
 
 			return new DataResponse($card ?? (object)[], Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/** Download a visible ActivityStreams Event as an interoperable calendar file. */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/statuses/{nid}/calendar')]
+	public function statusCalendar(int|string $nid): Response {
+		try {
+			$this->initViewer(false);
+			$item = $this->streamService->getStreamByNid(\OCA\Social\Tools\Nid::fromStorage($nid));
+			$calendar = ActivityPubEvent::calendar($item, time());
+			if ($calendar === null) {
+				throw new StreamNotFoundException('Event not found');
+			}
+
+			$filename = 'fediverse-event-' . substr(hash('sha256', $item->getId()), 0, 16) . '.ics';
+			return new DataDisplayResponse($calendar, Http::STATUS_OK, [
+				'Content-Type' => 'text/calendar; charset=utf-8',
+				'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+				'Cache-Control' => 'private, no-store',
+			]);
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}

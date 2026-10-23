@@ -355,6 +355,8 @@ OC.L10N.register(
     "Could not remove that reaction" : "Die Reaktion konnte nicht entfernt werden",
     "Read" : "Gelesen",
     "Add a reaction" : "Reaktion hinzufügen",
+    "Event details" : "Veranstaltungsdetails",
+    "Add to calendar" : "Zum Kalender hinzufügen",
     "Got it" : "Verstanden",
     "Hide the ones you have read" : "Gelesene ausblenden",
     "_Announcement_::_Announcements_" : ["Ankündigung","Ankündigungen"],

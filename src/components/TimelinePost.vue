@@ -97,6 +97,28 @@
 				<span class="post-place__name">{{ placeLabel }}</span>
 			</router-link>
 		</div>
+		<section
+			v-if="item.event"
+			class="post-event"
+			:aria-label="t('social', 'Event details')">
+			<div class="post-event__facts">
+				<span v-if="eventTimeLabel" class="post-event__fact">
+					<CalendarMonthOutline :size="16" />
+					{{ eventTimeLabel }}
+				</span>
+				<span v-if="item.event.location" class="post-event__fact">
+					<MapMarkerOutline :size="16" />
+					{{ item.event.location }}
+				</span>
+			</div>
+			<a
+				v-if="item.event.start_time"
+				class="post-event__calendar"
+				:href="eventCalendarUrl">
+				<CalendarMonthOutline :size="16" />
+				{{ t('social', 'Add to calendar') }}
+			</a>
+		</section>
 		<!-- who is in the picture, when the poster named anybody. Names rather
 		     than boxes drawn over the image: what is stored is a fact about the
 		     post, and a rectangle is a thing no client of this network draws -->
@@ -523,6 +545,7 @@
 
 import { shortAgo, fullDateTime } from '../utils/relativeTime.js'
 import IconAccountBoxMultiple from 'vue-material-design-icons/AccountBoxMultiple.vue'
+import CalendarMonthOutline from 'vue-material-design-icons/CalendarMonthOutline.vue'
 import Pin from 'vue-material-design-icons/Pin.vue'
 import CreationOutline from 'vue-material-design-icons/CreationOutline.vue'
 import DeliveryDialog from './DeliveryDialog.vue'
@@ -598,6 +621,7 @@ export default {
 	components: {
 		DeliveryDialog,
 		IconAccountBoxMultiple,
+		CalendarMonthOutline,
 		Pin,
 		CreationOutline,
 		QuoteControlDialog,
@@ -956,6 +980,28 @@ export default {
 			}
 
 			return place.country ? `${place.name}, ${place.country}` : place.name
+		},
+
+		/** @return {string} the event's dates in the reader's local timezone */
+		eventTimeLabel() {
+			const format = (value) => {
+				const date = new Date(value)
+				return Number.isNaN(date.getTime())
+					? ''
+					: new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(date)
+			}
+			const start = format(this.item.event?.start_time)
+			if (!start) {
+				return ''
+			}
+			const end = format(this.item.event?.end_time)
+
+			return end ? `${start} – ${end}` : start
+		},
+
+		/** @return {string} same-origin download, protected by the reader's Nextcloud session */
+		eventCalendarUrl() {
+			return generateUrl(`apps/social/api/v1/statuses/${encodeURIComponent(this.item.id)}/calendar`)
 		},
 
 		/**
@@ -2066,6 +2112,50 @@ export default {
 				outline-offset: 2px;
 				border-radius: var(--border-radius-small, 4px);
 			}
+		}
+	}
+
+	.post-event {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		flex-wrap: wrap;
+		gap: 8px 16px;
+		margin-block: 0 10px;
+		padding: 10px 12px;
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-large);
+		background: var(--color-background-dark);
+	}
+
+	.post-event__facts {
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 6px 14px;
+		min-width: 0;
+	}
+
+	.post-event__fact,
+	.post-event__calendar {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		font-size: 13px;
+	}
+
+	.post-event__fact {
+		color: var(--color-text-maxcontrast);
+	}
+
+	.post-event__calendar {
+		color: var(--color-primary-element);
+		font-weight: 600;
+		white-space: nowrap;
+
+		&:hover,
+		&:focus-visible {
+			text-decoration: underline;
 		}
 	}
 
