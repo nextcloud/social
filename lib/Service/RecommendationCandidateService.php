@@ -87,13 +87,37 @@ class RecommendationCandidateService {
 			max(0, $now - self::LOOKBACK_DAYS * 86400), 0, StreamRequest::NID_LIMIT
 		);
 		$aliases = $topic['aliases'];
+		$candidateBudget = min(100, max($limit * 5, self::MIN_COVERAGE_TARGET));
+		$followBudget = (int)min(20, max(4, intdiv($candidateBudget + 4, 5)));
+		$followBudget = (int)min($followBudget, $candidateBudget);
+		$explorationBudget = (int)min(10, max(1, (int)floor($candidateBudget * 0.1)));
+		$explorationBudget = (int)min($explorationBudget, $candidateBudget - $followBudget);
+		$topicBudget = $candidateBudget - $followBudget - $explorationBudget;
+		$hiddenNids = array_values(array_unique(array_merge(
+			$this->interests->hiddenFor($viewer),
+			$feedback['hidden_nids']
+		)));
+		$languages = $this->interests->languagesFor($viewer->getUserId());
 		$posts = $this->streams->recommendationCandidatesByTerms(
 			$aliases,
 			$sinceNid,
-			min(100, max($limit * 5, self::MIN_COVERAGE_TARGET)),
-			array_values(array_unique(array_merge($this->interests->hiddenFor($viewer), $feedback['hidden_nids']))),
-			$this->interests->languagesFor($viewer->getUserId()),
+			$topicBudget,
+			$hiddenNids,
+			$languages,
 			$now
+		);
+		$posts += $this->streams->recommendationFollowCandidates(
+			$sinceNid,
+			$followBudget,
+			array_values(array_unique(array_merge($hiddenNids, array_keys($posts)))),
+			$languages
+		);
+		$posts += $this->streams->recommendationExplorationCandidates(
+			$sinceNid,
+			$explorationBudget,
+			intdiv($now, 6 * 3600),
+			array_values(array_unique(array_merge($hiddenNids, array_keys($posts)))),
+			$languages
 		);
 		$followedAuthors = $this->followFeatures->followedAuthors($viewer, array_values($posts));
 		$exposurePenalties = $this->behavioralProfile->exposurePenalties($viewer, array_values($posts));
