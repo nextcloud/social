@@ -134,7 +134,7 @@ class RecommendationTimelineService {
 
 		$items = $this->hydrate($posts, $selected, $topics, $snapshot['exploration_nids'] ?? $explorationNids);
 		$underfilled = count($ranked) < min($limit, self::MIN_COVERAGE);
-		$queued = $underfilled ? $this->queueCoverage($topics, $viewer) : false;
+		$queued = $underfilled ? $this->queueCoverage($topics, $viewer, $now) : false;
 
 		return [
 			'items' => $items,
@@ -333,24 +333,46 @@ class RecommendationTimelineService {
 	}
 
 	/** @param list<array{id: string, mode: string, aliases: list<string>, labels: array{en: string, de: string}}> $topics */
-	private function queueCoverage(array $topics, Person $viewer): bool {
+	private function queueCoverage(array $topics, Person $viewer, int $now): bool {
+		if ($topics === []) {
+			return false;
+		}
+
+		// Rotate the bounded refresh window with the same interval used to
+		// throttle each remote query, so later selected topics are not starved.
+		$start = (intdiv(max(0, $now), RemoteFetchQueue::POSTS_INTERVAL) * self::MAX_REFRESH_TOPICS) % count($topics);
 		$queued = false;
-		foreach (array_slice($topics, 0, self::MAX_REFRESH_TOPICS) as $topic) {
-			$alias = self::remoteAlias($topic['aliases']);
-			if ($alias === '') {
-				continue;
+		$refreshCount = min(self::MAX_REFRESH_TOPICS, count($topics));
+		for ($offset = 0; $offset < $refreshCount; $offset++) {
+			$topic = $topics[($start + $offset) % count($topics)];
+			$search = self::searchAlias($topic['aliases']);
+			if ($search !== '') {
+				$queued = $this->remoteFetchQueue->fillPosts(PostDiscoveryService::SEARCH, $search, $viewer) || $queued;
 			}
-			$queued = $this->remoteFetchQueue->fillPosts(PostDiscoveryService::TAG, $alias, $viewer) || $queued;
-			$queued = $this->remoteFetchQueue->fillPosts(PostDiscoveryService::SEARCH, $alias, $viewer) || $queued;
+			$tag = self::tagAlias($topic['aliases']);
+			if ($tag !== '') {
+				$queued = $this->remoteFetchQueue->fillPosts(PostDiscoveryService::TAG, $tag, $viewer) || $queued;
+			}
 		}
 		return $queued;
 	}
 
 	/** @param list<string> $aliases */
-	private static function remoteAlias(array $aliases): string {
+	private static function searchAlias(array $aliases): string {
 		foreach ($aliases as $alias) {
 			$alias = trim(mb_strtolower($alias, 'UTF-8'));
-			if ($alias !== '' && preg_match('/^[\p{L}\p{N}_-]{2,64}$/u', $alias) === 1) {
+			if ($alias !== '' && mb_strlen($alias, 'UTF-8') <= 200) {
+				return $alias;
+			}
+		}
+		return '';
+	}
+
+	/** @param list<string> $aliases */
+	private static function tagAlias(array $aliases): string {
+		foreach ($aliases as $alias) {
+			$alias = trim(mb_strtolower($alias, 'UTF-8'));
+			if (preg_match('/^[\p{L}\p{N}_-]{2,64}$/u', $alias) === 1) {
 				return $alias;
 			}
 		}

@@ -203,6 +203,67 @@ class RecommendationTimelineServiceTest extends TestCase {
 		$this->assertSame('UNDERFILLED', $page['coverage']['state']);
 	}
 
+	public function testUnderfilledRefreshWindowRotatesAcrossSelectedTopics(): void {
+		$selected = array_values(array_filter(
+			$this->catalog->all(),
+			static fn (array $topic): bool => !in_array('sensitive-topic', $topic['policyTags'], true)
+		));
+		$effective = [];
+		$manual = [];
+		foreach ($selected as $topic) {
+			$effective[$topic['id']] = 'INTERESTED';
+			$manual[] = ['topic_id' => $topic['id'], 'mode' => 'INTERESTED'];
+		}
+		$this->preferences->method('get')->willReturn($this->state($manual, $effective));
+		$this->interests->method('hiddenFor')->willReturn([]);
+		$this->interests->method('languagesFor')->willReturn([]);
+		$this->streams->method('recommendationCandidatesByTerms')->willReturn([]);
+		$this->snapshots->method('create')->willReturn(null);
+
+		$start = (intdiv(2_000_000_000, RemoteFetchQueue::POSTS_INTERVAL) * 2) % count($selected);
+		$expectedCalls = [];
+		for ($offset = 0; $offset < 2; $offset++) {
+			$aliases = $selected[($start + $offset) % count($selected)]['aliases'];
+			$expectedCalls[] = ['search', mb_strtolower($aliases[0], 'UTF-8')];
+			foreach ($aliases as $alias) {
+				$alias = mb_strtolower($alias, 'UTF-8');
+				if (preg_match('/^[\p{L}\p{N}_-]{2,64}$/u', $alias) === 1) {
+					$expectedCalls[] = ['tag', $alias];
+					break;
+				}
+			}
+		}
+		$calls = [];
+		$this->queue->expects($this->exactly(count($expectedCalls)))->method('fillPosts')
+			->willReturnCallback(static function (string $kind, string $term, Person $viewer) use (&$calls): bool {
+				$calls[] = [$kind, $term];
+				return true;
+			});
+
+		$page = $this->service()->page($this->viewer(), 20);
+
+		$this->assertSame($expectedCalls, $calls);
+		$this->assertTrue($page['coverage']['remote_refresh_queued']);
+	}
+
+	public function testRemoteSearchUsesTheFullMultiwordTopicAlias(): void {
+		$this->preferences->method('get')->willReturn($this->state(
+			[['topic_id' => 'tech.ai', 'mode' => 'INTERESTED']],
+			['tech.ai' => 'INTERESTED']
+		));
+		$this->interests->method('hiddenFor')->willReturn([]);
+		$this->interests->method('languagesFor')->willReturn([]);
+		$this->streams->method('recommendationCandidatesByTerms')->willReturn([]);
+		$this->snapshots->method('create')->willReturn(null);
+		$this->queue->expects($this->once())->method('fillPosts')
+			->with(PostDiscoveryService::SEARCH, 'artificial intelligence', $this->isInstanceOf(Person::class))
+			->willReturn(true);
+
+		$page = $this->service()->page($this->viewer(), 20);
+
+		$this->assertTrue($page['coverage']['remote_refresh_queued']);
+	}
+
 	public function testNoV4ChoicesPreserveLegacyHashtagFeedAsColdStart(): void {
 		$this->preferences->method('get')->willReturn($this->state([], ['tech.apple' => null]));
 		$this->interests->method('isEnabled')->willReturn(true);
