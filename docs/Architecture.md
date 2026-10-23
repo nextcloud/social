@@ -232,6 +232,7 @@ The tables are created by `lib/Migration/Version1000Date20221118000002.php` — 
 | `social_followed_tag` | The hashtags an account follows: one row per (actor, lowercased tag), unique on the pair; `filled` is when the tag's posts were last read from beyond this server (`FollowedTagsFill`, Unix time, 0 for never), indexed with the tag (`Version1000Date20261009000710`) |
 | `social_interest` | For you: one row per (reader, lowercased tag), unique on the pair — the score reading earned it, when (`scored_at`, unix time, so decay is worked out on read), whether the reader added it (`manual`), the rank they pinned it to (`position`, null to float) and the score as the current week began (`score_week`, for the trend arrow) |
 | `social_interest_hide` | The posts a reader said "less like this" about, by `stream_nid`, unique on (reader, post); forgotten once older than the feed looks back |
+| `social_rec_signal`, `social_rec_event`, `social_rec_seen` | For You 4.0 behavioural learning: owner-scoped fast/slow affinity aggregates, a seven-day event-idempotency ledger, and bounded hashed post/session exposure counts. Learning defaults off; consent generations reject late events. |
 | `social_collection` | Collections: an album an account curates out of its own posts, with its title, description and visibility |
 | `social_collection_item` | What is in a collection: one row per (collection, post), unique on the pair, ordered by `position` |
 | `social_place` | Places: one row per distinct place this instance has seen, deduplicated on (name, country). No geocoder — see the migration |
@@ -299,6 +300,8 @@ an account without an identity does not prevent a later match from signing in.
 `Version1000Date20260927000001` drops `social_feed` and `social_feed_item`, the tables of the feed subscriptions that shipped in 0.26.60 and were removed in 0.26.95; both steps are guarded, so an instance that never had them is left alone.
 
 `Version1000Date20260925000020` adds `social_interest` and `social_interest_hide` — For you. A step of its own rather than a paragraph of the squash, because the squash is recorded as run on every instance that existed when it was made: a table added to it would reach fresh installs and nobody else. `SquashedSchemaTest` holds only the steps older than the squash to "move data or go into the squash". No index beyond the unique pairs: every read of `social_interest` is one reader's whole set — a few hundred rows at most, because `InterestService` forgets the faintest once there are more — and every read of `social_interest_hide` is one reader's recent hides or the daily purge by `creation`.
+
+`Version1000Date20261023000002` adds the three owner-scoped For You 4.0 behavioural tables above. Their rows contain only compact scores, event UUIDs and hashed exposure keys; reset and account deletion clear them.
 
 `Version1000Date20261005000001` adds `social_cache_doc.ai_source`, the provenance a cached picture stated about itself (see the schema table). A column rather than a flag inside `meta`: `meta` is a JSON blob nothing queries, and this one is read on every attachment of every status a client is handed.
 
