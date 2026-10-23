@@ -203,10 +203,10 @@ class AdminSettings implements IDelegatedSettings {
 	private function interestAdminSettings(): array {
 		$recommendations = $this->recommendationPreferences->adminSettings();
 		return $this->interestService->adminSettings() + [
-			'recommendationsEnabled' => $recommendations['enabled'],
-			'remoteDiscoveryPaused' => $recommendations['remoteDiscoveryPaused'],
-			'learningPaused' => $recommendations['learningPaused'],
-			'forceLegacyFeed' => $recommendations['forceLegacyFeed'],
+			'recommendationsEnabled' => $recommendations['enabled'] ?? false,
+			'remoteDiscoveryPaused' => $recommendations['remoteDiscoveryPaused'] ?? false,
+			'learningPaused' => $recommendations['learningPaused'] ?? false,
+			'forceLegacyFeed' => $recommendations['forceLegacyFeed'] ?? false,
 		];
 	}
 

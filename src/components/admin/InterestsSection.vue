@@ -131,21 +131,22 @@ const FIELDS = [
 	},
 ]
 
+/** @type {Array<{key: 'remoteDiscoveryPaused'|'learningPaused'|'forceLegacyFeed', label: () => string, hint: () => string}>} */
 const OPERATIONAL_CONTROLS = [
 	{
 		key: 'remoteDiscoveryPaused',
 		label: () => t('social', 'Pause remote discovery'),
-		hint: () => t('social', 'Stops new Fediverse and Bluesky discovery requests. Already cached posts remain available for ranking.'),
+		hint: () => t('social', 'Pauses Fediverse and Bluesky discovery; cached posts remain available.'),
 	},
 	{
 		key: 'learningPaused',
 		label: () => t('social', 'Pause behavioral learning'),
-		hint: () => t('social', 'Stops all behavioral signal recording instance-wide, including signals from users who opted in.'),
+		hint: () => t('social', 'Stops instance-wide behavioral learning, including for opted-in users.'),
 	},
 	{
 		key: 'forceLegacyFeed',
 		label: () => t('social', 'Use the legacy For You feed'),
-		hint: () => t('social', 'Temporarily serves the established hashtag-interest feed. Readers may need to reload an open For You page.'),
+		hint: () => t('social', 'Uses the legacy hashtag feed until readers reload the For You page.'),
 	},
 ]
 
