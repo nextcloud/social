@@ -49,7 +49,7 @@ class RecommendationFeedbackRequest extends CoreRequestBuilder {
 			// from the same account, including the active-scope limit below.
 			$qb = $this->getQueryBuilder();
 			$qb->update(RecommendationPreferenceRequest::TABLE_PROFILE)
-				->set('feedback_ver', 'feedback_ver + 1')
+				->set('feedback_ver', $qb->func()->add('feedback_ver', $qb->expr()->literal(1)))
 				->set('updated_at', $qb->createNamedParameter($now, IQueryBuilder::PARAM_INT))
 				->where($qb->expr()->eq('actor_key', $qb->createNamedParameter($actorKey)));
 			if ($qb->executeStatement() !== 1) {
@@ -114,7 +114,7 @@ class RecommendationFeedbackRequest extends CoreRequestBuilder {
 		try {
 			$profile = $this->getQueryBuilder();
 			$profile->update(RecommendationPreferenceRequest::TABLE_PROFILE)
-				->set('feedback_ver', 'feedback_ver + 1')
+				->set('feedback_ver', $profile->func()->add('feedback_ver', $profile->expr()->literal(1)))
 				->set('updated_at', $profile->createNamedParameter($now, IQueryBuilder::PARAM_INT))
 				->where($profile->expr()->eq('actor_key', $profile->createNamedParameter($actorKey)));
 			if ($profile->executeStatement() !== 1) {
