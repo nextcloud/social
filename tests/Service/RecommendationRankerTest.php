@@ -174,6 +174,40 @@ class RecommendationRankerTest extends TestCase {
 		$this->assertContains('different-topic-1', array_column($page, 'nid'));
 	}
 
+	public function testAHighInterestTopicCannotOverrideTheDiversityCapWhenAlternativesExist(): void {
+		$ranked = [];
+		for ($i = 1; $i <= 10; $i++) {
+			$ranked[] = [
+				'nid' => 'php-security-' . $i,
+				'rank_score' => 0.99 - ($i * 0.001),
+				'topic_ids' => ['software', 'software.backend'],
+				'diversity_topics' => ['software.backend'],
+			];
+		}
+		$ranked[] = [
+			'nid' => 'community-story',
+			'rank_score' => 0.1,
+			'topic_ids' => ['community.civic', 'community'],
+			'diversity_topics' => ['community.civic'],
+		];
+
+		$page = (new RecommendationReRanker())->page($ranked, 4, 'repeated-event-diversity');
+
+		$this->assertSame(['php-security-1', 'php-security-2', 'php-security-3', 'community-story'], array_column($page, 'nid'));
+	}
+
+	public function testTopicConcentrationRelaxesWhenThereAreNoOtherTopicsToShow(): void {
+		$ranked = [];
+		for ($i = 1; $i <= 5; $i++) {
+			$ranked[] = ['nid' => 'topic-' . $i, 'rank_score' => 0.9 - ($i / 100), 'topic_ids' => ['topic.one']];
+		}
+
+		$page = (new RecommendationReRanker())->page($ranked, 5, 'single-topic-coverage');
+
+		$this->assertCount(5, $page);
+		$this->assertSame(['topic-1', 'topic-2', 'topic-3', 'topic-4', 'topic-5'], array_column($page, 'nid'));
+	}
+
 	public function testQualifiedExplorationUsesOneStableBoundedSlot(): void {
 		$ranked = [];
 		for ($i = 0; $i < 14; $i++) {

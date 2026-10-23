@@ -140,6 +140,7 @@ class RecommendationTimelineAssembler {
 			'canonical_key' => $post->getId() !== '' ? $post->getId() : $nid,
 			'author_key' => $author,
 			'topic_ids' => $allTopicIds,
+			'diversity_topics' => $this->diversityTopics($allTopicIds),
 			'matching_topic_ids' => array_keys($selected),
 			'protocol' => RecommendationProtocol::of($post),
 			'published_at' => $published,
@@ -164,6 +165,22 @@ class RecommendationTimelineAssembler {
 			'evidence' => $evidence,
 			'rank_score' => 0.0,
 		];
+	}
+
+	/** @param list<string> $topicIds @return list<string> the most specific matched topics */
+	private function diversityTopics(array $topicIds): array {
+		$parents = [];
+		foreach ($topicIds as $topicId) {
+			$parent = $this->catalog->parentOf($topicId);
+			while ($parent !== null) {
+				$parents[$parent] = true;
+				$parent = $this->catalog->parentOf($parent);
+			}
+		}
+
+		$leaves = array_values(array_filter($topicIds, static fn (string $topicId): bool => !isset($parents[$topicId])));
+
+		return $leaves !== [] ? $leaves : $topicIds;
 	}
 
 	/** @param array<string, mixed> $candidate @return array<string, mixed> */

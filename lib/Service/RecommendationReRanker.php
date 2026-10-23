@@ -15,7 +15,7 @@ final class RecommendationReRanker {
 	private const MAX_AUTHOR_IN_WINDOW = 2;
 	private const MAX_TOPIC_IN_WINDOW = 3;
 	private const TOPIC_CONCENTRATION_COST = 0.18;
-	private const LOOKAHEAD = 50;
+	private const LOOKAHEAD = 100;
 	private const DEFAULT_EXPLORATION_INTERVAL = 10;
 	private const EXPLORATION_MIN_RANK_DISTANCE = 4;
 	private const EXPLORATION_MIN_TOPIC_MATCH = 0.65;
@@ -53,15 +53,23 @@ final class RecommendationReRanker {
 		$selected = [];
 		while ($remaining !== [] && count($selected) < $pageSize) {
 			$window = array_slice($remaining, 0, self::LOOKAHEAD);
+			$saturatedTopics = array_fill_keys(self::saturatedTopics($selected), true);
+			$hasDiverseAlternative = false;
+			foreach ($window as $candidate) {
+				if (!self::allTopicsSaturated(self::topicIds($candidate), $saturatedTopics)) {
+					$hasDiverseAlternative = true;
+					break;
+				}
+			}
 			$bestIndex = 0;
 			$bestAdjusted = -INF;
 			$adjustedScores = [];
 			foreach ($window as $index => $candidate) {
+				if ($hasDiverseAlternative && self::allTopicsSaturated(self::topicIds($candidate), $saturatedTopics)) {
+					continue;
+				}
 				$author = (string)($candidate['author_key'] ?? '');
-				$rawTopics = $candidate['topic_ids'] ?? [];
-				$topics = is_array($rawTopics)
-					? array_values(array_unique(array_filter($rawTopics, static fn (mixed $topic): bool => is_string($topic) && $topic !== '')))
-					: [];
+				$topics = self::topicIds($candidate);
 				$penalty = 0.0;
 				if ($author !== '') {
 					$recentAuthorCount = self::recentCount($selected, $author, 'author_key');
@@ -149,11 +157,40 @@ final class RecommendationReRanker {
 		$recent = array_slice($selected, -self::WINDOW_SIZE);
 		$count = 0;
 		foreach ($recent as $candidate) {
-			if (in_array($topic, $candidate['topic_ids'] ?? [], true)) {
+			if (in_array($topic, self::topicIds($candidate), true)) {
 				$count++;
 			}
 		}
 
 		return $count;
+	}
+
+	/** @param list<array<string, mixed>> $selected @return list<string> */
+	private static function saturatedTopics(array $selected): array {
+		$counts = [];
+		foreach (array_slice($selected, -self::WINDOW_SIZE) as $candidate) {
+			foreach (self::topicIds($candidate) as $topic) {
+				$counts[$topic] = ($counts[$topic] ?? 0) + 1;
+			}
+		}
+
+		return array_keys(array_filter($counts, static fn (int $count): bool => $count >= self::MAX_TOPIC_IN_WINDOW));
+	}
+
+	/** @param list<string> $topics @param array<string, true> $saturated */
+	private static function allTopicsSaturated(array $topics, array $saturated): bool {
+		return $topics !== [] && array_diff($topics, array_keys($saturated)) === [];
+	}
+
+	/** @param array<string, mixed> $candidate @return list<string> */
+	private static function topicIds(array $candidate): array {
+		$raw = $candidate['diversity_topics'] ?? null;
+		if (!is_array($raw) || $raw === []) {
+			$raw = $candidate['topic_ids'] ?? [];
+		}
+
+		return is_array($raw)
+			? array_values(array_unique(array_filter($raw, static fn (mixed $topic): bool => is_string($topic) && $topic !== '')))
+			: [];
 	}
 }
