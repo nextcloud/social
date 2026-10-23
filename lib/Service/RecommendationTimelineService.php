@@ -19,6 +19,7 @@ use OCP\AppFramework\Utility\ITimeFactory;
 
 /** Serves one automatically personalized ranker through the web For You timeline contract. */
 class RecommendationTimelineService {
+	public const MAX_PAGE_SIZE = 50;
 	private const MAX_CANDIDATES = 100;
 	private const MAX_TERMS = 20;
 	private const MAX_REFRESH_TOPICS = 2;
@@ -58,7 +59,7 @@ class RecommendationTimelineService {
 	 * @return array{items: list<Stream>, session_id: ?string, next_cursor: ?string, mode: string, algorithm_version: ?int, profile_version: int, cursor_expired: bool, coverage: array{state: string, known_eligible: ?int, returned: int, remote_refresh_queued: bool}}
 	 */
 	public function page(Person $viewer, int $requested, string $cursor = '', string $media = ''): array {
-		$limit = max(1, min(RecommendationCandidateService::MAX_PAGE_SIZE, $requested));
+		$limit = max(1, min(self::MAX_PAGE_SIZE, $requested));
 		$media = in_array($media, self::MEDIA, true) ? $media : '';
 		$state = $this->preferences->get($viewer->getUserId());
 		if ($this->preferences->forceLegacyFeed()) {
@@ -318,13 +319,7 @@ class RecommendationTimelineService {
 		$evidence = '';
 		foreach ($selected as $topicId => $topic) {
 			$match = $features['topics'][$topicId];
-			$operation = $feedback['topics'][$topicId] ?? null;
 			$score = (float)$match['score'];
-			if ($operation === 'MORE_TOPIC') {
-				$score = min(1.0, $score + 0.28);
-			} elseif ($operation === 'LESS_TOPIC') {
-				$score = max(-1.0, $score - 0.55);
-			}
 			if ($score > $bestMatch) {
 				$bestMatch = $score;
 				$evidence = (string)$match['evidence'];

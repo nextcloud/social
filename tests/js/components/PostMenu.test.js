@@ -94,36 +94,32 @@ describe('the post menu', () => {
 			expect(offered).not.toContain('Unmute conversation')
 		})
 
-		it('offers scoped, post-validated recommendation controls only in enabled For You', async () => {
-			const topic = { id: 'tech.apple', labels: { en: 'Apple', de: 'Apple' } }
+		it('offers recommendation feedback without letting readers choose topics', async () => {
 			const post = { id: '2', nid: '123', account: { acct: 'bob@remote.example' } }
 			const wrapper = mountMenu(post, {
 				timelineType: 'interests',
 				recommendationFeedbackEnabled: true,
-				feedbackContext: { topics: [topic], format: 'image' },
+				feedbackContext: { similarity_available: true, format: 'image' },
 			})
 
 			expect(items(wrapper)).toContain('Hide this post from For You')
 			expect(items(wrapper)).toContain('Show me more like this post')
 			expect(items(wrapper)).toContain('Show me less like this post')
 			expect(items(wrapper)).toContain('Show me more from this author')
-			expect(items(wrapper)).toContain('Show me more about Apple')
-			expect(items(wrapper)).toContain('Show me less about Apple')
 			expect(items(wrapper)).toContain('Show me more photo posts')
 
 			await itemFor(wrapper, 'Show me more like this post').trigger('click')
-			await itemFor(wrapper, 'Show me more about Apple').trigger('click')
-			expect(wrapper.emitted('recommendationFeedback')).toEqual([['MORE_SIMILAR'], ['MORE_TOPIC', 'tech.apple']])
+			expect(wrapper.emitted('recommendationFeedback')).toEqual([['MORE_SIMILAR']])
 			expect(items(mountMenu(post, { timelineType: 'home', recommendationFeedbackEnabled: true })))
 				.not.toContain('Hide this post from For You')
 		})
 
-		it('does not offer similarity feedback without a reliable, non-sensitive topic', () => {
+		it('does not offer similarity feedback when no automatic cluster is available', () => {
 			const post = { id: '2', nid: '123', account: { acct: 'bob@remote.example' } }
 			const wrapper = mountMenu(post, {
 				timelineType: 'interests',
 				recommendationFeedbackEnabled: true,
-				feedbackContext: { topics: [], format: 'text' },
+				feedbackContext: { similarity_available: false, format: 'text' },
 			})
 
 			expect(items(wrapper)).not.toContain('Show me more like this post')

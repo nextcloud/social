@@ -1555,12 +1555,12 @@ export default {
 			}
 		},
 
-		async applyRecommendationFeedback(kind, topicId = '') {
+		async applyRecommendationFeedback(kind) {
 			if (!this.canUseRecommendationFeedback || !this.item.nid) {
 				return
 			}
 			try {
-				const result = await recordRecommendationFeedback(this.item.nid, kind, topicId)
+				const result = await recordRecommendationFeedback(this.item.nid, kind)
 				const store = this.timelineStore
 				const identity = store.getTimelineIdentity
 				const entryId = store.timeline.find((id) => id === this.item.id || store.statuses[id]?.reblog?.id === this.item.id)

@@ -164,7 +164,7 @@ class LimitClampTest extends ReaderTestCase {
 			$config->setAppValue(ConfigService::REC_V4_ENABLED, '1');
 			$request = Server::get(RecommendationPreferenceRequest::class);
 			$state = $request->get($this->viewer()->getUserId());
-			$request->replace($this->viewer()->getUserId(), $state['revision'], [['topic_id' => 'tech.apple', 'mode' => 'INTERESTED']]);
+			$request->setLearningMode($this->viewer()->getUserId(), $state['revision'], 'on');
 		}
 		$arguments = $this->argumentsFor($class, $method);
 

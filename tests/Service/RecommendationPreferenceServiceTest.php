@@ -9,11 +9,9 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Service;
 
-use InvalidArgumentException;
 use OCA\Social\Db\RecommendationPreferenceRequest;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\RecommendationPreferenceService;
-use OCA\Social\Service\RecommendationTopicCatalog;
 use PHPUnit\Framework\TestCase;
 
 class RecommendationPreferenceServiceTest extends TestCase {
@@ -24,7 +22,7 @@ class RecommendationPreferenceServiceTest extends TestCase {
 	protected function setUp(): void {
 		$this->request = $this->createMock(RecommendationPreferenceRequest::class);
 		$this->config = $this->createMock(ConfigService::class);
-		$this->service = new RecommendationPreferenceService($this->request, new RecommendationTopicCatalog(), $this->config);
+		$this->service = new RecommendationPreferenceService($this->request, $this->config);
 	}
 
 	public function testFeatureFlagIsOffUnlessTheInstanceEnablesIt(): void {
@@ -52,63 +50,30 @@ class RecommendationPreferenceServiceTest extends TestCase {
 		], $this->service->saveAdminSettings(null, null, true, null));
 	}
 
-	public function testCatalogHasStableUniqueIdsAndBilingualLabelsWithoutNetworkAccess(): void {
-		$catalog = $this->service->catalog();
-		$ids = array_column($catalog, 'id');
-		$this->assertCount(count(array_unique($ids)), $ids);
-		$this->assertContains('tech.apple', $ids);
-		$this->assertSame(['en' => 'Technology', 'de' => 'Technologie'], $catalog[0]['labels']);
-	}
-
-	public function testParentHideAlwaysWinsAndChildOverridesSoftParentMode(): void {
-		$this->request->method('get')->willReturn([
+	public function testConsentStateExposesOnlyRevisionGenerationAndLearningMode(): void {
+		$this->request->expects($this->once())->method('get')->with('alice')->willReturn([
 			'revision' => 4,
-			'generation' => 1,
-			'learning_mode' => 'off',
-			'topics' => [
-				['topic_id' => 'technology', 'mode' => 'LESS'],
-				['topic_id' => 'tech.apple', 'mode' => 'INTERESTED'],
-				['topic_id' => 'oss', 'mode' => 'HIDE'],
-			],
+			'generation' => 2,
+			'learning_mode' => 'on',
+			'topics' => [['topic_id' => 'tech.apple', 'mode' => 'HIDE']],
+			'content_balance' => 'discovery',
 		]);
-		$effective = $this->service->get('alice')['effective_topics'];
-		$this->assertSame('INTERESTED', $effective['tech.apple']);
-		$this->assertSame('LESS', $effective['technology']);
-		$this->assertSame('HIDE', $effective['oss.nextcloud']);
+
+		$this->assertSame([
+			'revision' => 4,
+			'generation' => 2,
+			'learning_mode' => 'on',
+			'learning' => true,
+		], $this->service->get('alice'));
 	}
 
-	public function testUnknownAndDuplicateTopicsAreRejectedBeforeWriting(): void {
-		$this->request->expects($this->never())->method('replace');
-		$this->expectException(InvalidArgumentException::class);
-		$this->service->replace('alice', 0, [
-			['topic_id' => 'not.in.catalog', 'mode' => 'INTERESTED'],
+	public function testLearningModeDefaultsToOffWhenTheStoredValueIsUnknown(): void {
+		$this->request->method('get')->willReturn([
+			'revision' => 0,
+			'generation' => 0,
+			'learning_mode' => 'unknown',
 		]);
-	}
 
-	public function testInvalidModeIsRejectedBeforeWriting(): void {
-		$this->request->expects($this->never())->method('replace');
-		$this->expectException(InvalidArgumentException::class);
-		$this->service->replace('alice', 0, [
-			['topic_id' => 'tech.apple', 'mode' => 'FOLLOW'],
-		]);
-	}
-
-	public function testMalformedPreferenceEntryIsRejectedAsClientInput(): void {
-		$this->request->expects($this->never())->method('replace');
-		$this->expectException(InvalidArgumentException::class);
-		$this->service->replace('alice', 0, ['tech.apple']);
-	}
-
-	public function testInvalidOnboardingStateAndContentBalanceAreRejectedBeforeWriting(): void {
-		$this->request->expects($this->never())->method('replace');
-		try {
-			$this->service->replace('alice', 0, [], 'unbounded');
-			$this->fail('Invalid content balance was accepted');
-		} catch (InvalidArgumentException $e) {
-			$this->assertSame('Unknown content balance', $e->getMessage());
-		}
-
-		$this->expectException(InvalidArgumentException::class);
-		$this->service->replace('alice', 0, [], null, 5, false);
+		$this->assertFalse($this->service->get('alice')['learning']);
 	}
 }

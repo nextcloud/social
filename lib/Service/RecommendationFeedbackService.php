@@ -21,7 +21,7 @@ use OCP\AppFramework\Utility\ITimeFactory;
 class RecommendationFeedbackService {
 	public const UNDO_SECONDS = 600;
 	private const MAX_AUTHOR_KEY_LENGTH = 2048;
-	private const OPERATIONS = ['HIDE_POST', 'MORE_SIMILAR', 'LESS_SIMILAR', 'MORE_TOPIC', 'LESS_TOPIC', 'MORE_AUTHOR', 'MORE_FORMAT'];
+	private const OPERATIONS = ['HIDE_POST', 'MORE_SIMILAR', 'LESS_SIMILAR', 'MORE_AUTHOR', 'MORE_FORMAT'];
 
 	public function __construct(
 		private RecommendationFeedbackRequest $request,
@@ -34,11 +34,10 @@ class RecommendationFeedbackService {
 	}
 
 	/** @return array{feedback_id: string, event_id: string, operation: string, applied_scope: array{type: string, key: string}, feedback_version: int, changed_for_next_session: bool, undo_until: int, duplicate: bool} */
-	public function record(Person $viewer, string $eventId, string $postId, string $operation, string $topicId = ''): array {
+	public function record(Person $viewer, string $eventId, string $postId, string $operation): array {
 		$eventId = strtolower(trim($eventId));
 		$postId = trim($postId);
 		$operation = strtoupper(trim($operation));
-		$topicId = trim($topicId);
 		if (preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/', $eventId) !== 1) {
 			throw new InvalidArgumentException('event_id must be a UUID');
 		}
@@ -66,7 +65,7 @@ class RecommendationFeedbackService {
 		}
 
 		$features = $this->features->extract($post);
-		[$scope, $scopeKey] = $this->scope($operation, $post, $features, $topicId);
+		[$scope, $scopeKey] = $this->scope($operation, $post, $features);
 		$feedbackId = self::uuid();
 		$now = $this->timeFactory->getTime();
 		$stored = $this->request->record(
@@ -84,7 +83,7 @@ class RecommendationFeedbackService {
 		return $this->request->undo($viewer->getUserId(), strtolower($feedbackId), $this->timeFactory->getTime());
 	}
 
-	/** Return only feedback choices that match a currently visible post. */
+	/** Return only automatically detected feedback context for a currently visible post. */
 	public function context(Person $viewer, string $postId): array {
 		$postId = trim($postId);
 		if (preg_match('/^[0-9]{1,20}$/', $postId) !== 1) {
@@ -101,21 +100,13 @@ class RecommendationFeedbackService {
 		}
 
 		$features = $this->features->extract($post);
-		$topics = [];
-		foreach (array_keys($features['topics']) as $topicId) {
-			$topic = $this->catalog->find($topicId);
-			if ($topic === null || in_array('sensitive-topic', $topic['policyTags'], true)) {
-				continue;
-			}
-			$topics[] = ['id' => $topicId, 'labels' => $topic['labels']];
-		}
-
-		return ['topics' => $topics, 'format' => $features['format']];
+		$cluster = RecommendationContentCluster::key(array_keys($features['topics']), (string)$features['format'], $this->catalog);
+		return ['similarity_available' => $cluster !== null, 'format' => $features['format']];
 	}
 
-	/** @return array{hidden_nids: list<string>, similarities: array<string, string>, topics: array<string, string>, authors: array<string, string>, formats: array<string, string>} */
+	/** @return array{hidden_nids: list<string>, similarities: array<string, string>, authors: array<string, string>, formats: array<string, string>} */
 	public function current(string $actorKey): array {
-		$state = ['hidden_nids' => [], 'similarities' => [], 'topics' => [], 'authors' => [], 'formats' => []];
+		$state = ['hidden_nids' => [], 'similarities' => [], 'authors' => [], 'formats' => []];
 		foreach ($this->request->current($actorKey) as $entry) {
 			$scopeKey = (string)$entry['scope_key'];
 			$operation = (string)$entry['operation'];
@@ -128,8 +119,7 @@ class RecommendationFeedbackService {
 				case 'similarity':
 					$state['similarities'][$scopeKey] = $operation;
 					break;
-				case 'topic':
-					$state['topics'][$scopeKey] = $operation;
+				case 'topic': // Inert rows from an earlier release are ignored.
 					break;
 				case 'author':
 					$state['authors'][$scopeKey] = $operation;
@@ -146,6 +136,9 @@ class RecommendationFeedbackService {
 	public function export(string $actorKey): array {
 		$export = [];
 		foreach ($this->request->current($actorKey) as $entry) {
+			if ($entry['scope'] === 'topic') {
+				continue;
+			}
 			$export[] = [
 				'scope' => (string)$entry['scope'],
 				'scope_key' => (string)$entry['scope_key'],
@@ -156,44 +149,10 @@ class RecommendationFeedbackService {
 		return $export;
 	}
 
-	/** Apply current explicit feedback before the deterministic ranker runs. */
-	public function apply(array $candidate, string $topicId, array $feedback): array {
-		$topicOperation = $feedback['topics'][$topicId] ?? null;
-		$applied = false;
-		if ($topicOperation === 'MORE_TOPIC') {
-			$candidate['topic_match'] = min(1.0, (float)($candidate['topic_match'] ?? 0.0) + 0.28);
-			$applied = true;
-		} elseif ($topicOperation === 'LESS_TOPIC') {
-			$candidate['topic_match'] = max(-1.0, (float)($candidate['topic_match'] ?? 0.0) - 0.55);
-			$applied = true;
-		}
-
-		$authorId = (string)($candidate['author_key'] ?? '');
-		if ($authorId !== '' && ($feedback['authors'][self::authorKey($authorId)] ?? null) === 'MORE_AUTHOR') {
-			$candidate['author_affinity'] = 1.0;
-			$applied = true;
-		}
-		$format = (string)($candidate['format'] ?? '');
-		if ($format !== '' && ($feedback['formats'][$format] ?? null) === 'MORE_FORMAT') {
-			$candidate['format_match'] = 1.0;
-			$applied = true;
-		}
-		$candidate['feedback_applied'] = $applied;
-		return $candidate;
-	}
-
 	/** @return array{string, string} */
-	private function scope(string $operation, Stream $post, array $features, string $topicId): array {
+	private function scope(string $operation, Stream $post, array $features): array {
 		if ($operation === 'HIDE_POST') {
 			return ['post', (string)$post->getNid()];
-		}
-		if ($operation === 'MORE_TOPIC' || $operation === 'LESS_TOPIC') {
-			$topic = $this->catalog->find($topicId);
-			if ($topic === null || in_array('sensitive-topic', $topic['policyTags'], true)
-				|| !isset($features['topics'][$topicId])) {
-				throw new InvalidArgumentException('The selected topic is not a reliable label for this post');
-			}
-			return ['topic', $topicId];
 		}
 		if ($operation === 'MORE_SIMILAR' || $operation === 'LESS_SIMILAR') {
 			$key = RecommendationContentCluster::key(array_keys($features['topics']), (string)$features['format'], $this->catalog);

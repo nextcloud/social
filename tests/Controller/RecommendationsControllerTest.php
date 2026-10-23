@@ -15,7 +15,6 @@ use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\FilterService;
 use OCA\Social\Service\IRecommendationSignalEvents;
-use OCA\Social\Service\RecommendationCandidateService;
 use OCA\Social\Service\RecommendationFeedbackService;
 use OCA\Social\Service\RecommendationPreferenceService;
 use OCA\Social\Service\RecommendationTimelineService;
@@ -27,11 +26,10 @@ use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
 
-/** Authentication and ownership boundaries for the additive v4 API. */
+/** Authentication and ownership boundaries for the recommendation API. */
 #[AllowMockObjectsWithoutExpectations]
 class RecommendationsControllerTest extends TestCase {
 	private RecommendationPreferenceService $service;
-	private RecommendationCandidateService $candidateService;
 	private RecommendationFeedbackService $feedbackService;
 	private IRecommendationSignalEvents $signalService;
 	private RecommendationTimelineService $timelineService;
@@ -58,7 +56,6 @@ class RecommendationsControllerTest extends TestCase {
 			$accounts,
 			$this->createStub(ClientService::class),
 			$this->service,
-			$this->candidateService,
 			$this->feedbackService,
 			$this->signalService,
 			$this->timelineService,
@@ -69,7 +66,6 @@ class RecommendationsControllerTest extends TestCase {
 	protected function setUp(): void {
 		$this->service = $this->createMock(RecommendationPreferenceService::class);
 		$this->service->method('isEnabled')->willReturnCallback(fn (): bool => $this->enabled);
-		$this->candidateService = $this->createMock(RecommendationCandidateService::class);
 		$this->feedbackService = $this->createMock(RecommendationFeedbackService::class);
 		$this->signalService = $this->createMock(IRecommendationSignalEvents::class);
 		$this->timelineService = $this->createMock(RecommendationTimelineService::class);
@@ -172,7 +168,7 @@ class RecommendationsControllerTest extends TestCase {
 		$result = ['feedback_id' => '0f6f07ce-f9d0-4a0d-90f2-9f1ebc629072', 'operation' => 'HIDE_POST'];
 		$this->feedbackService->expects($this->once())->method('record')->with(
 			$this->callback(static fn (Person $viewer): bool => $viewer->getUserId() === 'alice'),
-			'792b7610-e146-422c-9c87-d703412e9874', '1150000123', 'HIDE_POST', ''
+			'792b7610-e146-422c-9c87-d703412e9874', '1150000123', 'HIDE_POST'
 		)->willReturn($result);
 
 		$response = $this->controller()->feedback('792b7610-e146-422c-9c87-d703412e9874', '1150000123', 'HIDE_POST');
@@ -182,7 +178,7 @@ class RecommendationsControllerTest extends TestCase {
 	}
 
 	public function testFeedbackContextUsesTheAuthenticatedReaderAndPost(): void {
-		$context = ['topics' => [], 'format' => 'text'];
+		$context = ['similarity_available' => false, 'format' => 'text'];
 		$this->feedbackService->expects($this->once())->method('context')->with(
 			$this->callback(static fn (Person $viewer): bool => $viewer->getUserId() === 'alice'), '1150000123'
 		)->willReturn($context);
@@ -207,14 +203,12 @@ class RecommendationsControllerTest extends TestCase {
 
 	public function testExportIncludesTheAuthenticatedOwnersCurrentFeedback(): void {
 		$this->service->expects($this->once())->method('get')->with('alice')->willReturn(['revision' => 1, 'generation' => 0, 'learning_mode' => 'off', 'learning' => false, 'topics' => [['topic_id' => 'tech.apple', 'mode' => 'HIDE']]]);
-		$this->feedbackService->expects($this->once())->method('export')->with('alice')->willReturn([
-			['scope' => 'topic', 'scope_key' => 'tech.apple', 'operation' => 'MORE_TOPIC', 'created_at' => 2_000_000_000],
-		]);
+		$this->feedbackService->expects($this->once())->method('export')->with('alice')->willReturn([]);
 
 		$response = $this->controller()->export();
 
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
-		$this->assertSame('MORE_TOPIC', $response->getData()['feedback'][0]['operation']);
+		$this->assertSame([], $response->getData()['feedback']);
 		$this->assertSame(['revision' => 1, 'generation' => 0, 'learning_mode' => 'off', 'learning' => false], $response->getData()['preferences']);
 	}
 }

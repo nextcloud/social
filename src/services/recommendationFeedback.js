@@ -36,15 +36,13 @@ function eventId() {
 /**
  * @param {string|number} postId a local stream identifier
  * @param {string} kind one of the server's explicit feedback operations
- * @param {string} [topicId] a server-confirmed, nonsensitive post topic
  * @return {Promise<object>} the saved action and its undo token
  */
-export async function recordRecommendationFeedback(postId, kind, topicId = '') {
+export async function recordRecommendationFeedback(postId, kind) {
 	const { data } = await axios.post(url('/feedback'), {
 		event_id: eventId(),
 		post_id: String(postId),
 		kind,
-		topic_id: topicId,
 	})
 	return data
 }
