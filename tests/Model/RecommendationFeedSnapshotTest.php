@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Model;
 
+use InvalidArgumentException;
 use OCA\Social\Model\RecommendationFeedSnapshot;
 use PHPUnit\Framework\TestCase;
 
@@ -54,5 +55,17 @@ class RecommendationFeedSnapshotTest extends TestCase {
 		$this->assertNull(RecommendationFeedSnapshot::verifyCursor($tampered, self::SECRET, 'alice', 'for-you', 'all', 0, 0, self::NOW));
 		$this->assertNull(RecommendationFeedSnapshot::verifyCursor('not-a-cursor', self::SECRET, 'alice', 'for-you', 'all', 0, 0, self::NOW));
 		$this->assertNull(RecommendationFeedSnapshot::verifyCursor($cursor, 'short', 'alice', 'for-you', 'all', 0, 0, self::NOW));
+	}
+
+	public function testMalformedCachedIdListsAreRejectedAndCreationDeduplicates(): void {
+		$snapshot = RecommendationFeedSnapshot::create('alice', 'for-you', 'all', 0, 0, self::NOW, ['1', '1', '2']);
+		$this->assertSame(['1', '2'], $snapshot->rankedNids);
+
+		$malformed = $snapshot->toArray();
+		$malformed['ranked_nids'] = ['named' => '3'];
+		$this->assertNull(RecommendationFeedSnapshot::fromArray($malformed));
+
+		$this->expectException(InvalidArgumentException::class);
+		RecommendationFeedSnapshot::create('alice', 'for-you', 'all', 0, 0, self::NOW, [['not' => 'an id']]);
 	}
 }
