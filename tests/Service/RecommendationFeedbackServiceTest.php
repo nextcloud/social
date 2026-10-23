@@ -17,6 +17,7 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Service\RecommendationFeatureExtractor;
 use OCA\Social\Service\RecommendationFeedbackService;
+use OCA\Social\Service\RecommendationContentCluster;
 use OCA\Social\Service\RecommendationPreferenceService;
 use OCA\Social\Service\RecommendationTopicCatalog;
 use OCP\AppFramework\Utility\ITimeFactory;
@@ -92,6 +93,34 @@ class RecommendationFeedbackServiceTest extends TestCase {
 
 		$this->assertSame('author', $result['applied_scope']['type']);
 		$this->assertSame(hash('sha256', 'https://remote.example/users/bob'), $result['applied_scope']['key']);
+	}
+
+	public function testSimilarityFeedbackStoresAClusterOfNonsensitiveTopicsAndFormat(): void {
+		$this->request->method('byEvent')->willReturn(null);
+		$this->streams->method('getVisibleByNids')->willReturn(['123' => $this->applePost()]);
+		$key = RecommendationContentCluster::key(['technology', 'tech.apple'], 'text', $this->catalog);
+		$this->request->expects($this->once())->method('record')->with(
+			'alice', $this->anything(), $this->anything(), 'similarity', $key, 'MORE_SIMILAR', 2_000_000_000
+		)->willReturn([
+			'record' => ['feedback_id' => '0f6f07ce-f9d0-4a0d-90f2-9f1ebc629072', 'event_id' => '792b7610-e146-422c-9c87-d703412e9874',
+				'scope' => 'similarity', 'scope_key' => $key, 'operation' => 'MORE_SIMILAR', 'undo_until' => 2_000_000_600],
+			'feedback_version' => 1, 'duplicate' => false,
+		]);
+
+		$result = $this->service()->record($this->viewer(), '792b7610-e146-422c-9c87-d703412e9874', '123', 'MORE_SIMILAR');
+
+		$this->assertSame('similarity', $result['applied_scope']['type']);
+		$this->assertSame($key, $result['applied_scope']['key']);
+	}
+
+	public function testSimilarityFeedbackIsRejectedWhenOnlySensitiveTopicsMatch(): void {
+		$this->request->method('byEvent')->willReturn(null);
+		$post = $this->applePost()->setContent('<p>International politics</p>');
+		$this->streams->method('getVisibleByNids')->willReturn(['123' => $post]);
+		$this->request->expects($this->never())->method('record');
+		$this->expectException(InvalidArgumentException::class);
+
+		$this->service()->record($this->viewer(), '792b7610-e146-422c-9c87-d703412e9874', '123', 'MORE_SIMILAR');
 	}
 
 	public function testFeedbackContextOnlyOffersMatchedNonsensitiveTopicsForVisiblePosts(): void {

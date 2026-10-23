@@ -21,7 +21,7 @@ use OCP\AppFramework\Utility\ITimeFactory;
 class RecommendationFeedbackService {
 	public const UNDO_SECONDS = 600;
 	private const MAX_AUTHOR_KEY_LENGTH = 2048;
-	private const OPERATIONS = ['HIDE_POST', 'MORE_TOPIC', 'LESS_TOPIC', 'MORE_AUTHOR', 'MORE_FORMAT'];
+	private const OPERATIONS = ['HIDE_POST', 'MORE_SIMILAR', 'LESS_SIMILAR', 'MORE_TOPIC', 'LESS_TOPIC', 'MORE_AUTHOR', 'MORE_FORMAT'];
 
 	public function __construct(
 		private RecommendationFeedbackRequest $request,
@@ -113,9 +113,9 @@ class RecommendationFeedbackService {
 		return ['topics' => $topics, 'format' => $features['format']];
 	}
 
-	/** @return array{hidden_nids: list<string>, topics: array<string, string>, authors: array<string, string>, formats: array<string, string>} */
+	/** @return array{hidden_nids: list<string>, similarities: array<string, string>, topics: array<string, string>, authors: array<string, string>, formats: array<string, string>} */
 	public function current(string $actorKey): array {
-		$state = ['hidden_nids' => [], 'topics' => [], 'authors' => [], 'formats' => []];
+		$state = ['hidden_nids' => [], 'similarities' => [], 'topics' => [], 'authors' => [], 'formats' => []];
 		foreach ($this->request->current($actorKey) as $entry) {
 			$scopeKey = (string)$entry['scope_key'];
 			$operation = (string)$entry['operation'];
@@ -124,6 +124,9 @@ class RecommendationFeedbackService {
 					if ($operation === 'HIDE_POST') {
 						$state['hidden_nids'][] = $scopeKey;
 					}
+					break;
+				case 'similarity':
+					$state['similarities'][$scopeKey] = $operation;
 					break;
 				case 'topic':
 					$state['topics'][$scopeKey] = $operation;
@@ -191,6 +194,13 @@ class RecommendationFeedbackService {
 				throw new InvalidArgumentException('The selected topic is not a reliable label for this post');
 			}
 			return ['topic', $topicId];
+		}
+		if ($operation === 'MORE_SIMILAR' || $operation === 'LESS_SIMILAR') {
+			$key = RecommendationContentCluster::key(array_keys($features['topics']), (string)$features['format'], $this->catalog);
+			if ($key === null) {
+				throw new InvalidArgumentException('This post has no non-sensitive topic cluster for similarity feedback');
+			}
+			return ['similarity', $key];
 		}
 		if ($operation === 'MORE_AUTHOR') {
 			$author = $post->getAttributedTo();

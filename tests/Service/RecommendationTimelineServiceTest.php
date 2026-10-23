@@ -19,6 +19,7 @@ use OCA\Social\Service\Discovery\PostDiscoveryService;
 use OCA\Social\Service\InterestFeedService;
 use OCA\Social\Service\InterestService;
 use OCA\Social\Service\RecommendationBehavioralProfile;
+use OCA\Social\Service\RecommendationContentCluster;
 use OCA\Social\Service\RecommendationFeatureExtractor;
 use OCA\Social\Service\RecommendationFeedbackService;
 use OCA\Social\Service\RecommendationFollowFeatures;
@@ -46,6 +47,7 @@ class RecommendationTimelineServiceTest extends TestCase {
 	private RecommendationSignalRequest $signals;
 	private FollowsRequest $follows;
 	private array $learnedProfile = ['topics' => [], 'authors' => [], 'formats' => []];
+	private array $currentFeedback = ['hidden_nids' => [], 'similarities' => [], 'topics' => [], 'authors' => [], 'formats' => []];
 
 	/** @return list<string> */
 	private function appleAliases(): array {
@@ -59,7 +61,7 @@ class RecommendationTimelineServiceTest extends TestCase {
 		$this->legacyFeed = $this->createMock(InterestFeedService::class);
 		$this->snapshots = $this->createMock(RecommendationSnapshotStore::class);
 		$this->feedback = $this->createMock(RecommendationFeedbackService::class);
-		$this->feedback->method('current')->willReturn(['hidden_nids' => [], 'topics' => [], 'authors' => [], 'formats' => []]);
+		$this->feedback->method('current')->willReturnCallback(fn (): array => $this->currentFeedback);
 		$this->queue = $this->createMock(RemoteFetchQueue::class);
 		$this->clock = $this->createStub(ITimeFactory::class);
 		$this->clock->method('getTime')->willReturn(2_000_000_000);
@@ -127,6 +129,31 @@ class RecommendationTimelineServiceTest extends TestCase {
 			static fn (Note $post): string => $post->getId(),
 			$page['items']
 		));
+	}
+
+	public function testSimilarityFeedbackChangesTheNextSessionWithoutUsingAuthorAffinity(): void {
+		$this->preferences->method('get')->willReturn($this->state([['topic_id' => 'tech.apple', 'mode' => 'INTERESTED']]));
+		$this->interests->method('hiddenFor')->willReturn([]);
+		$this->interests->method('languagesFor')->willReturn([]);
+		$similar = (new Note())
+			->setId('https://remote.example/posts/similar')
+			->setAttributedTo('https://remote.example/users/a')
+			->setContent('<p>Apple introduces a new iPhone</p>')
+			->setPublishedTime(1_999_999_900);
+		$other = (new Note())
+			->setId('https://remote.example/posts/other')
+			->setAttributedTo('https://remote.example/users/b')
+			->setContent('<p>Apple introduces an iPhone app with programming and software development tools</p>')
+			->setPublishedTime(1_999_999_900);
+		$features = (new RecommendationFeatureExtractor($this->catalog))->extract($similar);
+		$key = RecommendationContentCluster::key(array_keys($features['topics']), $features['format'], $this->catalog);
+		$this->currentFeedback['similarities'][$key] = 'MORE_SIMILAR';
+		$this->streams->method('recommendationCandidatesByTerms')->willReturn(['100' => $other, '101' => $similar]);
+		$this->snapshots->method('create')->willReturn(null);
+
+		$page = $this->service()->page($this->viewer(), 2);
+
+		$this->assertSame('https://remote.example/posts/similar', $page['items'][0]->getId());
 	}
 
 	private function viewer(): Person {

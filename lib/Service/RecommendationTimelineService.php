@@ -252,6 +252,8 @@ class RecommendationTimelineService {
 		$authorAffinity = $this->behavioralProfile->authorAffinity($author, $behavioral['authors']);
 		$authorFeedback = $author === '' ? null : ($feedback['authors'][hash('sha256', $author)] ?? null);
 		$formatFeedback = $feedback['formats'][$format] ?? null;
+		$clusterKey = RecommendationContentCluster::key($allTopicIds, $format, $this->catalog);
+		$similarityFeedback = $clusterKey === null ? null : ($feedback['similarities'][$clusterKey] ?? null);
 		$published = $post->getPublishedTime();
 		$ageHours = ($published > 0 && $now > 0) ? max(0, $now - $published) / 3600 : 0;
 		$halfLifeHours = in_array($format, ['short', 'video'], true) ? 12.0 : 24.0;
@@ -274,7 +276,11 @@ class RecommendationTimelineService {
 			'author_affinity' => $authorFeedback === 'MORE_AUTHOR' ? 1.0 : 0.0,
 			'exposure_penalty' => $exposurePenalty,
 			'format_match' => $formatFeedback === 'MORE_FORMAT' ? 1.0 : 0.0,
-			'feedback_alignment' => 0.0,
+			'feedback_alignment' => match ($similarityFeedback) {
+				'MORE_SIMILAR' => 1.0,
+				'LESS_SIMILAR' => -1.0,
+				default => 0.0,
+			},
 			'source_reliability' => 0.5,
 			'evidence' => $evidence,
 			'rank_score' => 0.0,

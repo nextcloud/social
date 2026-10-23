@@ -1413,6 +1413,8 @@ OC.L10N.register(
     "Could not save your recommendation feedback" : "Die Rückmeldung konnte nicht gespeichert werden",
     "Hide this post from For You" : "Diesen Beitrag aus ‚Für dich‘ ausblenden",
     "Show me more from this author" : "Mehr Beiträge dieses Kontos anzeigen",
+    "Show me more like this post" : "Mehr Beiträge wie diesen anzeigen",
+    "Show me less like this post" : "Weniger Beiträge wie diesen anzeigen",
     "Show me more about {topic}" : "Mehr zu {topic} anzeigen",
     "Show me less about {topic}" : "Weniger zu {topic} anzeigen",
     "Show me more {format}" : "Mehr {format} anzeigen",

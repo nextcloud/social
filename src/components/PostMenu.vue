@@ -166,13 +166,31 @@
 		</NcActionButton>
 		<!-- teaches For you about the post's hashtags; only offered where
 		     there is something to teach it -->
-		<NcActionButton v-if="canLessLikeThis" closeAfterClick @click="$emit('lessLikeThis')">
+		<NcActionButton v-if="canLessLikeThis && !canOfferRecommendationFeedback" closeAfterClick @click="$emit('lessLikeThis')">
 			<template #icon>
 				<ThumbDownOutline :size="20" />
 			</template>
 			{{ t('social', 'Less like this') }}
 		</NcActionButton>
 		<template v-if="canOfferRecommendationFeedback">
+			<NcActionButton
+				v-if="feedbackContext?.topics?.length"
+				closeAfterClick
+				@click="$emit('recommendationFeedback', 'MORE_SIMILAR')">
+				<template #icon>
+					<ThumbUpOutline :size="20" />
+				</template>
+				{{ t('social', 'Show me more like this post') }}
+			</NcActionButton>
+			<NcActionButton
+				v-if="feedbackContext?.topics?.length"
+				closeAfterClick
+				@click="$emit('recommendationFeedback', 'LESS_SIMILAR')">
+				<template #icon>
+					<ThumbDownOutline :size="20" />
+				</template>
+				{{ t('social', 'Show me less like this post') }}
+			</NcActionButton>
 			<NcActionButton closeAfterClick @click="$emit('recommendationFeedback', 'HIDE_POST')">
 				<template #icon>
 					<IconEyeOffOutline :size="20" />
