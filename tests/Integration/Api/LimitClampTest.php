@@ -240,7 +240,7 @@ class LimitClampTest extends ReaderTestCase {
 	private function argumentsFor(string $class, string $method): array {
 		$viewer = $this->viewer();
 		$author = $this->remoteActor('limits');
-		$post = $this->post($author, 'a post tagged #perf');
+		$post = $this->post($author, 'Apple announces a new iPhone #perf');
 
 		$values = [
 			'account' => (string)$viewer->getNid(),
@@ -248,6 +248,7 @@ class LimitClampTest extends ReaderTestCase {
 			'hashtag' => 'perf',
 			'nid' => (string)Server::get(StreamRequest::class)->getStreamById($post->getId())->getNid(),
 			'q' => 'perf',
+			'topicId' => 'tech.apple',
 			'timeline' => 'home',
 			'url' => 'https://news.example/an-article',
 		];
