@@ -69,7 +69,7 @@ class RecommendationSavedFeedCandidates {
 			if ($languages !== [] && $features['language'] !== '' && !in_array($features['language'], $languages, true)) {
 				continue;
 			}
-			if (!self::matchesMedia($features['format'], $media)) {
+			if (!RecommendationMediaFilter::matches($features['format'], $media)) {
 				continue;
 			}
 
@@ -82,13 +82,4 @@ class RecommendationSavedFeedCandidates {
 		return $result;
 	}
 
-	private static function matchesMedia(string $format, string $media): bool {
-		return match ($media) {
-			'photos' => $format === 'image',
-			'videos' => in_array($format, ['video', 'short'], true),
-			'shorts' => $format === 'short',
-			'media' => in_array($format, ['image', 'video', 'short'], true),
-			default => true,
-		};
-	}
 }

@@ -26,7 +26,6 @@ class RecommendationTimelineService {
 	private const LOOKBACK_DAYS = RecommendationFreshness::LOOKBACK_DAYS;
 	private const MIN_COVERAGE = 15;
 	private const MODE = 'for-you-v4-automatic-profile-4';
-	private const MEDIA = ['', 'photos', 'videos', 'shorts', 'media'];
 
 	public function __construct(
 		private RecommendationPreferenceService $preferences,
@@ -60,7 +59,7 @@ class RecommendationTimelineService {
 	 */
 	public function page(Person $viewer, int $requested, string $cursor = '', string $media = ''): array {
 		$limit = max(1, min(self::MAX_PAGE_SIZE, $requested));
-		$media = in_array($media, self::MEDIA, true) ? $media : '';
+		$media = RecommendationMediaFilter::normalize($media);
 		$state = $this->preferences->get($viewer->getUserId());
 		if ($this->preferences->forceLegacyFeed()) {
 			if ($cursor === '' || str_starts_with($cursor, 'legacy.')) {
@@ -308,7 +307,7 @@ class RecommendationTimelineService {
 				$selected[$topic['id']] = $topic;
 			}
 		}
-		if (!self::matchesMedia($features['format'], $media)) {
+		if (!RecommendationMediaFilter::matches($features['format'], $media)) {
 			return null;
 		}
 		$bestMatch = 0.0;
@@ -366,16 +365,6 @@ class RecommendationTimelineService {
 			'evidence' => $evidence,
 			'rank_score' => 0.0,
 		];
-	}
-
-	private static function matchesMedia(string $format, string $media): bool {
-		return match ($media) {
-			'photos' => $format === 'image',
-			'videos' => in_array($format, ['video', 'short'], true),
-			'shorts' => $format === 'short',
-			'media' => in_array($format, ['image', 'video', 'short'], true),
-			default => true,
-		};
 	}
 
 	/** @param list<array<string, mixed>> $ranked @param list<string> $nids @return list<array<string, mixed>> */
