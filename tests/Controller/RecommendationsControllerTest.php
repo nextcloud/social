@@ -105,9 +105,10 @@ class RecommendationsControllerTest extends TestCase {
 
 	public function testCandidateDiscoveryUsesTheAuthenticatedReaderAndRequestedTopic(): void {
 		$result = ['topic_id' => 'tech.apple', 'count' => 0, 'requested' => 10, 'underfilled' => true,
-			'remote_refresh_queued' => false, 'sources' => ['activitypub' => 0, 'atproto' => 0], 'candidates' => []];
+			'remote_refresh_queued' => false, 'sources' => ['activitypub' => 0, 'atproto' => 0], 'session_id' => null,
+			'next_cursor' => null, 'cursor_expired' => false, 'candidates' => []];
 		$this->candidateService->expects($this->once())->method('discover')->with(
-			$this->callback(static fn (Person $viewer): bool => $viewer->getUserId() === 'alice'), 'tech.apple', 10
+			$this->callback(static fn (Person $viewer): bool => $viewer->getUserId() === 'alice'), 'tech.apple', 10, ''
 		)->willReturn($result);
 
 		$response = $this->controller()->candidates('tech.apple', 10);
