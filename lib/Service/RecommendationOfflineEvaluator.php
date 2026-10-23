@@ -37,6 +37,15 @@ final class RecommendationOfflineEvaluator {
 		$variantTimes = [];
 		$sourceTotals = ['all_relevant' => 0, 'retrieved_relevant' => 0, 'eligible' => 0];
 		$protocolTotals = [];
+		$failureBreakdown = [
+			'eligible_and_available' => 0,
+			'non_public' => 0,
+			'not_discoverable' => 0,
+			'deleted_or_not_visible' => 0,
+			'explicitly_hidden_topic' => 0,
+			'language_excluded' => 0,
+			'source_unavailable' => 0,
+		];
 		$corpusKeys = [];
 		foreach ($dataset['posts'] as $post) {
 			$corpusKeys[(string)($post['canonical_key'] ?? $post['id'])] = true;
@@ -44,6 +53,15 @@ final class RecommendationOfflineEvaluator {
 		$corpusUniqueCount = count($corpusKeys);
 
 		foreach ($dataset['profiles'] as $profile) {
+			foreach ($dataset['posts'] as $post) {
+				$reason = $this->controlFailureReason($profile, $post);
+				if ($reason === null && ($post['available'] ?? true) !== true) {
+					$reason = 'source_unavailable';
+				} elseif ($reason === null) {
+					$reason = 'eligible_and_available';
+				}
+				$failureBreakdown[$reason]++;
+			}
 			$candidates = $this->candidatesFor($profile, $dataset['posts']);
 			$candidateKeys = [];
 			foreach ($candidates as $candidate) {
@@ -118,6 +136,11 @@ final class RecommendationOfflineEvaluator {
 					'source_recall_by_protocol' => array_map(static fn (array $totals): ?float => ($totals['all_relevant'] ?? 0) === 0 ? null : ($totals['retrieved_relevant'] ?? 0) / $totals['all_relevant'], $protocolTotals),
 					'relevant_items_in_judged_corpus' => $sourceTotals['all_relevant'],
 					'relevant_items_available_to_profiles' => $sourceTotals['retrieved_relevant'],
+					'failure_breakdown' => [
+						'basis' => 'primary exclusion reason per profile-post record; categories are mutually exclusive and contain counts only',
+						'counts' => $failureBreakdown,
+						'profile_post_record_count' => array_sum($failureBreakdown),
+					],
 				],
 			],
 			'methodology' => [
@@ -181,14 +204,29 @@ final class RecommendationOfflineEvaluator {
 
 	/** @param array<string, mixed> $profile @param array<string, mixed> $post */
 	private function isEligibleForEvaluation(array $profile, array $post): bool {
+		return $this->controlFailureReason($profile, $post) === null;
+	}
+
+	/** @param array<string, mixed> $profile @param array<string, mixed> $post */
+	private function controlFailureReason(array $profile, array $post): ?string {
 		$hidden = $profile['hidden_topics'] ?? [];
 		$languages = $profile['languages'] ?? [];
-		return ($post['public'] ?? false) === true
-			&& ($post['discoverable'] ?? false) === true
-			&& ($post['deleted'] ?? false) === false
-			&& ($post['user_visible'] ?? false) === true
-			&& !array_intersect($post['topics'] ?? [], $hidden)
-			&& ($languages === [] || in_array($post['language'] ?? '', $languages, true));
+		if (($post['public'] ?? false) !== true) {
+			return 'non_public';
+		}
+		if (($post['discoverable'] ?? false) !== true) {
+			return 'not_discoverable';
+		}
+		if (($post['deleted'] ?? false) !== false || ($post['user_visible'] ?? false) !== true) {
+			return 'deleted_or_not_visible';
+		}
+		if (array_intersect($post['topics'] ?? [], $hidden) !== []) {
+			return 'explicitly_hidden_topic';
+		}
+		if ($languages !== [] && !in_array($post['language'] ?? '', $languages, true)) {
+			return 'language_excluded';
+		}
+		return null;
 	}
 
 	/** @param array<string, mixed> $profile @param array<string, mixed> $post */

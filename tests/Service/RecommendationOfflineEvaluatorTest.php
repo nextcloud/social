@@ -24,6 +24,16 @@ class RecommendationOfflineEvaluatorTest extends TestCase {
 		$this->assertArrayHasKey('h0_plus_rerank', $report['variants']);
 		$this->assertSame(0.5, $report['dataset']['eligibility']['source_recall']);
 		$this->assertSame(0.2, $report['dataset']['eligibility']['candidate_coverage_mean']);
+		$this->assertSame([
+			'eligible_and_available' => 1,
+			'non_public' => 0,
+			'not_discoverable' => 1,
+			'deleted_or_not_visible' => 1,
+			'explicitly_hidden_topic' => 1,
+			'language_excluded' => 0,
+			'source_unavailable' => 1,
+		], $report['dataset']['eligibility']['failure_breakdown']['counts']);
+		$this->assertSame(5, $report['dataset']['eligibility']['failure_breakdown']['profile_post_record_count']);
 		foreach ($report['profiles']['reader']['h0_ranker'] as $unused) {
 			// The profile result contains aggregate measurements only, never post content.
 			$this->assertIsScalar($unused);
@@ -49,6 +59,10 @@ class RecommendationOfflineEvaluatorTest extends TestCase {
 		$this->assertSame(32, $report['dataset']['corpus_unique_post_count']);
 		$this->assertArrayHasKey('activitypub', $report['dataset']['eligibility']['source_recall_by_protocol']);
 		$this->assertArrayHasKey('atproto', $report['dataset']['eligibility']['source_recall_by_protocol']);
+		foreach (['non_public', 'not_discoverable', 'deleted_or_not_visible', 'explicitly_hidden_topic', 'language_excluded', 'source_unavailable'] as $reason) {
+			$this->assertGreaterThan(0, $report['dataset']['eligibility']['failure_breakdown']['counts'][$reason], $reason);
+		}
+		$this->assertSame(12 * 33, $report['dataset']['eligibility']['failure_breakdown']['profile_post_record_count']);
 		$this->assertGreaterThan(0.0, $report['variants']['h0_ranker']['duplicate_rate']);
 		$this->assertSame(0.0, $report['variants']['h0_plus_rerank']['duplicate_rate']);
 		$this->assertFalse($report['methodology']['weights_promoted']);
