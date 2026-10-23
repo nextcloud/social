@@ -19,9 +19,11 @@ class RecommendationOfflineEvaluatorTest extends TestCase {
 	public function testComparesBaselinesAndExcludesUnshowableCandidates(): void {
 		$report = $this->evaluator()->evaluate($this->dataset());
 
-		$this->assertSame(6, count($report['variants']));
+		$this->assertSame(10, count($report['variants']));
 		$this->assertArrayHasKey('h0_ranker', $report['variants']);
 		$this->assertArrayHasKey('h0_plus_rerank', $report['variants']);
+		$this->assertArrayHasKey('h0_following_plus_rerank', $report['variants']);
+		$this->assertArrayHasKey('h0_discovery_plus_rerank', $report['variants']);
 		$this->assertSame(0.5, $report['dataset']['eligibility']['source_recall']);
 		$this->assertSame(0.2, $report['dataset']['eligibility']['candidate_coverage_mean']);
 		$this->assertSame([

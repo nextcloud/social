@@ -28,8 +28,10 @@ from live accounts.
 ## Compared variants and metrics
 
 The report compares the legacy hashtag ordering, chronological followed feed,
-pure topic match, topic plus follow prior, current H0 ranker, and H0 with the
-existing diversity re-ranker. Each uses the same eligible candidate pool.
+pure topic match, topic plus follow prior, balanced H0 ranker, and H0 with the
+existing diversity re-ranker. It also reports the following and discovery
+weight profiles, both before and after page re-ranking. Each uses the same
+eligible candidate pool.
 
 For each variant, the report includes NDCG@20, relevant results returned,
 candidate count and corpus coverage, effective and unique topic diversity,

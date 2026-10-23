@@ -14,11 +14,11 @@ namespace OCA\Social\Service;
  * hypothesis; missing evidence is neutral and never fabricated.
  */
 final class RecommendationRanker {
-	public const ALGORITHM_VERSION = 3;
+	public const ALGORITHM_VERSION = 4;
 	public const FEATURE_VERSION = 3;
 
 	/** @var array<string, float> */
-	private const WEIGHTS = [
+	private const BALANCED_WEIGHTS = [
 		'topic_match' => 0.19,
 		'behavioral_topic' => 0.08,
 		'behavioral_author' => 0.04,
@@ -32,11 +32,42 @@ final class RecommendationRanker {
 		'novelty' => 0.05,
 	];
 
+	/** @var array<string, array<string, float>> */
+	private const BALANCE_WEIGHTS = [
+		'following' => [
+			'topic_match' => 0.18,
+			'behavioral_topic' => 0.07,
+			'behavioral_author' => 0.06,
+			'behavioral_format' => 0.02,
+			'author_affinity' => 0.18,
+			'is_followed' => 0.18,
+			'freshness' => 0.06,
+			'format_match' => 0.08,
+			'usefulness' => 0.06,
+			'feedback_alignment' => 0.07,
+			'novelty' => 0.04,
+		],
+		'discovery' => [
+			'topic_match' => 0.22,
+			'behavioral_topic' => 0.09,
+			'behavioral_author' => 0.02,
+			'behavioral_format' => 0.02,
+			'author_affinity' => 0.18,
+			'is_followed' => 0.08,
+			'freshness' => 0.06,
+			'format_match' => 0.08,
+			'usefulness' => 0.07,
+			'feedback_alignment' => 0.07,
+			'novelty' => 0.11,
+		],
+	];
+
 	/**
 	 * @param list<array<string, mixed>> $candidates
 	 * @return list<array<string, mixed>>
 	 */
-	public function rank(array $candidates): array {
+	public function rank(array $candidates, string $contentBalance = 'balanced'): array {
+		$weights = self::BALANCE_WEIGHTS[$contentBalance] ?? self::BALANCED_WEIGHTS;
 		$ranked = [];
 		foreach ($candidates as $candidate) {
 			if (!isset($candidate['nid']) || !is_scalar($candidate['nid']) || (isset($candidate['eligible']) && $candidate['eligible'] !== true)) {
@@ -59,7 +90,7 @@ final class RecommendationRanker {
 			];
 
 			$score = 0.0;
-			foreach (self::WEIGHTS as $key => $weight) {
+			foreach ($weights as $key => $weight) {
 				$feature = $features[$key];
 				$score += $weight * (in_array($key, ['topic_match', 'behavioral_topic', 'behavioral_author', 'behavioral_format', 'format_match', 'feedback_alignment'], true)
 					? ($feature + 1.0) / 2.0

@@ -264,6 +264,10 @@ final class RecommendationOfflineEvaluator {
 			'topic_plus_follow' => $this->rankVariant($profile, $candidates, 'topic_plus_follow'),
 			'h0_ranker' => $this->rankVariant($profile, $candidates, 'h0_ranker'),
 			'h0_plus_rerank' => $this->rankVariant($profile, $candidates, 'h0_plus_rerank'),
+			'h0_following' => $this->rankVariant($profile, $candidates, 'h0_following'),
+			'h0_following_plus_rerank' => $this->rankVariant($profile, $candidates, 'h0_following_plus_rerank'),
+			'h0_discovery' => $this->rankVariant($profile, $candidates, 'h0_discovery'),
+			'h0_discovery_plus_rerank' => $this->rankVariant($profile, $candidates, 'h0_discovery_plus_rerank'),
 		];
 	}
 
@@ -405,6 +409,16 @@ final class RecommendationOfflineEvaluator {
 			case 'h0_plus_rerank':
 				$ranked = $this->ranker->rank($candidates);
 				return $this->reRanker->page($ranked, self::PAGE_SIZE, array_keys($profile['topic_grades'] ?? []), (string)$profile['id']);
+			case 'h0_following':
+				return $this->ranker->rank($candidates, 'following');
+			case 'h0_following_plus_rerank':
+				$ranked = $this->ranker->rank($candidates, 'following');
+				return $this->reRanker->page($ranked, self::PAGE_SIZE, array_keys($profile['topic_grades'] ?? []), (string)$profile['id'], 'following');
+			case 'h0_discovery':
+				return $this->ranker->rank($candidates, 'discovery');
+			case 'h0_discovery_plus_rerank':
+				$ranked = $this->ranker->rank($candidates, 'discovery');
+				return $this->reRanker->page($ranked, self::PAGE_SIZE, array_keys($profile['topic_grades'] ?? []), (string)$profile['id'], 'discovery');
 			default:
 				return [];
 		}

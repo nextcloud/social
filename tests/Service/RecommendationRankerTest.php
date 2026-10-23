@@ -102,6 +102,22 @@ class RecommendationRankerTest extends TestCase {
 		$this->assertSame(0.0, $ranked[1]['rank_features']['novelty']);
 	}
 
+	public function testContentBalanceChangesRankingWeightsForFollowingAndDiscovery(): void {
+		$ranker = new RecommendationRanker();
+		$candidates = [
+			['nid' => 'followed', 'topic_match' => 0.7, 'is_followed' => 1.0, 'novelty' => 0.0],
+			['nid' => 'new-voice', 'topic_match' => 0.7, 'is_followed' => 0.0, 'novelty' => 1.0],
+		];
+
+		$this->assertSame('followed', $ranker->rank($candidates, 'following')[0]['nid']);
+		$this->assertSame('new-voice', $ranker->rank($candidates, 'discovery')[0]['nid']);
+		$this->assertSame(
+			array_column($ranker->rank($candidates), 'nid'),
+			array_column($ranker->rank($candidates, 'unsupported'), 'nid'),
+			'Unknown settings safely use the balanced profile.'
+		);
+	}
+
 	public function testPageAssemblyDeduplicatesAndSoftlySpreadsAuthors(): void {
 		$ranked = [
 			['nid' => '1', 'canonical_key' => 'same', 'rank_score' => 1.0, 'author_key' => 'alice'],
