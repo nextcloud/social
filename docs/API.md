@@ -736,8 +736,8 @@ These additive routes are controlled by the separate instance-wide `rec_v4_enabl
 | Method | Route | Access and parameters | Outcome |
 |---|---|---|---|
 | GET | `/api/v1/recommendations/catalog` | authenticated reader | Static versioned topic IDs, parent IDs, English and German labels, aliases |
-| GET | `/api/v1/recommendations/preferences` | `read:accounts` | Reader's explicit topic choices, learning mode, revision, reset generation and effective hierarchy |
-| PUT | `/api/v1/recommendations/preferences` | `write:accounts`; `if_revision`, complete `topics` list | Validates known topic IDs and modes (`HIDE`, `LESS`, `NEUTRAL`, `INTERESTED`, `PRIORITISE`), then atomically replaces choices |
+| GET | `/api/v1/recommendations/preferences` | `read:accounts` | Reader's explicit topic choices, learning mode, content balance, onboarding step/completion, revision, reset generation and effective hierarchy |
+| PUT | `/api/v1/recommendations/preferences` | `write:accounts`; `if_revision`, complete `topics` list; optional `content_balance` (`balanced`, `following`, `discovery`), `onboarding_step` (0–5), `onboarding_complete` | Validates known topic IDs, modes and setup state, then atomically replaces choices and any supplied setup fields |
 | PUT | `/api/v1/recommendations/learning` | `write:accounts`; `if_revision`, `mode` (`off`, `on`, `paused`) | Changes the separate behavioural-learning consent; every transition advances the generation so buffered earlier events are rejected |
 | POST | `/api/v1/recommendations/signals` | `write:statuses`; at most 100 events with UUID `event_id` and current `generation` | Validates current visibility and consent, deduplicates events and projects eligible topic, author, format, impression and video-watch signals |
 | POST | `/api/v1/recommendations/reset` | `write:accounts`; `if_revision`, optional `scope` (`learning`, `all`) | `learning` clears implicit signals and impressions while retaining explicit topics; `all` also clears topic choices and feedback. Neither changes follows, mutes or blocks |

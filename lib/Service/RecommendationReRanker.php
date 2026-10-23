@@ -15,7 +15,7 @@ final class RecommendationReRanker {
 	private const MAX_AUTHOR_IN_WINDOW = 2;
 	private const MAX_TOPIC_IN_WINDOW = 9;
 	private const LOOKAHEAD = 50;
-	private const EXPLORATION_INTERVAL = 10;
+	private const DEFAULT_EXPLORATION_INTERVAL = 10;
 	private const EXPLORATION_MIN_RANK_DISTANCE = 4;
 	private const EXPLORATION_MIN_TOPIC_MATCH = 0.65;
 	private const EXPLORATION_MIN_NOVELTY = 0.75;
@@ -27,8 +27,13 @@ final class RecommendationReRanker {
 	 * @param list<string> $prioritisedTopics
 	 * @return list<array<string, mixed>>
 	 */
-	public function page(array $rankedCandidates, int $pageSize = 20, array $prioritisedTopics = [], ?string $sessionSeed = null): array {
+	public function page(array $rankedCandidates, int $pageSize = 20, array $prioritisedTopics = [], ?string $sessionSeed = null, string $contentBalance = 'balanced'): array {
 		$pageSize = max(0, min(100, $pageSize));
+		$explorationInterval = match ($contentBalance) {
+			'following' => self::DEFAULT_EXPLORATION_INTERVAL * 2,
+			'discovery' => max(1, intdiv(self::DEFAULT_EXPLORATION_INTERVAL, 2)),
+			default => self::DEFAULT_EXPLORATION_INTERVAL,
+		};
 		$remaining = [];
 		$seen = [];
 		foreach ($rankedCandidates as $candidate) {
@@ -78,7 +83,7 @@ final class RecommendationReRanker {
 			}
 			$slot = count($selected) + 1;
 			$wasExploration = false;
-			if ($slot % self::EXPLORATION_INTERVAL === 0) {
+			if ($slot % $explorationInterval === 0) {
 				$explorationIndex = self::explorationCandidate($window, $adjustedScores, $bestAdjusted, $slot, $sessionSeed);
 				if ($explorationIndex !== null) {
 					$bestIndex = $explorationIndex;

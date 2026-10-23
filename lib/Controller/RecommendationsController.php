@@ -67,8 +67,8 @@ class RecommendationsController extends ClientApiController {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'PUT', url: '/api/v1/recommendations/preferences')]
-	public function savePreferences(int $if_revision = -1, array|string $topics = []): DataResponse {
-		return $this->answer(['write:accounts'], function () use ($if_revision, $topics): DataResponse|array {
+	public function savePreferences(int $if_revision = -1, array|string $topics = [], ?string $content_balance = null, ?int $onboarding_step = null, ?bool $onboarding_complete = null): DataResponse {
+		return $this->answer(['write:accounts'], function () use ($if_revision, $topics, $content_balance, $onboarding_step, $onboarding_complete): DataResponse|array {
 			if ($if_revision < 0) {
 				throw new InvalidArgumentException('if_revision is required');
 			}
@@ -76,7 +76,7 @@ class RecommendationsController extends ClientApiController {
 			if (!is_array($decoded) || !array_is_list($decoded)) {
 				throw new InvalidArgumentException('topics must be a list');
 			}
-			$state = $this->recommendationService->replace($this->viewer()->getUserId(), $if_revision, $decoded);
+			$state = $this->recommendationService->replace($this->viewer()->getUserId(), $if_revision, $decoded, $content_balance, $onboarding_step, $onboarding_complete);
 			if ($state === null) {
 				return new DataResponse(['error' => 'revision-conflict', 'current' => $this->recommendationService->get($this->viewer()->getUserId())], Http::STATUS_CONFLICT);
 			}

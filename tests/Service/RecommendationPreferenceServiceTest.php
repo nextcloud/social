@@ -78,4 +78,17 @@ class RecommendationPreferenceServiceTest extends TestCase {
 		$this->expectException(InvalidArgumentException::class);
 		$this->service->replace('alice', 0, ['tech.apple']);
 	}
+
+	public function testInvalidOnboardingStateAndContentBalanceAreRejectedBeforeWriting(): void {
+		$this->request->expects($this->never())->method('replace');
+		try {
+			$this->service->replace('alice', 0, [], 'unbounded');
+			$this->fail('Invalid content balance was accepted');
+		} catch (InvalidArgumentException $e) {
+			$this->assertSame('Unknown content balance', $e->getMessage());
+		}
+
+		$this->expectException(InvalidArgumentException::class);
+		$this->service->replace('alice', 0, [], null, 5, false);
+	}
 }

@@ -625,9 +625,9 @@ Topic candidates are ordered by a deterministic, versioned linear score and then
 | Method | Route | Purpose |
 |---|---|---|
 | GET | `/api/v1/recommendations/catalog` | Local, versioned topics and labels |
-| GET | `/api/v1/recommendations/preferences` | Authenticated reader's own topics and revision |
-| PUT | `/api/v1/recommendations/preferences` | Replace explicit choices with `if_revision` and `topics` |
-| POST | `/api/v1/recommendations/reset` | Clear topic choices with `if_revision` |
+| GET | `/api/v1/recommendations/preferences` | Authenticated reader's topics, content balance, resumable setup state and revision |
+| PUT | `/api/v1/recommendations/preferences` | Replace explicit choices with `if_revision` and `topics`; optionally persist content balance and onboarding progress |
+| POST | `/api/v1/recommendations/reset` | Clear topic choices and reset content balance/setup with `if_revision` |
 | GET | `/api/v1/recommendations/export` | Export the authenticated reader's preference state |
 | GET/PUT | `/admin/recommendations` | Administrator-only instance kill switch |
 

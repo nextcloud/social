@@ -175,6 +175,29 @@ class RecommendationRankerTest extends TestCase {
 		$this->assertArrayNotHasKey('_base_position', $page[9]);
 	}
 
+	public function testReaderCanChooseMoreFamiliarOrMoreDiscoveryFocusedComposition(): void {
+		$ranked = [];
+		for ($i = 0; $i < 14; $i++) {
+			$ranked[] = ['nid' => 'normal-' . $i, 'rank_score' => 0.99 - $i * 0.002, 'author_key' => 'author-' . $i, 'is_followed' => 0.0];
+		}
+		$ranked[] = [
+			'nid' => 'explore', 'rank_score' => 0.90, 'author_key' => 'new-author', 'is_followed' => 0.0,
+			'topic_match' => 0.8, 'matching_topic_ids' => ['tech.apple'], 'novelty' => 0.9, 'exposure_penalty' => 0.0,
+		];
+		for ($i = 15; $i < 24; $i++) {
+			$ranked[] = ['nid' => 'normal-' . $i, 'rank_score' => 0.80 - $i * 0.002, 'author_key' => 'author-' . $i, 'is_followed' => 0.0];
+		}
+		$reranker = new RecommendationReRanker();
+		$following = $reranker->page($ranked, 20, [], 'balance-seed', 'following');
+		$balanced = $reranker->page($ranked, 20, [], 'balance-seed', 'balanced');
+		$discovery = $reranker->page($ranked, 20, [], 'balance-seed', 'discovery');
+
+		$this->assertSame([], array_filter($following, static fn (array $item): bool => ($item['_exploration_slot'] ?? false) === true));
+		$this->assertSame('explore', $balanced[9]['nid']);
+		$this->assertSame('explore', $discovery[4]['nid']);
+		$this->assertTrue($discovery[4]['_exploration_slot']);
+	}
+
 	public function testExplorationNeverSelectsFollowedUnmatchedExposedOrDistantCandidates(): void {
 		foreach ([
 			['is_followed' => 1.0],

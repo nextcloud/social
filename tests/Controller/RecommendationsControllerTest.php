@@ -94,7 +94,7 @@ class RecommendationsControllerTest extends TestCase {
 
 	public function testPreferenceWriteCannotChooseAnotherOwner(): void {
 		$this->service->expects($this->once())->method('replace')->with(
-			'alice', 3, [['topic_id' => 'tech.apple', 'mode' => 'INTERESTED']]
+			'alice', 3, [['topic_id' => 'tech.apple', 'mode' => 'INTERESTED']], null, null, null
 		)->willReturn(['revision' => 4, 'generation' => 4, 'topics' => []]);
 
 		$response = $this->controller()->savePreferences(3, [['topic_id' => 'tech.apple', 'mode' => 'INTERESTED']]);
@@ -104,7 +104,7 @@ class RecommendationsControllerTest extends TestCase {
 
 	public function testStaleWriteReturnsConflictWithTheCurrentOwnerState(): void {
 		$current = ['revision' => 5, 'generation' => 5, 'topics' => []];
-		$this->service->expects($this->once())->method('replace')->with('alice', 2, [])->willReturn(null);
+		$this->service->expects($this->once())->method('replace')->with('alice', 2, [], null, null, null)->willReturn(null);
 		$this->service->expects($this->once())->method('get')->with('alice')->willReturn($current);
 
 		$response = $this->controller()->savePreferences(2, []);

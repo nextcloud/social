@@ -15,6 +15,7 @@ use OCA\Social\Db\RecommendationPreferenceRequest;
 /** Validates and owns the explicit, per-account topic controls. */
 class RecommendationPreferenceService {
 	public const MODES = ['HIDE', 'LESS', 'NEUTRAL', 'INTERESTED', 'PRIORITISE'];
+	public const CONTENT_BALANCES = ['balanced', 'following', 'discovery'];
 	public const MAX_TOPICS = 150;
 
 	public function __construct(
@@ -39,7 +40,7 @@ class RecommendationPreferenceService {
 		return $this->catalog->all();
 	}
 
-	/** @return array{revision: int, generation: int, learning_mode: string, learning: bool, topics: list<array{topic_id: string, mode: string}>, effective_topics?: array<string, string|null>} */
+	/** @return array{revision: int, generation: int, learning_mode: string, learning: bool, content_balance: string, onboarding_step: int, onboarding_complete: bool, topics: list<array{topic_id: string, mode: string}>, effective_topics?: array<string, string|null>} */
 	public function get(string $actorKey): array {
 		$state = $this->request->get($actorKey);
 		$state['learning'] = $state['learning_mode'] === 'on';
@@ -57,28 +58,41 @@ class RecommendationPreferenceService {
 	}
 
 	/** @param list<mixed> $topics
-	 * @return array{revision: int, generation: int, learning_mode: string, learning: bool, topics: list<array{topic_id: string, mode: string}>, effective_topics: array<string, string|null>}|null
+	 * @return array{revision: int, generation: int, learning_mode: string, learning: bool, content_balance: string, onboarding_step: int, onboarding_complete: bool, topics: list<array{topic_id: string, mode: string}>, effective_topics: array<string, string|null>}|null
 	 */
-	public function replace(string $actorKey, int $revision, array $topics): ?array {
-		$state = $this->request->replace($actorKey, $revision, $this->validate($topics));
+	public function replace(string $actorKey, int $revision, array $topics, ?string $contentBalance = null, ?int $onboardingStep = null, ?bool $onboardingComplete = null): ?array {
+		if ($contentBalance !== null && !in_array($contentBalance, self::CONTENT_BALANCES, true)) {
+			throw new InvalidArgumentException('Unknown content balance');
+		}
+		if ($onboardingStep !== null && ($onboardingStep < 0 || $onboardingStep > 5)) {
+			throw new InvalidArgumentException('Onboarding step must be between 0 and 5');
+		}
+		if ($onboardingComplete === true && $onboardingStep !== 5) {
+			throw new InvalidArgumentException('Completing onboarding requires the review step');
+		}
+		if ($onboardingStep === 5 && $onboardingComplete !== true) {
+			throw new InvalidArgumentException('The review step must be marked complete');
+		}
+
+		$state = $this->request->replace($actorKey, $revision, $this->validate($topics), $contentBalance, $onboardingStep, $onboardingComplete);
 		return $state === null ? null : $this->withEffectiveTopics($state);
 	}
 
-	/** @return array{revision: int, generation: int, learning_mode: string, learning: bool, topics: list<array{topic_id: string, mode: string}>, effective_topics: array<string, string|null>}|null */
+	/** @return array{revision: int, generation: int, learning_mode: string, learning: bool, content_balance: string, onboarding_step: int, onboarding_complete: bool, topics: list<array{topic_id: string, mode: string}>, effective_topics: array<string, string|null>}|null */
 	public function reset(string $actorKey, int $revision): ?array {
 		$state = $this->request->reset($actorKey, $revision);
 		return $state === null ? null : $this->withEffectiveTopics($state);
 	}
 
 	/** Clear only implicit signals and increment their reset generation.
-	 * @return array{revision: int, generation: int, learning_mode: string, learning: bool, topics: list<array{topic_id: string, mode: string}>, effective_topics: array<string, string|null>}|null
+	 * @return array{revision: int, generation: int, learning_mode: string, learning: bool, content_balance: string, onboarding_step: int, onboarding_complete: bool, topics: list<array{topic_id: string, mode: string}>, effective_topics: array<string, string|null>}|null
 	 */
 	public function resetLearning(string $actorKey, int $revision): ?array {
 		$state = $this->request->resetLearning($actorKey, $revision);
 		return $state === null ? null : $this->withEffectiveTopics($state);
 	}
 
-	/** @param array{revision: int, generation: int, learning_mode: string, topics: list<array{topic_id: string, mode: string}>} $state */
+	/** @param array{revision: int, generation: int, learning_mode: string, content_balance: string, onboarding_step: int, onboarding_complete: bool, topics: list<array{topic_id: string, mode: string}>} $state */
 	private function withEffectiveTopics(array $state): array {
 		$state['learning'] = $state['learning_mode'] === 'on';
 		$state['effective_topics'] = $this->effectiveTopics($state['topics']);

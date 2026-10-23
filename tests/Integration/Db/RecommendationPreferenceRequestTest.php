@@ -46,13 +46,18 @@ class RecommendationPreferenceRequestTest extends TestCase {
 		$initial = $this->preferences->get($this->owner);
 		$this->assertSame(0, $initial['revision']);
 		$this->assertSame(0, $initial['generation']);
+		$this->assertSame('balanced', $initial['content_balance']);
+		$this->assertFalse($initial['onboarding_complete']);
 
 		$saved = $this->preferences->replace($this->owner, 0, [
 			['topic_id' => 'tech.apple', 'mode' => 'INTERESTED'],
-		]);
+		], 'discovery', 3, false);
 		$this->assertNotNull($saved);
 		$this->assertSame(1, $saved['revision']);
 		$this->assertSame(1, $saved['generation']);
+		$this->assertSame('discovery', $saved['content_balance']);
+		$this->assertSame(3, $saved['onboarding_step']);
+		$this->assertFalse($saved['onboarding_complete']);
 		$this->assertNull($this->preferences->replace($this->owner, 0, [
 			['topic_id' => 'oss.nextcloud', 'mode' => 'PRIORITISE'],
 		]));
@@ -63,7 +68,21 @@ class RecommendationPreferenceRequestTest extends TestCase {
 		$this->assertSame(2, $reset['revision']);
 		$this->assertSame(2, $reset['generation']);
 		$this->assertSame([], $reset['topics']);
+		$this->assertSame('balanced', $reset['content_balance']);
+		$this->assertSame(0, $reset['onboarding_step']);
+		$this->assertFalse($reset['onboarding_complete']);
 		$this->assertSame($reset, $this->preferences->reset($this->owner, 1), 'repeating the same reset is idempotent');
+	}
+
+	public function testOnboardingReviewAndContentBalanceAreSavedAtomicallyAndOwnerScoped(): void {
+		$review = $this->preferences->replace($this->owner, 0, [], 'following', 5, true);
+		self::assertNotNull($review);
+		self::assertSame('following', $review['content_balance']);
+		self::assertSame(5, $review['onboarding_step']);
+		self::assertTrue($review['onboarding_complete']);
+
+		self::assertSame('balanced', $this->preferences->get($this->otherOwner)['content_balance']);
+		self::assertFalse($this->preferences->get($this->otherOwner)['onboarding_complete']);
 	}
 
 	public function testOneOwnerCannotReadOrChangeAnotherOwnersPreferences(): void {
