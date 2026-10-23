@@ -157,11 +157,12 @@ test.describe('response headers', () => {
 		expect(xrpc.headers()['access-control-allow-origin'], 'XRPC is read by browser clients of any origin').toBe('*')
 		const preflight = await anonymous.fetch(`${APP}/xrpc/com.atproto.repo.createRecord`, {
 			method: 'OPTIONS',
-			headers: { ...origin, 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'authorization, dpop' },
+			headers: { ...origin, 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'authorization, dpop, x-atproto-session-id' },
 		})
 		expect(preflight.status(), 'the preflight is answered').toBeLessThan(300)
 		expect(preflight.headers()['access-control-allow-origin']).toBe('*')
 		expect(preflight.headers()['access-control-allow-headers'] ?? '').toMatch(/DPoP/)
+		expect(preflight.headers()['access-control-allow-headers'] ?? '').toMatch(/X-Atproto-Session-Id/i)
 
 		// what Elk or Phanpy calls from a page of its own origin
 		const open = [
