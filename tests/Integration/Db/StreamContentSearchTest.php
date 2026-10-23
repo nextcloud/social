@@ -17,7 +17,9 @@ use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\ConfigService;
+use OCA\Social\Tools\Nid;
 use OCP\IDBConnection;
 use OCP\Server;
 use PHPUnit\Framework\TestCase;
@@ -34,7 +36,7 @@ class StreamContentSearchTest extends TestCase {
 	private const OTHER = self::BASE . '/users/other';
 	private const AUTHOR = 'https://remote.example/ftsearch/users/author';
 
-	private const SUFFIXES = ['public', 'own-dm', 'foreign-dm', 'unrelated'];
+	private const SUFFIXES = ['public', 'own-dm', 'foreign-dm', 'unrelated', 'apple', 'nextcloud', 'unlisted'];
 
 	private StreamRequest $streamRequest;
 	private StreamDestRequest $streamDestRequest;
@@ -66,13 +68,13 @@ class StreamContentSearchTest extends TestCase {
 		$this->cacheActorsRequest->deleteCacheById(self::AUTHOR);
 	}
 
-	private function note(string $suffix, string $content, string $to): Note {
+	private function note(string $suffix, string $content, string $to, ?string $visibility = null): Note {
 		$note = new Note();
 		$note->setId(self::BASE . '/notes/' . $suffix);
 		$note->setAttributedTo(self::AUTHOR);
 		$note->setTo($to);
 		$note->setContent($content);
-		$note->setVisibility($to === ACore::CONTEXT_PUBLIC ? 'public' : 'direct');
+		$note->setVisibility($visibility ?? ($to === ACore::CONTEXT_PUBLIC ? 'public' : 'direct'));
 		$note->setPublishedTime(time());
 		$note->setPublished(gmdate('Y-m-d\TH:i:s\Z'));
 		$this->streamRequest->save($note);
@@ -158,5 +160,31 @@ class StreamContentSearchTest extends TestCase {
 		$this->note('public', '<p>a match</p>', ACore::CONTEXT_PUBLIC);
 
 		$this->assertSame([], $this->found('a'));
+	}
+
+	public function testRecommendationCandidatesFindUntaggedPublicPostsAndExcludeUnlistedAndPrivate(): void {
+		$config = Server::get(ConfigService::class);
+		$ready = (string)$config->getAppValue(SearchTermsRequest::READY);
+		$config->setAppValue(SearchTermsRequest::READY, '1');
+		try {
+			$this->note('apple', '<p>Apple launches a new device</p>', ACore::CONTEXT_PUBLIC);
+			$this->note('nextcloud', '<p>Nextcloud releases a collaboration update</p>', ACore::CONTEXT_PUBLIC);
+			$this->note('foreign-dm', '<p>Apple private plans</p>', self::OTHER);
+			$this->note('unlisted', '<p>Apple unlisted announcement</p>', ACore::CONTEXT_PUBLIC, Stream::TYPE_UNLISTED);
+
+			$this->streamRequest->setViewer($this->viewer());
+			$since = Nid::fromPublishedTime(time() - 86400, 0, StreamRequest::NID_LIMIT);
+			$apple = $this->streamRequest->recommendationCandidatesByTerms(['apple'], $since, 20);
+			$nextcloud = $this->streamRequest->recommendationCandidatesByTerms(['nextcloud'], $since, 20);
+
+			$this->assertSame([self::BASE . '/notes/apple'], array_map(
+				static fn ($post): string => $post->getId(), array_values($apple)
+			));
+			$this->assertSame([self::BASE . '/notes/nextcloud'], array_map(
+				static fn ($post): string => $post->getId(), array_values($nextcloud)
+			));
+		} finally {
+			$config->setAppValue(SearchTermsRequest::READY, $ready);
+		}
 	}
 }

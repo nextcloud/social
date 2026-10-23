@@ -9,6 +9,7 @@
 ### Features
 
 - **recommendations:** Add the disabled-by-default For You 4.0 foundation: bilingual stable topic catalog, owner-scoped explicit preferences, revision conflict handling, reset/export and an administrator kill switch. The existing hashtag feed remains unchanged.
+- **recommendations:** Add bounded, ACL-filtered topic candidate discovery from indexed or capped recent posts, deterministic topic/media/language features, and throttled background ActivityPub/Bluesky coverage fills. Ranking and existing feed order remain unchanged.
 
 ## 0.26.239 (2026-10-13)
 
