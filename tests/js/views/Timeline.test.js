@@ -712,6 +712,21 @@ describe('Timeline', () => {
 			.toEqual(['My Feed', 'Local', 'Global'])
 	})
 
+	it('explains how My Feed and For You differ', () => {
+		const home = mountTimeline()
+		expect(home.find('.timeline-scope-description').text())
+			.toBe('My Feed shows posts from accounts you follow, in chronological order.')
+		home.unmount()
+
+		useSettingsStore().setServerData({
+			public: false,
+			interests: { enabled: false, learning: false, recommendationsEnabled: true },
+		})
+		const forYou = mountTimeline({ params: { type: 'interests' } })
+		expect(forYou.find('.timeline-scope-description').text())
+			.toBe('For You ranks eligible public posts by your topic choices and, if enabled, activity learning. It can include posts from beyond the accounts you follow.')
+	})
+
 	/**
 	 * `home` is the route with no `type` at all: passing `type: 'home'` would
 	 * ask for a timeline of that name, which nothing serves.

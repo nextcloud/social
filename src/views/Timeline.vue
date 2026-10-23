@@ -29,6 +29,9 @@
 			:options="scopes"
 			:value="scope"
 			:label="t('social', 'Which posts to show')" />
+		<p v-if="scopeDescription" class="timeline-scope-description">
+			{{ scopeDescription }}
+		</p>
 
 		<InterestsLearningBanner v-if="type === 'interests' && hasInterestsTab" />
 
@@ -464,7 +467,20 @@ export default {
 		 * @return {boolean}
 		 */
 		hasInterestsTab() {
-			return !this.settingsStore.getServerData.public && hasInterestsFeed(this.settingsStore.getServerData.interests)
+			const interests = this.settingsStore.getServerData.interests
+			return !this.settingsStore.getServerData.public
+				&& (interests?.recommendationsEnabled === true || hasInterestsFeed(interests))
+		},
+
+		/** What the two personalized-reading choices contain. */
+		scopeDescription() {
+			if (this.scope === 'home') {
+				return t('social', 'My Feed shows posts from accounts you follow, in chronological order.')
+			}
+			if (this.scope === 'interests' && this.hasInterestsTab) {
+				return t('social', 'For You ranks eligible public posts by your topic choices and, if enabled, activity learning. It can include posts from beyond the accounts you follow.')
+			}
+			return ''
 		},
 
 		/**
@@ -879,6 +895,13 @@ export default {
 	max-width: var(--social-column);
 	margin: 0 auto;
 	padding: 0;
+}
+
+.timeline-scope-description {
+	max-width: 72ch;
+	margin: calc(var(--default-grid-baseline) * 1) calc(var(--default-grid-baseline) * 2) calc(var(--default-grid-baseline) * 2);
+	color: var(--color-text-maxcontrast);
+	font-size: 0.9rem;
 }
 
 .timeline-heading-row {

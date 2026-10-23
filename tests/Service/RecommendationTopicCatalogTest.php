@@ -25,6 +25,10 @@ class RecommendationTopicCatalogTest extends TestCase {
 		}
 
 		$this->assertSame('technology', $byId['tech.ai']['parentId']);
+		$this->assertGreaterThanOrEqual(75, count($topics), 'The catalog should offer a broad set of selectable topics and subtopics.');
+		$this->assertSame('food', $byId['food.plantbased']['parentId']);
+		$this->assertSame('travel', $byId['travel.outdoors']['parentId']);
+		$this->assertSame('transport', $byId['transport.rail']['parentId']);
 		$this->assertContains('sensitive-topic', $byId['politics']['policyTags']);
 		$this->assertNotContains('sensitive-topic', $byId['environment']['policyTags']);
 	}

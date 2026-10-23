@@ -1283,6 +1283,8 @@
     "Their posts and boosts leave your timelines. They are not told, and they can still see and follow you." : "Die Beiträge und geteilten Beiträge verschwinden aus Ihren Zeitleisten. Die Person erfährt nichts davon und kann Sie weiterhin sehen und Ihnen folgen.",
     "Hide their notifications too" : "Auch Benachrichtigungen ausblenden",
     "For how long" : "Wie lange",
+    "My Feed shows posts from accounts you follow, in chronological order." : "Mein Feed zeigt Beiträge von Konten, denen du folgst, in chronologischer Reihenfolge.",
+    "For You ranks eligible public posts by your topic choices and, if enabled, activity learning. It can include posts from beyond the accounts you follow." : "„Für dich“ sortiert passende öffentliche Beiträge nach deinen Themen und – falls aktiviert – nach deinem Nutzungsverhalten. Dabei können auch Beiträge von Konten erscheinen, denen du nicht folgst.",
     "My Feed" : "Mein Feed",
     "Photos" : "Fotos",
     "Videos" : "Videos",

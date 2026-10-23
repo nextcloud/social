@@ -104,7 +104,7 @@ class RecommendationTimelineService {
 		}
 
 		$sinceNid = Nid::fromPublishedTime(max(0, $now - self::LOOKBACK_DAYS * 86400), 0, StreamRequest::NID_LIMIT);
-		$terms = $this->terms($topics);
+		$terms = $this->terms($topics, $now);
 		$candidateBudget = min(self::MAX_CANDIDATES, max($limit * 5, self::MIN_COVERAGE));
 		$followBudget = min(20, max(4, intdiv($candidateBudget + 4, 5)));
 		$followBudget = min($followBudget, $candidateBudget);
@@ -262,7 +262,7 @@ class RecommendationTimelineService {
 	}
 
 	/** @param list<array{id: string, mode: string, aliases: list<string>, labels: array{en: string, de: string}}> $topics @return list<string> */
-	private function terms(array $topics): array {
+	private function terms(array $topics, int $now): array {
 		$aliasesByTopic = [];
 		foreach ($topics as $topic) {
 			$aliases = array_values(array_unique(array_filter(
@@ -274,27 +274,28 @@ class RecommendationTimelineService {
 			}
 		}
 
-		// Give every selected topic a chance to retrieve candidates before
-		// spending the remaining bounded search budget on extra aliases. The
-		// previous flat slice could spend all 12 slots on the first few topics.
+		// Keep indexed lookup bounded, while rotating the primary alias window so
+		// large topic selections are all searched over successive hourly refreshes.
+		$count = count($aliasesByTopic);
+		if ($count === 0) {
+			return [];
+		}
+		$start = (intdiv($now, 3600) * self::MAX_TERMS) % $count;
 		$terms = [];
-		for ($aliasIndex = 0; $aliasIndex < self::MAX_TERMS; $aliasIndex++) {
-			$hasAliasAtIndex = false;
-			foreach ($aliasesByTopic as $aliases) {
-				if (!isset($aliases[$aliasIndex])) {
-					continue;
-				}
-				$hasAliasAtIndex = true;
-				$alias = $aliases[$aliasIndex];
-				if (!in_array($alias, $terms, true)) {
-					$terms[] = $alias;
-				}
-				if (count($terms) >= self::MAX_TERMS) {
-					return $terms;
-				}
+		for ($offset = 0; $offset < $count && count($terms) < self::MAX_TERMS; $offset++) {
+			$aliases = $aliasesByTopic[($start + $offset) % $count];
+			if (!in_array($aliases[0], $terms, true)) {
+				$terms[] = $aliases[0];
 			}
-			if (!$hasAliasAtIndex) {
-				break;
+		}
+		// Use remaining capacity for alternate spellings after each topic has had
+		// a primary-alias opportunity in the rotating window.
+		for ($aliasIndex = 1; $aliasIndex < self::MAX_TERMS && count($terms) < self::MAX_TERMS; $aliasIndex++) {
+			for ($offset = 0; $offset < $count && count($terms) < self::MAX_TERMS; $offset++) {
+				$aliases = $aliasesByTopic[($start + $offset) % $count];
+				if (isset($aliases[$aliasIndex]) && !in_array($aliases[$aliasIndex], $terms, true)) {
+					$terms[] = $aliases[$aliasIndex];
+				}
 			}
 		}
 

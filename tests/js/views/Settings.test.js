@@ -39,9 +39,7 @@ const asyncStubs = {
 	RecapSettings: { name: 'RecapSettings', template: '<section class="recap-settings-stub" />' },
 	// reads the portfolio and the collections on mount, same story again
 	PortfolioSettings: { name: 'PortfolioSettings', template: '<section class="portfolio-settings-stub" />' },
-	// reads the interests on mount
-	InterestsSettings: { name: 'InterestsSettings', template: '<section class="interests-settings-stub" />' },
-	RecommendationTopicsSettings: { name: 'RecommendationTopicsSettings', template: '<section class="recommendation-topics-stub" />' },
+	ForYouSettings: { name: 'ForYouSettings', template: '<section class="for-you-settings-stub" />' },
 	// reads the delivery settings on mount
 	NotificationDeliverySettings: { name: 'NotificationDeliverySettings', template: '<section class="notification-delivery-settings-stub" />' },
 	NotificationPolicySettings: { name: 'NotificationPolicySettings', template: '<section class="notification-policy-settings-stub" />' },
@@ -417,27 +415,34 @@ describe('Settings', () => {
 	})
 
 	/**
-	 * The interests shape a feed the administrator can switch off, and a
-	 * section about a feed that does not exist is a promise nobody keeps.
+	 * Legacy hashtag interests and ranked topics shape one feed. Keep their
+	 * controls together so readers do not mistake them for separate timelines.
 	 */
-	it('offers the interests only when the feature is on, first under Reading', async () => {
+	it('offers one For You settings section when either feed mode is available', async () => {
 		const off = await mountSettings({ hash: '#lists' })
 		expect(off.find('#interests').exists()).toBe(false)
 
 		useSettingsStore().setServerData({ interests: { enabled: true, learning: true, paused: false } })
 		const on = await mountSettings({ hash: '#lists' })
 
-		expect(headings(on)[0]).toBe('For you')
-		expect(on.find('#interests .interests-settings-stub').exists()).toBe(true)
+		expect(headings(on)[0]).toBe('For You')
+		expect(on.find('#interests .for-you-settings-stub').exists()).toBe(true)
 	})
 
-	it('offers the separate For You topic controls only when the v4 switch is on', async () => {
-		const off = await mountSettings({ hash: '#recommendation-topics' })
-		expect(off.find('#recommendation-topics').exists()).toBe(false)
+	it('does not add a second settings section when both modes are enabled', async () => {
+		const off = await mountSettings({ hash: '#interests' })
+		expect(off.find('#interests').exists()).toBe(false)
 
+		useSettingsStore().setServerData({ interests: { enabled: true, recommendationsEnabled: true } })
+		const on = await mountSettings({ hash: '#interests' })
+		expect(on.findAll('#interests').length).toBe(1)
+		expect(on.find('#interests .for-you-settings-stub').exists()).toBe(true)
+	})
+
+	it('offers the same single For You section when only ranked topics are enabled', async () => {
 		useSettingsStore().setServerData({ interests: { enabled: false, recommendationsEnabled: true } })
-		const on = await mountSettings({ hash: '#recommendation-topics' })
-		expect(on.find('#recommendation-topics .recommendation-topics-stub').exists()).toBe(true)
+		const on = await mountSettings({ hash: '#interests' })
+		expect(on.find('#interests .for-you-settings-stub').exists()).toBe(true)
 	})
 
 	/** How sensitive media is shown is about reading, not about the account. */

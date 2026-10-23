@@ -61,10 +61,10 @@ describe('the For you card', () => {
 		expect(fields(wrapper).map((field) => field.props('modelValue'))).toEqual(['30', '2.5', '30', '7'])
 	})
 
-	it('explains that the learning default is the GDPR choice', () => {
+	it('explains the learning default for the compatibility feed', () => {
 		const wrapper = mountCard()
 
-		expect(wrapper.text()).toContain('The GDPR-relevant choice: off makes learning opt-in')
+		expect(wrapper.text()).toContain('Controls the default for hashtag learning in the compatibility feed')
 	})
 
 	it('describes the ranked feed, explicit learning choice and bounded discovery accurately', () => {
@@ -72,8 +72,8 @@ describe('the For you card', () => {
 
 		expect(wrapper.text()).toContain('For You recommendations')
 		expect(wrapper.text()).not.toContain('4.0')
-		expect(wrapper.text()).toContain('use the ranked For You feed after choosing active topics')
-		expect(wrapper.text()).toContain('Behavioral learning stays off until a reader explicitly enables it')
+		expect(wrapper.text()).toContain('it does not add a second feed')
+		expect(wrapper.text()).toContain('Activity learning stays off until each reader enables it')
 		expect(wrapper.text()).toContain('Discovery uses bounded background jobs and eligible public posts')
 		expect(wrapper.text()).not.toContain('recommendations and behavioral learning remain unavailable')
 	})

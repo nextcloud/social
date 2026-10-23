@@ -165,6 +165,13 @@ function indexStatus(state, status) {
 	if (status === undefined || status === null || status.id === undefined) {
 		return
 	}
+	// A timeline page carries this reader-specific explanation; the ordinary
+	// status endpoint used to refresh counts and reactions does not. Keep the
+	// explanation with the indexed copy until a new timeline page replaces it.
+	const existing = state.statuses[status.id]
+	if (status.interest === undefined && existing?.interest !== undefined) {
+		status = { ...status, interest: existing.interest }
+	}
 
 	// assigned in place: replacing the whole map per status meant fifteen full
 	// copies of every status in memory for each page that loaded
@@ -1050,7 +1057,7 @@ export const useTimelineStore = defineStore('timeline', {
 		},
 		updateStatus(updatedStatus) {
 			if (this.statuses[updatedStatus.id] !== undefined) {
-				this.statuses[updatedStatus.id] = updatedStatus
+				indexStatus(this, updatedStatus)
 			}
 		},
 		/**

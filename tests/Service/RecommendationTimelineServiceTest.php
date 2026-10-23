@@ -320,9 +320,12 @@ class RecommendationTimelineServiceTest extends TestCase {
 		$this->streams->expects($this->once())->method('recommendationCandidatesByTerms')
 			->willReturnCallback(static function (array $terms) use ($selected): array {
 				self::assertLessThanOrEqual(20, count($terms));
-				foreach ($selected as $topic) {
-					self::assertContains($topic['aliases'][0], $terms, 'Every selected topic must contribute its primary search alias.');
+				$start = (intdiv(2_000_000_000, 3600) * 20) % count($selected);
+				$expected = [];
+				for ($offset = 0; $offset < min(20, count($selected)); $offset++) {
+					$expected[] = $selected[($start + $offset) % count($selected)]['aliases'][0];
 				}
+				self::assertSame($expected, $terms, 'Each refresh searches a bounded rotating window of selected topic aliases.');
 				return [];
 			});
 		$this->snapshots->method('create')->willReturn(null);

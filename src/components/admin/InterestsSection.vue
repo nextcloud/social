@@ -15,7 +15,7 @@
 					{{ t('social', 'Enable For You recommendations') }}
 				</NcCheckboxRadioSwitch>
 				<p class="interests-admin__hint">
-					{{ t('social', 'This instance switch is off by default. When enabled, readers can set topic preferences and use the ranked For You feed after choosing active topics. Behavioral learning stays off until a reader explicitly enables it. Discovery uses bounded background jobs and eligible public posts; the chronological Following feed is unchanged.') }}
+					{{ t('social', 'This enables the ranked version of the existing For You feed; it does not add a second feed. Readers can choose from the topic catalog below. Activity learning stays off until each reader enables it. Discovery uses bounded background jobs and eligible public posts; the chronological Following feed is unchanged.') }}
 				</p>
 				<div class="interests-admin__operations">
 					<div v-for="control in operationalControls" :key="control.key">
@@ -34,17 +34,17 @@
 				<DiscoveryHealth />
 			</section>
 			<NcCheckboxRadioSwitch v-model="form.enabled" type="switch">
-				{{ t('social', 'Enable For you') }}
+				{{ t('social', 'Enable hashtag starting point') }}
 			</NcCheckboxRadioSwitch>
 			<p class="interests-admin__hint">
-				{{ t('social', 'Off hides the feed and the settings, and nothing is learned. What was learned is kept, so turning it back on brings everybody\'s interests back.') }}
+				{{ t('social', 'Keeps the familiar hashtag-based For You feed available before a reader has chosen topics, and for the compatibility fallback. It is the same feed route, not a separate timeline.') }}
 			</p>
 
 			<NcCheckboxRadioSwitch v-model="form.learningDefault" type="switch" :disabled="!form.enabled">
 				{{ t('social', 'Learn from browsing unless a user turns it off') }}
 			</NcCheckboxRadioSwitch>
 			<p class="interests-admin__hint">
-				{{ t('social', 'The GDPR-relevant choice: off makes learning opt-in, and each person is invited to turn it on. A user\'s own choice always wins.') }}
+				{{ t('social', 'Controls the default for hashtag learning in the compatibility feed. Readers can change their own learning choice at any time.') }}
 			</p>
 
 			<div class="interests-admin__numbers">
@@ -145,8 +145,8 @@ const OPERATIONAL_CONTROLS = [
 	},
 	{
 		key: 'forceLegacyFeed',
-		label: () => t('social', 'Use the legacy For You feed'),
-		hint: () => t('social', 'Uses the legacy hashtag feed until readers reload the For You page.'),
+		label: () => t('social', 'Use the hashtag compatibility feed'),
+		hint: () => t('social', 'Temporarily serves the familiar hashtag feed on the existing For You route after readers reload it.'),
 	},
 ]
 

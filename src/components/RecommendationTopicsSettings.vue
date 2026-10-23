@@ -194,26 +194,58 @@
 						</option>
 					</select>
 				</section>
-				<ul class="recommendation-topics__list">
-					<li
-						v-for="topic in topics"
-						:key="topic.id"
-						class="recommendation-topics__item"
-						:class="{ 'recommendation-topics__item--child': topic.parentId }">
-						<label :for="`recommendation-topic-${topic.id}`">{{ labelOf(topic) }}</label>
-						<select :id="`recommendation-topic-${topic.id}`" v-model="draft[topic.id]" :disabled="saving">
-							<option value="">
-								{{ t('social', 'No preference') }}
-							</option>
-							<option v-for="mode in MODES" :key="mode.value" :value="mode.value">
-								{{ mode.label() }}
-							</option>
-						</select>
-						<small v-if="inheritedHide(topic.id)" class="recommendation-topics__inheritance">
-							{{ t('social', 'Hidden by a parent topic') }}
-						</small>
-					</li>
-				</ul>
+				<div class="recommendation-topics__browser">
+					<NcTextField
+						v-model="topicSearch"
+						class="recommendation-topics__search"
+						type="search"
+						:label="t('social', 'Find a topic')"
+						trailingButtonIcon="close"
+						:showTrailingButton="topicSearch !== ''"
+						@trailingButtonClick="topicSearch = ''" />
+					<p class="recommendation-topics__hint" role="status">
+						{{ n('social', '%n topic available', '%n topics available', topics.length) }}
+					</p>
+					<p v-if="topicGroups.length === 0" class="recommendation-topics__empty">
+						{{ t('social', 'No topics match your search.') }}
+					</p>
+					<section v-for="group in topicGroups" :key="group.root.id" class="recommendation-topics__group">
+						<div class="recommendation-topics__group-head">
+							<h4>{{ labelOf(group.root) }}</h4>
+							<select
+								:id="`recommendation-topic-${group.root.id}`"
+								v-model="draft[group.root.id]"
+								:disabled="saving"
+								:aria-label="t('social', 'Preference for {topic}', { topic: labelOf(group.root) })">
+								<option value="">
+									{{ t('social', 'No preference') }}
+								</option>
+								<option v-for="mode in MODES" :key="mode.value" :value="mode.value">
+									{{ mode.label() }}
+								</option>
+							</select>
+						</div>
+						<details v-if="group.children.length > 0" class="recommendation-topics__subtopics" :open="topicSearch.trim() !== ''">
+							<summary>{{ n('social', '%n subtopic', '%n subtopics', group.children.length) }}</summary>
+							<ul class="recommendation-topics__children">
+								<li v-for="topic in group.children" :key="topic.id" class="recommendation-topics__item">
+									<label :for="`recommendation-topic-${topic.id}`">{{ labelOf(topic) }}</label>
+									<select :id="`recommendation-topic-${topic.id}`" v-model="draft[topic.id]" :disabled="saving">
+										<option value="">
+											{{ t('social', 'No preference') }}
+										</option>
+										<option v-for="mode in MODES" :key="mode.value" :value="mode.value">
+											{{ mode.label() }}
+										</option>
+									</select>
+									<small v-if="inheritedHide(topic.id)" class="recommendation-topics__inheritance">
+										{{ t('social', 'Hidden by a parent topic') }}
+									</small>
+								</li>
+							</ul>
+						</details>
+					</section>
+				</div>
 				<div class="recommendation-topics__actions">
 					<NcButton variant="primary" :disabled="saving || !dirty" @click="save">
 						<template v-if="saving" #icon>
@@ -253,10 +285,11 @@
 <script>
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
-import { getLanguage, translate as t } from '@nextcloud/l10n'
+import { getLanguage, translate as t, translatePlural as n } from '@nextcloud/l10n'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcDialog from '@nextcloud/vue/components/NcDialog'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
+import NcTextField from '@nextcloud/vue/components/NcTextField'
 import { errorOf } from '../utils/serverError.js'
 import { showError, showSuccess } from '../services/toast.js'
 
@@ -277,7 +310,7 @@ const exportUrl = () => generateUrl('apps/social/api/v1/recommendations/export')
 
 export default {
 	name: 'RecommendationTopicsSettings',
-	components: { NcButton, NcDialog, NcLoadingIcon },
+	components: { NcButton, NcDialog, NcLoadingIcon, NcTextField },
 	data() {
 		return {
 			MODES,
@@ -295,6 +328,7 @@ export default {
 			savedLearningMode: 'off',
 			stateTopics: [],
 			draft: {},
+			topicSearch: '',
 			loading: true,
 			saving: false,
 			confirmingReset: false,
@@ -322,6 +356,24 @@ export default {
 
 		childTopics() {
 			return this.topics.filter((topic) => topic.parentId && !topic.policyTags?.includes('sensitive-topic'))
+		},
+
+		topicGroups() {
+			const query = this.topicSearch.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+			return this.topics.filter((topic) => !topic.parentId).map((root) => {
+				const matches = (topic) => {
+					const text = [this.labelOf(topic), topic.id, ...(topic.aliases || [])]
+						.join(' ')
+						.normalize('NFD')
+						.replace(/[\u0300-\u036f]/g, '')
+						.toLowerCase()
+					return text.includes(query)
+				}
+				const rootMatches = query === '' || matches(root)
+				const children = this.topics.filter((topic) => topic.parentId === root.id && !topic.policyTags?.includes('sensitive-topic'))
+					.filter((topic) => rootMatches || matches(topic))
+				return rootMatches || children.length > 0 ? [{ root, children: rootMatches || query === '' ? children : children.filter(matches) }] : []
+			}).flat()
 		},
 
 		languageOptions() {
@@ -385,6 +437,7 @@ export default {
 
 	methods: {
 		t,
+		n,
 		labelOf(topic) {
 			const language = (getLanguage() || 'en').toLowerCase().slice(0, 2)
 			return topic.labels?.[language] || topic.labels?.en || topic.id
@@ -744,15 +797,55 @@ export default {
 		max-width: 70ch;
 	}
 
-	&__list {
+	&__browser {
+		margin-block: 1.25rem;
+	}
+
+	&__search {
+		max-width: 38rem;
+	}
+
+	&__group {
+		margin-block: 0.75rem;
+		padding: 0.75rem 1rem;
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-large);
+		background: var(--color-main-background);
+	}
+
+	&__group-head {
+		display: grid;
+		grid-template-columns: minmax(10rem, 1fr) minmax(13rem, 20rem);
+		align-items: center;
+		gap: 0.75rem;
+
+		h4 {
+			margin: 0;
+		}
+	}
+
+	&__children {
 		list-style: none;
 		padding: 0;
-		margin: 1rem 0;
+		margin: 0.25rem 0 0 1rem;
+		border-inline-start: 2px solid var(--color-border);
+	}
+
+	&__subtopics {
+		margin-block-start: 0.5rem;
+
+		summary {
+			min-height: 40px;
+			display: flex;
+			align-items: center;
+			color: var(--color-text-maxcontrast);
+			cursor: pointer;
+		}
 	}
 
 	&__item {
 		display: grid;
-		grid-template-columns: minmax(12rem, 1fr) minmax(12rem, 20rem);
+		grid-template-columns: minmax(10rem, 1fr) minmax(13rem, 20rem);
 		gap: 0.75rem;
 		align-items: center;
 		padding: 0.65rem 0;
@@ -765,6 +858,17 @@ export default {
 
 	&__item select {
 		width: 100%;
+	}
+
+	&__group-head select,
+	&__item select,
+	&__balance select {
+		min-height: 44px;
+		padding-inline: 0.75rem 2rem;
+		border: 1px solid var(--color-border-dark, var(--color-border));
+		border-radius: var(--border-radius);
+		background-color: var(--color-main-background);
+		color: var(--color-main-text);
 	}
 
 	&__inheritance {
@@ -780,6 +884,10 @@ export default {
 	}
 
 	@media (max-width: 700px) {
+		&__group-head {
+			grid-template-columns: 1fr;
+		}
+
 		&__item {
 			grid-template-columns: 1fr;
 		}

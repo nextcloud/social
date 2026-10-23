@@ -83,6 +83,19 @@ describe('timeline store state changes', () => {
 		expect(store.timeline).toEqual([])
 	})
 
+	it('keeps a For You explanation when a status refresh omits timeline-only metadata', async () => {
+		const explanation = { reason: 'topic', text: 'Because you follow Technology', label: 'Shown for Technology' }
+		store.addToTimeline([makeStatus('42', { interest: explanation })])
+		axios.get.mockResolvedValue({ data: makeStatus('42', { favourites_count: 7 }) })
+
+		await store.fetchStatus('42', true)
+
+		expect(store.getStatus('42')).toMatchObject({
+			interest: explanation,
+			favourites_count: 7,
+		})
+	})
+
 	/**
 	 * A boost carries no text of its own, so the server matches the keyword
 	 * filters against the post it boosts and marks both copies. The card draws
