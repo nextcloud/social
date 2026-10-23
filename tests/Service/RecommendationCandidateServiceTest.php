@@ -120,7 +120,7 @@ class RecommendationCandidateServiceTest extends TestCase {
 		$note->setId('https://bsky.app/profile/did:plc:ewvi7nxzyoun6zhxrhs64oiz/post/3k')->setContent('<p>Apple announces a new device</p>')->setLanguage('en')->setPublishedTime(1_999_999_900);
 		$this->streams->expects($this->once())->method('setViewer')->with($this->isInstanceOf(Person::class));
 		$this->streams->expects($this->once())->method('recommendationCandidatesByTerms')->with(
-			$this->appleAliases(), $this->isType('string'), 100, [], ['en']
+			$this->appleAliases(), $this->isType('string'), 100, [], ['en'], 2_000_000_000
 		)->willReturn(['123' => $note]);
 		$this->queue->expects($this->exactly(2))->method('fillPosts')->willReturnCallback(
 			static function (string $kind, string $term, Person $viewer): bool {
@@ -225,7 +225,7 @@ class RecommendationCandidateServiceTest extends TestCase {
 		$note = new Note();
 		$note->setId('https://remote.example/posts/123')->setContent('<p>Apple announces a new device</p>')->setPublishedTime(1_999_999_900);
 		$this->streams->expects($this->once())->method('recommendationCandidatesByTerms')->with(
-			$this->appleAliases(), $this->isType('string'), 100, ['321'], []
+			$this->appleAliases(), $this->isType('string'), 100, ['321'], [], 2_000_000_000
 		)->willReturn(['123' => $note]);
 		$this->feedback->expects($this->once())->method('apply')->with(
 			$this->callback(static fn (array $candidate): bool => $candidate['nid'] === '123'), 'tech.apple', $feedback

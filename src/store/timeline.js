@@ -134,7 +134,7 @@ function rememberCelebrated() {
  * @property {{identity: string, timeline: string[], parentsTimeline: string[], removedFrom: object, fetchedAt?: number}[]} remembered the lists lately visited
  * @property {boolean} restored whether the list was put back rather than loaded
  * @property {Object<string, true>} filled the lists that have shown a post this session, by identity
- * @property {Record<string, string|null>} recommendationCursors opaque continuation cursors for v4 For You timelines, by identity
+ * @property {Record<string, string|null>} recommendationCursors opaque continuation cursors for ranked For You timelines, by identity
  * @property {boolean} composerDisplayStatus whether the composer is open
  * @property {string} searchQuery what is being searched for
  * @property {boolean} firstPostCelebration whether the celebration is on screen
@@ -331,7 +331,7 @@ function timelineRequest(list, params) {
 			url = generateUrl(usesV4RecommendationTimeline(list)
 				? 'apps/social/api/v1/recommendations/timeline'
 				: 'apps/social/api/v1/timelines/interests')
-			// Each v4 media kind has its own signed snapshot.
+			// Each media kind has its own signed snapshot.
 			if (usesV4RecommendationTimeline(list)) {
 				if (['photos', 'videos'].includes(list.params.media)) {
 					params.media = list.params.media
@@ -498,7 +498,7 @@ export const useTimelineStore = defineStore('timeline', {
 		 * @type {{identity: string, timeline: string[], parentsTimeline: string[], removedFrom: object, fetchedAt?: number}[]}
 		 */
 		remembered: [],
-		/** Opaque v4 feed cursors keyed by the same identity as the timeline lists. */
+		/** Opaque ranked-feed cursors keyed by the same identity as the timeline lists. */
 		recommendationCursors: {},
 		/**
 		 * Whether the list on screen was put back rather than loaded: what tells

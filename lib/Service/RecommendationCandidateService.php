@@ -20,7 +20,7 @@ use OCP\AppFramework\Utility\ITimeFactory;
 class RecommendationCandidateService {
 	public const MAX_PAGE_SIZE = 50;
 	public const MIN_COVERAGE_TARGET = 15;
-	private const LOOKBACK_DAYS = 30;
+	private const LOOKBACK_DAYS = RecommendationFreshness::LOOKBACK_DAYS;
 	private const PRIMARY_ALIAS_SCAN = 3;
 
 	public function __construct(
@@ -92,7 +92,8 @@ class RecommendationCandidateService {
 			$sinceNid,
 			min(100, max($limit * 5, self::MIN_COVERAGE_TARGET)),
 			array_values(array_unique(array_merge($this->interests->hiddenFor($viewer), $feedback['hidden_nids']))),
-			$this->interests->languagesFor($viewer->getUserId())
+			$this->interests->languagesFor($viewer->getUserId()),
+			$now
 		);
 		$followedAuthors = $this->followFeatures->followedAuthors($viewer, array_values($posts));
 		$exposurePenalties = $this->behavioralProfile->exposurePenalties($viewer, array_values($posts));
@@ -257,7 +258,7 @@ class RecommendationCandidateService {
 			'behavioral_author' => $authorAffinity,
 			'novelty' => RecommendationBehavioralProfile::novelty($authorAffinity, $isFollowed, $exposurePenalty),
 			'exposure_penalty' => $exposurePenalty,
-			'freshness' => self::freshness($post->getPublishedTime(), $now, $features['format']),
+			'freshness' => RecommendationFreshness::score($post, $now, $features['format']),
 			'source_reliability' => 0.5,
 			'evidence' => $match['evidence'],
 		];
@@ -312,13 +313,4 @@ class RecommendationCandidateService {
 		return '';
 	}
 
-	private static function freshness(int $publishedAt, int $now, string $format): float {
-		if ($publishedAt <= 0 || $now <= 0) {
-			return 0.5;
-		}
-		$ageHours = max(0, $now - $publishedAt) / 3600;
-		$halfLifeHours = $format === 'short' || $format === 'video' ? 12.0 : 24.0;
-
-		return exp(-0.6931471805599453 * (float)$ageHours / $halfLifeHours);
-	}
 }

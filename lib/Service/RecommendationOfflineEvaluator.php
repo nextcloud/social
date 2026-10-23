@@ -145,6 +145,7 @@ final class RecommendationOfflineEvaluator {
 			],
 			'methodology' => [
 				'page_size' => self::PAGE_SIZE,
+				'freshness_policy' => 'Uses the same content-class half-lives as serving; synthetic records may provide freshness_class, otherwise they use the conservative default for their format.',
 				'uncertainty' => 'Profile-cluster bootstrap percentile interval; descriptive only for synthetic fixtures.',
 				'runtime' => 'Local evaluator ranking time only; not an application serving latency benchmark.',
 				'weights_promoted' => false,
@@ -189,7 +190,11 @@ final class RecommendationOfflineEvaluator {
 				'matching_topic_ids' => array_values(array_intersect($topics, array_keys($grades))),
 				'is_followed' => $isFollowed ? 1.0 : 0.0,
 				'author_affinity' => $isFollowed ? 1.0 : 0.0,
-				'freshness' => exp(-$age / 36.0),
+				'freshness' => RecommendationFreshness::scoreAgeHours(
+					$age,
+					(string)($post['freshness_class'] ?? 'default'),
+					(string)($post['format'] ?? '')
+				),
 				'usefulness' => 0.5,
 				'format_match' => in_array($post['format'] ?? '', $profile['preferred_formats'] ?? [], true) ? 0.7 : 0.0,
 				'novelty' => $isFollowed ? 0.0 : 0.8,

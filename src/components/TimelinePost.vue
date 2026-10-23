@@ -726,7 +726,7 @@ export default {
 	},
 
 	computed: {
-		/** @return {boolean} whether the v4 feedback controls can be used on this For You post */
+		/** @return {boolean} whether the recommendation feedback controls can be used on this For You post */
 		canUseRecommendationFeedback() {
 			return this.type === 'interests'
 				&& this.serverData?.public !== true

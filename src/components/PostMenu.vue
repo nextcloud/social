@@ -430,7 +430,7 @@ export default {
 	],
 
 	computed: {
-		/** @return {boolean} whether v4 feedback applies to this author's post in For You */
+		/** @return {boolean} whether recommendation feedback applies to this author's post in For You */
 		canOfferRecommendationFeedback() {
 			return this.timelineType === 'interests'
 				&& this.recommendationFeedbackEnabled

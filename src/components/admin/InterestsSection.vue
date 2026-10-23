@@ -276,7 +276,7 @@ export default {
 		},
 
 		/**
-		 * Persist the independent v4 kill switch immediately.
+		 * Persist the independent recommendations kill switch immediately.
 		 *
 		 * @param {boolean} enabled Whether recommendations are enabled for this instance.
 		 */

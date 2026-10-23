@@ -593,9 +593,9 @@ Resolved 2026-09-24:
    removed as confusing (§8). Actions taken in apps still count.
 
 No open points remain.
-# For You 4.0 foundation (F0)
+# For You recommendations foundation (F0)
 
-For You 4.0 builds on the existing hashtag based feed. The instance switch `rec_v4_enabled` defaults to off and is exposed in Administration → Social → For you. With it off, the existing feed and its routes keep their current behavior; v4 preference routes, ranked discovery and the user's **Settings → Reading → For You topics** panel are unavailable. When enabled, explicit topic preferences drive the bounded candidate and ranking paths described below. Behavioural learning requires the reader's separate consent; discovery telemetry contains instance-level aggregates only.
+The ranked For You experience builds on the existing hashtag based feed. The instance switch `rec_v4_enabled` defaults to off and is exposed in Administration → Social → For you. With it off, the existing feed and its routes keep their current behavior; recommendation preference routes, ranked discovery and the user's **Settings → Reading → For You topics** panel are unavailable. When enabled, explicit topic preferences drive the bounded candidate and ranking paths described below. Behavioural learning requires the reader's separate consent; discovery telemetry contains instance-level aggregates only.
 
 ## First-use setup and content balance (T05)
 
@@ -613,7 +613,7 @@ With the instance switch on, `GET /api/v1/recommendations/candidates/{topicId}` 
 
 The Aloha Social web interface uses `GET /api/v1/recommendations/timeline` when the administrator has enabled v4. The endpoint returns an envelope containing existing status objects, an opaque session cursor, profile and algorithm versions, and an honest coverage state. The frontend unwraps the items into the existing timeline store, preserving the current card, interaction, media-scope and infinite-scroll behavior. Mastodon-compatible clients continue to use the unchanged `/api/v1/timelines/interests` list response.
 
-When the reader has explicit non-sensitive `INTERESTED` or `PRIORITISE` topics, the endpoint retrieves a bounded union of locally eligible candidates, applies hard topic hides, combines topic match, freshness and explicit feedback, applies author/topic diversity, and freezes the order in a viewer-bound one-hour snapshot. Hidden or newly invisible posts are skipped on continuation pages; an invalid or stale cursor returns a refresh condition. Photos, Videos, Shorts and media-only scopes have separate snapshots. If no v4 topic choices have been made, the endpoint wraps the existing hashtag-based feed as a cold-start fallback; if the reader has made choices but has no active topic, it does not bypass those choices with legacy recommendations.
+When the reader has explicit non-sensitive `INTERESTED` or `PRIORITISE` topics, the endpoint retrieves a bounded union of locally eligible candidates, applies hard topic hides, combines topic match, freshness and explicit feedback, applies author/topic diversity, and freezes the order in a viewer-bound one-hour snapshot. Hidden or newly invisible posts are skipped on continuation pages; an invalid or stale cursor returns a refresh condition. Photos, Videos, Shorts and media-only scopes have separate snapshots. If no explicit topic choices have been made, the endpoint wraps the existing hashtag-based feed as a cold-start fallback; if the reader has made choices but has no active topic, it does not bypass those choices with legacy recommendations.
 
 This integrated version ranks the locally cached corpus. Underfilled coverage schedules bounded refresh through the existing ActivityPub and Bluesky background queue without delaying the page request. It does not claim remote sources are fully indexed or that the initial coefficients are calibrated.
 

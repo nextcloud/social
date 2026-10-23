@@ -11,6 +11,7 @@ namespace OCA\Social\Db;
 
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Service\RecommendationFreshness;
 use OCA\Social\Tools\Nid;
 use OCA\Social\Tools\SearchTerms;
 use OCP\DB\QueryBuilder\IQueryBuilder;
@@ -179,6 +180,7 @@ trait StreamInterests {
 		int $limit,
 		array $excludeNids = [],
 		array $languages = [],
+		?int $now = null,
 	): array {
 		if ($this->viewer === null || $terms === [] || $limit < 1) {
 			return [];
@@ -186,6 +188,45 @@ trait StreamInterests {
 
 		$sinceNid = Nid::normalize($sinceNid);
 		$limit = min(100, $limit);
+		if ($now === null || $now <= 0) {
+			return $this->recommendationCandidatesInRange($terms, $sinceNid, '', $limit, $excludeNids, $languages);
+		}
+
+		$recentSinceNid = Nid::fromPublishedTime(
+			max(0, $now - RecommendationFreshness::RECENT_WINDOW_DAYS * 86400), 0, StreamRequest::NID_LIMIT
+		);
+		$recentLimit = RecommendationFreshness::recentCandidateLimit($limit);
+		$historicalLimit = RecommendationFreshness::historicalCandidateLimit($limit);
+		$recent = $this->recommendationCandidatesInRange($terms, $recentSinceNid, '', $recentLimit, $excludeNids, $languages);
+		if ($historicalLimit === 0) {
+			return $recent;
+		}
+
+		$excluded = array_values(array_unique(array_merge($excludeNids, array_keys($recent))));
+		$historical = $this->recommendationCandidatesInRange($terms, $sinceNid, $recentSinceNid, $historicalLimit, $excluded, $languages);
+		$missingHistorical = $historicalLimit - count($historical);
+		$unusedCapacity = $limit - count($recent) - count($historical);
+		$missingRecent = $recentLimit - count($recent);
+		$refillLimit = min($unusedCapacity, $missingHistorical + $missingRecent);
+		if ($refillLimit > 0) {
+			$refill = $this->recommendationCandidatesInRange(
+				$terms,
+				$recentSinceNid,
+				'',
+				$refillLimit,
+				array_values(array_unique(array_merge($excluded, array_keys($historical)))),
+				$languages
+			);
+			$recent += $refill;
+		}
+
+		return $recent + $historical;
+	}
+
+	/** @param list<string> $terms @param list<string> $excludeNids @param list<string> $languages @return array<string, Stream> */
+	private function recommendationCandidatesInRange(array $terms, string $sinceNid, string $beforeNid, int $limit, array $excludeNids, array $languages): array {
+		$sinceNid = Nid::normalize($sinceNid);
+		$beforeNid = $beforeNid === '' ? '' : Nid::normalize($beforeNid);
 		$wantedNids = [];
 		if ($this->searchTermsRequest->isReady()) {
 			foreach (array_slice(array_values(array_unique($terms)), 0, self::RECOMMENDATION_MAX_TERMS) as $term) {
@@ -194,7 +235,7 @@ trait StreamInterests {
 					continue;
 				}
 				foreach ($this->searchTermsRequest->candidateNids(
-					$whole, '', 0, 0, $sinceNid, '', self::RECOMMENDATION_INDEX_CANDIDATES
+					$whole, '', $beforeNid === '' ? 0 : $beforeNid, 0, $sinceNid, '', self::RECOMMENDATION_INDEX_CANDIDATES
 				) as $nid) {
 					$wantedNids[$nid] = true;
 					if (count($wantedNids) >= self::RECOMMENDATION_INDEX_CANDIDATES) {
@@ -209,6 +250,9 @@ trait StreamInterests {
 		$expr = $qb->expr();
 		$qb->andWhere($expr->eq('s.visibility', $qb->createNamedParameter(Stream::TYPE_PUBLIC)));
 		$qb->andWhere($expr->gt('s.nid', $qb->createNamedParameter($sinceNid)));
+		if ($beforeNid !== '') {
+			$qb->andWhere($expr->lt('s.nid', $qb->createNamedParameter($beforeNid)));
+		}
 		$qb->limitToViewer('sd', 'f', true, false, SocialCoreQueryBuilder::HIDDEN_TIMELINE, 'to');
 		$qb->filterDuplicate();
 		$this->filterSilencedActors($qb);

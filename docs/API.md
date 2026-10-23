@@ -729,7 +729,7 @@ The `history` of a `Tag` from any of these routes is the one the trends endpoint
 
 ### For you
 
-#### For You 4.0 preferences (foundation)
+#### For You recommendation preferences
 
 These additive routes are controlled by the separate instance-wide `rec_v4_enabled` switch in Administration → Social → For you. It defaults to off. They do not change the existing hashtag feed. Behavioural learning has a separate per-account consent setting and defaults to off. All state is scoped to the authenticated Nextcloud account; clients cannot choose another owner. Updates use optimistic revisions and a stale write returns **409** with the current owner state.
 
@@ -746,7 +746,7 @@ These additive routes are controlled by the separate instance-wide `rec_v4_enabl
 | GET | `/api/v1/recommendations/context/{postId}` | `read:statuses` | Returns only nonsensitive catalog topics detected in a post the reader can currently see, plus its format; used to offer valid, post-specific feedback actions |
 | GET | `/api/v1/recommendations/export` | `read:accounts` | Versioned export of the reader's own topic preferences and active explicit feedback |
 | GET | `/api/v1/recommendations/candidates/{topicId}` | `read:accounts`; optional `limit` (1–50), `cursor` | Bounded, visible candidates for an explicitly selected topic; deterministically ranked with `score`, `rank_score`, normalized `rank_features`, `algorithm_version`, and `feature_version`; reports local protocol coverage, underfilled state, whether a throttled background refresh was queued, and an opaque `next_cursor` when more snapshot rows remain. Expired, changed-preference, or invalid cursors return an empty page with `cursor_expired: true`. |
-| GET | `/api/v1/recommendations/timeline` | `read:statuses`; optional `limit` (1–50), opaque `cursor`, and `media` (`photos`, `videos`, `shorts`, `media`) | Web For You timeline envelope: existing status objects in `items`, snapshot/session metadata, profile and algorithm versions, coverage state, and an opaque continuation cursor. Explicit non-sensitive topic choices use the v4 ranker; consented behavioural signals refine new sessions, while readers without v4 choices retain the legacy hashtag feed. |
+| GET | `/api/v1/recommendations/timeline` | `read:statuses`; optional `limit` (1–50), opaque `cursor`, and `media` (`photos`, `videos`, `shorts`, `media`) | Web For You timeline envelope: existing status objects in `items`, snapshot/session metadata, profile and algorithm versions, coverage state, and an opaque continuation cursor. Explicit non-sensitive topic choices use the ranked feed; consented behavioural signals refine new sessions, while readers without saved topic choices retain the legacy hashtag feed. |
 | GET/PUT | `/admin/recommendations` | administrator, CSRF; PUT accepts any subset of `enabled`, `remoteDiscoveryPaused`, `learningPaused`, `forceLegacyFeed` | Reads or partially updates instance-wide rollout and emergency switches. Pausing remote discovery keeps cached candidates rankable; pausing learning blocks behavioral signal writes; forcing the legacy feed affects only the web For You timeline. Unnamed switches are unchanged. |
 | GET | `/admin/recommendations/discovery` | administrator, CSRF; optional `hours` (1–168, defaults to 24) | Reads instance-wide per-provider discovery calls, failed/rate-limited requests, posts seen/stored, average batch duration and last attempt/success. Seven-day hourly aggregates contain no query terms, topics, reader identities or post IDs. |
 

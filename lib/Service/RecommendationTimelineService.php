@@ -22,7 +22,7 @@ class RecommendationTimelineService {
 	private const MAX_CANDIDATES = 100;
 	private const MAX_TERMS = 20;
 	private const MAX_REFRESH_TOPICS = 2;
-	private const LOOKBACK_DAYS = 30;
+	private const LOOKBACK_DAYS = RecommendationFreshness::LOOKBACK_DAYS;
 	private const MIN_COVERAGE = 15;
 	private const MODE = 'for-you-v4-explanations-1';
 	private const MEDIA = ['', 'photos', 'videos', 'shorts', 'media'];
@@ -48,7 +48,7 @@ class RecommendationTimelineService {
 
 	/**
 	 * One page for the web UI. Legacy hashtag interests remain the cold-start
-	 * fallback until explicit v4 topic choices exist. Mobile API clients keep
+	 * fallback until explicit topic choices exist. Mobile API clients keep
 	 * using the unchanged `/timelines/interests` contract.
 	 *
 	 * @return array{items: list<Stream>, session_id: ?string, next_cursor: ?string, mode: string, algorithm_version: ?int, profile_version: int, cursor_expired: bool, coverage: array{state: string, known_eligible: ?int, returned: int, remote_refresh_queued: bool}}
@@ -78,8 +78,8 @@ class RecommendationTimelineService {
 		}
 
 		if ($topics === []) {
-			// With no explicit v4 controls, preserve the familiar hashtag feed.
-			// Once a reader has chosen any v4 topics, however, an all-hidden or
+			// With no explicit topic controls, preserve the familiar hashtag feed.
+			// Once a reader has chosen topics, however, an all-hidden or
 			// all-neutral profile must not silently fall back around those choices.
 			if (($state['topics'] ?? []) === [] && $this->interests->isEnabled()) {
 				return $this->legacyPage($viewer, $limit, '0', $media, $state['revision'], $state['generation']);
@@ -110,7 +110,8 @@ class RecommendationTimelineService {
 				$this->interests->hiddenFor($viewer),
 				$feedback['hidden_nids']
 			))),
-			$this->interests->languagesFor($viewer->getUserId())
+			$this->interests->languagesFor($viewer->getUserId()),
+			$now
 		);
 		$followedAuthors = $this->followFeatures->followedAuthors($viewer, array_values($posts));
 		$exposurePenalties = $this->behavioralProfile->exposurePenalties($viewer, array_values($posts));
@@ -281,8 +282,6 @@ class RecommendationTimelineService {
 		$clusterKey = RecommendationContentCluster::key($allTopicIds, $format, $this->catalog);
 		$similarityFeedback = $clusterKey === null ? null : ($feedback['similarities'][$clusterKey] ?? null);
 		$published = $post->getPublishedTime();
-		$ageHours = ($published > 0 && $now > 0) ? max(0, $now - $published) / 3600 : 0;
-		$halfLifeHours = in_array($format, ['short', 'video'], true) ? 12.0 : 24.0;
 		return [
 			'nid' => $nid,
 			'canonical_key' => $post->getId() !== '' ? $post->getId() : $nid,
@@ -298,7 +297,7 @@ class RecommendationTimelineService {
 			'behavioral_format' => $this->behavioralProfile->formatAffinity($format, $behavioral['formats']),
 			'is_followed' => $isFollowed ? 1.0 : 0.0,
 			'novelty' => RecommendationBehavioralProfile::novelty($authorAffinity, $isFollowed, $exposurePenalty),
-			'freshness' => ($published > 0 && $now > 0) ? exp(-0.6931471805599453 * (float)$ageHours / $halfLifeHours) : 0.5,
+			'freshness' => RecommendationFreshness::score($post, $now, $format),
 			'author_affinity' => $authorFeedback === 'MORE_AUTHOR' ? 1.0 : 0.0,
 			'exposure_penalty' => $exposurePenalty,
 			'format_match' => $formatFeedback === 'MORE_FORMAT' ? 1.0 : 0.0,

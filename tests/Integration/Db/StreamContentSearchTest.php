@@ -36,7 +36,7 @@ class StreamContentSearchTest extends TestCase {
 	private const OTHER = self::BASE . '/users/other';
 	private const AUTHOR = 'https://remote.example/ftsearch/users/author';
 
-	private const SUFFIXES = ['public', 'own-dm', 'foreign-dm', 'unrelated', 'apple', 'nextcloud', 'unlisted', 'recall-20'];
+	private const SUFFIXES = ['public', 'own-dm', 'foreign-dm', 'unrelated', 'apple', 'nextcloud', 'unlisted', 'recall-20', 'fresh-apple', 'historical-apple', 'historical-apple-en'];
 
 	private StreamRequest $streamRequest;
 	private StreamDestRequest $streamDestRequest;
@@ -68,15 +68,17 @@ class StreamContentSearchTest extends TestCase {
 		$this->cacheActorsRequest->deleteCacheById(self::AUTHOR);
 	}
 
-	private function note(string $suffix, string $content, string $to, ?string $visibility = null): Note {
+	private function note(string $suffix, string $content, string $to, ?string $visibility = null, ?int $publishedAt = null, string $language = ''): Note {
 		$note = new Note();
 		$note->setId(self::BASE . '/notes/' . $suffix);
 		$note->setAttributedTo(self::AUTHOR);
 		$note->setTo($to);
 		$note->setContent($content);
 		$note->setVisibility($visibility ?? ($to === ACore::CONTEXT_PUBLIC ? 'public' : 'direct'));
-		$note->setPublishedTime(time());
-		$note->setPublished(gmdate('Y-m-d\TH:i:s\Z'));
+		$note->setLanguage($language);
+		$publishedAt ??= time();
+		$note->setPublishedTime($publishedAt);
+		$note->setPublished(gmdate('Y-m-d\TH:i:s\Z', $publishedAt));
 		$this->streamRequest->save($note);
 		$this->streamDestRequest->generateStreamDest($note);
 
@@ -206,6 +208,50 @@ class StreamContentSearchTest extends TestCase {
 			$posts = $this->streamRequest->recommendationCandidatesByTerms($terms, $since, 20);
 
 			$this->assertSame([self::BASE . '/notes/recall-20'], array_map(
+				static fn ($post): string => $post->getId(), array_values($posts)
+			));
+		} finally {
+			$config->setAppValue(SearchTermsRequest::READY, $ready);
+		}
+	}
+
+	public function testRecommendationCandidatesIncludeBoundedOlderPublicPostsAlongsideRecentPosts(): void {
+		$config = Server::get(ConfigService::class);
+		$ready = (string)$config->getAppValue(SearchTermsRequest::READY);
+		$config->setAppValue(SearchTermsRequest::READY, '1');
+		$now = time();
+		try {
+			$this->note('fresh-apple', '<p>Apple announces a new device</p>', ACore::CONTEXT_PUBLIC, null, $now - 3 * 86400);
+			$this->note('historical-apple', '<p>Apple migration tutorial and documentation</p>', ACore::CONTEXT_PUBLIC, null, $now - 45 * 86400);
+			$this->streamRequest->setViewer($this->viewer());
+			$since = Nid::fromPublishedTime($now - 180 * 86400, 0, StreamRequest::NID_LIMIT);
+
+			$posts = $this->streamRequest->recommendationCandidatesByTerms(['apple'], $since, 20, [], [], $now);
+
+			$ids = array_map(static fn ($post): string => $post->getId(), array_values($posts));
+			$this->assertContains(self::BASE . '/notes/fresh-apple', $ids);
+			$this->assertContains(self::BASE . '/notes/historical-apple', $ids);
+			$this->assertCount(2, $ids);
+		} finally {
+			$config->setAppValue(SearchTermsRequest::READY, $ready);
+		}
+	}
+
+	public function testHistoricalCandidateWindowStillAppliesVisibilityAndLanguageFilters(): void {
+		$config = Server::get(ConfigService::class);
+		$ready = (string)$config->getAppValue(SearchTermsRequest::READY);
+		$config->setAppValue(SearchTermsRequest::READY, '1');
+		$now = time();
+		try {
+			$this->note('historical-apple', '<p>Apple migration tutorial and documentation</p>', ACore::CONTEXT_PUBLIC, null, $now - 45 * 86400, 'de');
+			$this->note('historical-apple-en', '<p>Apple migration tutorial and documentation</p>', ACore::CONTEXT_PUBLIC, null, $now - 45 * 86400, 'en');
+			$this->note('unlisted', '<p>Apple migration tutorial and documentation</p>', ACore::CONTEXT_PUBLIC, Stream::TYPE_UNLISTED, $now - 45 * 86400);
+			$this->streamRequest->setViewer($this->viewer());
+			$since = Nid::fromPublishedTime($now - 180 * 86400, 0, StreamRequest::NID_LIMIT);
+
+			$posts = $this->streamRequest->recommendationCandidatesByTerms(['apple'], $since, 20, [], ['en'], $now);
+
+			$this->assertSame([self::BASE . '/notes/historical-apple-en'], array_map(
 				static fn ($post): string => $post->getId(), array_values($posts)
 			));
 		} finally {
