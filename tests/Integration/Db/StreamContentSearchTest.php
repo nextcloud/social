@@ -36,7 +36,7 @@ class StreamContentSearchTest extends TestCase {
 	private const OTHER = self::BASE . '/users/other';
 	private const AUTHOR = 'https://remote.example/ftsearch/users/author';
 
-	private const SUFFIXES = ['public', 'own-dm', 'foreign-dm', 'unrelated', 'apple', 'nextcloud', 'unlisted'];
+	private const SUFFIXES = ['public', 'own-dm', 'foreign-dm', 'unrelated', 'apple', 'nextcloud', 'unlisted', 'recall-20'];
 
 	private StreamRequest $streamRequest;
 	private StreamDestRequest $streamDestRequest;
@@ -182,6 +182,31 @@ class StreamContentSearchTest extends TestCase {
 			));
 			$this->assertSame([self::BASE . '/notes/nextcloud'], array_map(
 				static fn ($post): string => $post->getId(), array_values($nextcloud)
+			));
+		} finally {
+			$config->setAppValue(SearchTermsRequest::READY, $ready);
+		}
+	}
+
+	public function testRecommendationCandidateSearchIncludesAliasesAfterTheTwelfth(): void {
+		$config = Server::get(ConfigService::class);
+		$ready = (string)$config->getAppValue(SearchTermsRequest::READY);
+		$config->setAppValue(SearchTermsRequest::READY, '1');
+		try {
+			$this->note('recall-20', '<p>intergalacticdiscovery reveals a nearby galaxy</p>', ACore::CONTEXT_PUBLIC);
+			$this->streamRequest->setViewer($this->viewer());
+			$terms = [
+				'firstunusedalpha', 'secondunusedalpha', 'thirdunusedalpha', 'fourthunusedalpha',
+				'fifthunusedalpha', 'sixthunusedalpha', 'seventhunusedalpha', 'eighthunusedalpha',
+				'ninthunusedalpha', 'tenthunusedalpha', 'eleventhunusedalpha', 'twelfthunusedalpha',
+				'intergalacticdiscovery',
+			];
+			$since = Nid::fromPublishedTime(time() - 86400, 0, StreamRequest::NID_LIMIT);
+
+			$posts = $this->streamRequest->recommendationCandidatesByTerms($terms, $since, 20);
+
+			$this->assertSame([self::BASE . '/notes/recall-20'], array_map(
+				static fn ($post): string => $post->getId(), array_values($posts)
 			));
 		} finally {
 			$config->setAppValue(SearchTermsRequest::READY, $ready);

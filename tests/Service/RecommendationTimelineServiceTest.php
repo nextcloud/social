@@ -151,7 +151,7 @@ class RecommendationTimelineServiceTest extends TestCase {
 			$this->appleAliases(), $this->isType('string'), 100, [], ['en']
 		)->willReturn(['123' => $post]);
 		$this->snapshots->expects($this->once())->method('create')->with(
-			'alice', 'for-you-v4', '', 3, 2, 2_000_000_000, ['123'], 20, []
+			'alice', 'for-you-v4-candidate-recall-2', '', 3, 2, 2_000_000_000, ['123'], 20, []
 		)->willReturn(['session_id' => 'session', 'nids' => ['123'], 'exploration_nids' => [], 'next_cursor' => null]);
 		$this->queue->expects($this->exactly(2))->method('fillPosts')->willReturnCallback(
 			static function (string $kind, string $term, Person $viewer): bool {
@@ -170,6 +170,37 @@ class RecommendationTimelineServiceTest extends TestCase {
 		$this->assertCount(1, $page['items']);
 		$this->assertSame('topic', $page['items'][0]->getInterest()['reason']);
 		$this->assertSame('tech.apple', $page['items'][0]->getInterest()['topics'][0]['id']);
+	}
+
+	public function testCandidateSearchCoversEverySelectedTopicBeforeAddingExtraAliases(): void {
+		$selected = array_values(array_filter(
+			$this->catalog->all(),
+			static fn (array $topic): bool => !in_array('sensitive-topic', $topic['policyTags'], true)
+		));
+		$effective = [];
+		$manual = [];
+		foreach ($selected as $topic) {
+			$effective[$topic['id']] = 'INTERESTED';
+			$manual[] = ['topic_id' => $topic['id'], 'mode' => 'INTERESTED'];
+		}
+		$this->preferences->method('get')->willReturn($this->state($manual, $effective));
+		$this->interests->method('hiddenFor')->willReturn([]);
+		$this->interests->method('languagesFor')->willReturn([]);
+		$this->streams->expects($this->once())->method('recommendationCandidatesByTerms')
+			->willReturnCallback(static function (array $terms) use ($selected): array {
+				self::assertLessThanOrEqual(20, count($terms));
+				foreach ($selected as $topic) {
+					self::assertContains($topic['aliases'][0], $terms, 'Every selected topic must contribute its primary search alias.');
+				}
+				return [];
+			});
+		$this->snapshots->method('create')->willReturn(null);
+		$this->queue->method('fillPosts')->willReturn(false);
+
+		$page = $this->service()->page($this->viewer(), 20);
+
+		$this->assertSame([], $page['items']);
+		$this->assertSame('UNDERFILLED', $page['coverage']['state']);
 	}
 
 	public function testNoV4ChoicesPreserveLegacyHashtagFeedAsColdStart(): void {

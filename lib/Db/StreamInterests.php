@@ -31,6 +31,8 @@ trait StreamInterests {
 	private const RECOMMENDATION_FALLBACK_SCAN = 500;
 	/** Maximum word-index results examined for one topic lookup. */
 	private const RECOMMENDATION_INDEX_CANDIDATES = 300;
+	/** Maximum alias lookups for a multi-topic For You page request. */
+	private const RECOMMENDATION_MAX_TERMS = 20;
 
 	/**
 	 * The posts among these the viewer may see, each once.
@@ -186,7 +188,7 @@ trait StreamInterests {
 		$limit = min(100, $limit);
 		$wantedNids = [];
 		if ($this->searchTermsRequest->isReady()) {
-			foreach (array_slice(array_values(array_unique($terms)), 0, 12) as $term) {
+			foreach (array_slice(array_values(array_unique($terms)), 0, self::RECOMMENDATION_MAX_TERMS) as $term) {
 				$whole = SearchTerms::ofText($term, 12, false);
 				if ($whole === []) {
 					continue;

@@ -20,11 +20,11 @@ use OCP\AppFramework\Utility\ITimeFactory;
 /** Serves the explicit-topic ranker through the web For You timeline contract. */
 class RecommendationTimelineService {
 	private const MAX_CANDIDATES = 100;
-	private const MAX_TERMS = 12;
+	private const MAX_TERMS = 20;
 	private const MAX_REFRESH_TOPICS = 2;
 	private const LOOKBACK_DAYS = 30;
 	private const MIN_COVERAGE = 15;
-	private const MODE = 'for-you-v4';
+	private const MODE = 'for-you-v4-candidate-recall-2';
 	private const MEDIA = ['', 'photos', 'videos', 'shorts', 'media'];
 
 	public function __construct(
@@ -171,16 +171,42 @@ class RecommendationTimelineService {
 
 	/** @param list<array{id: string, mode: string, aliases: list<string>, labels: array{en: string, de: string}}> $topics @return list<string> */
 	private function terms(array $topics): array {
-		$terms = [];
+		$aliasesByTopic = [];
 		foreach ($topics as $topic) {
-			foreach ($topic['aliases'] as $alias) {
-				$alias = trim($alias);
-				if ($alias !== '' && !in_array($alias, $terms, true)) {
-					$terms[] = $alias;
-				}
+			$aliases = array_values(array_unique(array_filter(
+				array_map('trim', $topic['aliases']),
+				static fn (string $alias): bool => $alias !== ''
+			)));
+			if ($aliases !== []) {
+				$aliasesByTopic[] = $aliases;
 			}
 		}
-		return array_slice($terms, 0, self::MAX_TERMS);
+
+		// Give every selected topic a chance to retrieve candidates before
+		// spending the remaining bounded search budget on extra aliases. The
+		// previous flat slice could spend all 12 slots on the first few topics.
+		$terms = [];
+		for ($aliasIndex = 0; $aliasIndex < self::MAX_TERMS; $aliasIndex++) {
+			$hasAliasAtIndex = false;
+			foreach ($aliasesByTopic as $aliases) {
+				if (!isset($aliases[$aliasIndex])) {
+					continue;
+				}
+				$hasAliasAtIndex = true;
+				$alias = $aliases[$aliasIndex];
+				if (!in_array($alias, $terms, true)) {
+					$terms[] = $alias;
+				}
+				if (count($terms) >= self::MAX_TERMS) {
+					return $terms;
+				}
+			}
+			if (!$hasAliasAtIndex) {
+				break;
+			}
+		}
+
+		return $terms;
 	}
 
 	/** @param array<string, string|null> $effective @param array<string, mixed> $feedback @return array<string, mixed>|null */
