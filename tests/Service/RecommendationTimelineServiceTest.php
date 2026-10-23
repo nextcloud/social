@@ -58,6 +58,7 @@ class RecommendationTimelineServiceTest extends TestCase {
 	protected function setUp(): void {
 		$this->preferences = $this->createMock(RecommendationPreferenceService::class);
 		$this->streams = $this->createMock(StreamRequest::class);
+		$this->streams->method('recommendationFollowCandidates')->willReturn([]);
 		$this->interests = $this->createMock(InterestService::class);
 		$this->legacyFeed = $this->createMock(InterestFeedService::class);
 		$this->snapshots = $this->createMock(RecommendationSnapshotStore::class);
@@ -177,7 +178,7 @@ class RecommendationTimelineServiceTest extends TestCase {
 			->setPublishedTime(1_999_999_900);
 		$this->streams->expects($this->once())->method('setViewer')->with($this->isInstanceOf(Person::class));
 		$this->streams->expects($this->once())->method('recommendationCandidatesByTerms')->with(
-			$this->appleAliases(), $this->isType('string'), 100, [], ['en'], 2_000_000_000
+			$this->appleAliases(), $this->isType('string'), 80, [], ['en'], 2_000_000_000
 		)->willReturn(['123' => $post]);
 		$this->snapshots->expects($this->once())->method('create')->with(
 			'alice', 'for-you-v4-explanations-1', '', 3, 2, 2_000_000_000, ['123'], 20, [], $this->anything()

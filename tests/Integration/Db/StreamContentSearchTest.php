@@ -11,11 +11,13 @@ namespace OCA\Social\Tests\Integration\Db;
 
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\CoreRequestBuilder;
+use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\SearchTermsRequest;
 use OCA\Social\Db\StreamDestRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\ConfigService;
@@ -36,17 +38,19 @@ class StreamContentSearchTest extends TestCase {
 	private const OTHER = self::BASE . '/users/other';
 	private const AUTHOR = 'https://remote.example/ftsearch/users/author';
 
-	private const SUFFIXES = ['public', 'own-dm', 'foreign-dm', 'unrelated', 'apple', 'nextcloud', 'unlisted', 'recall-20', 'fresh-apple', 'historical-apple', 'historical-apple-en'];
+	private const SUFFIXES = ['public', 'own-dm', 'foreign-dm', 'unrelated', 'apple', 'nextcloud', 'unlisted', 'recall-20', 'fresh-apple', 'historical-apple', 'historical-apple-en', 'followed-author'];
 
 	private StreamRequest $streamRequest;
 	private StreamDestRequest $streamDestRequest;
 	private CacheActorsRequest $cacheActorsRequest;
+	private FollowsRequest $followsRequest;
 
 	protected function setUp(): void {
 		parent::setUp();
 		$this->streamRequest = Server::get(StreamRequest::class);
 		$this->streamDestRequest = Server::get(StreamDestRequest::class);
 		$this->cacheActorsRequest = Server::get(CacheActorsRequest::class);
+		$this->followsRequest = Server::get(FollowsRequest::class);
 		$this->cleanup();
 
 		$author = new Person();
@@ -62,6 +66,7 @@ class StreamContentSearchTest extends TestCase {
 	}
 
 	private function cleanup(): void {
+		$this->followsRequest->deleteRelatedId(self::VIEWER);
 		foreach (self::SUFFIXES as $suffix) {
 			$this->streamRequest->deleteById(self::BASE . '/notes/' . $suffix, Note::TYPE);
 		}
@@ -257,5 +262,25 @@ class StreamContentSearchTest extends TestCase {
 		} finally {
 			$config->setAppValue(SearchTermsRequest::READY, $ready);
 		}
+	}
+
+	public function testFollowCandidateRecallFindsPublicPostsWithoutIndexedTopicTerms(): void {
+		$this->note('followed-author', '<p>A post with unrelated writing</p>', ACore::CONTEXT_PUBLIC);
+		$this->note('foreign-dm', '<p>another public idea</p>', ACore::CONTEXT_PUBLIC, Stream::TYPE_UNLISTED);
+		$follow = new Follow();
+		$follow->setId(self::VIEWER . '#recommend-follow-author')
+			->setActorId(self::VIEWER)
+			->setObjectId(self::AUTHOR)
+			->setFollowId(self::AUTHOR . '/followers')
+			->setAccepted(true);
+		$this->followsRequest->save($follow);
+
+		$this->streamRequest->setViewer($this->viewer());
+		$since = Nid::fromPublishedTime(time() - 86400, 0, StreamRequest::NID_LIMIT);
+		$posts = $this->streamRequest->recommendationFollowCandidates($since, 20);
+
+		$this->assertSame([self::BASE . '/notes/followed-author'], array_map(
+			static fn ($post): string => $post->getId(), array_values($posts)
+		));
 	}
 }

@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Db;
 
 use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\RecommendationFreshness;
 use OCA\Social\Tools\Nid;
@@ -221,6 +222,65 @@ trait StreamInterests {
 		}
 
 		return $recent + $historical;
+	}
+
+	/**
+	 * Public, visible posts by accounts the viewer currently follows. This
+	 * recall source is independent of the word index: followed authors can
+	 * appear even when their post contains none of the selected topic aliases.
+	 * Topic and hard-hide preferences are still applied by the ranker.
+	 *
+	 * @param list<string> $excludeNids posts already selected or hidden
+	 * @param list<string> $languages empty means any language
+	 * @return array<string, Stream> visible public statuses keyed by nid
+	 */
+	public function recommendationFollowCandidates(string $sinceNid, int $limit, array $excludeNids = [], array $languages = []): array {
+		if ($this->viewer === null || $limit < 1) {
+			return [];
+		}
+
+		$qb = $this->getStreamNidsSelectSql(true);
+		$expr = $qb->expr();
+		$qb->innerJoin('s', self::TABLE_FOLLOWS, 'rec_follow', $expr->andX(
+			$expr->eq('rec_follow.object_id_prim', 's.attributed_to_prim'),
+			$expr->eq('rec_follow.actor_id_prim', $qb->createNamedParameter($qb->prim($this->viewer->getId()))),
+			$expr->eq('rec_follow.type', $qb->createNamedParameter(Follow::TYPE)),
+			$expr->eq('rec_follow.accepted', $qb->createNamedParameter('1'))
+		));
+		$qb->limitToStatusTypes();
+		$qb->andWhere($expr->eq('s.visibility', $qb->createNamedParameter(Stream::TYPE_PUBLIC)));
+		$qb->andWhere($expr->gt('s.nid', $qb->createNamedParameter(Nid::normalize($sinceNid))));
+		$qb->limitToViewer('sd', 'f', true, false, SocialCoreQueryBuilder::HIDDEN_TIMELINE, 'to');
+		$qb->filterDuplicate();
+		$this->filterSilencedActors($qb);
+		$qb->andWhere($expr->neq(
+			's.attributed_to_prim', $qb->createNamedParameter($qb->prim($this->viewer->getId()))
+		));
+		if ($excludeNids !== []) {
+			$qb->andWhere($expr->notIn(
+				's.nid', $qb->createNamedParameter($excludeNids, IQueryBuilder::PARAM_STR_ARRAY)
+			));
+		}
+		if ($languages !== []) {
+			$qb->andWhere($expr->orX(
+				$expr->in('s.language', $qb->createNamedParameter($languages, IQueryBuilder::PARAM_STR_ARRAY)),
+				$expr->eq('s.language', $qb->createNamedParameter('')),
+				$expr->isNull('s.language')
+			));
+		}
+		$qb->orderBy('s.nid', 'desc');
+		$qb->setMaxResults(min(100, $limit));
+
+		$nids = $this->getNidsFromRequest($qb);
+		$visible = $this->getVisibleByNids($nids);
+		$ordered = [];
+		foreach ($nids as $nid) {
+			if (isset($visible[$nid])) {
+				$ordered[$nid] = $visible[$nid];
+			}
+		}
+
+		return $ordered;
 	}
 
 	/** @param list<string> $terms @param list<string> $excludeNids @param list<string> $languages @return array<string, Stream> */

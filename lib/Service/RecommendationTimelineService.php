@@ -102,17 +102,32 @@ class RecommendationTimelineService {
 
 		$sinceNid = Nid::fromPublishedTime(max(0, $now - self::LOOKBACK_DAYS * 86400), 0, StreamRequest::NID_LIMIT);
 		$terms = $this->terms($topics);
+		$candidateBudget = min(self::MAX_CANDIDATES, max($limit * 5, self::MIN_COVERAGE));
+		$followBudget = min(20, max(4, (int)ceil($candidateBudget * 0.2)));
+		$followBudget = min($followBudget, $candidateBudget);
+		$hiddenNids = array_values(array_unique(array_merge(
+			$this->interests->hiddenFor($viewer),
+			$feedback['hidden_nids']
+		)));
+		$languages = $this->interests->languagesFor($viewer->getUserId());
 		$posts = $this->streams->recommendationCandidatesByTerms(
 			$terms,
 			$sinceNid,
-			min(self::MAX_CANDIDATES, max($limit * 5, self::MIN_COVERAGE)),
-			array_values(array_unique(array_merge(
-				$this->interests->hiddenFor($viewer),
-				$feedback['hidden_nids']
-			))),
-			$this->interests->languagesFor($viewer->getUserId()),
+			$candidateBudget - $followBudget,
+			$hiddenNids,
+			$languages,
 			$now
 		);
+		// Keep a small independent source for followed authors. This query uses
+		// the accepted-follow relation directly, so it still finds posts when
+		// the asynchronous word index has not yet caught up.
+		$followCandidates = $this->streams->recommendationFollowCandidates(
+			$sinceNid,
+			$followBudget,
+			array_values(array_unique(array_merge($hiddenNids, array_keys($posts)))),
+			$languages
+		);
+		$posts += $followCandidates;
 		$followedAuthors = $this->followFeatures->followedAuthors($viewer, array_values($posts));
 		$exposurePenalties = $this->behavioralProfile->exposurePenalties($viewer, array_values($posts));
 
