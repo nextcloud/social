@@ -14,6 +14,7 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\RecommendationCandidateService;
+use OCA\Social\Service\RecommendationFeedbackService;
 use OCA\Social\Service\RecommendationPreferenceService;
 use OCP\AppFramework\Http;
 use OCP\IRequest;
@@ -28,6 +29,7 @@ use Psr\Log\NullLogger;
 class RecommendationsControllerTest extends TestCase {
 	private RecommendationPreferenceService $service;
 	private RecommendationCandidateService $candidateService;
+	private RecommendationFeedbackService $feedbackService;
 	private bool $enabled = true;
 
 	private function controller(): RecommendationsController {
@@ -51,6 +53,7 @@ class RecommendationsControllerTest extends TestCase {
 			$this->createStub(ClientService::class),
 			$this->service,
 			$this->candidateService,
+			$this->feedbackService,
 		);
 	}
 
@@ -58,6 +61,7 @@ class RecommendationsControllerTest extends TestCase {
 		$this->service = $this->createMock(RecommendationPreferenceService::class);
 		$this->service->method('isEnabled')->willReturnCallback(fn (): bool => $this->enabled);
 		$this->candidateService = $this->createMock(RecommendationCandidateService::class);
+		$this->feedbackService = $this->createMock(RecommendationFeedbackService::class);
 	}
 
 	protected function tearDown(): void {
@@ -115,5 +119,42 @@ class RecommendationsControllerTest extends TestCase {
 
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
 		$this->assertSame($result, $response->getData());
+	}
+
+	public function testFeedbackUsesTheAuthenticatedOwnerAndTheNamedPost(): void {
+		$result = ['feedback_id' => '0f6f07ce-f9d0-4a0d-90f2-9f1ebc629072', 'operation' => 'HIDE_POST'];
+		$this->feedbackService->expects($this->once())->method('record')->with(
+			$this->callback(static fn (Person $viewer): bool => $viewer->getUserId() === 'alice'),
+			'792b7610-e146-422c-9c87-d703412e9874', '1150000123', 'HIDE_POST', ''
+		)->willReturn($result);
+
+		$response = $this->controller()->feedback('792b7610-e146-422c-9c87-d703412e9874', '1150000123', 'HIDE_POST');
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame($result, $response->getData());
+	}
+
+	public function testFeedbackUndoIsBoundToAuthenticatedOwner(): void {
+		$this->feedbackService->expects($this->once())->method('undo')->with(
+			$this->callback(static fn (Person $viewer): bool => $viewer->getUserId() === 'alice'),
+			'0f6f07ce-f9d0-4a0d-90f2-9f1ebc629072'
+		)->willReturn(['undone' => true, 'expired' => false, 'feedback_version' => 2]);
+
+		$response = $this->controller()->undoFeedback('0f6f07ce-f9d0-4a0d-90f2-9f1ebc629072');
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertTrue($response->getData()['undone']);
+	}
+
+	public function testExportIncludesTheAuthenticatedOwnersCurrentFeedback(): void {
+		$this->service->expects($this->once())->method('get')->with('alice')->willReturn(['revision' => 1, 'topics' => []]);
+		$this->feedbackService->expects($this->once())->method('export')->with('alice')->willReturn([
+			['scope' => 'topic', 'scope_key' => 'tech.apple', 'operation' => 'MORE_TOPIC', 'created_at' => 2_000_000_000],
+		]);
+
+		$response = $this->controller()->export();
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame('MORE_TOPIC', $response->getData()['feedback'][0]['operation']);
 	}
 }

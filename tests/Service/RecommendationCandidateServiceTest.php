@@ -16,6 +16,7 @@ use OCA\Social\Service\Discovery\PostDiscoveryService;
 use OCA\Social\Service\InterestService;
 use OCA\Social\Service\RecommendationCandidateService;
 use OCA\Social\Service\RecommendationFeatureExtractor;
+use OCA\Social\Service\RecommendationFeedbackService;
 use OCA\Social\Service\RecommendationPreferenceService;
 use OCA\Social\Service\RecommendationRanker;
 use OCA\Social\Service\RecommendationReRanker;
@@ -32,6 +33,7 @@ class RecommendationCandidateServiceTest extends TestCase {
 	private InterestService $interests;
 	private ITimeFactory $clock;
 	private RecommendationSnapshotStore $snapshots;
+	private RecommendationFeedbackService $feedback;
 
 	protected function setUp(): void {
 		$this->preferences = $this->createMock(RecommendationPreferenceService::class);
@@ -41,6 +43,9 @@ class RecommendationCandidateServiceTest extends TestCase {
 		$this->clock = $this->createStub(ITimeFactory::class);
 		$this->clock->method('getTime')->willReturn(2_000_000_000);
 		$this->snapshots = $this->createMock(RecommendationSnapshotStore::class);
+		$this->feedback = $this->createMock(RecommendationFeedbackService::class);
+		$this->feedback->method('current')->willReturn(['hidden_nids' => [], 'topics' => [], 'authors' => [], 'formats' => []]);
+		$this->feedback->method('apply')->willReturnCallback(static fn (array $candidate, string $topicId, array $state): array => $candidate);
 	}
 
 	private function service(): RecommendationCandidateService {
@@ -55,6 +60,7 @@ class RecommendationCandidateServiceTest extends TestCase {
 			new RecommendationRanker(),
 			new RecommendationReRanker(),
 			$this->snapshots,
+			$this->feedback,
 		);
 	}
 
@@ -153,5 +159,36 @@ class RecommendationCandidateServiceTest extends TestCase {
 		$this->assertSame('session', $result['session_id']);
 		$this->assertNull($result['next_cursor']);
 		$this->assertFalse($result['cursor_expired']);
+	}
+
+	public function testExplicitFeedbackChangesNewRankingAndHidesPostsBeforeTheCandidateQuery(): void {
+		$this->preferences->method('isEnabled')->willReturn(true);
+		$this->preferences->method('get')->willReturn([
+			'revision' => 0,
+			'generation' => 0,
+			'effective_topics' => ['tech.apple' => 'INTERESTED'],
+		]);
+		$feedback = ['hidden_nids' => ['321'], 'topics' => ['tech.apple' => 'MORE_TOPIC'], 'authors' => [], 'formats' => []];
+		$this->feedback = $this->createMock(RecommendationFeedbackService::class);
+		$this->feedback->method('current')->with('alice')->willReturn($feedback);
+		$this->interests->method('languagesFor')->willReturn([]);
+		$this->interests->method('hiddenFor')->willReturn([]);
+		$note = new Note();
+		$note->setId('https://remote.example/posts/123')->setContent('<p>Apple announces a new device</p>')->setPublishedTime(1_999_999_900);
+		$this->streams->expects($this->once())->method('recommendationCandidatesByTerms')->with(
+			['apple', 'iphone', 'ipad', 'mac'], $this->isType('string'), 100, ['321'], []
+		)->willReturn(['123' => $note]);
+		$this->feedback->expects($this->once())->method('apply')->with(
+			$this->callback(static fn (array $candidate): bool => $candidate['nid'] === '123'), 'tech.apple', $feedback
+		)->willReturnCallback(static function (array $candidate): array {
+			$candidate['topic_match'] = min(1.0, $candidate['topic_match'] + 0.28);
+			return $candidate;
+		});
+		$this->queue->expects($this->exactly(2))->method('fillPosts')->willReturn(false);
+
+		$result = $this->service()->discover($this->viewer(), 'tech.apple');
+
+		$this->assertSame('123', $result['candidates'][0]['nid']);
+		$this->assertSame(1.0, $result['candidates'][0]['rank_features']['topic_match']);
 	}
 }

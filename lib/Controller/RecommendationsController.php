@@ -14,11 +14,14 @@ use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\RecommendationCandidateService;
+use OCA\Social\Service\RecommendationFeedbackService;
 use OCA\Social\Service\RecommendationPreferenceService;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\AnonRateLimit;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
+use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IRequest;
 use OCP\IUserSession;
@@ -35,6 +38,7 @@ class RecommendationsController extends ClientApiController {
 		ClientService $clientService,
 		private RecommendationPreferenceService $recommendationService,
 		private RecommendationCandidateService $candidateService,
+		private RecommendationFeedbackService $feedbackService,
 	) {
 		parent::__construct($request, $userSession, $logger, $accountService, $clientService);
 	}
@@ -99,7 +103,30 @@ class RecommendationsController extends ClientApiController {
 			'schema_version' => 1,
 			'exported_at' => time(),
 			'preferences' => $this->recommendationService->get($this->viewer()->getUserId()),
+			'feedback' => $this->feedbackService->export($this->viewer()->getUserId()),
 		]);
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[AnonRateLimit(limit: 30, period: 60)]
+	#[UserRateLimit(limit: 30, period: 60)]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/recommendations/feedback')]
+	public function feedback(string $event_id = '', string $post_id = '', string $kind = '', string $topic_id = ''): DataResponse {
+		return $this->answer(['write:statuses'], fn (): array
+			=> $this->feedbackService->record($this->viewer(), $event_id, $post_id, $kind, $topic_id)
+		);
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[AnonRateLimit(limit: 60, period: 60)]
+	#[UserRateLimit(limit: 60, period: 60)]
+	#[FrontpageRoute(verb: 'DELETE', url: '/api/v1/recommendations/feedback/{feedbackId}')]
+	public function undoFeedback(string $feedbackId): DataResponse {
+		return $this->answer(['write:statuses'], fn (): array
+			=> $this->feedbackService->undo($this->viewer(), $feedbackId)
+		);
 	}
 
 	#[NoCSRFRequired]

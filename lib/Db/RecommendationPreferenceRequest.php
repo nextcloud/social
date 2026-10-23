@@ -104,6 +104,8 @@ class RecommendationPreferenceRequest extends CoreRequestBuilder {
 			}
 			$qb = $this->getQueryBuilder();
 			$qb->delete(self::TABLE_PREFERENCE)->where($qb->expr()->eq('actor_key', $qb->createNamedParameter($actorKey)))->executeStatement();
+			$qb = $this->getQueryBuilder();
+			$qb->delete(RecommendationFeedbackRequest::TABLE)->where($qb->expr()->eq('actor_key', $qb->createNamedParameter($actorKey)))->executeStatement();
 			$connection->commit();
 		} catch (\Throwable $e) {
 			$connection->rollBack();
@@ -118,7 +120,7 @@ class RecommendationPreferenceRequest extends CoreRequestBuilder {
 		$connection = $this->getConnection();
 		$connection->beginTransaction();
 		try {
-			foreach ([self::TABLE_PREFERENCE, self::TABLE_PROFILE] as $table) {
+			foreach ([RecommendationFeedbackRequest::TABLE, self::TABLE_PREFERENCE, self::TABLE_PROFILE] as $table) {
 				$qb = $this->getQueryBuilder();
 				$qb->delete($table)->where($qb->expr()->eq('actor_key', $qb->createNamedParameter($actorKey)))->executeStatement();
 			}
