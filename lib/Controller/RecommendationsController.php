@@ -15,6 +15,7 @@ use OCA\Social\Model\Client\Filter;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\FilterService;
+use OCA\Social\Service\IRecommendationSignalEvents;
 use OCA\Social\Service\RecommendationCandidateService;
 use OCA\Social\Service\RecommendationFeedbackService;
 use OCA\Social\Service\RecommendationPreferenceService;
@@ -42,6 +43,7 @@ class RecommendationsController extends ClientApiController {
 		private RecommendationPreferenceService $recommendationService,
 		private RecommendationCandidateService $candidateService,
 		private RecommendationFeedbackService $feedbackService,
+		private IRecommendationSignalEvents $signalService,
 		private RecommendationTimelineService $timelineService,
 		private FilterService $filterService,
 	) {
@@ -85,13 +87,45 @@ class RecommendationsController extends ClientApiController {
 
 	#[NoCSRFRequired]
 	#[PublicPage]
-	#[FrontpageRoute(verb: 'POST', url: '/api/v1/recommendations/reset')]
-	public function reset(int $if_revision = -1): DataResponse {
-		return $this->answer(['write:accounts'], function () use ($if_revision): DataResponse|array {
+	#[FrontpageRoute(verb: 'PUT', url: '/api/v1/recommendations/learning')]
+	public function learning(string $mode = '', int $if_revision = -1): DataResponse {
+		return $this->answer(['write:accounts'], function () use ($if_revision, $mode): DataResponse|array {
 			if ($if_revision < 0) {
 				throw new InvalidArgumentException('if_revision is required');
 			}
-			$state = $this->recommendationService->reset($this->viewer()->getUserId(), $if_revision);
+			$state = $this->recommendationService->setLearningMode($this->viewer()->getUserId(), $if_revision, $mode);
+			if ($state === null) {
+				return new DataResponse(['error' => 'revision-conflict', 'current' => $this->recommendationService->get($this->viewer()->getUserId())], Http::STATUS_CONFLICT);
+			}
+			return $state;
+		});
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/recommendations/signals')]
+	#[AnonRateLimit(limit: 30, period: 60)]
+	#[UserRateLimit(limit: 30, period: 60)]
+	public function signals(array|string $events = []): DataResponse {
+		return $this->answer(['write:statuses'], function () use ($events): array {
+			$decoded = is_string($events) ? json_decode($events, true) : $events;
+			return $this->signalService->recordEvents($this->viewer(), is_array($decoded) ? $decoded : []);
+		});
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/recommendations/reset')]
+	public function reset(int $if_revision = -1, string $scope = 'all'): DataResponse {
+		return $this->answer(['write:accounts'], function () use ($if_revision, $scope): DataResponse|array {
+			if ($if_revision < 0) {
+				throw new InvalidArgumentException('if_revision is required');
+			}
+			$state = match ($scope) {
+				'learning' => $this->recommendationService->resetLearning($this->viewer()->getUserId(), $if_revision),
+				'all' => $this->recommendationService->reset($this->viewer()->getUserId(), $if_revision),
+				default => throw new InvalidArgumentException('scope must be learning or all'),
+			};
 			if ($state === null) {
 				return new DataResponse(['error' => 'revision-conflict', 'current' => $this->recommendationService->get($this->viewer()->getUserId())], Http::STATUS_CONFLICT);
 			}

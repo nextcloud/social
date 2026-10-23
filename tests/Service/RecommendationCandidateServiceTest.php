@@ -9,17 +9,22 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Service;
 
+use OCA\Social\Db\FollowsRequest;
+use OCA\Social\Db\RecommendationSignalRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Service\Discovery\PostDiscoveryService;
 use OCA\Social\Service\InterestService;
+use OCA\Social\Service\RecommendationBehavioralProfile;
 use OCA\Social\Service\RecommendationCandidateService;
 use OCA\Social\Service\RecommendationFeatureExtractor;
 use OCA\Social\Service\RecommendationFeedbackService;
+use OCA\Social\Service\RecommendationFollowFeatures;
 use OCA\Social\Service\RecommendationPreferenceService;
 use OCA\Social\Service\RecommendationRanker;
 use OCA\Social\Service\RecommendationReRanker;
+use OCA\Social\Service\RecommendationSignalService;
 use OCA\Social\Service\RecommendationSnapshotStore;
 use OCA\Social\Service\RecommendationTopicCatalog;
 use OCA\Social\Service\RemoteFetchQueue;
@@ -34,6 +39,8 @@ class RecommendationCandidateServiceTest extends TestCase {
 	private ITimeFactory $clock;
 	private RecommendationSnapshotStore $snapshots;
 	private RecommendationFeedbackService $feedback;
+	private FollowsRequest $follows;
+	private RecommendationSignalRequest $signals;
 
 	protected function setUp(): void {
 		$this->preferences = $this->createMock(RecommendationPreferenceService::class);
@@ -46,6 +53,9 @@ class RecommendationCandidateServiceTest extends TestCase {
 		$this->feedback = $this->createMock(RecommendationFeedbackService::class);
 		$this->feedback->method('current')->willReturn(['hidden_nids' => [], 'topics' => [], 'authors' => [], 'formats' => []]);
 		$this->feedback->method('apply')->willReturnCallback(static fn (array $candidate, string $topicId, array $state): array => $candidate);
+		$this->follows = $this->createMock(FollowsRequest::class);
+		$this->follows->method('getBetweenMany')->willReturn(['following' => [], 'followedBy' => []]);
+		$this->signals = $this->createMock(RecommendationSignalRequest::class);
 	}
 
 	private function service(): RecommendationCandidateService {
@@ -61,6 +71,14 @@ class RecommendationCandidateServiceTest extends TestCase {
 			new RecommendationReRanker(),
 			$this->snapshots,
 			$this->feedback,
+			new RecommendationFollowFeatures($this->follows),
+			new RecommendationBehavioralProfile(new RecommendationSignalService(
+				$this->preferences,
+				$this->signals,
+				new RecommendationFeatureExtractor(new RecommendationTopicCatalog()),
+				$this->streams,
+				$this->clock,
+			), new RecommendationTopicCatalog()),
 		);
 	}
 
@@ -88,6 +106,7 @@ class RecommendationCandidateServiceTest extends TestCase {
 		$this->preferences->method('get')->with('alice')->willReturn([
 			'revision' => 0,
 			'generation' => 0,
+			'learning_mode' => 'on',
 			'effective_topics' => ['tech.apple' => 'INTERESTED'],
 		]);
 		$this->interests->method('languagesFor')->with('alice')->willReturn(['en']);
@@ -114,8 +133,9 @@ class RecommendationCandidateServiceTest extends TestCase {
 		$this->assertTrue($result['remote_refresh_queued']);
 		$this->assertSame('text', $result['candidates'][0]['format']);
 		$this->assertSame('activitypub', $result['candidates'][0]['protocol']);
-		$this->assertSame(1, $result['candidates'][0]['algorithm_version']);
+		$this->assertSame(RecommendationRanker::ALGORITHM_VERSION, $result['candidates'][0]['algorithm_version']);
 		$this->assertArrayHasKey('rank_score', $result['candidates'][0]);
+		$this->assertSame(1.0, $result['candidates'][0]['rank_features']['novelty']);
 	}
 
 	public function testLessNeutralAndHiddenPreferencesDoNotReadOrQueueCandidates(): void {
@@ -138,6 +158,7 @@ class RecommendationCandidateServiceTest extends TestCase {
 		$this->preferences->method('get')->willReturn([
 			'revision' => 3,
 			'generation' => 2,
+			'learning_mode' => 'on',
 			'effective_topics' => ['tech.apple' => 'INTERESTED'],
 		]);
 		$first = (new Note())->setId('https://remote.example/posts/2')->setContent('<p>Apple publishes an update</p>')->setPublishedTime(1_999_999_900);
@@ -166,6 +187,7 @@ class RecommendationCandidateServiceTest extends TestCase {
 		$this->preferences->method('get')->willReturn([
 			'revision' => 0,
 			'generation' => 0,
+			'learning_mode' => 'on',
 			'effective_topics' => ['tech.apple' => 'INTERESTED'],
 		]);
 		$feedback = ['hidden_nids' => ['321'], 'topics' => ['tech.apple' => 'MORE_TOPIC'], 'authors' => [], 'formats' => []];

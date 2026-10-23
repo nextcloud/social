@@ -8,6 +8,9 @@
 
 ### Features
 
+- **recommendations:** Add account-local behavioural learning for For You, with explicit off/on/paused consent, generation-safe resets, bounded fast/slow topic, author and format affinities, idempotent events, impressions and video-watch ratios. Learning defaults off and never infers topic or stance from reply text.
+- **recommendations:** Use consented signals and accepted-follow relationships in new ranked sessions; apply bounded exposure-aware novelty and preserve an explanation for constrained exploration placements. Existing chronological feeds and delivered snapshot order remain stable.
+
 - **recommendations:** Add the disabled-by-default For You 4.0 foundation: bilingual stable topic catalog, owner-scoped explicit preferences, revision conflict handling, reset/export and an administrator kill switch. The existing hashtag feed remains unchanged.
 - **recommendations:** Add bounded, ACL-filtered topic candidate discovery from indexed or capped recent posts, deterministic topic/media/language features, and throttled background ActivityPub/Bluesky coverage fills. Ranking and existing feed order remain unchanged.
 

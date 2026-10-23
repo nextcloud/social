@@ -22,7 +22,7 @@ class RecommendationRankerTest extends TestCase {
 		]);
 
 		$this->assertSame(['1', '2'], array_column($ranked, 'nid'));
-		$this->assertSame(1, $ranked[0]['algorithm_version']);
+		$this->assertSame(RecommendationRanker::ALGORITHM_VERSION, $ranked[0]['algorithm_version']);
 		$this->assertGreaterThan($ranked[1]['rank_score'], $ranked[0]['rank_score']);
 	}
 
@@ -39,6 +39,31 @@ class RecommendationRankerTest extends TestCase {
 		$this->assertTrue(is_finite($ranked[1]['rank_score']));
 	}
 
+	public function testTiesUseCanonicalPostIdentityBeforeLocalDatabaseId(): void {
+		$ranked = (new RecommendationRanker())->rank([
+			['nid' => 'local-z', 'canonical_key' => 'ap://example.org/posts/a'],
+			['nid' => 'local-a', 'canonical_key' => 'at://did:plc:example/app.bsky.feed.post/b'],
+		]);
+
+		$this->assertSame([
+			'ap://example.org/posts/a',
+			'at://did:plc:example/app.bsky.feed.post/b',
+		], array_column($ranked, 'canonical_key'));
+		$this->assertSame(['local-z', 'local-a'], array_column($ranked, 'nid'));
+	}
+
+	public function testMissingAndUnverifiedFollowFeaturesAreNeutral(): void {
+		$ranked = (new RecommendationRanker())->rank([
+			['nid' => 'missing'],
+			['nid' => 'invalid', 'is_followed' => 0.4, 'author_affinity' => null],
+		]);
+
+		foreach ($ranked as $candidate) {
+			$this->assertSame(0.0, $candidate['rank_features']['is_followed']);
+			$this->assertSame(0.0, $candidate['rank_features']['author_affinity']);
+		}
+	}
+
 	public function testScoreFeaturesAreClippedToTheirDocumentedDomains(): void {
 		$ranked = (new RecommendationRanker())->rank([[
 			'nid' => '1',
@@ -49,9 +74,32 @@ class RecommendationRankerTest extends TestCase {
 		]]);
 
 		$this->assertSame(1.0, $ranked[0]['rank_features']['topic_match']);
+		$this->assertSame(0.0, $ranked[0]['rank_features']['behavioral_topic']);
 		$this->assertSame(0.0, $ranked[0]['rank_features']['author_affinity']);
 		$this->assertSame(1.0, $ranked[0]['rank_features']['format_match']);
 		$this->assertSame(1.0, $ranked[0]['rank_features']['exposure_penalty']);
+	}
+
+	public function testBehavioralAffinityChangesTheRankWithoutChangingEligibility(): void {
+		$ranked = (new RecommendationRanker())->rank([
+			['nid' => 'new-interest', 'topic_match' => 0.7, 'behavioral_topic' => 1.0],
+			['nid' => 'neutral', 'topic_match' => 0.7],
+			['nid' => 'hidden', 'topic_match' => 1.0, 'behavioral_topic' => 1.0, 'eligible' => false],
+		]);
+
+		$this->assertSame(['new-interest', 'neutral'], array_column($ranked, 'nid'));
+		$this->assertSame(1.0, $ranked[0]['rank_features']['behavioral_topic']);
+	}
+
+	public function testNoveltyFeatureGivesUnfamiliarAuthorsABoundedExplorationLift(): void {
+		$ranked = (new RecommendationRanker())->rank([
+			['nid' => 'familiar', 'topic_match' => 0.7, 'novelty' => 0.0],
+			['nid' => 'unfamiliar', 'topic_match' => 0.7, 'novelty' => 1.0],
+		]);
+
+		$this->assertSame(['unfamiliar', 'familiar'], array_column($ranked, 'nid'));
+		$this->assertSame(1.0, $ranked[0]['rank_features']['novelty']);
+		$this->assertSame(0.0, $ranked[1]['rank_features']['novelty']);
 	}
 
 	public function testPageAssemblyDeduplicatesAndSoftlySpreadsAuthors(): void {
@@ -83,5 +131,76 @@ class RecommendationRankerTest extends TestCase {
 
 		$this->assertSame('other', $normal[9]['nid'], 'soft topic concentration yields when another topic is available');
 		$this->assertSame('10', $prioritised[9]['nid'], 'an explicitly prioritised topic is exempt from the soft cap');
+	}
+
+	public function testQualifiedExplorationUsesOneStableBoundedSlot(): void {
+		$ranked = [];
+		for ($i = 0; $i < 14; $i++) {
+			$ranked[] = [
+				'nid' => 'normal-' . $i,
+				'canonical_key' => 'normal-' . $i,
+				'rank_score' => 0.99 - $i * 0.002,
+				'author_key' => 'author-' . $i,
+				'is_followed' => 0.0,
+			];
+		}
+		$ranked[] = [
+			'nid' => 'explore',
+			'canonical_key' => 'at://did:example/post/explore',
+			'rank_score' => 0.90,
+			'author_key' => 'new-author',
+			'is_followed' => 0.0,
+			'topic_match' => 0.8,
+			'matching_topic_ids' => ['tech.apple'],
+			'novelty' => 0.9,
+			'exposure_penalty' => 0.0,
+		];
+		for ($i = 15; $i < 24; $i++) {
+			$ranked[] = [
+				'nid' => 'normal-' . $i,
+				'rank_score' => 0.80 - $i * 0.002,
+				'author_key' => 'author-' . $i,
+				'is_followed' => 0.0,
+			];
+		}
+
+		$reranker = new RecommendationReRanker();
+		$page = $reranker->page($ranked, 20, [], 'repeatable-session-seed');
+		$again = $reranker->page($ranked, 20, [], 'repeatable-session-seed');
+
+		$this->assertSame(array_column($page, 'nid'), array_column($again, 'nid'));
+		$this->assertSame('explore', $page[9]['nid']);
+		$this->assertTrue($page[9]['_exploration_slot']);
+		$this->assertCount(1, array_filter($page, static fn (array $item): bool => ($item['_exploration_slot'] ?? false) === true));
+		$this->assertArrayNotHasKey('_base_position', $page[9]);
+	}
+
+	public function testExplorationNeverSelectsFollowedUnmatchedExposedOrDistantCandidates(): void {
+		foreach ([
+			['is_followed' => 1.0],
+			['topic_match' => 0.2],
+			['novelty' => 0.2],
+			['exposure_penalty' => 0.8],
+			['matching_topic_ids' => []],
+			['rank_score' => 0.1],
+		] as $overrides) {
+			$ranked = [];
+			for ($i = 0; $i < 14; $i++) {
+				$ranked[] = ['nid' => 'normal-' . $i, 'rank_score' => 0.99 - $i * 0.002, 'author_key' => 'author-' . $i, 'is_followed' => 0.0];
+			}
+			$ranked[] = array_merge([
+				'nid' => 'candidate',
+				'rank_score' => 0.90,
+				'author_key' => 'candidate-author',
+				'is_followed' => 0.0,
+				'topic_match' => 0.8,
+				'matching_topic_ids' => ['tech.apple'],
+				'novelty' => 0.9,
+				'exposure_penalty' => 0.0,
+			], $overrides);
+
+			$page = (new RecommendationReRanker())->page($ranked, 10, [], 'stable-seed');
+			$this->assertSame([], array_filter($page, static fn (array $item): bool => ($item['_exploration_slot'] ?? false) === true));
+		}
 	}
 }

@@ -3093,6 +3093,8 @@
     "Sepia" : "Sepia",
     "Popular right now" : "Gerade beliebt",
     "Why you're seeing this: popular right now" : "Warum du das siehst: gerade beliebt",
+    "Discover another voice on {topics}" : "Entdecke eine weitere Stimme zu {topics}",
+    "Why you're seeing this: included to broaden your sources, related to {topics}" : "Warum du das siehst: Dieser Beitrag erweitert die Vielfalt deiner Quellen und passt zu {topics}",
     "Because you're interested in {tag}" : "Weil dich {tag} interessiert",
     "Because you follow {tag}" : "Weil du {tag} folgst",
     "Related to {tag}" : "Verwandt mit {tag}",

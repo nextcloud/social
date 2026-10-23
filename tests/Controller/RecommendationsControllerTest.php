@@ -14,6 +14,7 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\FilterService;
+use OCA\Social\Service\IRecommendationSignalEvents;
 use OCA\Social\Service\RecommendationCandidateService;
 use OCA\Social\Service\RecommendationFeedbackService;
 use OCA\Social\Service\RecommendationPreferenceService;
@@ -32,6 +33,7 @@ class RecommendationsControllerTest extends TestCase {
 	private RecommendationPreferenceService $service;
 	private RecommendationCandidateService $candidateService;
 	private RecommendationFeedbackService $feedbackService;
+	private IRecommendationSignalEvents $signalService;
 	private RecommendationTimelineService $timelineService;
 	private FilterService $filterService;
 	private bool $enabled = true;
@@ -58,6 +60,7 @@ class RecommendationsControllerTest extends TestCase {
 			$this->service,
 			$this->candidateService,
 			$this->feedbackService,
+			$this->signalService,
 			$this->timelineService,
 			$this->filterService,
 		);
@@ -68,6 +71,7 @@ class RecommendationsControllerTest extends TestCase {
 		$this->service->method('isEnabled')->willReturnCallback(fn (): bool => $this->enabled);
 		$this->candidateService = $this->createMock(RecommendationCandidateService::class);
 		$this->feedbackService = $this->createMock(RecommendationFeedbackService::class);
+		$this->signalService = $this->createMock(IRecommendationSignalEvents::class);
 		$this->timelineService = $this->createMock(RecommendationTimelineService::class);
 		$this->filterService = $this->createMock(FilterService::class);
 		$this->filterService->method('apply')->willReturnArgument(0);
@@ -107,6 +111,30 @@ class RecommendationsControllerTest extends TestCase {
 
 		$this->assertSame(Http::STATUS_CONFLICT, $response->getStatus());
 		$this->assertSame(['error' => 'revision-conflict', 'current' => $current], $response->getData());
+	}
+
+	public function testLearningModeIsOwnedByTheAuthenticatedReader(): void {
+		$this->service->expects($this->once())->method('setLearningMode')->with('alice', 4, 'on')->willReturn([
+			'revision' => 5, 'generation' => 2, 'learning_mode' => 'on', 'learning' => true, 'topics' => [],
+		]);
+
+		$response = $this->controller()->learning('on', 4);
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame('on', $response->getData()['learning_mode']);
+	}
+
+	public function testSignalEventsAreBoundToTheAuthenticatedViewer(): void {
+		$result = ['accepted' => 1, 'duplicates' => 0, 'discarded' => 0, 'profile_version' => 5];
+		$this->signalService->expects($this->once())->method('recordEvents')->with(
+			$this->callback(static fn (Person $viewer): bool => $viewer->getUserId() === 'alice'),
+			[['event_id' => '1d9cfd49-4e69-4bb8-b7fc-854df448d310']]
+		)->willReturn($result);
+
+		$response = $this->controller()->signals([['event_id' => '1d9cfd49-4e69-4bb8-b7fc-854df448d310']]);
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame($result, $response->getData());
 	}
 
 	public function testTheInstanceKillSwitchDisablesV4BeforePreferenceAccess(): void {

@@ -19,7 +19,7 @@ const catalog = {
 		{ id: 'tech.apple', parentId: 'technology', labels: { en: 'Apple', de: 'Apple' } },
 	],
 }
-const state = { revision: 7, generation: 3, topics: [{ topic_id: 'technology', mode: 'LESS' }] }
+const state = { revision: 7, generation: 3, learning_mode: 'off', topics: [{ topic_id: 'technology', mode: 'LESS' }] }
 const PREFERENCES_URL = '/index.php/apps/social/api/v1/recommendations/preferences'
 const RESET_URL = '/index.php/apps/social/api/v1/recommendations/reset'
 
@@ -41,8 +41,9 @@ describe('For You topic settings', () => {
 		await flushPromises()
 
 		expect(get).toHaveBeenCalledTimes(2)
-		expect(wrapper.findAll('select')).toHaveLength(2)
-		expect(wrapper.findAll('select')[0].element.value).toBe('LESS')
+		expect(wrapper.findAll('select')).toHaveLength(3)
+		expect(wrapper.find('#recommendation-topic-technology').element.value).toBe('LESS')
+		expect(wrapper.find('#recommendation-learning-mode').element.value).toBe('off')
 		expect(wrapper.text()).toContain('Revision 7')
 	})
 
@@ -50,8 +51,8 @@ describe('For You topic settings', () => {
 		put.mockResolvedValue({ data: { revision: 8, generation: 4, topics: [{ topic_id: 'tech.apple', mode: 'PRIORITISE' }] } })
 		const wrapper = mountSettings()
 		await flushPromises()
-		await wrapper.findAll('select')[1].setValue('PRIORITISE')
-		await wrapper.findComponent({ name: 'NcButton' }).trigger('click')
+		await wrapper.find('[id="recommendation-topic-tech.apple"]').setValue('PRIORITISE')
+		await wrapper.findAllComponents({ name: 'NcButton' })[2].trigger('click')
 		await flushPromises()
 
 		expect(put).toHaveBeenCalledWith(PREFERENCES_URL, {
@@ -72,18 +73,41 @@ describe('For You topic settings', () => {
 		await flushPromises()
 
 		expect(post).toHaveBeenCalledWith(RESET_URL, { if_revision: 7 })
-		expect(wrapper.findAll('select')[0].element.value).toBe('')
+		expect(wrapper.find('#recommendation-topic-technology').element.value).toBe('')
 	})
 
 	it('reloads the latest state after a revision conflict', async () => {
 		put.mockRejectedValue({ response: { status: 409, data: { current: { revision: 8, generation: 4, topics: [] } } } })
 		const wrapper = mountSettings()
 		await flushPromises()
-		await wrapper.findAll('select')[0].setValue('HIDE')
+		await wrapper.find('#recommendation-topic-technology').setValue('HIDE')
 		await wrapper.vm.save()
 		await flushPromises()
 
 		expect(wrapper.text()).toContain('Revision 8')
 		expect(showError).toHaveBeenCalled()
+	})
+
+	it('requires an explicit save to turn behavioural learning on', async () => {
+		put.mockResolvedValue({ data: { ...state, revision: 8, learning_mode: 'on' } })
+		const wrapper = mountSettings()
+		await flushPromises()
+		await wrapper.find('#recommendation-learning-mode').setValue('on')
+		await wrapper.findAllComponents({ name: 'NcButton' })[0].trigger('click')
+		await flushPromises()
+
+		expect(put).toHaveBeenCalledWith('/index.php/apps/social/api/v1/recommendations/learning', { if_revision: 7, mode: 'on' })
+		expect(wrapper.find('#recommendation-learning-mode').element.value).toBe('on')
+	})
+
+	it('resets learned signals separately from explicit topic choices', async () => {
+		post.mockResolvedValue({ data: { ...state, revision: 8, generation: 4 } })
+		const wrapper = mountSettings()
+		await flushPromises()
+		await wrapper.vm.resetLearning()
+		await flushPromises()
+
+		expect(post).toHaveBeenCalledWith(RESET_URL, { if_revision: 7, scope: 'learning' })
+		expect(wrapper.find('#recommendation-topic-technology').element.value).toBe('LESS')
 	})
 })

@@ -13,11 +13,11 @@ use InvalidArgumentException;
 
 /** Immutable, bounded ranking snapshot with viewer- and mode-bound cursors. */
 final readonly class RecommendationFeedSnapshot {
-	public const CURSOR_VERSION = 1;
+	public const CURSOR_VERSION = 2;
 	public const MAX_POSTS = 1000;
-	public const ALGORITHM_VERSION = 1;
+	public const ALGORITHM_VERSION = 3;
 
-	/** @param list<string> $rankedNids */
+	/** @param list<string> $rankedNids @param list<string> $explorationNids */
 	public function __construct(
 		public string $id,
 		public string $viewerKey,
@@ -29,6 +29,7 @@ final readonly class RecommendationFeedSnapshot {
 		public int $createdAt,
 		public int $expiresAt,
 		public array $rankedNids,
+		public array $explorationNids = [],
 	) {
 		if (preg_match('/^[a-f0-9]{32}$/', $id) !== 1 || preg_match('/^[a-f0-9]{64}$/', $viewerKey) !== 1) {
 			throw new InvalidArgumentException('Invalid recommendation snapshot identity');
@@ -47,9 +48,21 @@ final readonly class RecommendationFeedSnapshot {
 		if (!array_is_list($rankedNids)) {
 			throw new InvalidArgumentException('Snapshot post identifiers must be an ordered list');
 		}
+		if (!array_is_list($explorationNids)) {
+			throw new InvalidArgumentException('Exploration posts must be unique members of the ranked snapshot');
+		}
+		foreach ($explorationNids as $nid) {
+			if (!is_string($nid) || $nid === '') {
+				throw new InvalidArgumentException('Exploration post identifiers must be non-empty strings');
+			}
+		}
+		if (count(array_unique($explorationNids)) !== count($explorationNids)
+			|| array_diff($explorationNids, $rankedNids) !== []) {
+			throw new InvalidArgumentException('Exploration posts must be unique members of the ranked snapshot');
+		}
 	}
 
-	/** @param list<string> $rankedNids */
+	/** @param list<string> $rankedNids @param list<string> $explorationNids */
 	public static function create(
 		string $viewerId,
 		string $mode,
@@ -59,6 +72,7 @@ final readonly class RecommendationFeedSnapshot {
 		int $now,
 		array $rankedNids,
 		int $ttl = 3600,
+		array $explorationNids = [],
 	): self {
 		$rankedNids = array_slice($rankedNids, 0, self::MAX_POSTS);
 		foreach ($rankedNids as $nid) {
@@ -67,6 +81,10 @@ final readonly class RecommendationFeedSnapshot {
 			}
 		}
 		$rankedNids = array_values(array_unique($rankedNids));
+		$explorationNids = array_values(array_unique(array_filter(
+			$explorationNids,
+			static fn (mixed $nid): bool => is_string($nid) && in_array($nid, $rankedNids, true)
+		)));
 
 		return new self(
 			bin2hex(random_bytes(16)),
@@ -79,6 +97,7 @@ final readonly class RecommendationFeedSnapshot {
 			$now,
 			$now + max(1, min(3600, $ttl)),
 			$rankedNids,
+			$explorationNids,
 		);
 	}
 
@@ -95,6 +114,7 @@ final readonly class RecommendationFeedSnapshot {
 			'created_at' => $this->createdAt,
 			'expires_at' => $this->expiresAt,
 			'ranked_nids' => $this->rankedNids,
+			'exploration_nids' => $this->explorationNids,
 		];
 	}
 
@@ -109,7 +129,8 @@ final readonly class RecommendationFeedSnapshot {
 			|| !is_int($data['generation'] ?? null)
 			|| !is_int($data['created_at'] ?? null)
 			|| !is_int($data['expires_at'] ?? null)
-			|| !is_array($data['ranked_nids'] ?? null)) {
+			|| !is_array($data['ranked_nids'] ?? null)
+			|| (array_key_exists('exploration_nids', $data) && !is_array($data['exploration_nids']))) {
 			return null;
 		}
 		try {
@@ -124,6 +145,7 @@ final readonly class RecommendationFeedSnapshot {
 				$data['created_at'],
 				$data['expires_at'],
 				$data['ranked_nids'],
+				$data['exploration_nids'] ?? [],
 			);
 		} catch (InvalidArgumentException) {
 			return null;

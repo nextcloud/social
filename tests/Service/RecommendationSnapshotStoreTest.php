@@ -30,10 +30,11 @@ class RecommendationSnapshotStoreTest extends TestCase {
 			return $values[$key] ?? null;
 		});
 		$store = $this->store($cache);
-		$first = $store->create('alice', 'for-you', 'all', 4, 2, self::NOW, ['1', '2', '3', '4', '5'], 2);
+		$first = $store->create('alice', 'for-you', 'all', 4, 2, self::NOW, ['1', '2', '3', '4', '5'], 2, ['4']);
 
 		$this->assertNotNull($first);
 		$this->assertSame(['1', '2'], $first['nids']);
+		$this->assertSame(['4'], $first['exploration_nids']);
 		$this->assertNotNull($first['next_cursor']);
 		$this->assertNull($store->nextPage($first['next_cursor'], 'bob', 'for-you', 'all', 4, 2, self::NOW + 1, 2));
 		$this->assertNull($store->nextPage($first['next_cursor'], 'alice', 'for-you', 'all', 5, 2, self::NOW + 1, 2));
@@ -42,6 +43,7 @@ class RecommendationSnapshotStoreTest extends TestCase {
 		$this->assertNotNull($second);
 		$this->assertSame($first['session_id'], $second['session_id']);
 		$this->assertSame(['3', '4'], $second['nids']);
+		$this->assertSame(['4'], $second['exploration_nids']);
 		$third = $store->nextPage($second['next_cursor'], 'alice', 'for-you', 'all', 4, 2, self::NOW + 2, 2);
 		$this->assertNotNull($third);
 		$this->assertSame(['5'], $third['nids']);

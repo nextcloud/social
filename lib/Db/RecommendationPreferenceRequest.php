@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
+use InvalidArgumentException;
 use OCP\DB\Exception as DBException;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
@@ -17,7 +18,7 @@ class RecommendationPreferenceRequest extends CoreRequestBuilder {
 	public const TABLE_PROFILE = 'social_rec_profile';
 	public const TABLE_PREFERENCE = 'social_rec_pref';
 
-	/** @return array{revision: int, generation: int, topics: list<array{topic_id: string, mode: string}>} */
+	/** @return array{revision: int, generation: int, learning_mode: string, topics: list<array{topic_id: string, mode: string}>} */
 	public function get(string $actorKey): array {
 		$profile = $this->profile($actorKey);
 		$qb = $this->getQueryBuilder();
@@ -31,7 +32,30 @@ class RecommendationPreferenceRequest extends CoreRequestBuilder {
 		}
 		$result->closeCursor();
 
-		return ['revision' => $profile['profile_ver'], 'generation' => $profile['generation'], 'topics' => $topics];
+		return ['revision' => $profile['profile_ver'], 'generation' => $profile['generation'], 'learning_mode' => $profile['learning_mode'], 'topics' => $topics];
+	}
+
+	/** Update the consent state with profile-version compare-and-swap. */
+	public function setLearningMode(string $actorKey, int $expectedRevision, string $mode): ?array {
+		if (!in_array($mode, ['off', 'on', 'paused'], true)) {
+			throw new InvalidArgumentException('Unknown learning mode');
+		}
+		$this->ensureProfile($actorKey);
+		$qb = $this->getQueryBuilder();
+		$qb->update(self::TABLE_PROFILE)
+			->set('profile_ver', $qb->createNamedParameter($expectedRevision + 1, IQueryBuilder::PARAM_INT))
+			// Invalidate browser buffers and queued deliveries on every consent
+			// transition. If learning is paused and later resumed, an event from
+			// the earlier consent period must not become valid again.
+			->set('generation', $qb->func()->add('generation', $qb->expr()->literal(1)))
+			->set('learning_mode', $qb->createNamedParameter($mode))
+			->set('updated_at', $qb->createNamedParameter(time(), IQueryBuilder::PARAM_INT))
+			->where($qb->expr()->eq('actor_key', $qb->createNamedParameter($actorKey)))
+			->andWhere($qb->expr()->eq('profile_ver', $qb->createNamedParameter($expectedRevision, IQueryBuilder::PARAM_INT)));
+		if ($qb->executeStatement() !== 1) {
+			return null;
+		}
+		return $this->get($actorKey);
 	}
 
 	/**
@@ -39,7 +63,7 @@ class RecommendationPreferenceRequest extends CoreRequestBuilder {
 	 * current revision. The compare-and-swap update is the serialization point.
 	 *
 	 * @param list<array{topic_id: string, mode: string}> $topics
-	 * @return array{revision: int, generation: int, topics: list<array{topic_id: string, mode: string}>}|null null means revision conflict
+	 * @return array{revision: int, generation: int, learning_mode: string, topics: list<array{topic_id: string, mode: string}>}|null null means revision conflict
 	 */
 	public function replace(string $actorKey, int $expectedRevision, array $topics): ?array {
 		$this->ensureProfile($actorKey);
@@ -79,7 +103,7 @@ class RecommendationPreferenceRequest extends CoreRequestBuilder {
 		return $this->get($actorKey);
 	}
 
-	/** Invalidate in-flight writers before deleting preferences. */
+	/** @return array{revision: int, generation: int, learning_mode: string, topics: list<array{topic_id: string, mode: string}>}|null */
 	public function reset(string $actorKey, int $expectedRevision): ?array {
 		$this->ensureProfile($actorKey);
 		$connection = $this->getConnection();
@@ -104,8 +128,10 @@ class RecommendationPreferenceRequest extends CoreRequestBuilder {
 			}
 			$qb = $this->getQueryBuilder();
 			$qb->delete(self::TABLE_PREFERENCE)->where($qb->expr()->eq('actor_key', $qb->createNamedParameter($actorKey)))->executeStatement();
-			$qb = $this->getQueryBuilder();
-			$qb->delete(RecommendationFeedbackRequest::TABLE)->where($qb->expr()->eq('actor_key', $qb->createNamedParameter($actorKey)))->executeStatement();
+			foreach ([RecommendationFeedbackRequest::TABLE, RecommendationSignalRequest::TABLE_SIGNAL, RecommendationSignalRequest::TABLE_EVENT, RecommendationSignalRequest::TABLE_SEEN] as $table) {
+				$delete = $this->getQueryBuilder();
+				$delete->delete($table)->where($delete->expr()->eq('actor_key', $delete->createNamedParameter($actorKey)))->executeStatement();
+			}
 			$connection->commit();
 		} catch (\Throwable $e) {
 			$connection->rollBack();
@@ -115,12 +141,41 @@ class RecommendationPreferenceRequest extends CoreRequestBuilder {
 		return $this->get($actorKey);
 	}
 
+	/** @return array{revision: int, generation: int, learning_mode: string, topics: list<array{topic_id: string, mode: string}>}|null */
+	public function resetLearning(string $actorKey, int $expectedRevision): ?array {
+		$this->ensureProfile($actorKey);
+		$connection = $this->getConnection();
+		$connection->beginTransaction();
+		try {
+			$qb = $this->getQueryBuilder();
+			$qb->update(self::TABLE_PROFILE)
+				->set('profile_ver', $qb->createNamedParameter($expectedRevision + 1, IQueryBuilder::PARAM_INT))
+				->set('generation', $qb->func()->add('generation', $qb->expr()->literal(1)))
+				->set('updated_at', $qb->createNamedParameter(time(), IQueryBuilder::PARAM_INT))
+				->where($qb->expr()->eq('actor_key', $qb->createNamedParameter($actorKey)))
+				->andWhere($qb->expr()->eq('profile_ver', $qb->createNamedParameter($expectedRevision, IQueryBuilder::PARAM_INT)));
+			if ($qb->executeStatement() !== 1) {
+				$connection->rollBack();
+				return null;
+			}
+			foreach ([RecommendationSignalRequest::TABLE_SIGNAL, RecommendationSignalRequest::TABLE_EVENT, RecommendationSignalRequest::TABLE_SEEN] as $table) {
+				$delete = $this->getQueryBuilder();
+				$delete->delete($table)->where($delete->expr()->eq('actor_key', $delete->createNamedParameter($actorKey)))->executeStatement();
+			}
+			$connection->commit();
+		} catch (\Throwable $e) {
+			$connection->rollBack();
+			throw $e;
+		}
+		return $this->get($actorKey);
+	}
+
 	/** Remove all state when its Nextcloud account is deleted. */
 	public function purge(string $actorKey): void {
 		$connection = $this->getConnection();
 		$connection->beginTransaction();
 		try {
-			foreach ([RecommendationFeedbackRequest::TABLE, self::TABLE_PREFERENCE, self::TABLE_PROFILE] as $table) {
+			foreach ([RecommendationFeedbackRequest::TABLE, RecommendationSignalRequest::TABLE_SIGNAL, RecommendationSignalRequest::TABLE_EVENT, RecommendationSignalRequest::TABLE_SEEN, self::TABLE_PREFERENCE, self::TABLE_PROFILE] as $table) {
 				$qb = $this->getQueryBuilder();
 				$qb->delete($table)->where($qb->expr()->eq('actor_key', $qb->createNamedParameter($actorKey)))->executeStatement();
 			}
@@ -131,17 +186,17 @@ class RecommendationPreferenceRequest extends CoreRequestBuilder {
 		}
 	}
 
-	/** @return array{profile_ver: int, generation: int} */
+	/** @return array{profile_ver: int, generation: int, learning_mode: string} */
 	private function profile(string $actorKey): array {
 		$this->ensureProfile($actorKey);
 		$qb = $this->getQueryBuilder();
-		$qb->select('profile_ver', 'generation')->from(self::TABLE_PROFILE)
+		$qb->select('profile_ver', 'generation', 'learning_mode')->from(self::TABLE_PROFILE)
 			->where($qb->expr()->eq('actor_key', $qb->createNamedParameter($actorKey)))->setMaxResults(1);
 		$result = $qb->executeQuery();
 		$row = $result->fetch();
 		$result->closeCursor();
 
-		return ['profile_ver' => (int)$row['profile_ver'], 'generation' => (int)$row['generation']];
+		return ['profile_ver' => (int)$row['profile_ver'], 'generation' => (int)$row['generation'], 'learning_mode' => (string)$row['learning_mode']];
 	}
 
 	private function ensureProfile(string $actorKey): void {

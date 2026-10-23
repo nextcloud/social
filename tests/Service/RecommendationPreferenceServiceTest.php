@@ -44,6 +44,7 @@ class RecommendationPreferenceServiceTest extends TestCase {
 		$this->request->method('get')->willReturn([
 			'revision' => 4,
 			'generation' => 1,
+			'learning_mode' => 'off',
 			'topics' => [
 				['topic_id' => 'technology', 'mode' => 'LESS'],
 				['topic_id' => 'tech.apple', 'mode' => 'INTERESTED'],

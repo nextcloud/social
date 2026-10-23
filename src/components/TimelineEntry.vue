@@ -119,10 +119,10 @@
 		<span
 			v-else-if="interest !== null"
 			class="interest-reason"
-			:class="interest.reason === 'topic' ? 'interest-reason--topic' : 'interest-reason--popular'"
+			:class="['topic', 'exploration'].includes(interest.reason) ? 'interest-reason--topic' : 'interest-reason--popular'"
 			role="note"
 			:aria-label="interest.label">
-			<Pound v-if="interest.reason === 'topic'" :size="16" />
+			<Pound v-if="['topic', 'exploration'].includes(interest.reason)" :size="16" />
 			<TrendingUp v-else :size="16" />
 			<span class="interest-reason__text">{{ interest.text }}</span>
 		</span>

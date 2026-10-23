@@ -38,6 +38,8 @@ class RecommendationTimelineService {
 		private RecommendationReRanker $reRanker,
 		private RecommendationSnapshotStore $snapshots,
 		private RecommendationFeedbackService $feedbackService,
+		private RecommendationBehavioralProfile $behavioralProfile,
+		private RecommendationFollowFeatures $followFeatures,
 		private RemoteFetchQueue $remoteFetchQueue,
 		private ITimeFactory $timeFactory,
 	) {
@@ -76,6 +78,7 @@ class RecommendationTimelineService {
 
 		$this->streams->setViewer($viewer);
 		$feedback = $this->feedbackService->current($viewer->getUserId());
+		$behavioral = $this->behavioralProfile->forViewer($viewer);
 		$now = $this->timeFactory->getTime();
 		$prioritised = array_values(array_map(
 			static fn (array $topic): string => $topic['id'],
@@ -83,7 +86,7 @@ class RecommendationTimelineService {
 		));
 
 		if ($cursor !== '') {
-			return $this->continuePage($viewer, $limit, $cursor, $media, $state, $topics, $feedback, $now);
+			return $this->continuePage($viewer, $limit, $cursor, $media, $state, $topics, $feedback, $behavioral, $now);
 		}
 
 		$sinceNid = Nid::fromPublishedTime(max(0, $now - self::LOOKBACK_DAYS * 86400), 0, StreamRequest::NID_LIMIT);
@@ -98,18 +101,24 @@ class RecommendationTimelineService {
 			))),
 			$this->interests->languagesFor($viewer->getUserId())
 		);
+		$followedAuthors = $this->followFeatures->followedAuthors($viewer, array_values($posts));
+		$exposurePenalties = $this->behavioralProfile->exposurePenalties($viewer, array_values($posts));
 
 		$candidates = [];
 		foreach ($posts as $nid => $post) {
-			$candidate = $this->candidate($post, (string)$nid, $topics, $state['effective_topics'] ?? [], $media, $now, $feedback);
+			$candidate = $this->candidate($post, (string)$nid, $topics, $state['effective_topics'] ?? [], $media, $now, $feedback, $behavioral, $followedAuthors, $exposurePenalties);
 			if ($candidate !== null) {
 				$candidates[] = $candidate;
 			}
 		}
-		$ranked = $this->reRanker->page($this->ranker->rank($candidates), self::MAX_CANDIDATES, $prioritised);
+		$ranked = $this->reRanker->page($this->ranker->rank($candidates), self::MAX_CANDIDATES, $prioritised, bin2hex(random_bytes(16)));
+		$explorationNids = array_values(array_map(
+			static fn (array $candidate): string => (string)$candidate['nid'],
+			array_filter($ranked, static fn (array $candidate): bool => ($candidate['_exploration_slot'] ?? false) === true)
+		));
 		$snapshot = $this->snapshots->create(
 			$viewer->getUserId(), self::MODE, $media, $state['revision'], $state['generation'], $now,
-			array_column($ranked, 'nid'), $limit
+			array_column($ranked, 'nid'), $limit, $explorationNids
 		);
 
 		if ($snapshot === null) {
@@ -122,7 +131,7 @@ class RecommendationTimelineService {
 			$nextCursor = $snapshot['next_cursor'];
 		}
 
-		$items = $this->hydrate($posts, $selected, $topics);
+		$items = $this->hydrate($posts, $selected, $topics, $snapshot['exploration_nids'] ?? $explorationNids);
 		$underfilled = count($ranked) < min($limit, self::MIN_COVERAGE);
 		$queued = $underfilled ? $this->queueCoverage($topics, $viewer) : false;
 
@@ -174,7 +183,7 @@ class RecommendationTimelineService {
 	}
 
 	/** @param array<string, string|null> $effective @param array<string, mixed> $feedback @return array<string, mixed>|null */
-	private function candidate(Stream $post, string $nid, array $topics, array $effective, string $media, int $now, array $feedback): ?array {
+	private function candidate(Stream $post, string $nid, array $topics, array $effective, string $media, int $now, array $feedback, array $behavioral, array $followedAuthors, array $exposurePenalties): ?array {
 		$features = $this->features->extract($post);
 		$allTopicIds = array_keys($features['topics']);
 		foreach ($allTopicIds as $topicId) {
@@ -211,6 +220,9 @@ class RecommendationTimelineService {
 
 		$format = $features['format'];
 		$author = $post->getAttributedTo();
+		$isFollowed = isset($followedAuthors[$author]);
+		$exposurePenalty = $exposurePenalties[$nid] ?? 0.0;
+		$authorAffinity = $this->behavioralProfile->authorAffinity($author, $behavioral['authors']);
 		$authorFeedback = $author === '' ? null : ($feedback['authors'][hash('sha256', $author)] ?? null);
 		$formatFeedback = $feedback['formats'][$format] ?? null;
 		$published = $post->getPublishedTime();
@@ -218,7 +230,7 @@ class RecommendationTimelineService {
 		$halfLifeHours = in_array($format, ['short', 'video'], true) ? 12.0 : 24.0;
 		return [
 			'nid' => $nid,
-			'canonical_key' => $nid,
+			'canonical_key' => $post->getId() !== '' ? $post->getId() : $nid,
 			'author_key' => $author,
 			'topic_ids' => $allTopicIds,
 			'matching_topic_ids' => array_keys($selected),
@@ -226,8 +238,14 @@ class RecommendationTimelineService {
 			'published_at' => $published,
 			'format' => $format,
 			'topic_match' => $bestMatch,
+			'behavioral_topic' => $this->behavioralProfile->topicAffinity($allTopicIds, $behavioral['topics']),
+			'behavioral_author' => $authorAffinity,
+			'behavioral_format' => $this->behavioralProfile->formatAffinity($format, $behavioral['formats']),
+			'is_followed' => $isFollowed ? 1.0 : 0.0,
+			'novelty' => RecommendationBehavioralProfile::novelty($authorAffinity, $isFollowed, $exposurePenalty),
 			'freshness' => ($published > 0 && $now > 0) ? exp(-0.6931471805599453 * (float)$ageHours / $halfLifeHours) : 0.5,
-			'author_affinity' => $authorFeedback === 'MORE_AUTHOR' ? 1.0 : 0.5,
+			'author_affinity' => $authorFeedback === 'MORE_AUTHOR' ? 1.0 : 0.0,
+			'exposure_penalty' => $exposurePenalty,
 			'format_match' => $formatFeedback === 'MORE_FORMAT' ? 1.0 : 0.0,
 			'feedback_alignment' => 0.0,
 			'source_reliability' => 0.5,
@@ -256,7 +274,7 @@ class RecommendationTimelineService {
 	}
 
 	/** @param array<string, Stream> $posts @param list<array<string, mixed>> $candidates @param list<array{id: string, mode: string, aliases: list<string>, labels: array{en: string, de: string}}> $topics @return list<Stream> */
-	private function hydrate(array $posts, array $candidates, array $topics): array {
+	private function hydrate(array $posts, array $candidates, array $topics, array $explorationNids = []): array {
 		$byId = [];
 		foreach ($topics as $topic) {
 			$byId[$topic['id']] = $topic;
@@ -274,9 +292,11 @@ class RecommendationTimelineService {
 					$matched[] = ['id' => $topicId, 'labels' => $byId[$topicId]['labels']];
 				}
 			}
+			$isExploration = ($candidate['_exploration_slot'] ?? false) === true
+				|| in_array((string)$candidate['nid'], $explorationNids, true);
 			$post->setExportFormat(ACore::FORMAT_LOCAL)->setInterest([
 				'tags' => [],
-				'reason' => 'topic',
+				'reason' => $isExploration ? 'exploration' : 'topic',
 				'topics' => $matched,
 				'selection_stage' => 'RERANK',
 			]);
@@ -311,7 +331,7 @@ class RecommendationTimelineService {
 	}
 
 	/** @param array<string, mixed> $state @param list<array{id: string, mode: string, aliases: list<string>, labels: array{en: string, de: string}}> $topics @param array<string, mixed> $feedback */
-	private function continuePage(Person $viewer, int $limit, string $cursor, string $media, array $state, array $topics, array $feedback, int $now): array {
+	private function continuePage(Person $viewer, int $limit, string $cursor, string $media, array $state, array $topics, array $feedback, array $behavioral, int $now): array {
 		$page = $this->snapshots->nextPage($cursor, $viewer->getUserId(), self::MODE, $media, $state['revision'], $state['generation'], $now, $limit);
 		if ($page === null) {
 			return $this->empty($state['revision'], true, 'RANKED');
@@ -322,18 +342,23 @@ class RecommendationTimelineService {
 		$sessionId = $page['session_id'];
 		for ($scan = 0; $scan < 5; $scan++) {
 			$posts = $this->streams->getVisibleByNids($page['nids']);
+			$followedAuthors = $this->followFeatures->followedAuthors($viewer, array_values($posts));
+			$exposurePenalties = $this->behavioralProfile->exposurePenalties($viewer, array_values($posts));
 			$ordered = [];
 			foreach ($page['nids'] as $nid) {
 				$post = $posts[$nid] ?? null;
 				if (!$post instanceof Stream || in_array($nid, $feedback['hidden_nids'], true)) {
 					continue;
 				}
-				$candidate = $this->candidate($post, $nid, $topics, $state['effective_topics'] ?? [], $media, $now, $feedback);
+				$candidate = $this->candidate($post, $nid, $topics, $state['effective_topics'] ?? [], $media, $now, $feedback, $behavioral, $followedAuthors, $exposurePenalties);
 				if ($candidate !== null) {
+					if (in_array($nid, $page['exploration_nids'] ?? [], true)) {
+						$candidate['_exploration_slot'] = true;
+					}
 					$ordered[] = $candidate;
 				}
 			}
-			$items = array_merge($items, $this->hydrate($posts, $ordered, $topics));
+			$items = array_merge($items, $this->hydrate($posts, $ordered, $topics, $page['exploration_nids'] ?? []));
 			if (count($items) >= $limit || $nextCursor === null) {
 				break;
 			}

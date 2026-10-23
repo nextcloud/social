@@ -124,6 +124,8 @@ describe('the interest tracker', () => {
 		expect(contextFor('interests')).toBe('interests')
 		expect(contextFor('photos')).toBe('photos')
 		expect(contextFor('videos')).toBe('videos')
+		expect(contextFor('shorts')).toBe('shorts')
+		expect(contextFor('reels')).toBe('reels')
 		expect(contextFor('single-post')).toBe('detail')
 		expect(contextFor('notifications')).toBeNull()
 		expect(contextFor('bookmarks')).toBeNull()
@@ -137,6 +139,57 @@ describe('the interest tracker', () => {
 		hide(element)
 
 		expect(tracker.pending()).toEqual([{ status_id: '1', kind: 'dwell', ms: 5000, context: 'home' }])
+	})
+
+	it('adds stable event IDs and the consent generation to v4 impressions', () => {
+		const element = entry()
+		track({ generation: 4 })
+		tracker.observe(element, post('1'))
+		show(element)
+		vi.advanceTimersByTime(900)
+		hide(element)
+
+		const events = tracker.pending()
+		expect(events).toHaveLength(2)
+		for (const event of events) {
+			expect(event.event_id).toMatch(/^[0-9a-f-]{36}$/i)
+			expect(event.generation).toBe(4)
+		}
+		expect(events[0]).toMatchObject({ kind: 'impression', session_id: expect.stringMatching(/^[0-9a-f-]{36}$/i), visible_ms: 900 })
+		expect(events[1]).toMatchObject({ kind: 'dwell', ms: 900 })
+	})
+
+	it('can watch hashtagless posts in a v4 context after consent is loaded', () => {
+		const element = entry()
+		track({ generation: 4, allowUntagged: true })
+		tracker.observe(element, post('1', { tags: [] }))
+		show(element)
+		vi.advanceTimersByTime(1500)
+		hide(element)
+
+		expect(tracker.pending().some((event) => event.kind === 'impression')).toBe(true)
+		expect(tracker.pending().some((event) => event.kind === 'dwell')).toBe(true)
+	})
+
+	it('records media actions on hashtagless posts in a v4 context', () => {
+		track({ generation: 4, allowUntagged: true })
+		tracker.record(post('1', { tags: [] }), 'media')
+
+		expect(tracker.pending()).toHaveLength(1)
+		expect(tracker.pending()[0]).toMatchObject({ kind: 'media', generation: 4 })
+	})
+
+	it('does not turn background time into an impression', () => {
+		const element = entry()
+		track({ generation: 4 })
+		tracker.observe(element, post('1'))
+		show(element)
+		vi.advanceTimersByTime(300)
+		doc.visibilityState = 'hidden'
+		fire(doc, 'visibilitychange')
+		vi.advanceTimersByTime(5000)
+
+		expect(tracker.pending().some((event) => event.kind === 'impression')).toBe(false)
 	})
 
 	it('does not count a post that is less than half visible', () => {
@@ -258,6 +311,29 @@ describe('the interest tracker', () => {
 		expect(tracker.pending()).toEqual([{ status_id: '1', kind: 'skip', context: 'home' }])
 	})
 
+	it('records one consented video watch ratio, rounded and capped at one', () => {
+		track({ generation: 4 })
+		tracker.recordVideoWatchRatio(post('1'), 1.25)
+		tracker.recordVideoWatchRatio(post('1'), 0.5)
+		tracker.recordVideoWatchRatio(post('2'), 0.7546)
+
+		const events = tracker.pending()
+		expect(events).toHaveLength(2)
+		expect(events[0]).toMatchObject({ status_id: '1', kind: 'video_watch_ratio', ratio: 1, context: 'home', generation: 4 })
+		expect(events[1]).toMatchObject({ status_id: '2', kind: 'video_watch_ratio', ratio: 0.755, generation: 4 })
+		expect(events[0].event_id).toMatch(/^[a-f0-9-]{36}$/i)
+	})
+
+	it('does not collect video ratios without active learning consent', () => {
+		track()
+		tracker.recordVideoWatchRatio(post('1'), 0.9)
+		tracker.setLearningGeneration(4)
+		tracker.setLearningGeneration(null)
+		tracker.recordVideoWatchRatio(post('2'), 0.9)
+
+		expect(tracker.pending()).toEqual([])
+	})
+
 	it('does not call it a skip when the post went back where it came from', () => {
 		const element = entry()
 		track().observe(element, post('1'))
@@ -372,12 +448,21 @@ describe('the interest tracker', () => {
 		expect(send).toHaveBeenCalledTimes(1)
 	})
 
-	it('survives a send that fails', async () => {
-		send.mockRejectedValue(new Error('down'))
-		track().record(post('1'), 'media')
+	it('retries a failed learning batch unchanged with the same event ID', async () => {
+		send.mockRejectedValueOnce(new Error('down'))
+		track({ generation: 7 }).record(post('1'), 'media')
+		const original = tracker.pending()[0]
 
-		expect(() => tracker.flush()).not.toThrow()
-		await Promise.resolve()
+		await tracker.flush()
+
+		expect(tracker.pending()).toEqual([original])
+		expect(send).toHaveBeenCalledTimes(1)
+
+		send.mockResolvedValueOnce()
+		await tracker.flush()
+
+		expect(send).toHaveBeenNthCalledWith(2, [original], { beacon: false })
+		expect(tracker.pending()).toEqual([])
 	})
 
 	describe('one signal outside a list', () => {

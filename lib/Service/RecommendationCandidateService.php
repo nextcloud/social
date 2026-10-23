@@ -35,6 +35,8 @@ class RecommendationCandidateService {
 		private RecommendationReRanker $reRanker,
 		private RecommendationSnapshotStore $snapshotStore,
 		private RecommendationFeedbackService $feedbackService,
+		private RecommendationFollowFeatures $followFeatures,
+		private RecommendationBehavioralProfile $behavioralProfile,
 	) {
 	}
 
@@ -92,18 +94,25 @@ class RecommendationCandidateService {
 			array_values(array_unique(array_merge($this->interests->hiddenFor($viewer), $feedback['hidden_nids']))),
 			$this->interests->languagesFor($viewer->getUserId())
 		);
+		$followedAuthors = $this->followFeatures->followedAuthors($viewer, array_values($posts));
+		$exposurePenalties = $this->behavioralProfile->exposurePenalties($viewer, array_values($posts));
+		$behavioralAuthors = $this->behavioralProfile->forViewer($viewer)['authors'];
 
 		$candidates = [];
 		foreach ($posts as $nid => $post) {
-			$candidate = $this->candidate($post, (string)$nid, $topicId, $now, $feedback);
+			$candidate = $this->candidate($post, (string)$nid, $topicId, $now, $feedback, $followedAuthors, $exposurePenalties, $behavioralAuthors);
 			if ($candidate !== null) {
 				$candidates[] = $candidate;
 			}
 		}
-		$ranked = $this->reRanker->page($this->ranker->rank($candidates), 100, $mode === 'PRIORITISE' ? [$topicId] : []);
+		$ranked = $this->reRanker->page($this->ranker->rank($candidates), 100, $mode === 'PRIORITISE' ? [$topicId] : [], bin2hex(random_bytes(16)));
+		$explorationNids = array_values(array_map(
+			static fn (array $candidate): string => (string)$candidate['nid'],
+			array_filter($ranked, static fn (array $candidate): bool => ($candidate['_exploration_slot'] ?? false) === true)
+		));
 		$snapshot = $this->snapshotStore->create(
 			$viewer->getUserId(), 'topic:' . $topicId, 'all', $state['revision'], $state['generation'], $now,
-			array_column($ranked, 'nid'), $limit
+			array_column($ranked, 'nid'), $limit, $explorationNids
 		);
 		if ($snapshot === null) {
 			$candidates = $this->reRanker->page($ranked, $limit);
@@ -162,10 +171,13 @@ class RecommendationCandidateService {
 		}
 
 		$candidates = [];
+		$behavioralAuthors = $this->behavioralProfile->forViewer($viewer)['authors'];
 		$nextCursor = $page['next_cursor'];
 		$sessionId = $page['session_id'];
 		for ($scan = 0; $scan < 5; $scan++) {
 			$visible = $this->streams->getVisibleByNids($page['nids']);
+			$followedAuthors = $this->followFeatures->followedAuthors($viewer, array_values($visible));
+			$exposurePenalties = $this->behavioralProfile->exposurePenalties($viewer, array_values($visible));
 			$orderedNids = $page['nids'];
 			foreach ($orderedNids as $nid) {
 				if (in_array($nid, $feedback['hidden_nids'], true)) {
@@ -175,7 +187,7 @@ class RecommendationCandidateService {
 				if ($post === null) {
 					continue;
 				}
-				$candidate = $this->candidate($post, $nid, $topicId, $now, $feedback);
+				$candidate = $this->candidate($post, $nid, $topicId, $now, $feedback, $followedAuthors, $exposurePenalties, $behavioralAuthors);
 				if ($candidate !== null) {
 					$candidates[] = $candidate;
 					if (count($candidates) >= $limit) {
@@ -217,24 +229,33 @@ class RecommendationCandidateService {
 	}
 
 	/** @return array<string, mixed>|null */
-	private function candidate(Stream $post, string $nid, string $topicId, int $now, array $feedback): ?array {
+	private function candidate(Stream $post, string $nid, string $topicId, int $now, array $feedback, array $followedAuthors, array $exposurePenalties, array $behavioralAuthors): ?array {
 		$features = $this->features->extract($post);
 		$match = $features['topics'][$topicId] ?? null;
 		if ($match === null) {
 			return null;
 		}
 		$protocol = str_starts_with($post->getId(), 'at://') ? 'atproto' : 'activitypub';
+		$author = $post->getAttributedTo();
+		$isFollowed = isset($followedAuthors[$author]);
+		$authorAffinity = $this->behavioralProfile->authorAffinity($author, $behavioralAuthors);
+		$exposurePenalty = $exposurePenalties[$nid] ?? 0.0;
 
 		$candidate = [
 			'nid' => $nid,
-			'author_key' => $post->getActorId(),
+			'author_key' => $author,
 			'topic_ids' => array_keys($features['topics']),
 			'protocol' => $protocol,
+			'canonical_key' => $post->getId() !== '' ? $post->getId() : $nid,
 			'published_at' => $post->getPublishedTime(),
 			'language' => $features['language'],
 			'format' => $features['format'],
 			'score' => $match['score'],
 			'topic_match' => $match['score'],
+			'is_followed' => $isFollowed ? 1.0 : 0.0,
+			'behavioral_author' => $authorAffinity,
+			'novelty' => RecommendationBehavioralProfile::novelty($authorAffinity, $isFollowed, $exposurePenalty),
+			'exposure_penalty' => $exposurePenalty,
 			'freshness' => self::freshness($post->getPublishedTime(), $now, $features['format']),
 			'source_reliability' => 0.5,
 			'evidence' => $match['evidence'],
@@ -247,7 +268,7 @@ class RecommendationCandidateService {
 	/** @param list<array<string, mixed>> $candidates @return list<array<string, mixed>> */
 	private static function publicCandidates(array $candidates): array {
 		return array_map(static function (array $candidate): array {
-			unset($candidate['author_key'], $candidate['topic_ids'], $candidate['eligible'], $candidate['canonical_key']);
+			unset($candidate['author_key'], $candidate['topic_ids'], $candidate['eligible'], $candidate['canonical_key'], $candidate['_base_position'], $candidate['_exploration_slot']);
 			return $candidate;
 		}, $candidates);
 	}

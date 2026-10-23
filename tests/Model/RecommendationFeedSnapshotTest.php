@@ -18,12 +18,13 @@ class RecommendationFeedSnapshotTest extends TestCase {
 	private const NOW = 2_000_000_000;
 
 	public function testSnapshotHasStablePagesAndRoundTripsItsImmutableState(): void {
-		$snapshot = RecommendationFeedSnapshot::create('alice', 'for-you', 'all', 4, 2, self::NOW, ['1', '2', '3'], 900);
+		$snapshot = RecommendationFeedSnapshot::create('alice', 'for-you', 'all', 4, 2, self::NOW, ['1', '2', '3'], 900, ['3']);
 		$rehydrated = RecommendationFeedSnapshot::fromArray($snapshot->toArray());
 
 		$this->assertNotNull($rehydrated);
 		$this->assertSame(['1', '2'], $rehydrated->page(0, 2));
 		$this->assertSame(['3'], $rehydrated->page(2, 20));
+		$this->assertSame(['3'], $rehydrated->explorationNids);
 		$this->assertSame([], $rehydrated->page(4, 20));
 		$this->assertSame($snapshot->toArray(), $rehydrated->toArray());
 	}
@@ -63,6 +64,12 @@ class RecommendationFeedSnapshotTest extends TestCase {
 
 		$malformed = $snapshot->toArray();
 		$malformed['ranked_nids'] = ['named' => '3'];
+		$this->assertNull(RecommendationFeedSnapshot::fromArray($malformed));
+		$malformed = $snapshot->toArray();
+		$malformed['exploration_nids'] = ['outside-ranked-list'];
+		$this->assertNull(RecommendationFeedSnapshot::fromArray($malformed));
+		$malformed = $snapshot->toArray();
+		$malformed['exploration_nids'] = null;
 		$this->assertNull(RecommendationFeedSnapshot::fromArray($malformed));
 
 		$this->expectException(InvalidArgumentException::class);

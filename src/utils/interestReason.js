@@ -16,6 +16,8 @@ import { translate as t, translatePlural as n } from '@nextcloud/l10n'
  * A `popular` post matched none of the reader's hashtags: it filled a ranking
  * that was too short, from what is trending in the same kind.
  * Its chip says exactly that and links nowhere, since no tag put it there.
+ * An `exploration` item was selected from outside the leading predictions;
+ * its topic match is shown without implying an established author affinity.
  *
  * @param {{tags?: string[], reason?: string, topics?: {id?: string, labels?: Record<string, string>}[]}|null|undefined} interest the post's `interest` field
  * @return {{tag: string|null, reason?: string, text: string, label: string}|null} the tag the chip links to
@@ -51,6 +53,26 @@ export function interestReason(interest) {
 			tag: null,
 			text: t('social', 'Popular right now'),
 			label: t('social', 'Why you\'re seeing this: popular right now'),
+		}
+	}
+
+	if (interest?.reason === 'exploration') {
+		const locale = typeof document === 'undefined'
+			? 'en'
+			: (document.documentElement.lang || 'en').split(/[-_]/)[0].toLowerCase()
+		const topics = (interest.topics ?? [])
+			.map((topic) => topic?.labels?.[locale] ?? topic?.labels?.en ?? topic?.id)
+			.filter((topic) => typeof topic === 'string' && topic !== '')
+		if (topics.length === 0) {
+			return null
+		}
+		const listed = topics.slice(0, 2).join(', ')
+		const rest = topics.length - 2
+		return {
+			tag: null,
+			reason: 'exploration',
+			text: t('social', 'Discover another voice on {topics}', { topics: rest > 0 ? `${listed} +${rest}` : listed }),
+			label: t('social', "Why you're seeing this: included to broaden your sources, related to {topics}", { topics: topics.join(', ') }),
 		}
 	}
 

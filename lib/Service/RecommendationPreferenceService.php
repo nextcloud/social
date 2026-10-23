@@ -39,29 +39,48 @@ class RecommendationPreferenceService {
 		return $this->catalog->all();
 	}
 
-	/** @return array{revision: int, generation: int, topics: list<array{topic_id: string, mode: string}>, effective_topics?: array<string, string|null>} */
+	/** @return array{revision: int, generation: int, learning_mode: string, learning: bool, topics: list<array{topic_id: string, mode: string}>, effective_topics?: array<string, string|null>} */
 	public function get(string $actorKey): array {
 		$state = $this->request->get($actorKey);
+		$state['learning'] = $state['learning_mode'] === 'on';
 		$state['effective_topics'] = $this->effectiveTopics($state['topics']);
 		return $state;
 	}
 
+	/** Change the separate, default-off consent for behavioural learning. */
+	public function setLearningMode(string $actorKey, int $revision, string $mode): ?array {
+		if (!$this->isEnabled()) {
+			throw new InvalidArgumentException('Recommendations are disabled');
+		}
+		$state = $this->request->setLearningMode($actorKey, $revision, $mode);
+		return $state === null ? null : $this->withEffectiveTopics($state);
+	}
+
 	/** @param list<mixed> $topics
-	 * @return array{revision: int, generation: int, topics: list<array{topic_id: string, mode: string}>, effective_topics: array<string, string|null>}|null
+	 * @return array{revision: int, generation: int, learning_mode: string, learning: bool, topics: list<array{topic_id: string, mode: string}>, effective_topics: array<string, string|null>}|null
 	 */
 	public function replace(string $actorKey, int $revision, array $topics): ?array {
 		$state = $this->request->replace($actorKey, $revision, $this->validate($topics));
 		return $state === null ? null : $this->withEffectiveTopics($state);
 	}
 
-	/** @return array{revision: int, generation: int, topics: list<array{topic_id: string, mode: string}>, effective_topics: array<string, string|null>}|null */
+	/** @return array{revision: int, generation: int, learning_mode: string, learning: bool, topics: list<array{topic_id: string, mode: string}>, effective_topics: array<string, string|null>}|null */
 	public function reset(string $actorKey, int $revision): ?array {
 		$state = $this->request->reset($actorKey, $revision);
 		return $state === null ? null : $this->withEffectiveTopics($state);
 	}
 
-	/** @param array{revision: int, generation: int, topics: list<array{topic_id: string, mode: string}>} $state */
+	/** Clear only implicit signals and increment their reset generation.
+	 * @return array{revision: int, generation: int, learning_mode: string, learning: bool, topics: list<array{topic_id: string, mode: string}>, effective_topics: array<string, string|null>}|null
+	 */
+	public function resetLearning(string $actorKey, int $revision): ?array {
+		$state = $this->request->resetLearning($actorKey, $revision);
+		return $state === null ? null : $this->withEffectiveTopics($state);
+	}
+
+	/** @param array{revision: int, generation: int, learning_mode: string, topics: list<array{topic_id: string, mode: string}>} $state */
 	private function withEffectiveTopics(array $state): array {
+		$state['learning'] = $state['learning_mode'] === 'on';
 		$state['effective_topics'] = $this->effectiveTopics($state['topics']);
 		return $state;
 	}

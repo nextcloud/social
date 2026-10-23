@@ -44,6 +44,19 @@ describe('why a post is in For you', () => {
 		})
 	})
 
+	it('explains exploration by topic without claiming a prior author relationship', () => {
+		expect(interestReason({
+			tags: [],
+			reason: 'exploration',
+			topics: [{ id: 'tech.apple', labels: { en: 'Apple', de: 'Apple' } }],
+		})).toEqual({
+			tag: null,
+			reason: 'exploration',
+			text: 'Discover another voice on Apple',
+			label: "Why you're seeing this: included to broaden your sources, related to Apple",
+		})
+	})
+
 	it('explains a v4 match using the localized selected topic label', () => {
 		const originalLanguage = document.documentElement.lang
 		document.documentElement.lang = 'de-DE'
