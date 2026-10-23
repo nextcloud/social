@@ -14,12 +14,13 @@ namespace OCA\Social\Service;
  * hypothesis; missing evidence is neutral and never fabricated.
  */
 final class RecommendationRanker {
-	public const ALGORITHM_VERSION = 6;
-	public const FEATURE_VERSION = 6;
+	public const ALGORITHM_VERSION = 7;
+	public const FEATURE_VERSION = 7;
 
 	/** @var array<string, float> */
 	private const BALANCED_WEIGHTS = [
-		'topic_match' => 0.19,
+		'topic_match' => 0.04,
+		'automatic_interest' => 0.15,
 		'behavioral_topic' => 0.08,
 		'behavioral_author' => 0.04,
 		'behavioral_format' => 0.02,
@@ -35,7 +36,8 @@ final class RecommendationRanker {
 	/** @var array<string, array<string, float>> */
 	private const BALANCE_WEIGHTS = [
 		'following' => [
-			'topic_match' => 0.18,
+			'topic_match' => 0.03,
+			'automatic_interest' => 0.15,
 			'behavioral_topic' => 0.07,
 			'behavioral_author' => 0.06,
 			'behavioral_format' => 0.02,
@@ -48,7 +50,8 @@ final class RecommendationRanker {
 			'novelty' => 0.04,
 		],
 		'discovery' => [
-			'topic_match' => 0.22,
+			'topic_match' => 0.07,
+			'automatic_interest' => 0.15,
 			'behavioral_topic' => 0.09,
 			'behavioral_author' => 0.02,
 			'behavioral_format' => 0.02,
@@ -76,6 +79,7 @@ final class RecommendationRanker {
 
 			$features = [
 				'topic_match' => self::signed($candidate['topic_match'] ?? null, 0.0),
+				'automatic_interest' => self::signed($candidate['automatic_interest'] ?? null, 0.0),
 				'behavioral_topic' => self::signed($candidate['behavioral_topic'] ?? null, 0.0),
 				'behavioral_author' => self::signed($candidate['behavioral_author'] ?? null, 0.0),
 				'behavioral_format' => self::signed($candidate['behavioral_format'] ?? null, 0.0),
@@ -92,7 +96,7 @@ final class RecommendationRanker {
 			$score = 0.0;
 			foreach ($weights as $key => $weight) {
 				$feature = $features[$key];
-				$score += $weight * (in_array($key, ['topic_match', 'behavioral_topic', 'behavioral_author', 'behavioral_format', 'format_match', 'feedback_alignment'], true)
+				$score += $weight * (in_array($key, ['topic_match', 'automatic_interest', 'behavioral_topic', 'behavioral_author', 'behavioral_format', 'format_match', 'feedback_alignment'], true)
 					? ($feature + 1.0) / 2.0
 					: $feature);
 			}

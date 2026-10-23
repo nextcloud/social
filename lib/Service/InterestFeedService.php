@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
+use OCA\Social\Db\FollowedTagsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
@@ -136,6 +137,43 @@ class InterestFeedService {
 	/** Whether the last page has remote count refreshes still due. */
 	public function lastPageCountsFilling(): bool {
 		return $this->lastPageCountsFilling;
+	}
+
+	/**
+	 * Project the existing automatically learned hashtag profile into the
+	 * shared recommendation ranker. Scores use the same tag relevance and
+	 * recency decay as the established For You feed.
+	 *
+	 * @param list<Stream> $posts
+	 * @return array<string, float> stream nid => bounded automatic interest
+	 */
+	public function recommendationSignals(Person $viewer, array $posts): array {
+		if ($posts === []) {
+			return [];
+		}
+
+		$weights = $this->interestService->feedProfile($viewer)['weights'];
+		$scorer = $this->interestService->scorer();
+		$now = $this->timeFactory->getTime();
+		$signals = [];
+		foreach ($posts as $post) {
+			$matchedWeights = [];
+			foreach ($post->getHashtags() as $hashtag) {
+				$tag = FollowedTagsRequest::normalise((string)$hashtag);
+				if (isset($weights[$tag])) {
+					$matchedWeights[$tag] = $weights[$tag];
+				}
+			}
+			if ($matchedWeights === []) {
+				continue;
+			}
+
+			$relevance = $scorer->relevance(array_values($matchedWeights));
+			$age = max(0, $now - $post->getPublishedTime());
+			$signals[(string)$post->getNid()] = max(-1.0, min(1.0, ($relevance / 3.0) * $scorer->recency($age)));
+		}
+
+		return $signals;
 	}
 
 	/**

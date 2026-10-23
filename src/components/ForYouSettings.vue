@@ -4,29 +4,23 @@
 -->
 <template>
 	<div class="for-you-settings">
-		<NcNoteCard type="info">
-			<template v-if="recommendationsEnabled && legacyEnabled">
-				{{ t('social', 'There is one For You feed. Before you choose topics, it uses your hashtag interests as a familiar starting point. Once you save topic choices, those choices shape the ranked feed. Hashtags remain available for the administrator’s compatibility fallback; posts are never mixed from two For You feeds.') }}
-			</template>
-			<template v-else-if="recommendationsEnabled">
-				{{ t('social', 'There is one ranked For You feed. Choose at least one topic to start it. Hashtag fallback is disabled for this instance, so an empty topic selection shows no posts.') }}
-			</template>
-			<template v-else>
-				{{ t('social', 'For You currently uses the familiar hashtag feed. The administrator has not enabled ranked topic recommendations for this instance.') }}
-			</template>
+		<NcNoteCard v-if="recommendationsEnabled" type="info">
+			{{ t('social', 'For You learns automatically from the hashtags you read and interact with, then combines that profile with post content, freshness, follows and discovery in one ranking. You do not need to choose topics or set up the feed first. Review or correct the learned hashtag profile below; behavioral learning controls are optional.') }}
+		</NcNoteCard>
+		<NcNoteCard v-else type="info">
+			{{ t('social', 'For You uses your automatically learned hashtag interests in one personalized ranking. The administrator has not enabled the newer recommendation signals on this instance.') }}
 		</NcNoteCard>
 
-		<RecommendationTopicsSettings v-if="recommendationsEnabled" />
+		<InterestsSettings v-if="legacyEnabled" />
+		<NcNoteCard v-else type="warning">
+			{{ t('social', 'Automatic interest learning is disabled on this instance, so there is no learned profile to show yet.') }}
+		</NcNoteCard>
 
-		<details v-if="recommendationsEnabled && legacyEnabled" class="for-you-settings__legacy">
-			<summary>{{ t('social', 'Hashtag starting point and compatibility fallback') }}</summary>
-			<p class="for-you-settings__explanation">
-				{{ t('social', 'These hashtags power the familiar feed before you have saved any topic choices. They are also available if an administrator temporarily switches the instance to the compatibility feed. Your saved topics take over once you choose them.') }}
-			</p>
-			<InterestsSettings legacyFallback />
+		<details v-if="recommendationsEnabled" class="for-you-settings__learning">
+			<summary>{{ t('social', 'Behavioral learning and data controls') }}</summary>
+			<p>{{ t('social', 'Likes, saves, qualified views and video watching can refine the same feed. This additional activity profile is off until you turn it on.') }}</p>
+			<RecommendationTopicsSettings automaticProfile />
 		</details>
-
-		<InterestsSettings v-else-if="legacyEnabled" />
 	</div>
 </template>
 
@@ -67,8 +61,11 @@ export default {
 
 <style lang="scss" scoped>
 .for-you-settings {
-	&__legacy {
-		margin-block: 1.5rem;
+	> :deep(*) {
+		margin-block-end: 1rem;
+	}
+
+	&__learning {
 		padding: 0.75rem 1rem;
 		border: 1px solid var(--color-border);
 		border-radius: var(--border-radius-large);
@@ -81,11 +78,6 @@ export default {
 			font-weight: 600;
 			cursor: pointer;
 		}
-	}
-
-	&__explanation {
-		max-width: 72ch;
-		color: var(--color-text-maxcontrast);
 	}
 }
 </style>

@@ -478,7 +478,7 @@ export default {
 				return t('social', 'My Feed shows posts from accounts you follow, in chronological order.')
 			}
 			if (this.scope === 'interests' && this.hasInterestsTab) {
-				return t('social', 'For You ranks eligible public posts by your topic choices and, if enabled, activity learning. It can include posts from beyond the accounts you follow.')
+				return t('social', 'For You learns from your interests and activity, then combines that with post content, freshness, follows and discovery in one personalized ranking. Topic setup is optional.')
 			}
 			return ''
 		},

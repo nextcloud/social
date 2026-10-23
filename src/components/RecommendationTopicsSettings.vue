@@ -11,7 +11,7 @@
 			{{ t('social', 'Loading topics…') }}
 		</p>
 		<template v-else>
-			<section v-if="!onboardingComplete" class="recommendation-topics__onboarding" aria-labelledby="recommendation-onboarding-title">
+			<section v-if="!onboardingComplete && !automaticProfile" class="recommendation-topics__onboarding" aria-labelledby="recommendation-onboarding-title">
 				<h3 id="recommendation-onboarding-title">
 					{{ t('social', 'Set up your For You feed') }}
 				</h3>
@@ -166,10 +166,12 @@
 						</NcButton>
 					</div>
 					<p class="recommendation-topics__hint">
-						{{ t('social', 'Pausing stops new signals and keeps the learned profile available. Turning learning off stops using the profile. Reset removes learned signals and impressions but keeps these topic choices.') }}
+						{{ automaticProfile
+							? t('social', 'Pausing keeps the current profile available. Turning learning off stops using behavioral signals. Reset removes those signals and impressions; the automatic hashtag profile remains available.')
+							: t('social', 'Pausing stops new signals and keeps the learned profile available. Turning learning off stops using the profile. Reset removes learned signals and impressions but keeps these topic choices.') }}
 					</p>
 				</section>
-				<section class="recommendation-topics__balance" aria-labelledby="recommendation-content-balance-title">
+				<section v-if="!automaticProfile" class="recommendation-topics__balance" aria-labelledby="recommendation-content-balance-title">
 					<h3 id="recommendation-content-balance-title">
 						{{ t('social', 'Content balance') }}
 					</h3>
@@ -182,7 +184,7 @@
 						</option>
 					</select>
 				</section>
-				<div class="recommendation-topics__browser">
+				<div v-if="!automaticProfile" class="recommendation-topics__browser">
 					<NcTextField
 						v-model="topicSearch"
 						class="recommendation-topics__search"
@@ -234,7 +236,7 @@
 						</details>
 					</section>
 				</div>
-				<div class="recommendation-topics__actions">
+				<div v-if="!automaticProfile" class="recommendation-topics__actions">
 					<NcButton variant="primary" :disabled="saving || !dirty" @click="save">
 						<template v-if="saving" #icon>
 							<NcLoadingIcon :size="20" />
@@ -248,7 +250,7 @@
 						{{ t('social', 'Export choices') }}
 					</NcButton>
 				</div>
-				<p class="recommendation-topics__hint">
+				<p v-if="!automaticProfile" class="recommendation-topics__hint">
 					{{ t('social', 'Revision {revision}. New choices and learning updates affect the next For You session; the current scroll order stays stable.', { revision }) }}
 				</p>
 			</template>
@@ -299,6 +301,14 @@ const exportUrl = () => generateUrl('apps/social/api/v1/recommendations/export')
 export default {
 	name: 'RecommendationTopicsSettings',
 	components: { NcButton, NcDialog, NcLoadingIcon, NcTextField },
+
+	props: {
+		automaticProfile: {
+			type: Boolean,
+			default: false,
+		},
+	},
+
 	data() {
 		return {
 			MODES,
@@ -474,7 +484,7 @@ export default {
 				this.applyState(preferencesResponse.data)
 				this.selectedLanguages = Array.isArray(interestsResponse.data?.settings?.languages) ? interestsResponse.data.settings.languages : []
 			} catch (error) {
-				showError(errorOf(error, t('social', 'Could not load your For You topic choices')))
+				showError(errorOf(error, t('social', 'Could not load your For You profile')))
 			} finally {
 				this.loading = false
 			}

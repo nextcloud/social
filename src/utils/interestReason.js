@@ -22,6 +22,7 @@ function explainSnapshot(reason, snapshot) {
 		SIMILARITY_FEEDBACK: t('social', 'Your feedback about similar posts also influenced this ranking'),
 		AUTHOR_FEEDBACK: t('social', 'Your feedback about this author also influenced this ranking'),
 		FORMAT_FEEDBACK: t('social', 'Your format preference also influenced this ranking'),
+		AUTOMATIC_PROFILE: t('social', 'Your activity and interests also influenced this ranking'),
 		CACHED_CANDIDATE: t('social', 'Selected from posts available on this server'),
 	}
 	for (const key of Array.isArray(snapshot.also) ? snapshot.also : []) {
@@ -100,6 +101,42 @@ export function interestReason(interest) {
 			tag: null,
 			text: t('social', 'Popular right now'),
 			label: t('social', 'Why you\'re seeing this: popular right now'),
+		}
+	}
+
+	if (interest?.reason === 'automatic') {
+		const locale = typeof document === 'undefined'
+			? 'en'
+			: (document.documentElement.lang || 'en').split(/[-_]/)[0].toLowerCase()
+		const topics = (interest.topics ?? [])
+			.map((topic) => topic?.labels?.[locale] ?? topic?.labels?.en ?? topic?.id)
+			.filter((topic) => typeof topic === 'string' && topic !== '')
+		const detail = topics.length > 0
+			? t('social', 'Based on your interests in {topics}', { topics: topics.slice(0, 3).join(', ') })
+			: t('social', 'Based on what you read and interact with')
+		return explainSnapshot({
+			tag: null,
+			reason: 'automatic',
+			text: detail,
+			label: t('social', "Why you're seeing this: {reason}", { reason: detail }),
+		}, interest.explanation)
+	}
+
+	if (interest?.reason === 'followed_author') {
+		return {
+			tag: null,
+			reason: 'followed_author',
+			text: t('social', 'From an account you follow'),
+			label: t('social', "Why you're seeing this: from an account you follow"),
+		}
+	}
+
+	if (interest?.reason === 'discovery') {
+		return {
+			tag: null,
+			reason: 'discovery',
+			text: t('social', 'Selected by your For You feed'),
+			label: t('social', "Why you're seeing this: selected by your For You feed from current posts and local discovery"),
 		}
 	}
 
