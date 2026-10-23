@@ -33,9 +33,6 @@ final class RecommendationExplanationService {
 				&& !in_array('sensitive-topic', $topic['policyTags'], true)
 		))) : [];
 		$also = [];
-		$manualTopicMatch = array_key_exists('manual_topic_match', $candidate)
-			? $candidate['manual_topic_match'] === true
-			: $topicIds !== [];
 		if (($candidate['is_followed'] ?? 0.0) === 1.0) {
 			$also[] = 'FOLLOWED_AUTHOR';
 		}
@@ -48,8 +45,9 @@ final class RecommendationExplanationService {
 		if (is_numeric($candidate['feedback_alignment'] ?? null) && (float)$candidate['feedback_alignment'] !== 0.0) {
 			$also[] = 'SIMILARITY_FEEDBACK';
 		}
-		if (($candidate['manual_topic_match'] ?? false) === true
-			&& ((float)($candidate['automatic_interest'] ?? 0.0) > 0.0 || (float)($candidate['behavioral_topic'] ?? 0.0) > 0.0)) {
+		if ($topicIds !== []
+			|| (float)($candidate['automatic_interest'] ?? 0.0) > 0.0
+			|| (float)($candidate['behavioral_topic'] ?? 0.0) > 0.0) {
 			$also[] = 'AUTOMATIC_PROFILE';
 		}
 		if (is_numeric($candidate['author_affinity'] ?? null) && (float)$candidate['author_affinity'] > 0.0) {
@@ -68,7 +66,7 @@ final class RecommendationExplanationService {
 		}
 
 		return [
-			'primary' => $exploration ? 'EXPLORATION' : ($manualTopicMatch ? 'TOPIC_EXPLICIT' : 'AUTOMATIC_PROFILE'),
+			'primary' => $exploration ? 'EXPLORATION' : 'AUTOMATIC_PROFILE',
 			'topic_ids' => array_slice($topicIds, 0, 8),
 			'also' => array_values(array_unique($also)),
 			'candidate_source' => 'LOCAL_CACHED_POSTS',

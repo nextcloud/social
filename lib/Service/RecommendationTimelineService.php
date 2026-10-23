@@ -347,7 +347,6 @@ class RecommendationTimelineService {
 			'author_key' => $author,
 			'topic_ids' => $allTopicIds,
 			'matching_topic_ids' => array_keys($selected),
-			'manual_topic_match' => count(array_filter($selected, static fn (array $topic): bool => $topic['mode'] !== 'AUTOMATIC')) > 0,
 			'protocol' => RecommendationProtocol::of($post),
 			'published_at' => $published,
 			'format' => $format,
@@ -419,11 +418,9 @@ class RecommendationTimelineService {
 				|| in_array((string)$candidate['nid'], $explorationNids, true);
 			$interestReason = $isExploration
 				? 'exploration'
-				: ((bool)($candidate['manual_topic_match'] ?? false)
-					? 'topic'
-					: (($candidate['automatic_interest'] ?? 0.0) > 0.0 || ($candidate['behavioral_topic'] ?? 0.0) > 0.0 || ($candidate['behavioral_author'] ?? 0.0) > 0.0
-						? 'automatic'
-						: ((float)($candidate['is_followed'] ?? 0.0) === 1.0 ? 'followed_author' : 'discovery')));
+				: (($candidate['automatic_interest'] ?? 0.0) > 0.0 || ($candidate['behavioral_topic'] ?? 0.0) > 0.0 || ($candidate['behavioral_author'] ?? 0.0) > 0.0
+					? 'automatic'
+					: ((float)($candidate['is_followed'] ?? 0.0) === 1.0 ? 'followed_author' : 'discovery'));
 			$explanation = $explanationsByNid[(string)$candidate['nid']]
 				?? $this->explanations->explain($candidate, 0, 0);
 			$post->setExportFormat(ACore::FORMAT_LOCAL)->setInterest([
