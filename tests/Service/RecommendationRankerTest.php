@@ -206,8 +206,8 @@ class RecommendationRankerTest extends TestCase {
 		}
 
 		$reranker = new RecommendationReRanker();
-		$page = $reranker->page($ranked, 20, [], 'repeatable-session-seed');
-		$again = $reranker->page($ranked, 20, [], 'repeatable-session-seed');
+		$page = $reranker->page($ranked, 20, 'repeatable-session-seed');
+		$again = $reranker->page($ranked, 20, 'repeatable-session-seed');
 
 		$this->assertSame(array_column($page, 'nid'), array_column($again, 'nid'));
 		$this->assertSame('explore', $page[9]['nid']);
@@ -217,7 +217,7 @@ class RecommendationRankerTest extends TestCase {
 		$this->assertArrayNotHasKey('_base_position', $page[9]);
 	}
 
-	public function testReaderCanChooseMoreFamiliarOrMoreDiscoveryFocusedComposition(): void {
+	public function testOfflineCompositionProfilesCanCompareFollowingAndDiscoveryWeights(): void {
 		$ranked = [];
 		for ($i = 0; $i < 14; $i++) {
 			$ranked[] = ['nid' => 'normal-' . $i, 'rank_score' => 0.99 - $i * 0.002, 'author_key' => 'author-' . $i, 'is_followed' => 0.0];
@@ -230,9 +230,9 @@ class RecommendationRankerTest extends TestCase {
 			$ranked[] = ['nid' => 'normal-' . $i, 'rank_score' => 0.80 - $i * 0.002, 'author_key' => 'author-' . $i, 'is_followed' => 0.0];
 		}
 		$reranker = new RecommendationReRanker();
-		$following = $reranker->page($ranked, 20, [], 'balance-seed', 'following');
-		$balanced = $reranker->page($ranked, 20, [], 'balance-seed', 'balanced');
-		$discovery = $reranker->page($ranked, 20, [], 'balance-seed', 'discovery');
+		$following = $reranker->page($ranked, 20, 'balance-seed', 'following');
+		$balanced = $reranker->page($ranked, 20, 'balance-seed', 'balanced');
+		$discovery = $reranker->page($ranked, 20, 'balance-seed', 'discovery');
 
 		$this->assertSame([], array_filter($following, static fn (array $item): bool => ($item['_exploration_slot'] ?? false) === true));
 		$this->assertSame('explore', $balanced[9]['nid']);
@@ -264,7 +264,7 @@ class RecommendationRankerTest extends TestCase {
 				'exposure_penalty' => 0.0,
 			], $overrides);
 
-			$page = (new RecommendationReRanker())->page($ranked, 10, [], 'stable-seed');
+			$page = (new RecommendationReRanker())->page($ranked, 10, 'stable-seed');
 			$this->assertSame([], array_filter($page, static fn (array $item): bool => ($item['_exploration_slot'] ?? false) === true));
 		}
 	}

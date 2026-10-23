@@ -1288,6 +1288,7 @@ OC.L10N.register(
     "For how long" : "Wie lange",
     "My Feed shows posts from accounts you follow, in chronological order." : "Mein Feed zeigt Beiträge von Konten, denen du folgst, in chronologischer Reihenfolge.",
     "For You automatically ranks posts using your learned interests, post content, freshness, follows and discovery. It can include posts from beyond the accounts you follow." : "„Für dich“ sortiert Beiträge automatisch anhand deiner gelernten Interessen, ihrer Inhalte und Aktualität, deiner gefolgten Konten sowie weiterer Entdeckungen. Es können auch Beiträge von Konten erscheinen, denen du nicht folgst.",
+    "For You ranks eligible public posts using automatically learned interests, post content, freshness, followed accounts and discovery. Separately enabled activity learning can refine new sessions. It can include posts from beyond the accounts you follow." : "„Für dich“ sortiert zulässige öffentliche Beiträge anhand automatisch gelernter Interessen, Beitragsinhalte, Aktualität, gefolgter Konten und Entdeckungen. Gesondert aktiviertes Lernen aus Aktivitäten kann neue Sitzungen verfeinern. Der Feed kann auch Beiträge von Konten außerhalb deiner Folge-Liste enthalten.",
     "My Feed" : "Mein Feed",
     "Photos" : "Fotos",
     "Videos" : "Videos",
