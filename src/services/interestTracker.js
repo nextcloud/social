@@ -179,7 +179,7 @@ function sideOf(entry, viewportHeight) {
 /**
  * @param {object} options what the tracker works with
  * @param {string} options.context what the signals say they came from
- * @param {number|null} [options.generation] current For You 4.0 consent/reset generation
+ * @param {number|null} [options.generation] current recommendation consent/reset generation
  * @param {boolean} [options.allowUntagged] whether a consented v4 context tracks without hashtags
  * @param {(events: object[], options: {beacon: boolean}) => Promise<void>} [options.send] how a batch goes out
  * @param {(status: import('../types/Mastodon.js').Status) => boolean} [options.isOwn] whether the reader wrote a post

@@ -70,7 +70,8 @@ describe('the For you card', () => {
 	it('describes the ranked feed, explicit learning choice and bounded discovery accurately', () => {
 		const wrapper = mountCard()
 
-		expect(wrapper.text()).toContain('For You 4.0 recommendations')
+		expect(wrapper.text()).toContain('For You recommendations')
+		expect(wrapper.text()).not.toContain('4.0')
 		expect(wrapper.text()).toContain('use the ranked For You feed after choosing active topics')
 		expect(wrapper.text()).toContain('Behavioral learning stays off until a reader explicitly enables it')
 		expect(wrapper.text()).toContain('Discovery uses bounded background jobs and eligible public posts')

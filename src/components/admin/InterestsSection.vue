@@ -6,13 +6,13 @@
 	<div>
 		<div class="interests-admin">
 			<section class="interests-admin__v4">
-				<h4>{{ t('social', 'For You 4.0 recommendations') }}</h4>
+				<h4>{{ t('social', 'For You recommendations') }}</h4>
 				<NcCheckboxRadioSwitch
 					v-model="form.recommendationsEnabled"
 					type="switch"
 					:disabled="v4Saving"
 					@update:modelValue="saveRecommendations">
-					{{ t('social', 'Enable For You 4.0 recommendations') }}
+					{{ t('social', 'Enable For You recommendations') }}
 				</NcCheckboxRadioSwitch>
 				<p class="interests-admin__hint">
 					{{ t('social', 'This instance switch is off by default. When enabled, readers can set topic preferences and use the ranked For You feed after choosing active topics. Behavioral learning stays off until a reader explicitly enables it. Discovery uses bounded background jobs and eligible public posts; the chronological Following feed is unchanged.') }}
@@ -285,10 +285,10 @@ export default {
 			try {
 				const { data } = await axios.put(recommendationsUrl(), { enabled })
 				this.form.recommendationsEnabled = data?.enabled === true
-				showSuccess(t('social', 'For You 4.0 setting saved'))
+				showSuccess(t('social', 'Recommendation settings saved'))
 			} catch (error) {
 				this.form.recommendationsEnabled = !enabled
-				showError(errorOf(error, t('social', 'Could not save the For You 4.0 setting')))
+				showError(errorOf(error, t('social', 'Could not save recommendation settings')))
 			} finally {
 				this.v4Saving = false
 			}
@@ -305,10 +305,10 @@ export default {
 			try {
 				const { data } = await axios.put(recommendationsUrl(), { [key]: value })
 				this.form[key] = data?.[key] === true
-				showSuccess(t('social', 'For You 4.0 setting saved'))
+				showSuccess(t('social', 'Recommendation settings saved'))
 			} catch (error) {
 				this.form[key] = previous
-				showError(errorOf(error, t('social', 'Could not save the For You 4.0 setting')))
+				showError(errorOf(error, t('social', 'Could not save recommendation settings')))
 			} finally {
 				this.v4Saving = false
 			}
