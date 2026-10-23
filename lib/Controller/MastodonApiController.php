@@ -33,6 +33,7 @@ use OCA\Social\Exceptions\InvalidResourceEntryException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Exceptions\ItemUnknownException;
+use OCA\Social\Exceptions\RefusalException;
 use OCA\Social\Exceptions\ReportNotFoundException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\TooManyRequestsException;
@@ -559,6 +560,10 @@ abstract class MastodonApiController extends Controller {
 	 * a file path, an internal host.
 	 */
 	protected function error(Throwable $e): DataResponse {
+		if ($e instanceof RefusalException) {
+			return new DataResponse($e->toArray(), Http::STATUS_UNPROCESSABLE_ENTITY);
+		}
+
 		if ($e instanceof InsufficientScopeException) {
 			// no WWW-Authenticate: PHP turns any response carrying it into a 401,
 			// and a 401 tells a client its token is dead and to sign in again

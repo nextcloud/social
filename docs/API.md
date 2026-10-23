@@ -1143,6 +1143,15 @@ Routes elsewhere whose refusal is advice — a limit, the field to change — ca
 | `no-file` | `POST /api/v1/banner` (**400**) | No file arrived | — |
 | `upload-interrupted` | `POST /api/v1/banner` (**400**) | The upload did not finish | — |
 | `banner-too-large` | `POST /api/v1/banner` (**400**) | The picture is over the smallest of `upload_max_filesize`, `post_max_size` and the instance's ceiling | `limit` (as people read it, e.g. `10 MB`) |
+| `push-auth-required` | `POST /api/v1/push/subscription` (**422**) | The subscription store was called without an account or app token | — |
+| `push-endpoint-unreachable` | `POST /api/v1/push/subscription` (**422**) | The push distributor URL is not a reachable public HTTPS endpoint | — |
+| `push-keys-invalid` | `POST /api/v1/push/subscription` (**422**) | The Web Push subscription keys are absent or invalid | — |
+| `push-policy-invalid` | `POST`, `PUT /api/v1/push/subscription` (**422**) | The notification policy is not supported | — |
+| `push-alerts-invalid` | `POST`, `PUT /api/v1/push/subscription` (**422**) | A push alert preference has an invalid value | — |
+| `push-standard-invalid` | `POST /api/v1/push/subscription` (**422**) | The standard-format flag is not a boolean value | — |
+| `push-subscriptions-full` | `POST /api/v1/push/subscription` (**422**) | The account already has the maximum number of subscriptions | `limit` |
+| `push-subscription-invalid` | `POST /api/v1/push/subscription` (**422**) | `subscription` is not an object | — |
+| `push-data-invalid` | `POST`, `PUT /api/v1/push/subscription` (**422**) | `data` is not an object | — |
 | `banner-unusable` | `POST /api/v1/banner` (**400**) | Not a picture, or one of a type refused | — |
 | `setting-not-email` | `POST /admin/server` (**422**) | The field is not an email address | `field` |
 | `setting-too-long` | `POST /admin/server` (**422**) | The field is longer than allowed | `field`, `max` |

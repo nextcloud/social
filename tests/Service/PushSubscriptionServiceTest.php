@@ -9,7 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Service;
 
-use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\RefusalException;
 use OCA\Social\Security\RemoteAddress;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\PushSubscriptionService;
@@ -77,8 +77,11 @@ class PushSubscriptionServiceTest extends TestCase {
 		for ($i = 1; $i < 20; $i++) {
 			$service->save('alice', 'token-' . $i, 'bearer-' . $i, 'https://push.example.net/' . $i, str_repeat('E', 87), str_repeat('f', 22), [], 'all');
 		}
-		$this->expectException(InvalidResourceException::class);
-		$service->save('alice', 'token-over-limit', 'bearer-last', 'https://push.example.net/last', str_repeat('G', 87), str_repeat('h', 22), [], 'all');
+		$this->assertRefusal(
+			'push-subscriptions-full',
+			fn () => $service->save('alice', 'token-over-limit', 'bearer-last', 'https://push.example.net/last', str_repeat('G', 87), str_repeat('h', 22), [], 'all'),
+			['limit' => 20],
+		);
 	}
 
 	public function testSubscriptionsUsingTheSameEndpointRemainScopedToTheirOwnTokens(): void {
@@ -95,8 +98,43 @@ class PushSubscriptionServiceTest extends TestCase {
 	}
 
 	public function testRefusesAnInsecureOrPrivatePushEndpoint(): void {
-		$this->expectException(InvalidResourceException::class);
-		$this->service()->save('alice', 'token-one', 'bearer-one', 'http://push.example.net/endpoint', str_repeat('A', 87), str_repeat('b', 22), [], 'all');
+		$this->assertRefusal('push-endpoint-unreachable', fn () => $this->save(endpoint: 'http://push.example.net/endpoint'));
+	}
+
+	public function testInvalidPushSubscriptionInputsHaveStableCodes(): void {
+		$this->assertRefusal('push-auth-required', fn () => $this->save(userId: ''));
+		$this->assertRefusal('push-keys-invalid', fn () => $this->save(p256dh: 'bad'));
+		$this->assertRefusal('push-policy-invalid', fn () => $this->save(policy: 'sometimes'));
+		$this->assertRefusal('push-alerts-invalid', fn () => $this->save(alerts: ['mention' => 'sometimes']));
+	}
+
+	private function save(
+		string $userId = 'alice',
+		?string $p256dh = null,
+		array $alerts = [],
+		string $policy = 'all',
+		string $endpoint = 'https://push.example.net/endpoint',
+	): array {
+		return $this->service()->save(
+			$userId,
+			'token-one',
+			'bearer-one',
+			$endpoint,
+			$p256dh ?? str_repeat('A', 87),
+			str_repeat('b', 22),
+			$alerts,
+			$policy,
+		);
+	}
+
+	private function assertRefusal(string $code, callable $operation, array $params = []): void {
+		try {
+			$operation();
+			$this->fail('Expected refusal ' . $code);
+		} catch (RefusalException $e) {
+			$this->assertSame($code, $e->errorCode);
+			$this->assertSame($params, $e->params);
+		}
 	}
 
 	private function service(): PushSubscriptionService {
