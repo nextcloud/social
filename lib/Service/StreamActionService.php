@@ -63,6 +63,17 @@ class StreamActionService {
 		$this->saveAction($action);
 	}
 
+	/** Whether the reader currently holds a boolean action on this post. */
+	public function getActionBool(string $actorId, string $streamId, string $key): bool {
+		try {
+			$action = $this->streamActionsRequest->getAction($actorId, $streamId);
+		} catch (StreamActionDoesNotExistException) {
+			return false;
+		}
+
+		return $action->hasValue($key) && $action->getValueBool($key);
+	}
+
 	/**
 	 * A like or a bookmark carries the moment it was set, as an id the
 	 * favourites and bookmarks lists are ordered and paged by: minted when

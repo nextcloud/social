@@ -11,13 +11,17 @@ namespace OCA\Social\Tests\Integration\Db;
 
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\CoreRequestBuilder;
+use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\SearchTermsRequest;
 use OCA\Social\Db\StreamDestRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\ConfigService;
+use OCA\Social\Tools\Nid;
 use OCP\IDBConnection;
 use OCP\Server;
 use PHPUnit\Framework\TestCase;
@@ -34,17 +38,19 @@ class StreamContentSearchTest extends TestCase {
 	private const OTHER = self::BASE . '/users/other';
 	private const AUTHOR = 'https://remote.example/ftsearch/users/author';
 
-	private const SUFFIXES = ['public', 'own-dm', 'foreign-dm', 'unrelated'];
+	private const SUFFIXES = ['public', 'own-dm', 'foreign-dm', 'unrelated', 'apple', 'nextcloud', 'unlisted', 'recall-20', 'fresh-apple', 'historical-apple', 'historical-apple-en', 'followed-author', 'exploration-public'];
 
 	private StreamRequest $streamRequest;
 	private StreamDestRequest $streamDestRequest;
 	private CacheActorsRequest $cacheActorsRequest;
+	private FollowsRequest $followsRequest;
 
 	protected function setUp(): void {
 		parent::setUp();
 		$this->streamRequest = Server::get(StreamRequest::class);
 		$this->streamDestRequest = Server::get(StreamDestRequest::class);
 		$this->cacheActorsRequest = Server::get(CacheActorsRequest::class);
+		$this->followsRequest = Server::get(FollowsRequest::class);
 		$this->cleanup();
 
 		$author = new Person();
@@ -60,21 +66,24 @@ class StreamContentSearchTest extends TestCase {
 	}
 
 	private function cleanup(): void {
+		$this->followsRequest->deleteRelatedId(self::VIEWER);
 		foreach (self::SUFFIXES as $suffix) {
 			$this->streamRequest->deleteById(self::BASE . '/notes/' . $suffix, Note::TYPE);
 		}
 		$this->cacheActorsRequest->deleteCacheById(self::AUTHOR);
 	}
 
-	private function note(string $suffix, string $content, string $to): Note {
+	private function note(string $suffix, string $content, string $to, ?string $visibility = null, ?int $publishedAt = null, string $language = ''): Note {
 		$note = new Note();
 		$note->setId(self::BASE . '/notes/' . $suffix);
 		$note->setAttributedTo(self::AUTHOR);
 		$note->setTo($to);
 		$note->setContent($content);
-		$note->setVisibility($to === ACore::CONTEXT_PUBLIC ? 'public' : 'direct');
-		$note->setPublishedTime(time());
-		$note->setPublished(gmdate('Y-m-d\TH:i:s\Z'));
+		$note->setVisibility($visibility ?? ($to === ACore::CONTEXT_PUBLIC ? 'public' : 'direct'));
+		$note->setLanguage($language);
+		$publishedAt ??= time();
+		$note->setPublishedTime($publishedAt);
+		$note->setPublished(gmdate('Y-m-d\TH:i:s\Z', $publishedAt));
 		$this->streamRequest->save($note);
 		$this->streamDestRequest->generateStreamDest($note);
 
@@ -158,5 +167,133 @@ class StreamContentSearchTest extends TestCase {
 		$this->note('public', '<p>a match</p>', ACore::CONTEXT_PUBLIC);
 
 		$this->assertSame([], $this->found('a'));
+	}
+
+	public function testRecommendationCandidatesFindUntaggedPublicPostsAndExcludeUnlistedAndPrivate(): void {
+		$config = Server::get(ConfigService::class);
+		$ready = (string)$config->getAppValue(SearchTermsRequest::READY);
+		$config->setAppValue(SearchTermsRequest::READY, '1');
+		try {
+			$this->note('apple', '<p>Apple launches a new device</p>', ACore::CONTEXT_PUBLIC);
+			$this->note('nextcloud', '<p>Nextcloud releases a collaboration update</p>', ACore::CONTEXT_PUBLIC);
+			$this->note('foreign-dm', '<p>Apple private plans</p>', self::OTHER);
+			$this->note('unlisted', '<p>Apple unlisted announcement</p>', ACore::CONTEXT_PUBLIC, Stream::TYPE_UNLISTED);
+
+			$this->streamRequest->setViewer($this->viewer());
+			$since = Nid::fromPublishedTime(time() - 86400, 0, StreamRequest::NID_LIMIT);
+			$apple = $this->streamRequest->recommendationCandidatesByTerms(['apple'], $since, 20);
+			$nextcloud = $this->streamRequest->recommendationCandidatesByTerms(['nextcloud'], $since, 20);
+
+			$this->assertSame([self::BASE . '/notes/apple'], array_map(
+				static fn ($post): string => $post->getId(), array_values($apple)
+			));
+			$this->assertSame([self::BASE . '/notes/nextcloud'], array_map(
+				static fn ($post): string => $post->getId(), array_values($nextcloud)
+			));
+		} finally {
+			$config->setAppValue(SearchTermsRequest::READY, $ready);
+		}
+	}
+
+	public function testRecommendationCandidateSearchIncludesAliasesAfterTheTwelfth(): void {
+		$config = Server::get(ConfigService::class);
+		$ready = (string)$config->getAppValue(SearchTermsRequest::READY);
+		$config->setAppValue(SearchTermsRequest::READY, '1');
+		try {
+			$this->note('recall-20', '<p>intergalacticdiscovery reveals a nearby galaxy</p>', ACore::CONTEXT_PUBLIC);
+			$this->streamRequest->setViewer($this->viewer());
+			$terms = [
+				'firstunusedalpha', 'secondunusedalpha', 'thirdunusedalpha', 'fourthunusedalpha',
+				'fifthunusedalpha', 'sixthunusedalpha', 'seventhunusedalpha', 'eighthunusedalpha',
+				'ninthunusedalpha', 'tenthunusedalpha', 'eleventhunusedalpha', 'twelfthunusedalpha',
+				'intergalacticdiscovery',
+			];
+			$since = Nid::fromPublishedTime(time() - 86400, 0, StreamRequest::NID_LIMIT);
+
+			$posts = $this->streamRequest->recommendationCandidatesByTerms($terms, $since, 20);
+
+			$this->assertSame([self::BASE . '/notes/recall-20'], array_map(
+				static fn ($post): string => $post->getId(), array_values($posts)
+			));
+		} finally {
+			$config->setAppValue(SearchTermsRequest::READY, $ready);
+		}
+	}
+
+	public function testRecommendationCandidatesIncludeBoundedOlderPublicPostsAlongsideRecentPosts(): void {
+		$config = Server::get(ConfigService::class);
+		$ready = (string)$config->getAppValue(SearchTermsRequest::READY);
+		$config->setAppValue(SearchTermsRequest::READY, '1');
+		$now = time();
+		try {
+			$this->note('fresh-apple', '<p>Apple announces a new device</p>', ACore::CONTEXT_PUBLIC, null, $now - 3 * 86400);
+			$this->note('historical-apple', '<p>Apple migration tutorial and documentation</p>', ACore::CONTEXT_PUBLIC, null, $now - 45 * 86400);
+			$this->streamRequest->setViewer($this->viewer());
+			$since = Nid::fromPublishedTime($now - 180 * 86400, 0, StreamRequest::NID_LIMIT);
+
+			$posts = $this->streamRequest->recommendationCandidatesByTerms(['apple'], $since, 20, [], [], $now);
+
+			$ids = array_map(static fn ($post): string => $post->getId(), array_values($posts));
+			$this->assertContains(self::BASE . '/notes/fresh-apple', $ids);
+			$this->assertContains(self::BASE . '/notes/historical-apple', $ids);
+			$this->assertCount(2, $ids);
+		} finally {
+			$config->setAppValue(SearchTermsRequest::READY, $ready);
+		}
+	}
+
+	public function testHistoricalCandidateWindowStillAppliesVisibilityAndLanguageFilters(): void {
+		$config = Server::get(ConfigService::class);
+		$ready = (string)$config->getAppValue(SearchTermsRequest::READY);
+		$config->setAppValue(SearchTermsRequest::READY, '1');
+		$now = time();
+		try {
+			$this->note('historical-apple', '<p>Apple migration tutorial and documentation</p>', ACore::CONTEXT_PUBLIC, null, $now - 45 * 86400, 'de');
+			$this->note('historical-apple-en', '<p>Apple migration tutorial and documentation</p>', ACore::CONTEXT_PUBLIC, null, $now - 45 * 86400, 'en');
+			$this->note('unlisted', '<p>Apple migration tutorial and documentation</p>', ACore::CONTEXT_PUBLIC, Stream::TYPE_UNLISTED, $now - 45 * 86400);
+			$this->streamRequest->setViewer($this->viewer());
+			$since = Nid::fromPublishedTime($now - 180 * 86400, 0, StreamRequest::NID_LIMIT);
+
+			$posts = $this->streamRequest->recommendationCandidatesByTerms(['apple'], $since, 20, [], ['en'], $now);
+
+			$this->assertSame([self::BASE . '/notes/historical-apple-en'], array_map(
+				static fn ($post): string => $post->getId(), array_values($posts)
+			));
+		} finally {
+			$config->setAppValue(SearchTermsRequest::READY, $ready);
+		}
+	}
+
+	public function testFollowCandidateRecallFindsPublicPostsWithoutIndexedTopicTerms(): void {
+		$this->note('followed-author', '<p>A post with unrelated writing</p>', ACore::CONTEXT_PUBLIC);
+		$this->note('foreign-dm', '<p>another public idea</p>', ACore::CONTEXT_PUBLIC, Stream::TYPE_UNLISTED);
+		$follow = new Follow();
+		$follow->setId(self::VIEWER . '#recommend-follow-author')
+			->setActorId(self::VIEWER)
+			->setObjectId(self::AUTHOR)
+			->setFollowId(self::AUTHOR . '/followers')
+			->setAccepted(true);
+		$this->followsRequest->save($follow);
+
+		$this->streamRequest->setViewer($this->viewer());
+		$since = Nid::fromPublishedTime(time() - 86400, 0, StreamRequest::NID_LIMIT);
+		$posts = $this->streamRequest->recommendationFollowCandidates($since, 20);
+
+		$this->assertSame([self::BASE . '/notes/followed-author'], array_map(
+			static fn ($post): string => $post->getId(), array_values($posts)
+		));
+	}
+
+	public function testExplorationCandidatesSampleUnfollowedPublicPostsOutsideTheSearchIndex(): void {
+		$this->note('exploration-public', '<p>A thoughtful guide about gardening</p>', ACore::CONTEXT_PUBLIC);
+		$this->note('unlisted', '<p>A private audience guide about gardening</p>', ACore::CONTEXT_PUBLIC, Stream::TYPE_UNLISTED);
+		$this->streamRequest->setViewer($this->viewer());
+		$since = Nid::fromPublishedTime(time() - 86400, 0, StreamRequest::NID_LIMIT);
+
+		$posts = $this->streamRequest->recommendationExplorationCandidates($since, 10, 4);
+
+		$this->assertSame([self::BASE . '/notes/exploration-public'], array_map(
+			static fn ($post): string => $post->getId(), array_values($posts)
+		));
 	}
 }

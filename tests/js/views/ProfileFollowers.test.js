@@ -125,9 +125,11 @@ describe('ProfileFollowers', () => {
 	describe('a list being read from where the account lives', () => {
 		beforeEach(() => {
 			vi.useFakeTimers()
+			let calls = 0
 			store.fetchAccountFollowers.mockImplementation(async ({ account: handle }) => {
+				calls++
 				store.addFollowers({ account: handle, data: [dave] })
-				store.accountsFollowersFilling = { ...store.accountsFollowersFilling, [store.getActorIdForAccount(handle) || handle]: true }
+				store.accountsFollowersFilling = { ...store.accountsFollowersFilling, [store.getActorIdForAccount(handle) || handle]: calls < 3 }
 			})
 		})
 
@@ -135,7 +137,7 @@ describe('ProfileFollowers', () => {
 			vi.useRealTimers()
 		})
 
-		it('is asked for again a little later, once', async () => {
+		it('keeps checking until the server finishes reading the list', async () => {
 			mountView({ name: 'profile.followers', params: { account: 'bob@remote.example' } })
 			await flushPromises()
 			expect(store.fetchAccountFollowers).toHaveBeenCalledTimes(1)
@@ -147,9 +149,12 @@ describe('ProfileFollowers', () => {
 			expect(store.fetchAccountFollowers).toHaveBeenCalledTimes(2)
 			expect(store.fetchAccountFollowers).toHaveBeenLastCalledWith({ account: 'bob@remote.example' })
 
-			vi.advanceTimersByTime(REFILL_MS * 3)
+			vi.advanceTimersByTime(REFILL_MS * 2)
 			await flushPromises()
-			expect(store.fetchAccountFollowers).toHaveBeenCalledTimes(2)
+			expect(store.fetchAccountFollowers).toHaveBeenCalledTimes(3)
+			vi.advanceTimersByTime(REFILL_MS)
+			await flushPromises()
+			expect(store.fetchAccountFollowers).toHaveBeenCalledTimes(3)
 		})
 
 		it('is not asked for again when nothing more is being read', async () => {

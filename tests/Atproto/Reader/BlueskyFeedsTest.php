@@ -237,6 +237,30 @@ class BlueskyFeedsTest extends TestCase {
 		$this->assertCount(2, $this->asked, 'without asking again');
 	}
 
+	public function testForYouReadsOnlyCachedPostsFromSavedCustomFeedsWithoutCallingTheAppView(): void {
+		$this->stored['atproto_preferences'] = json_encode([['$type' => BlueskyFeeds::SAVED, 'items' => [
+			['type' => 'feed', 'value' => self::FEED, 'pinned' => true, 'id' => 'saved'],
+			['type' => 'list', 'value' => self::LIST, 'pinned' => true, 'id' => 'list'],
+		]]]);
+		$postUris = [
+			'at://' . self::BOB . '/app.bsky.feed.post/3kcache1',
+			'at://' . self::BOB . '/app.bsky.feed.post/3kcache2',
+		];
+		$this->answers['app.bsky.feed.getFeed'] = ['feed' => array_map(static fn (string $uri): array => ['post' => ['uri' => $uri]], $postUris)];
+		$feedReader = $this->feeds();
+		$feedReader->page($this->alice, self::FEED, '', 10);
+		$requestsBeforeRead = count($this->asked);
+
+		$nids = $this->feeds()->recommendationFeedPostNids($this->alice, 10);
+
+		$this->assertSame(array_map(static fn (string $uri): string => (string)crc32(BlueskyIds::postIdOfUri($uri)), $postUris), $nids);
+		$this->assertCount($requestsBeforeRead, $this->asked, 'For You uses cached membership and makes no AppView request');
+
+		$this->feeds()->remove($this->alice, self::FEED);
+
+		$this->assertSame([], $this->feeds()->recommendationFeedPostNids($this->alice, 10), 'removed feeds no longer contribute cached posts');
+	}
+
 	public function testUnwatchedProfileFeedUsesItsAppViewCursorAsTheLinkedViewer(): void {
 		$actor = (new Person())->setId(BlueskyIds::actorId(self::BOB));
 		$firstPage = [];

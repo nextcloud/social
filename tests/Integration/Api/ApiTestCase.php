@@ -25,7 +25,10 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Service\AccountService;
+use OCA\Social\Service\IRecommendationSignalEvents;
+use OCA\Social\Service\IRecommendationSignalRecorder;
 use OCA\Social\Service\NotificationPolicyService;
+use OCA\Social\Service\RecommendationSignalService;
 use OCA\Social\Tests\Api\Schema\SchemaValidator;
 use OCA\Social\Tests\Integration\Helper\FreezesTheClock;
 use OCP\AppFramework\Http\Response;
@@ -438,6 +441,10 @@ abstract class ApiTestCase extends TestCase {
 	 */
 	private function controller(string $class, IRequest $request, array $services = []): object {
 		$container = new DIContainer('social');
+		// This isolated request container must carry the aliases registered by
+		// Application::register(), just like the real Nextcloud app container.
+		$container->registerAlias(IRecommendationSignalEvents::class, RecommendationSignalService::class);
+		$container->registerAlias(IRecommendationSignalRecorder::class, RecommendationSignalService::class);
 		$container->registerService(IRequest::class, static fn (): IRequest => $request);
 		$this->registerFrozenClock($container);
 		foreach ($services as $name => $service) {

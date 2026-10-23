@@ -105,8 +105,9 @@ A new section in [src/views/Settings.vue](../src/views/Settings.vue) with id
   tag is added as a manual interest. It floats with the listing threshold as
   its score, so it usually lands low in the cloud; the cloud brings it into
   view so the reader sees where it went.
-- **Languages for For you**: multi-select, empty = all languages. This is
-  a new preference; Aloha Social has no language preference yet.
+- **Languages for For you**: the existing account language preference is reused
+  by both the hashtag feed and For You. An empty list means all languages;
+  posts whose language is unknown remain eligible.
 - **Reset all interests**: clears learned scores, manual entries, pins and the
   dwell baseline. Needs a confirmation step built into the page (the viewer has
   no `confirm()`).
@@ -592,3 +593,51 @@ Resolved 2026-09-24:
    removed as confusing (§8). Actions taken in apps still count.
 
 No open points remain.
+# For You recommendations foundation (F0)
+
+The ranked For You experience builds on the existing automatically learned hashtag profile. Its internal instance setting `rec_v4_enabled` defaults to off and is exposed in Administration → Social → For you. With it off, the established hashtag feed remains available. When enabled, the web For You timeline uses one shared ranker: learned hashtag relevance, content classification, freshness, followed accounts, local discovery and any separately consented behavioral profile all contribute to one candidate order. Readers do not choose topics or configure ranking weights; stored topic preferences are retained for API compatibility but do not change the web feed. Behavioural learning requires the reader's separate consent; discovery telemetry contains instance-level aggregates only.
+
+## First-use setup and content balance (T05)
+
+There is no first-use algorithm setup. The learned hashtag profile already supplies automatic interests and can be inspected, corrected, paused or reset in Settings → For You. New behavioral signals remain separately consent-gated. The language filter remains optional, with an empty selection meaning all languages; posts without a known language remain eligible.
+
+The versioned topic catalogue contains more than 125 English and German topic labels and aliases across technology, software, science, culture, community, transport, food, health and other areas. It supplies features to the same automatic ranker; it is not a checklist or a parallel algorithm. Politics, health, identity and religion topics are marked sensitive and excluded from automatic text classification and behavioral profiling. Text classification ignores HTML/Markdown quotations and code blocks; the ambiguous word “Apple” needs a related product or company term in the same sentence, while explicit Apple hashtags and product names remain usable evidence.
+
+The ranker uses its balanced weighting by default. Older saved topic choices and content-balance values remain readable for API compatibility but do not affect the web timeline. Safety, moderation and visibility controls remain hard requirements; exploration never bypasses them. Synthetic offline evaluations are exploratory and do not establish real-world satisfaction or justify claims of parity with large commercial recommenders. Activity-learning consent remains separate.
+
+## Candidate discovery (F1)
+
+With the instance switch on, `GET /api/v1/recommendations/candidates/{topicId}` retrieves a bounded page from the local stream when the signed-in reader's effective preference is Interested or Prioritise. The query uses the existing search-term index when ready, otherwise scans only a capped recent public window. In both cases it applies the normal viewer ACL, discoverability, mute/block, age, language and own-post filters before hydration. Sensitive-topic catalog entries and HIDE/NEUTRAL/LESS choices do not trigger discovery. Matching uses deterministic local text and hashtag features; no embedding service or behavioural profile is involved. Results report protocol coverage and an underfilled state honestly. An underfilled result may enqueue one rate-limited ActivityPub hashtag fill and Bluesky public search through the existing background queue; the request never waits for remote servers. All optional ActivityPub and ATProto post-discovery paths share a hard cap of 120 outbound requests per fixed hour across workers, including peer hashtag requests, origin post hydration and Bluesky AppView searches. Each request claims a unique expiring slot in the shared durable cache table, so the cap remains shared with local-only APCu and across concurrent workers. The admin emergency pause is enforced inside the shared discovery service, so it also covers legacy hashtag fills and followed-tag refresh jobs. When the slot store is unavailable, the budget is exhausted or discovery is paused, remote discovery stops while cached candidates remain available. This is candidate retrieval only: it does not change either feed's ranking or imply that the corpus is complete.
+
+## Ranked web timeline
+
+The Aloha Social web interface uses `GET /api/v1/recommendations/timeline` when the administrator has enabled recommendations. The endpoint returns an envelope containing existing status objects, an opaque session cursor, profile and algorithm versions, and an honest coverage state. The frontend unwraps the items into the existing timeline store, preserving the current card, interaction, media-scope and infinite-scroll behavior. Mastodon-compatible clients continue to use the unchanged `/api/v1/timelines/interests` list response.
+
+Every web session uses the same bounded candidate and ranking path. The pool combines the reader's automatically ranked hashtag candidates with classified content, followed accounts, local trends, second-degree follow posts and cached items from saved Bluesky feeds. One score blends the hashtag ranker's learned relevance and recency with content match, freshness, feedback and any separately consented behavioral profile; author/topic diversity is then applied before a viewer-bound one-hour snapshot is created. Saved-feed recall uses only posts already opened and cached locally, so the request never waits on Bluesky AppView. Follow edges, trends, graph results and saved-feed posts are retrieval hints rather than popularity bonuses; all candidates are rechecked for visibility, moderation, language and hard hides. Hidden or newly invisible posts are skipped on continuation pages; an invalid or stale cursor returns a refresh condition. Photos, Videos, Shorts and media-only scopes have separate snapshots. There is no switch between a legacy hashtag feed and a topic feed on the web.
+
+This integrated version ranks the locally cached corpus. Underfilled coverage schedules bounded refresh through the existing ActivityPub and Bluesky background queue without delaying the page request. It does not claim remote sources are fully indexed or that the initial coefficients are calibrated.
+
+### Explicit feedback (F3)
+
+`POST /api/v1/recommendations/feedback` accepts an event UUID, a locally visible stream ID, an operation and, for topic actions, a topic ID. The server derives author, topic and format values from the viewer-readable post; the client cannot target an arbitrary account or claim an unrelated topic. `HIDE_POST` immediately excludes that post from new candidate pages and from later pages of an open snapshot. `MORE_TOPIC`, `LESS_TOPIC`, `MORE_AUTHOR` and `MORE_FORMAT` affect newly generated rankings only, so an open session keeps its order while scrolling. These controls stay separate from manual topic choices and never follow, mute or block anyone. The response contains an owner-bound feedback ID that can reverse the exact action for ten minutes; event UUIDs deduplicate retries during that Undo window. Active feedback scopes and request rates are bounded. The owner-only export includes current feedback; reset and account deletion clear the stored feedback.
+
+`GET /api/v1/recommendations/context/{postId}` supplies the contextual menu with only the nonsensitive catalog topics detected in a currently visible post and its detected format. The server applies the same viewer visibility check as the feedback write, so the client cannot offer a topic the post does not match or leak a sensitive topic label.
+
+The catalog has stable IDs, German and English labels, reviewed local aliases, version, policy tags and language hints. Policy tags classify catalog entries only; they are never inferred or applied to a reader. Manual topic preferences are stored per Nextcloud account in additive tables. Updates require `if_revision`; stale writes receive HTTP 409 with the current state. `HIDE` on a parent applies to descendants, while a child preference may replace an inherited soft value. The preference export is owner-only. Reset is revision-protected, idempotent, increments the generation before clearing choices, and account deletion purges the records.
+
+## Transparent ranking baseline (F2)
+
+Topic candidates are ordered by a deterministic, versioned linear score and then assembled into a page with soft author and topic diversity. The initial weights are a documented, uncalibrated hypothesis, not a claim to reproduce another platform's algorithm. The score uses explicit topic match and freshness now; author affinity, follow status, format preference, usefulness, feedback, novelty and exposure remain neutral until those signals are actually available to this reader. Non-finite inputs are replaced with the feature's neutral value, domains are clipped, ties use source reliability and stable post ID, and the ranker records its algorithm and feature versions. Page assembly deduplicates canonical IDs and never drops an otherwise eligible candidate just because diversity targets cannot be met. A reader's explicitly prioritised topic can exceed the soft topic mix target. Ranked topic-candidate pages are kept in a bounded, one-hour immutable snapshot with an opaque HMAC-signed cursor bound to the viewer, topic, media kind, preference revision and reset generation. Each continuation rechecks current visibility and skips posts no longer visible, with bounded refill from the same snapshot. This ranks and pages the candidate response only; it does not yet replace or reorder the existing timeline.
+
+## Routes
+
+| Method | Route | Purpose |
+|---|---|---|
+| GET | `/api/v1/recommendations/catalog` | Local, versioned topics and labels |
+| GET | `/api/v1/recommendations/preferences` | Authenticated reader's topics, content balance, resumable setup state and revision |
+| PUT | `/api/v1/recommendations/preferences` | Replace explicit choices with `if_revision` and `topics`; optionally persist content balance and onboarding progress |
+| POST | `/api/v1/recommendations/reset` | Clear topic choices and reset content balance/setup with `if_revision` |
+| GET | `/api/v1/recommendations/export` | Export the authenticated reader's preference state |
+| GET/PUT | `/admin/recommendations` | Administrator-only instance kill switch |
+
+For local checks, run `composer test:unit -- --filter 'RecommendationPreferenceServiceTest|RecommendationPreferencesMigrationTest|UserDeletedListenerTest'`, then `npm test -- --run` and `npm run build`. Disable the instance switch to roll back the ranked feed; the additive schema is retained and the existing feed remains available.

@@ -51,6 +51,9 @@ use OCA\Social\Middleware\RateLimitHeadersMiddleware;
 use OCA\Social\Notification\Notifier;
 use OCA\Social\Reference\PostReferenceProvider;
 use OCA\Social\Search\UnifiedSearchProvider;
+use OCA\Social\Service\IRecommendationSignalEvents;
+use OCA\Social\Service\IRecommendationSignalRecorder;
+use OCA\Social\Service\RecommendationSignalService;
 use OCA\Social\SetupChecks\BlueskyReady;
 use OCA\Social\SetupChecks\ClientApiAtRoot;
 use OCA\Social\SetupChecks\CloudAddressMatches;
@@ -103,6 +106,8 @@ class Application extends App implements IBootstrap {
 
 	#[\Override]
 	public function register(IRegistrationContext $context): void {
+		$context->registerServiceAlias(IRecommendationSignalEvents::class, RecommendationSignalService::class);
+		$context->registerServiceAlias(IRecommendationSignalRecorder::class, RecommendationSignalService::class);
 		// before anything else it registers: an address at `no_access` is
 		// refused whatever it was asking for
 		$context->registerMiddleware(AccessBlockMiddleware::class);

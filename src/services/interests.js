@@ -24,6 +24,11 @@ function url(path = '') {
 	return generateUrl('apps/social/api/v1/interests' + path)
 }
 
+/** @param {string} path what follows `api/v1/recommendations` */
+function recommendationsUrl(path = '') {
+	return generateUrl('apps/social/api/v1/recommendations' + path)
+}
+
 /**
  * Whether signals are collected for this reader right now.
  *
@@ -66,6 +71,34 @@ export async function saveInterestSettings(settings) {
 	return data
 }
 
+/** @return {Promise<object>} the versioned profile generation and consent state */
+export async function fetchRecommendationPreferences() {
+	return (await axios.get(recommendationsUrl('/preferences'))).data
+}
+
+/** @param {string} profileId the profile's protocol identity */
+export async function recordRecommendationProfileVisit(profileId) {
+	if (typeof profileId !== 'string' || profileId.trim() === '' || profileId.length > 2048) {
+		return
+	}
+	const preferences = await fetchRecommendationPreferences()
+	if (preferences.learning_mode !== 'on' || !Number.isInteger(preferences.generation)) {
+		return
+	}
+	const random = globalThis.crypto?.randomUUID?.()
+	const eventId = random ?? 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (char) => {
+		const value = Math.floor(Math.random() * 16)
+		return (char === 'x' ? value : (value & 0x3) | 0x8).toString(16)
+	})
+	await axios.post(recommendationsUrl('/signals'), { events: [{
+		event_id: eventId,
+		generation: preferences.generation,
+		kind: 'profile_visit',
+		context: 'profile',
+		profile_id: profileId,
+	}] })
+}
+
 /**
  * Reports what the reader did, in one request.
  *
@@ -84,18 +117,26 @@ export async function sendSignals(events, { beacon = false } = {}) {
 		return
 	}
 
-	const body = { events }
+	const learningEvents = events.filter((event) => typeof event.event_id === 'string' && Number.isInteger(event.generation))
+	let legacyQueued = false
+	let learningQueued = false
 	if (beacon && typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
 		const target = url('/signals') + '?requesttoken=' + encodeURIComponent(getRequestToken() ?? '')
-		const blob = new Blob([JSON.stringify(body)], { type: 'application/json' })
-		// false is the browser refusing to queue it: too large, or too many
-		// beacons already. A request may still make it
-		if (navigator.sendBeacon(target, blob)) {
-			return
+		legacyQueued = navigator.sendBeacon(target, new Blob([JSON.stringify({ events })], { type: 'application/json' }))
+		if (learningEvents.length > 0) {
+			const learningTarget = recommendationsUrl('/signals') + '?requesttoken=' + encodeURIComponent(getRequestToken() ?? '')
+			learningQueued = navigator.sendBeacon(learningTarget, new Blob([JSON.stringify({ events: learningEvents })], { type: 'application/json' }))
 		}
 	}
 
-	await axios.post(url('/signals'), body)
+	const requests = []
+	if (!legacyQueued) {
+		requests.push(axios.post(url('/signals'), { events }))
+	}
+	if (learningEvents.length > 0 && !learningQueued) {
+		requests.push(axios.post(recommendationsUrl('/signals'), { events: learningEvents }))
+	}
+	await Promise.all(requests)
 }
 
 /**

@@ -343,6 +343,18 @@ class RemoteFetchQueueTest extends TestCase {
 		$this->assertFalse($this->queue->fillFollowList($local, 'followers'), 'this server knows its own accounts');
 	}
 
+	public function testAQueuedFollowListStaysPendingUntilItsResultIsCachedOrTheThrottleExpires(): void {
+		$this->jobList->method('has')->willReturn(false);
+		$this->jobList->expects($this->once())->method('add')->with(FillFollowLists::class, $this->anything());
+		$account = $this->remote();
+
+		$this->assertTrue($this->queue->fillFollowList($account, 'followers'));
+		$this->assertTrue($this->queue->followListPending($account, 'followers'));
+
+		$this->now += 601;
+		$this->assertFalse($this->queue->followListPending($account, 'followers'));
+	}
+
 	public function testAFollowListQueueFailureCanBeRetried(): void {
 		$fail = true;
 		$this->jobList->method('has')->willReturnCallback(static function () use (&$fail): bool {

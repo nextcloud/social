@@ -196,6 +196,7 @@ class InterestService {
 		$settings = $this->settingsFor($userId);
 		unset($settings['languages']);
 		$settings['profile'] = $this->userValue($userId, self::KEY_BASELINE) !== '';
+		$settings['recommendationsEnabled'] = $this->configService->getAppValueBool(ConfigService::REC_V4_ENABLED);
 
 		return $settings;
 	}

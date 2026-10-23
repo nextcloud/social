@@ -141,6 +141,7 @@ class AdminSettingsTest extends TestCase {
 			$this->createStub(\OCA\Social\Service\ExternalAdminState::class),
 			$this->createStub(\OCA\Social\Service\NotificationPolicyService::class),
 			$this->createStub(\OCA\Social\Atproto\Service\AtprotoStatusService::class),
+			$this->createStub(\OCA\Social\Service\RecommendationPreferenceService::class),
 		);
 	}
 

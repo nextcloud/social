@@ -54,6 +54,10 @@ class BlueskyFeeds {
 	private const PROFILE_CURSOR_PAGES = 'social-atproto-profile-cursor-pages';
 	private const PROFILE_RETRIES = 'social-atproto-profile-retries';
 	private const PROFILE_PAGE_LOCK = 'social-atproto-profile-page-';
+	private const FOR_YOU_FEED_POSTS = 'social-atproto-for-you-feed-posts';
+	private const FOR_YOU_FEED_POSTS_KEPT = 604800;
+	private const MAX_FOR_YOU_FEED_POSTS = 100;
+	private const MAX_FOR_YOU_SAVED_FEEDS = 10;
 	private const COLLECTIONS = [self::FEED => 'app.bsky.feed.generator', self::LIST => 'app.bsky.graph.list'];
 	private bool $feedPagePending = false;
 
@@ -120,6 +124,7 @@ class BlueskyFeeds {
 		if (count($kept) !== count($items)) {
 			$this->writeSaved($session, $kept);
 		}
+		$this->durableCache->remove(self::FOR_YOU_FEED_POSTS, $this->forYouFeedKey($actor, $uri));
 	}
 
 	/**
@@ -217,6 +222,9 @@ class BlueskyFeeds {
 			$next = $answer['cursor'] ?? '';
 			$last = end($page);
 			if ($last instanceof Stream) {
+				if ($type === self::FEED) {
+					$this->rememberForYouFeedPage($actor, $uri, $page);
+				}
 				if ($next !== '') {
 					$this->durableCache->set(self::CURSORS, $this->cursorKey($actor, $uri, (string)$last->getNid()), $next, self::CURSOR_KEPT);
 				}
@@ -246,6 +254,50 @@ class BlueskyFeeds {
 	/** Whether a hidden-page walk stopped at the interactive request budget. */
 	public function hasFeedPagePending(): bool {
 		return $this->feedPagePending;
+	}
+
+	/**
+	 * Recent post IDs already read from the reader's saved custom feeds.
+	 * This is cache-only: it never calls an AppView while building For You.
+	 *
+	 * @return list<string>
+	 */
+	public function recommendationFeedPostNids(Person $actor, int $limit): array {
+		$limit = max(0, min(self::MAX_FOR_YOU_FEED_POSTS, $limit));
+		if ($limit === 0) {
+			return [];
+		}
+		try {
+			$items = $this->savedItems($this->session($actor));
+		} catch (InvalidArgumentException) {
+			return [];
+		}
+
+		$nids = [];
+		$feeds = 0;
+		foreach ($items as $item) {
+			$uri = is_string($item['value'] ?? null) ? $item['value'] : '';
+			if (self::typeOf($uri) !== self::FEED) {
+				continue;
+			}
+			$feeds++;
+			$cached = $this->durableCache->get(self::FOR_YOU_FEED_POSTS, $this->forYouFeedKey($actor, $uri));
+			if (is_array($cached)) {
+				foreach ($cached as $nid) {
+					if (is_string($nid) && $nid !== '' && !in_array($nid, $nids, true)) {
+						$nids[] = $nid;
+						if (count($nids) >= $limit) {
+							return $nids;
+						}
+					}
+				}
+			}
+			if ($feeds >= self::MAX_FOR_YOU_SAVED_FEEDS) {
+				break;
+			}
+		}
+
+		return $nids;
 	}
 
 	/**
@@ -611,5 +663,24 @@ class BlueskyFeeds {
 
 	private function cursorKey(Person $actor, string $uri, string $after): string {
 		return md5($actor->getId() . '|' . $uri . '|' . $after);
+	}
+
+	/** @param list<Stream> $page */
+	private function rememberForYouFeedPage(Person $actor, string $uri, array $page): void {
+		$key = $this->forYouFeedKey($actor, $uri);
+		$cached = $this->durableCache->get(self::FOR_YOU_FEED_POSTS, $key);
+		$previous = is_array($cached) ? array_values(array_filter($cached, 'is_string')) : [];
+		$current = array_values(array_filter(array_map(
+			static fn (Stream $post): string => (string)$post->getNid(),
+			$page,
+		), static fn (string $nid): bool => $nid !== '' && $nid !== '0'));
+		$nids = array_slice(array_values(array_unique(array_merge($current, $previous))), 0, self::MAX_FOR_YOU_FEED_POSTS);
+		if ($nids !== []) {
+			$this->durableCache->set(self::FOR_YOU_FEED_POSTS, $key, $nids, self::FOR_YOU_FEED_POSTS_KEPT);
+		}
+	}
+
+	private function forYouFeedKey(Person $actor, string $uri): string {
+		return hash('sha256', $actor->getId() . '|' . $uri);
 	}
 }
