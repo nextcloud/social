@@ -26,17 +26,16 @@ final class RecommendationTrendCandidates {
 
 	/**
 	 * Trending is a retrieval hint, not a ranking shortcut: the caller still
-	 * requires an explicit topic match before a status can enter a result.
+	 * requires an automatic topic match before a status can enter a result.
 	 * Re-reading through the viewer-aware stream query applies current access,
 	 * block, mute and hidden-status rules after the public trend query.
 	 *
 	 * @param list<string> $excludeNids
 	 * @param list<string> $languages
 	 * @param list<string> $topicIds
-	 * @param list<string> $hiddenTopicIds
 	 * @return array<string, Stream> by nid
 	 */
-	public function forViewer(Person $viewer, int $limit, array $excludeNids = [], array $languages = [], array $topicIds = [], array $hiddenTopicIds = [], string $media = ''): array {
+	public function forViewer(Person $viewer, int $limit, array $excludeNids = [], array $languages = [], array $topicIds = [], string $media = ''): array {
 		$limit = max(0, min(self::MAX_CANDIDATES, $limit));
 		if ($limit === 0) {
 			return [];
@@ -64,8 +63,7 @@ final class RecommendationTrendCandidates {
 				continue;
 			}
 			$topicMatches = array_keys($this->features->extract($post)['topics']);
-			if (($topicIds !== [] && array_intersect($topicIds, $topicMatches) === [])
-				|| array_intersect($hiddenTopicIds, $topicMatches) !== []) {
+			if ($topicIds !== [] && array_intersect($topicIds, $topicMatches) === []) {
 				continue;
 			}
 			$nids[] = $nid;

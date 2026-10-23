@@ -116,17 +116,14 @@ class RecommendationTimelineService {
 			$hiddenNids,
 			$languages,
 			array_column($candidateTopics, 'id'),
-			[],
 			$media,
 		);
-		$hiddenTopicIds = [];
 		$socialGraphPosts = $this->socialGraphCandidates->matching(
 			$sinceNid,
 			$socialGraphBudget,
 			array_values(array_unique(array_merge($hiddenNids, array_keys($trendPosts)))),
 			$languages,
 			array_column($candidateTopics, 'id'),
-			$hiddenTopicIds,
 			$media,
 		);
 		$savedFeedPosts = $this->savedFeedCandidates->matching(
@@ -135,7 +132,6 @@ class RecommendationTimelineService {
 			array_values(array_unique(array_merge($hiddenNids, array_keys($trendPosts), array_keys($socialGraphPosts)))),
 			$languages,
 			array_column($candidateTopics, 'id'),
-			$hiddenTopicIds,
 			$media,
 		);
 		$topicBudget = max(0, $candidateBudget - $automaticBudget - $followBudget - $explorationBudget - count($trendPosts) - count($socialGraphPosts) - count($savedFeedPosts));
@@ -241,7 +237,7 @@ class RecommendationTimelineService {
 		];
 	}
 
-	/** @param array<string, float> $behavioral @return list<array{id: string, mode: string, aliases: list<string>, labels: array{en: string, de: string}}> */
+	/** @param array<string, float> $behavioral @return list<array{id: string, aliases: list<string>, labels: array{en: string, de: string}}> */
 	private function candidateTopics(array $behavioral): array {
 		$topics = [];
 		arsort($behavioral, SORT_NUMERIC);
@@ -253,7 +249,7 @@ class RecommendationTimelineService {
 			if ($topic === null || !$topic['enabled'] || in_array('sensitive-topic', $topic['policyTags'], true)) {
 				continue;
 			}
-			$topics[] = ['id' => $topicId, 'mode' => 'AUTOMATIC', 'aliases' => $topic['aliases'], 'labels' => $topic['labels']];
+			$topics[] = ['id' => $topicId, 'aliases' => $topic['aliases'], 'labels' => $topic['labels']];
 			if (count($topics) >= 20) {
 				break;
 			}
@@ -261,7 +257,7 @@ class RecommendationTimelineService {
 		return $topics;
 	}
 
-	/** @param list<array{id: string, mode: string, aliases: list<string>, labels: array{en: string, de: string}}> $topics @return list<string> */
+	/** @param list<array{id: string, aliases: list<string>, labels: array{en: string, de: string}}> $topics @return list<string> */
 	private function terms(array $topics, int $now): array {
 		$aliasesByTopic = [];
 		foreach ($topics as $topic) {
@@ -391,7 +387,7 @@ class RecommendationTimelineService {
 		return array_values(array_filter(array_map(static fn (string $nid): ?array => $byNid[$nid] ?? null, $nids)));
 	}
 
-	/** @param array<string, Stream> $posts @param list<array<string, mixed>> $candidates @param list<array{id: string, mode: string, aliases: list<string>, labels: array{en: string, de: string}}> $topics @param list<string> $explorationNids @param list<array{nid: string, reason: array<string, mixed>}> $explanationEntries @return list<Stream> */
+	/** @param array<string, Stream> $posts @param list<array<string, mixed>> $candidates @param list<array{id: string, aliases: list<string>, labels: array{en: string, de: string}}> $topics @param list<string> $explorationNids @param list<array{nid: string, reason: array<string, mixed>}> $explanationEntries @return list<Stream> */
 	private function hydrate(array $posts, array $candidates, array $topics, array $explorationNids = [], array $explanationEntries = []): array {
 		$byId = [];
 		foreach ($topics as $topic) {
@@ -435,7 +431,7 @@ class RecommendationTimelineService {
 		return $items;
 	}
 
-	/** @param list<array{id: string, mode: string, aliases: list<string>, labels: array{en: string, de: string}}> $topics */
+	/** @param list<array{id: string, aliases: list<string>, labels: array{en: string, de: string}}> $topics */
 	private function queueCoverage(array $topics, Person $viewer, int $now): bool {
 		if ($topics === []) {
 			if (!$this->interests->isEnabled()) {
@@ -492,7 +488,7 @@ class RecommendationTimelineService {
 		return '';
 	}
 
-	/** @param array<string, mixed> $state @param list<array{id: string, mode: string, aliases: list<string>, labels: array{en: string, de: string}}> $candidateTopics @param array<string, mixed> $feedback */
+	/** @param array<string, mixed> $state @param list<array{id: string, aliases: list<string>, labels: array{en: string, de: string}}> $candidateTopics @param array<string, mixed> $feedback */
 	private function continuePage(Person $viewer, int $limit, string $cursor, string $media, array $state, array $candidateTopics, array $feedback, array $behavioral, int $now): array {
 		$page = $this->snapshots->nextPage($cursor, $viewer->getUserId(), self::MODE, $media, $state['revision'], $state['generation'], $now, $limit);
 		if ($page === null) {
