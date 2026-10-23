@@ -113,6 +113,7 @@
 		"@nextcloud/webpack-vue-config": {
 			"webpack-cli": "$webpack-cli"
 		},
-		"@babel/core": "^8.0.6"
+		"@babel/core": "^8.0.6",
+		"launch-editor": "2.14.2"
 	}
 }
