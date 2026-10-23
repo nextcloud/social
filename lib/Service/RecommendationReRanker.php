@@ -22,7 +22,7 @@ final class RecommendationReRanker {
 	 * @return list<array<string, mixed>>
 	 */
 	public function page(array $rankedCandidates, int $pageSize = 20, array $prioritisedTopics = []): array {
-		$pageSize = max(0, min(50, $pageSize));
+		$pageSize = max(0, min(100, $pageSize));
 		$remaining = [];
 		$seen = [];
 		foreach ($rankedCandidates as $candidate) {

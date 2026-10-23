@@ -105,9 +105,9 @@ class RecommendationsController extends ClientApiController {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/recommendations/candidates/{topicId}')]
-	public function candidates(string $topicId, int $limit = 20): DataResponse {
+	public function candidates(string $topicId, int $limit = 20, string $cursor = ''): DataResponse {
 		return $this->answer(['read:accounts'], fn (): array
-			=> $this->candidateService->discover($this->viewer(), $topicId, $limit)
+			=> $this->candidateService->discover($this->viewer(), $topicId, $limit, $cursor)
 		);
 	}
 

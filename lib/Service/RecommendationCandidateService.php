@@ -11,6 +11,7 @@ namespace OCA\Social\Service;
 
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\Discovery\PostDiscoveryService;
 use OCA\Social\Tools\Nid;
 use OCP\AppFramework\Utility\ITimeFactory;
@@ -32,6 +33,7 @@ class RecommendationCandidateService {
 		private ITimeFactory $timeFactory,
 		private RecommendationRanker $ranker,
 		private RecommendationReRanker $reRanker,
+		private RecommendationSnapshotStore $snapshotStore,
 	) {
 	}
 
@@ -40,9 +42,9 @@ class RecommendationCandidateService {
 	 * discoverable corpus. If it is underfilled, request a single bounded
 	 * background refresh for this topic through the existing queue.
 	 *
-	 * @return array{topic_id: string, count: int, requested: int, underfilled: bool, remote_refresh_queued: bool, sources: array{activitypub: int, atproto: int}, candidates: list<array<string, mixed>>}
+	 * @return array{topic_id: string, count: int, requested: int, underfilled: bool, remote_refresh_queued: bool, sources: array{activitypub: int, atproto: int}, session_id: ?string, next_cursor: ?string, cursor_expired: bool, candidates: list<array<string, mixed>>}
 	 */
-	public function discover(Person $viewer, string $topicId, int $requested = 20): array {
+	public function discover(Person $viewer, string $topicId, int $requested = 20, string $cursor = ''): array {
 		$limit = max(1, min(self::MAX_PAGE_SIZE, $requested));
 		$empty = [
 			'topic_id' => $topicId,
@@ -51,6 +53,9 @@ class RecommendationCandidateService {
 			'underfilled' => true,
 			'remote_refresh_queued' => false,
 			'sources' => ['activitypub' => 0, 'atproto' => 0],
+			'session_id' => null,
+			'next_cursor' => null,
+			'cursor_expired' => false,
 			'candidates' => [],
 		];
 		if (!$this->preferences->isEnabled()) {
@@ -69,8 +74,13 @@ class RecommendationCandidateService {
 		}
 
 		$this->streams->setViewer($viewer);
+		if ($cursor !== '') {
+			return $this->continueSnapshot($viewer, $topicId, $mode, $state['revision'], $state['generation'], $limit, $cursor, $empty);
+		}
+
+		$now = $this->timeFactory->getTime();
 		$sinceNid = Nid::fromPublishedTime(
-			max(0, $this->timeFactory->getTime() - self::LOOKBACK_DAYS * 86400), 0, StreamRequest::NID_LIMIT
+			max(0, $now - self::LOOKBACK_DAYS * 86400), 0, StreamRequest::NID_LIMIT
 		);
 		$aliases = $topic['aliases'];
 		$posts = $this->streams->recommendationCandidatesByTerms(
@@ -83,37 +93,34 @@ class RecommendationCandidateService {
 
 		$candidates = [];
 		foreach ($posts as $nid => $post) {
-			$features = $this->features->extract($post);
-			$match = $features['topics'][$topicId] ?? null;
-			if ($match === null) {
-				continue;
+			$candidate = $this->candidate($post, (string)$nid, $topicId, $now);
+			if ($candidate !== null) {
+				$candidates[] = $candidate;
 			}
-			$protocol = str_starts_with($post->getId(), 'at://') ? 'atproto' : 'activitypub';
-			$candidates[] = [
-				'nid' => (string)$nid,
-				'author_key' => $post->getActorId(),
-				'topic_ids' => array_keys($features['topics']),
-				'protocol' => $protocol,
-				'published_at' => $post->getPublishedTime(),
-				'language' => $features['language'],
-				'format' => $features['format'],
-				'score' => $match['score'],
-				'topic_match' => $match['score'],
-				'freshness' => self::freshness($post->getPublishedTime(), $this->timeFactory->getTime(), $features['format']),
-				'source_reliability' => 0.5,
-				'evidence' => $match['evidence'],
-			];
 		}
-		$candidates = $this->reRanker->page($this->ranker->rank($candidates), $limit, $mode === 'PRIORITISE' ? [$topicId] : []);
-		$candidates = array_map(static function (array $candidate): array {
-			unset($candidate['author_key'], $candidate['topic_ids'], $candidate['eligible'], $candidate['canonical_key']);
-			return $candidate;
-		}, $candidates);
-		$sources = ['activitypub' => 0, 'atproto' => 0];
-		foreach ($candidates as $candidate) {
-			$protocol = $candidate['protocol'] === 'atproto' ? 'atproto' : 'activitypub';
-			$sources[$protocol]++;
+		$ranked = $this->reRanker->page($this->ranker->rank($candidates), 100, $mode === 'PRIORITISE' ? [$topicId] : []);
+		$snapshot = $this->snapshotStore->create(
+			$viewer->getUserId(), 'topic:' . $topicId, 'all', $state['revision'], $state['generation'], $now,
+			array_column($ranked, 'nid'), $limit
+		);
+		if ($snapshot === null) {
+			$candidates = $this->reRanker->page($ranked, $limit);
+			$nextCursor = null;
+			$sessionId = null;
+		} else {
+			$sessionId = $snapshot['session_id'];
+			$nextCursor = $snapshot['next_cursor'];
+			$byNid = [];
+			foreach ($ranked as $candidate) {
+				$byNid[$candidate['nid']] = $candidate;
+			}
+			$candidates = array_values(array_filter(array_map(
+				static fn (string $nid): ?array => $byNid[$nid] ?? null,
+				$snapshot['nids']
+			)));
 		}
+		$candidates = self::publicCandidates($candidates);
+		$sources = self::sourceCounts($candidates);
 
 		$underfilled = count($candidates) < min($limit, self::MIN_COVERAGE_TARGET);
 		$queued = false;
@@ -136,8 +143,116 @@ class RecommendationCandidateService {
 			'underfilled' => $underfilled,
 			'remote_refresh_queued' => $queued,
 			'sources' => $sources,
+			'session_id' => $sessionId,
+			'next_cursor' => $nextCursor,
+			'cursor_expired' => false,
 			'candidates' => $candidates,
 		];
+	}
+
+	/** @param array<string, mixed> $empty @return array<string, mixed> */
+	private function continueSnapshot(Person $viewer, string $topicId, string $mode, int $revision, int $generation, int $limit, string $cursor, array $empty): array {
+		$now = $this->timeFactory->getTime();
+		$page = $this->snapshotStore->nextPage($cursor, $viewer->getUserId(), 'topic:' . $topicId, 'all', $revision, $generation, $now, $limit);
+		if ($page === null) {
+			$empty['cursor_expired'] = true;
+			return $empty;
+		}
+
+		$candidates = [];
+		$nextCursor = $page['next_cursor'];
+		$sessionId = $page['session_id'];
+		for ($scan = 0; $scan < 5; $scan++) {
+			$visible = $this->streams->getVisibleByNids($page['nids']);
+			$orderedNids = $page['nids'];
+			foreach ($orderedNids as $nid) {
+				$post = $visible[$nid] ?? null;
+				if ($post === null) {
+					continue;
+				}
+				$candidate = $this->candidate($post, $nid, $topicId, $now);
+				if ($candidate !== null) {
+					$candidates[] = $candidate;
+					if (count($candidates) >= $limit) {
+						break 2;
+					}
+				}
+			}
+			if ($nextCursor === null) {
+				break;
+			}
+			$page = $this->snapshotStore->nextPage($nextCursor, $viewer->getUserId(), 'topic:' . $topicId, 'all', $revision, $generation, $now, $limit);
+			if ($page === null) {
+				break;
+			}
+			$nextCursor = $page['next_cursor'];
+		}
+
+		$rankedByNid = [];
+		foreach ($this->ranker->rank($candidates) as $candidate) {
+			$rankedByNid[$candidate['nid']] = $candidate;
+		}
+		$public = self::publicCandidates(array_values(array_filter(array_map(
+			static fn (string $nid): ?array => $rankedByNid[$nid] ?? null,
+			array_column($candidates, 'nid')
+		))));
+
+		return [
+			'topic_id' => $topicId,
+			'count' => count($public),
+			'requested' => $limit,
+			'underfilled' => count($public) < min($limit, self::MIN_COVERAGE_TARGET),
+			'remote_refresh_queued' => false,
+			'sources' => self::sourceCounts($public),
+			'session_id' => $sessionId,
+			'next_cursor' => $nextCursor,
+			'cursor_expired' => false,
+			'candidates' => $public,
+		];
+	}
+
+	/** @return array<string, mixed>|null */
+	private function candidate(Stream $post, string $nid, string $topicId, int $now): ?array {
+		$features = $this->features->extract($post);
+		$match = $features['topics'][$topicId] ?? null;
+		if ($match === null) {
+			return null;
+		}
+		$protocol = str_starts_with($post->getId(), 'at://') ? 'atproto' : 'activitypub';
+
+		return [
+			'nid' => $nid,
+			'author_key' => $post->getActorId(),
+			'topic_ids' => array_keys($features['topics']),
+			'protocol' => $protocol,
+			'published_at' => $post->getPublishedTime(),
+			'language' => $features['language'],
+			'format' => $features['format'],
+			'score' => $match['score'],
+			'topic_match' => $match['score'],
+			'freshness' => self::freshness($post->getPublishedTime(), $now, $features['format']),
+			'source_reliability' => 0.5,
+			'evidence' => $match['evidence'],
+		];
+	}
+
+	/** @param list<array<string, mixed>> $candidates @return list<array<string, mixed>> */
+	private static function publicCandidates(array $candidates): array {
+		return array_map(static function (array $candidate): array {
+			unset($candidate['author_key'], $candidate['topic_ids'], $candidate['eligible'], $candidate['canonical_key']);
+			return $candidate;
+		}, $candidates);
+	}
+
+	/** @param list<array<string, mixed>> $candidates @return array{activitypub: int, atproto: int} */
+	private static function sourceCounts(array $candidates): array {
+		$sources = ['activitypub' => 0, 'atproto' => 0];
+		foreach ($candidates as $candidate) {
+			$protocol = $candidate['protocol'] === 'atproto' ? 'atproto' : 'activitypub';
+			$sources[$protocol]++;
+		}
+
+		return $sources;
 	}
 
 	/** @return array{aliases: list<string>, policyTags: list<string>, enabled: bool}|null */
