@@ -213,6 +213,55 @@ class RecommendationRankerTest extends TestCase {
 		$this->assertSame(['security-1', 'security-2', 'security-3', 'civic-only', 'security-and-civic'], array_column($page, 'nid'));
 	}
 
+	public function testRepeatedStoriesAreCappedWhileUnrelatedPostsRemain(): void {
+		$story = \OCA\Social\Service\RecommendationStorySimilarity::terms('PHP security advisory CVE-2026-1234 affects installations and allows remote code execution.');
+		$ranked = [];
+		for ($i = 1; $i <= 8; $i++) {
+			$ranked[] = [
+				'nid' => 'php-security-' . $i,
+				'rank_score' => 0.99 - ($i * 0.001),
+				'story_terms' => $story,
+				'diversity_topics' => ['software.backend'],
+			];
+		}
+		$otherStories = [
+			'Astronomers mapped distant exoplanets around nearby stars.',
+			'Local orchestra rehearses an original symphony for autumn.',
+			'Researchers found ancient pottery near the northern coast.',
+			'Community gardeners plant heirloom tomatoes beside native flowers.',
+			'Cyclists opened a protected route beside the river.',
+			'New watercolor exhibition features landscapes from Iceland.',
+			'Volunteers restored a historic railway station this summer.',
+			'Wildlife experts tracked migrating cranes through wetlands.',
+		];
+		foreach ($otherStories as $i => $text) {
+			$ranked[] = [
+				'nid' => 'other-story-' . $i,
+				'rank_score' => 0.80 - ($i * 0.001),
+				'story_terms' => \OCA\Social\Service\RecommendationStorySimilarity::terms($text),
+				'diversity_topics' => ['topic.' . $i],
+			];
+		}
+
+		$page = (new RecommendationReRanker())->page($ranked, 10, 'story-diversity');
+		$repeatedStory = array_filter($page, static fn (array $candidate): bool => str_starts_with($candidate['nid'], 'php-security-'));
+
+		$this->assertLessThanOrEqual(2, count($repeatedStory));
+		$this->assertContains('other-story-0', array_column($page, 'nid'));
+	}
+
+	public function testStoryCapRelaxesWhenEveryRemainingPostCoversTheSameStory(): void {
+		$story = \OCA\Social\Service\RecommendationStorySimilarity::terms('PHP security advisory CVE-2026-1234 affects installations and allows remote code execution.');
+		$ranked = [];
+		for ($i = 1; $i <= 5; $i++) {
+			$ranked[] = ['nid' => 'same-story-' . $i, 'rank_score' => 1.0 - ($i / 100), 'story_terms' => $story];
+		}
+
+		$page = (new RecommendationReRanker())->page($ranked, 5, 'single-story');
+
+		$this->assertCount(5, $page);
+	}
+
 	public function testTopicConcentrationRelaxesWhenThereAreNoOtherTopicsToShow(): void {
 		$ranked = [];
 		for ($i = 1; $i <= 5; $i++) {

@@ -274,7 +274,7 @@ class RecommendationTimelineServiceTest extends TestCase {
 			$this->appleAliases(), $this->isType('string'), 50, [], ['en'], 2_000_000_000
 		)->willReturn(['123' => $post]);
 		$this->snapshots->expects($this->once())->method('create')->with(
-			'alice', 'for-you-v5-topic-diversity-6', '', 3, 2, 2_000_000_000, ['123'], 20, [], $this->anything()
+			'alice', 'for-you-v5-story-diversity-7', '', 3, 2, 2_000_000_000, ['123'], 20, [], $this->anything()
 		)->willReturn(['session_id' => 'session', 'nids' => ['123'], 'exploration_nids' => [], 'next_cursor' => null]);
 		$this->queue->expects($this->exactly(2))->method('fillPosts')->willReturnCallback(
 			static function (string $kind, string $term, Person $viewer): bool {

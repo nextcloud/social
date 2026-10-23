@@ -138,6 +138,7 @@ class RecommendationTimelineAssembler {
 		return [
 			'nid' => $nid,
 			'canonical_key' => $post->getId() !== '' ? $post->getId() : $nid,
+			'story_terms' => RecommendationStorySimilarity::terms($post->getContent()),
 			'author_key' => $author,
 			'topic_ids' => $allTopicIds,
 			'diversity_topics' => $this->diversityTopics($allTopicIds),

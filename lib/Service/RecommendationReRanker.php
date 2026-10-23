@@ -14,6 +14,7 @@ final class RecommendationReRanker {
 	private const WINDOW_SIZE = 20;
 	private const MAX_AUTHOR_IN_WINDOW = 2;
 	private const MAX_TOPIC_IN_WINDOW = 3;
+	private const MAX_STORY_IN_WINDOW = 2;
 	private const TOPIC_CONCENTRATION_COST = 0.18;
 	private const LOOKAHEAD = 100;
 	private const DEFAULT_EXPLORATION_INTERVAL = 10;
@@ -56,7 +57,8 @@ final class RecommendationReRanker {
 			$saturatedTopics = array_fill_keys(self::saturatedTopics($selected), true);
 			$hasUnsaturatedAlternative = false;
 			foreach ($window as $candidate) {
-				if (!self::hasSaturatedTopic(self::topicIds($candidate), $saturatedTopics)) {
+				if (!self::hasSaturatedTopic(self::topicIds($candidate), $saturatedTopics)
+					&& !self::hasSaturatedStory($candidate, $selected)) {
 					$hasUnsaturatedAlternative = true;
 					break;
 				}
@@ -65,7 +67,8 @@ final class RecommendationReRanker {
 			$bestAdjusted = -INF;
 			$adjustedScores = [];
 			foreach ($window as $index => $candidate) {
-				if ($hasUnsaturatedAlternative && self::hasSaturatedTopic(self::topicIds($candidate), $saturatedTopics)) {
+				if ($hasUnsaturatedAlternative && (self::hasSaturatedTopic(self::topicIds($candidate), $saturatedTopics)
+					|| self::hasSaturatedStory($candidate, $selected))) {
 					continue;
 				}
 				$author = (string)($candidate['author_key'] ?? '');
@@ -182,6 +185,27 @@ final class RecommendationReRanker {
 		foreach ($topics as $topic) {
 			if (isset($saturated[$topic])) {
 				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/** @param array<string, mixed> $candidate @param list<array<string, mixed>> $selected */
+	private static function hasSaturatedStory(array $candidate, array $selected): bool {
+		$terms = $candidate['story_terms'] ?? [];
+		if (!is_array($terms) || $terms === []) {
+			return false;
+		}
+
+		$similar = 0;
+		foreach (array_slice($selected, -self::WINDOW_SIZE) as $selectedCandidate) {
+			$selectedTerms = $selectedCandidate['story_terms'] ?? [];
+			if (is_array($selectedTerms) && RecommendationStorySimilarity::areSimilar($terms, $selectedTerms)) {
+				$similar++;
+				if ($similar >= self::MAX_STORY_IN_WINDOW) {
+					return true;
+				}
 			}
 		}
 
