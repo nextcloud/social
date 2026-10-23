@@ -47,6 +47,11 @@ class RecommendationTimelineServiceTest extends TestCase {
 	private FollowsRequest $follows;
 	private array $learnedProfile = ['topics' => [], 'authors' => [], 'formats' => []];
 
+	/** @return list<string> */
+	private function appleAliases(): array {
+		return $this->catalog->find('tech.apple')['aliases'] ?? [];
+	}
+
 	protected function setUp(): void {
 		$this->preferences = $this->createMock(RecommendationPreferenceService::class);
 		$this->streams = $this->createMock(StreamRequest::class);
@@ -143,7 +148,7 @@ class RecommendationTimelineServiceTest extends TestCase {
 			->setPublishedTime(1_999_999_900);
 		$this->streams->expects($this->once())->method('setViewer')->with($this->isInstanceOf(Person::class));
 		$this->streams->expects($this->once())->method('recommendationCandidatesByTerms')->with(
-			['apple', 'iphone', 'ipad', 'mac'], $this->isType('string'), 100, [], ['en']
+			$this->appleAliases(), $this->isType('string'), 100, [], ['en']
 		)->willReturn(['123' => $post]);
 		$this->snapshots->expects($this->once())->method('create')->with(
 			'alice', 'for-you-v4', '', 3, 2, 2_000_000_000, ['123'], 20, []

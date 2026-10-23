@@ -42,6 +42,11 @@ class RecommendationCandidateServiceTest extends TestCase {
 	private FollowsRequest $follows;
 	private RecommendationSignalRequest $signals;
 
+	/** @return list<string> */
+	private function appleAliases(): array {
+		return (new RecommendationTopicCatalog())->find('tech.apple')['aliases'] ?? [];
+	}
+
 	protected function setUp(): void {
 		$this->preferences = $this->createMock(RecommendationPreferenceService::class);
 		$this->streams = $this->createMock(StreamRequest::class);
@@ -115,7 +120,7 @@ class RecommendationCandidateServiceTest extends TestCase {
 		$note->setId('https://remote.example/posts/1')->setContent('<p>Apple announces a new device</p>')->setLanguage('en')->setPublishedTime(1_999_999_900);
 		$this->streams->expects($this->once())->method('setViewer')->with($this->isInstanceOf(Person::class));
 		$this->streams->expects($this->once())->method('recommendationCandidatesByTerms')->with(
-			['apple', 'iphone', 'ipad', 'mac'], $this->isType('string'), 100, [], ['en']
+			$this->appleAliases(), $this->isType('string'), 100, [], ['en']
 		)->willReturn(['123' => $note]);
 		$this->queue->expects($this->exactly(2))->method('fillPosts')->willReturnCallback(
 			static function (string $kind, string $term, Person $viewer): bool {
@@ -198,7 +203,7 @@ class RecommendationCandidateServiceTest extends TestCase {
 		$note = new Note();
 		$note->setId('https://remote.example/posts/123')->setContent('<p>Apple announces a new device</p>')->setPublishedTime(1_999_999_900);
 		$this->streams->expects($this->once())->method('recommendationCandidatesByTerms')->with(
-			['apple', 'iphone', 'ipad', 'mac'], $this->isType('string'), 100, ['321'], []
+			$this->appleAliases(), $this->isType('string'), 100, ['321'], []
 		)->willReturn(['123' => $note]);
 		$this->feedback->expects($this->once())->method('apply')->with(
 			$this->callback(static fn (array $candidate): bool => $candidate['nid'] === '123'), 'tech.apple', $feedback
