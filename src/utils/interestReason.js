@@ -17,12 +17,35 @@ import { translate as t, translatePlural as n } from '@nextcloud/l10n'
  * that was too short, from what is trending in the same kind.
  * Its chip says exactly that and links nowhere, since no tag put it there.
  *
- * @param {{tags?: string[], reason?: string}|null|undefined} interest the post's `interest` field
- * @return {{tag: string|null, text: string, label: string}|null} the tag the chip links to
+ * @param {{tags?: string[], reason?: string, topics?: {id?: string, labels?: Record<string, string>}[]}|null|undefined} interest the post's `interest` field
+ * @return {{tag: string|null, reason?: string, text: string, label: string}|null} the tag the chip links to
  *                                                                (null for none) and its
  *                                                                words, or null for no chip
  */
 export function interestReason(interest) {
+	if (interest?.reason === 'topic') {
+		const locale = typeof document === 'undefined'
+			? 'en'
+			: (document.documentElement.lang || 'en').split(/[-_]/)[0].toLowerCase()
+		const topics = (interest.topics ?? [])
+			.map((topic) => topic?.labels?.[locale] ?? topic?.labels?.en ?? topic?.id)
+			.filter((topic) => typeof topic === 'string' && topic !== '')
+		if (topics.length === 0) {
+			return null
+		}
+		const listed = topics.slice(0, 2).join(', ')
+		const rest = topics.length - 2
+		const text = topics.length === 1
+			? t('social', 'Because you chose {topic}', { topic: topics[0] })
+			: t('social', 'Topics you chose: {topics}', { topics: rest > 0 ? `${listed} +${rest}` : listed })
+		return {
+			tag: null,
+			reason: 'topic',
+			text,
+			label: t('social', "Why you're seeing this: it matches your chosen topic {topics}", { topics: topics.join(', ') }),
+		}
+	}
+
 	if (interest?.reason === 'popular') {
 		return {
 			tag: null,

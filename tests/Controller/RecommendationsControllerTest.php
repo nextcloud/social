@@ -13,9 +13,11 @@ use OCA\Social\Controller\RecommendationsController;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ClientService;
+use OCA\Social\Service\FilterService;
 use OCA\Social\Service\RecommendationCandidateService;
 use OCA\Social\Service\RecommendationFeedbackService;
 use OCA\Social\Service\RecommendationPreferenceService;
+use OCA\Social\Service\RecommendationTimelineService;
 use OCP\AppFramework\Http;
 use OCP\IRequest;
 use OCP\IUser;
@@ -30,6 +32,8 @@ class RecommendationsControllerTest extends TestCase {
 	private RecommendationPreferenceService $service;
 	private RecommendationCandidateService $candidateService;
 	private RecommendationFeedbackService $feedbackService;
+	private RecommendationTimelineService $timelineService;
+	private FilterService $filterService;
 	private bool $enabled = true;
 
 	private function controller(): RecommendationsController {
@@ -54,6 +58,8 @@ class RecommendationsControllerTest extends TestCase {
 			$this->service,
 			$this->candidateService,
 			$this->feedbackService,
+			$this->timelineService,
+			$this->filterService,
 		);
 	}
 
@@ -62,6 +68,9 @@ class RecommendationsControllerTest extends TestCase {
 		$this->service->method('isEnabled')->willReturnCallback(fn (): bool => $this->enabled);
 		$this->candidateService = $this->createMock(RecommendationCandidateService::class);
 		$this->feedbackService = $this->createMock(RecommendationFeedbackService::class);
+		$this->timelineService = $this->createMock(RecommendationTimelineService::class);
+		$this->filterService = $this->createMock(FilterService::class);
+		$this->filterService->method('apply')->willReturnArgument(0);
 	}
 
 	protected function tearDown(): void {
@@ -119,6 +128,44 @@ class RecommendationsControllerTest extends TestCase {
 
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
 		$this->assertSame($result, $response->getData());
+	}
+
+	public function testRankedTimelineUsesOnlyTheAuthenticatedReader(): void {
+		$result = [
+			'items' => [], 'session_id' => null, 'next_cursor' => null, 'mode' => 'NO_ACTIVE_TOPICS',
+			'algorithm_version' => 1, 'profile_version' => 2, 'cursor_expired' => false,
+			'coverage' => ['state' => 'UNDERFILLED', 'known_eligible' => 0, 'returned' => 0, 'remote_refresh_queued' => false],
+		];
+		$this->timelineService->expects($this->once())->method('page')->with(
+			$this->callback(static fn (Person $viewer): bool => $viewer->getUserId() === 'alice'), 12, 'opaque-cursor', 'photos'
+		)->willReturn($result);
+
+		$response = $this->controller()->timeline(12, 'opaque-cursor', 'photos');
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame($result, $response->getData());
+	}
+
+	public function testRankedTimelineAppliesPublicHideFiltersAndScansPastFilteredStatuses(): void {
+		$hidden = (new \OCA\Social\Model\ActivityPub\Object\Note())->setNid('10');
+		$visible = (new \OCA\Social\Model\ActivityPub\Object\Note())->setNid('20');
+		$firstPage = [
+			'items' => [$hidden], 'session_id' => 'snapshot', 'next_cursor' => 'cursor-2', 'mode' => 'RANKED',
+			'algorithm_version' => 1, 'profile_version' => 2, 'cursor_expired' => false,
+			'coverage' => ['state' => 'GOOD', 'known_eligible' => 2, 'returned' => 1, 'remote_refresh_queued' => false],
+		];
+		$secondPage = $firstPage;
+		$secondPage['items'] = [$visible];
+		$secondPage['next_cursor'] = null;
+		$this->timelineService->expects($this->exactly(2))->method('page')->willReturnOnConsecutiveCalls($firstPage, $secondPage);
+		$this->filterService = $this->createMock(FilterService::class);
+		$this->filterService->expects($this->exactly(2))->method('apply')->willReturnOnConsecutiveCalls([], [$visible]);
+
+		$response = $this->controller()->timeline(1);
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame([$visible], $response->getData()['items']);
+		$this->assertSame(1, $response->getData()['coverage']['returned']);
 	}
 
 	public function testFeedbackUsesTheAuthenticatedOwnerAndTheNamedPost(): void {

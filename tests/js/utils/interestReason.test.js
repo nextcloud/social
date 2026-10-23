@@ -44,6 +44,22 @@ describe('why a post is in For you', () => {
 		})
 	})
 
+	it('explains a v4 match using the localized selected topic label', () => {
+		const originalLanguage = document.documentElement.lang
+		document.documentElement.lang = 'de-DE'
+		expect(interestReason({
+			tags: [],
+			reason: 'topic',
+			topics: [{ id: 'oss.nextcloud', labels: { en: 'Nextcloud', de: 'Nextcloud' } }],
+		})).toEqual({
+			tag: null,
+			reason: 'topic',
+			text: 'Because you chose Nextcloud',
+			label: "Why you're seeing this: it matches your chosen topic Nextcloud",
+		})
+		document.documentElement.lang = originalLanguage
+	})
+
 	it('has nothing to say without a tag', () => {
 		expect(interestReason(null)).toBeNull()
 		expect(interestReason({ tags: [], reason: 'interest' })).toBeNull()

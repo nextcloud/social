@@ -477,6 +477,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 *
 	 * @var array{tags: string[], reason: string}|null
 	 */
+	/** @var array{tags: string[], reason: string, topics?: list<array{id: string, labels: array{en: string, de: string}}>, selection_stage?: string}|null */
 	private ?array $interest = null;
 
 	/** @var array{position: int, duration: int, updated_at: ?string}|null */
@@ -1686,12 +1687,12 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		return $this->taggedPeople;
 	}
 
-	/** @return array{tags: string[], reason: string}|null */
+	/** @return array{tags: string[], reason: string, topics?: list<array{id: string, labels: array{en: string, de: string}}>, selection_stage?: string}|null */
 	public function getInterest(): ?array {
 		return $this->interest;
 	}
 
-	/** @param array{tags: string[], reason: string}|null $interest */
+	/** @param array{tags: string[], reason: string, topics?: list<array{id: string, labels: array{en: string, de: string}}>, selection_stage?: string}|null $interest */
 	public function setInterest(?array $interest): self {
 		$this->interest = $interest;
 
