@@ -740,6 +740,7 @@ These additive routes are controlled by the separate instance-wide `rec_v4_enabl
 | PUT | `/api/v1/recommendations/preferences` | `write:accounts`; `if_revision`, complete `topics` list | Validates known topic IDs and modes (`HIDE`, `LESS`, `NEUTRAL`, `INTERESTED`, `PRIORITISE`), then atomically replaces choices |
 | POST | `/api/v1/recommendations/reset` | `write:accounts`; `if_revision` | Increments generation before clearing choices; does not touch follows, mutes or blocks |
 | GET | `/api/v1/recommendations/export` | `read:accounts` | Versioned export of the reader's own recommendation preferences |
+| GET | `/api/v1/recommendations/candidates/{topicId}` | `read:accounts`; optional `limit` (1–50) | Bounded visible candidates for an explicitly selected topic; reports local coverage and whether a throttled background refresh was queued |
 | GET/PUT | `/admin/recommendations` | administrator, CSRF | Reads or sets the instance-wide v4 kill switch |
 
 An ancestor `HIDE` is inherited by descendants and cannot be overridden in this foundation release. A child choice overrides an inherited soft value. The catalog and persistence layer perform no remote requests.

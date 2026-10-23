@@ -11,6 +11,8 @@ namespace OCA\Social\Db;
 
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Tools\Nid;
+use OCA\Social\Tools\SearchTerms;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
 /**
@@ -25,6 +27,11 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
  * settings page.
  */
 trait StreamInterests {
+	/** Maximum bounded newest-public scan used while the word index is backfilling. */
+	private const RECOMMENDATION_FALLBACK_SCAN = 500;
+	/** Maximum word-index results examined for one topic lookup. */
+	private const RECOMMENDATION_INDEX_CANDIDATES = 300;
+
 	/**
 	 * The posts among these the viewer may see, each once.
 	 *
@@ -147,6 +154,97 @@ trait StreamInterests {
 		$cursor->closeCursor();
 
 		return $rows;
+	}
+
+	/**
+	 * A bounded set of posts whose indexed words may describe a topic. The
+	 * returned rows are filtered in SQL for current viewer access, public
+	 * discoverability, hidden actors, duplicates, language and age before the
+	 * caller extracts topic features from their content.
+	 *
+	 * When the search word index is still backfilling, scan only the newest
+	 * eligible public window rather than pretending older posts have been
+	 * searched or querying the whole stream table.
+	 *
+	 * @param list<string> $terms topic aliases to search
+	 * @param list<string> $excludeNids posts hidden by the reader or already selected
+	 * @param list<string> $languages empty means any language
+	 * @return array<string, Stream> visible, public statuses keyed by nid
+	 */
+	public function recommendationCandidatesByTerms(
+		array $terms,
+		string $sinceNid,
+		int $limit,
+		array $excludeNids = [],
+		array $languages = [],
+	): array {
+		if ($this->viewer === null || $terms === [] || $limit < 1) {
+			return [];
+		}
+
+		$sinceNid = Nid::normalize($sinceNid);
+		$limit = min(100, $limit);
+		$wantedNids = [];
+		if ($this->searchTermsRequest->isReady()) {
+			foreach (array_slice(array_values(array_unique($terms)), 0, 12) as $term) {
+				$whole = SearchTerms::ofText($term, 12, false);
+				if ($whole === []) {
+					continue;
+				}
+				foreach ($this->searchTermsRequest->candidateNids(
+					$whole, '', 0, 0, $sinceNid, '', self::RECOMMENDATION_INDEX_CANDIDATES
+				) as $nid) {
+					$wantedNids[$nid] = true;
+					if (count($wantedNids) >= self::RECOMMENDATION_INDEX_CANDIDATES) {
+						break 2;
+					}
+				}
+			}
+		}
+
+		$qb = $this->getStreamNidsSelectSql(true);
+		$qb->limitToStatusTypes();
+		$expr = $qb->expr();
+		$qb->andWhere($expr->eq('s.visibility', $qb->createNamedParameter(Stream::TYPE_PUBLIC)));
+		$qb->andWhere($expr->gt('s.nid', $qb->createNamedParameter($sinceNid)));
+		$qb->limitToViewer('sd', 'f', true, false, SocialCoreQueryBuilder::HIDDEN_TIMELINE, 'to');
+		$qb->filterDuplicate();
+		$this->filterSilencedActors($qb);
+		$qb->andWhere($expr->neq(
+			's.attributed_to_prim', $qb->createNamedParameter($qb->prim($this->viewer->getId()))
+		));
+		if ($wantedNids !== []) {
+			$qb->andWhere($expr->in(
+				's.nid', $qb->createNamedParameter(array_keys($wantedNids), IQueryBuilder::PARAM_STR_ARRAY)
+			));
+		} elseif ($this->searchTermsRequest->isReady()) {
+			return [];
+		}
+		if ($excludeNids !== []) {
+			$qb->andWhere($expr->notIn(
+				's.nid', $qb->createNamedParameter($excludeNids, IQueryBuilder::PARAM_STR_ARRAY)
+			));
+		}
+		if ($languages !== []) {
+			$qb->andWhere($expr->orX(
+				$expr->in('s.language', $qb->createNamedParameter($languages, IQueryBuilder::PARAM_STR_ARRAY)),
+				$expr->eq('s.language', $qb->createNamedParameter('')),
+				$expr->isNull('s.language')
+			));
+		}
+		$qb->orderBy('s.nid', 'desc');
+		$qb->setMaxResults($this->searchTermsRequest->isReady() ? $limit : self::RECOMMENDATION_FALLBACK_SCAN);
+
+		$nids = $this->getNidsFromRequest($qb);
+		$visible = $this->getVisibleByNids($nids);
+		$ordered = [];
+		foreach ($nids as $nid) {
+			if (isset($visible[$nid])) {
+				$ordered[$nid] = $visible[$nid];
+			}
+		}
+
+		return $ordered;
 	}
 
 	/**
