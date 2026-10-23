@@ -284,6 +284,66 @@ trait StreamInterests {
 	}
 
 	/**
+	 * Bounded public posts by accounts followed by the viewer's accepted follows.
+	 * Both edges must be accepted ActivityPub follows; cached post visibility is
+	 * checked again for the viewer before any candidate is returned.
+	 *
+	 * @param list<string> $excludeNids posts already selected or hidden
+	 * @param list<string> $languages empty means any language
+	 * @return array<string, Stream> visible public statuses keyed by nid
+	 */
+	public function recommendationSocialGraphCandidates(string $sinceNid, int $limit, array $excludeNids = [], array $languages = []): array {
+		if ($this->viewer === null || $limit < 1) {
+			return [];
+		}
+
+		$qb = $this->getStreamNidsSelectSql(true);
+		$expr = $qb->expr();
+		$viewerPrim = $qb->prim($this->viewer->getId());
+		$qb->innerJoin('s', self::TABLE_FOLLOWS, 'rec_graph_author', $expr->andX(
+			$expr->eq('rec_graph_author.object_id_prim', 's.attributed_to_prim'),
+			$expr->eq('rec_graph_author.type', $qb->createNamedParameter(Follow::TYPE)),
+			$expr->eq('rec_graph_author.accepted', $qb->createNamedParameter('1'))
+		));
+		$qb->innerJoin('rec_graph_author', self::TABLE_FOLLOWS, 'rec_graph_viewer', $expr->andX(
+			$expr->eq('rec_graph_viewer.object_id_prim', 'rec_graph_author.actor_id_prim'),
+			$expr->eq('rec_graph_viewer.actor_id_prim', $qb->createNamedParameter($viewerPrim)),
+			$expr->eq('rec_graph_viewer.type', $qb->createNamedParameter(Follow::TYPE)),
+			$expr->eq('rec_graph_viewer.accepted', $qb->createNamedParameter('1'))
+		));
+		$qb->limitToStatusTypes();
+		$qb->andWhere($expr->eq('s.visibility', $qb->createNamedParameter(Stream::TYPE_PUBLIC)));
+		$qb->andWhere($expr->gt('s.nid', $qb->createNamedParameter(Nid::normalize($sinceNid))));
+		$qb->limitToViewer('sd', 'f', true, false, SocialCoreQueryBuilder::HIDDEN_TIMELINE, 'to');
+		$qb->filterDuplicate();
+		$this->filterSilencedActors($qb);
+		$qb->andWhere($expr->neq('s.attributed_to_prim', $qb->createNamedParameter($viewerPrim)));
+		if ($excludeNids !== []) {
+			$qb->andWhere($expr->notIn('s.nid', $qb->createNamedParameter($excludeNids, IQueryBuilder::PARAM_STR_ARRAY)));
+		}
+		if ($languages !== []) {
+			$qb->andWhere($expr->orX(
+				$expr->in('s.language', $qb->createNamedParameter($languages, IQueryBuilder::PARAM_STR_ARRAY)),
+				$expr->eq('s.language', $qb->createNamedParameter('')),
+				$expr->isNull('s.language')
+			));
+		}
+		$qb->orderBy('s.nid', 'desc');
+		$qb->setMaxResults(min(100, $limit));
+
+		$nids = $this->getNidsFromRequest($qb);
+		$visible = $this->getVisibleByNids($nids);
+		$ordered = [];
+		foreach ($nids as $nid) {
+			if (isset($visible[$nid])) {
+				$ordered[$nid] = $visible[$nid];
+			}
+		}
+
+		return $ordered;
+	}
+
+	/**
 	 * A small deterministic sample from the recent public corpus. This gives
 	 * the local classifier a chance to find posts missed by topic aliases or a
 	 * lagging search index without scanning more than the bounded newest window.

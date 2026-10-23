@@ -29,6 +29,7 @@ use OCA\Social\Service\RecommendationRanker;
 use OCA\Social\Service\RecommendationReRanker;
 use OCA\Social\Service\RecommendationSignalService;
 use OCA\Social\Service\RecommendationSnapshotStore;
+use OCA\Social\Service\RecommendationSocialGraphCandidates;
 use OCA\Social\Service\RecommendationTimelineService;
 use OCA\Social\Service\RecommendationTopicCatalog;
 use OCA\Social\Service\RecommendationTrendCandidates;
@@ -100,6 +101,7 @@ class RecommendationTimelineServiceTest extends TestCase {
 			), $this->catalog),
 			new RecommendationFollowFeatures($this->follows),
 			new RecommendationTrendCandidates($this->trends, $this->streams, new RecommendationFeatureExtractor($this->catalog)),
+			new RecommendationSocialGraphCandidates($this->streams, new RecommendationFeatureExtractor($this->catalog)),
 			$this->queue,
 			$this->clock,
 		);
@@ -157,6 +159,28 @@ class RecommendationTimelineServiceTest extends TestCase {
 
 		$this->assertCount(1, $page['items']);
 		$this->assertSame('https://remote.example/posts/trending-apple', $page['items'][0]->getId());
+	}
+
+	public function testSocialGraphSourceCanRecallAnEligibleSecondDegreeTopicMatch(): void {
+		$this->preferences->method('get')->willReturn($this->state([['topic_id' => 'tech.apple', 'mode' => 'INTERESTED']]));
+		$this->interests->method('hiddenFor')->willReturn([]);
+		$this->interests->method('languagesFor')->willReturn([]);
+		$graph = (new Note())
+			->setNid(601)
+			->setId('https://remote.example/posts/graph-apple')
+			->setAttributedTo('https://remote.example/users/second-degree')
+			->setContent('<p>Apple adds an iPhone feature</p>')
+			->setPublishedTime(1_999_999_900);
+		$this->streams->method('recommendationCandidatesByTerms')->willReturn([]);
+		$this->streams->expects($this->once())->method('recommendationSocialGraphCandidates')->with(
+			$this->isType('string'), 10, [], []
+		)->willReturn(['601' => $graph]);
+		$this->snapshots->method('create')->willReturn(null);
+
+		$page = $this->service()->page($this->viewer(), 5);
+
+		$this->assertCount(1, $page['items']);
+		$this->assertSame('https://remote.example/posts/graph-apple', $page['items'][0]->getId());
 	}
 
 	public function testSimilarityFeedbackChangesTheNextSessionWithoutUsingAuthorAffinity(): void {

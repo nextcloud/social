@@ -42,6 +42,7 @@ class RecommendationTimelineService {
 		private RecommendationBehavioralProfile $behavioralProfile,
 		private RecommendationFollowFeatures $followFeatures,
 		private RecommendationTrendCandidates $trendCandidates,
+		private RecommendationSocialGraphCandidates $socialGraphCandidates,
 		private RemoteFetchQueue $remoteFetchQueue,
 		private ITimeFactory $timeFactory,
 	) {
@@ -110,6 +111,8 @@ class RecommendationTimelineService {
 		$explorationBudget = min($explorationBudget, $candidateBudget - $followBudget);
 		$trendBudget = min(RecommendationTrendCandidates::MAX_CANDIDATES, max(1, intdiv($candidateBudget, 10)));
 		$trendBudget = min($trendBudget, $candidateBudget - $followBudget - $explorationBudget);
+		$socialGraphBudget = min(RecommendationSocialGraphCandidates::MAX_CANDIDATES, max(1, intdiv($candidateBudget, 10)));
+		$socialGraphBudget = min($socialGraphBudget, $candidateBudget - $followBudget - $explorationBudget - $trendBudget);
 		$hiddenNids = array_values(array_unique(array_merge(
 			$this->interests->hiddenFor($viewer),
 			$feedback['hidden_nids']
@@ -124,7 +127,17 @@ class RecommendationTimelineService {
 			array_keys(array_filter($state['effective_topics'] ?? [], static fn (?string $mode): bool => $mode === 'HIDE')),
 			$media,
 		);
-		$topicBudget = $candidateBudget - $followBudget - $explorationBudget - count($trendPosts);
+		$hiddenTopicIds = array_keys(array_filter($state['effective_topics'] ?? [], static fn (?string $mode): bool => $mode === 'HIDE'));
+		$socialGraphPosts = $this->socialGraphCandidates->matching(
+			$sinceNid,
+			$socialGraphBudget,
+			array_values(array_unique(array_merge($hiddenNids, array_keys($trendPosts)))),
+			$languages,
+			array_column($topics, 'id'),
+			$hiddenTopicIds,
+			$media,
+		);
+		$topicBudget = $candidateBudget - $followBudget - $explorationBudget - count($trendPosts) - count($socialGraphPosts);
 		$posts = $this->streams->recommendationCandidatesByTerms(
 			$terms,
 			$sinceNid,
@@ -151,6 +164,7 @@ class RecommendationTimelineService {
 			$languages
 		);
 		$posts += $trendPosts;
+		$posts += $socialGraphPosts;
 		$followedAuthors = $this->followFeatures->followedAuthors($viewer, array_values($posts));
 		$exposurePenalties = $this->behavioralProfile->exposurePenalties($viewer, array_values($posts));
 

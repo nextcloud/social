@@ -26,6 +26,7 @@ use OCA\Social\Service\RecommendationRanker;
 use OCA\Social\Service\RecommendationReRanker;
 use OCA\Social\Service\RecommendationSignalService;
 use OCA\Social\Service\RecommendationSnapshotStore;
+use OCA\Social\Service\RecommendationSocialGraphCandidates;
 use OCA\Social\Service\RecommendationTopicCatalog;
 use OCA\Social\Service\RecommendationTrendCandidates;
 use OCA\Social\Service\RemoteFetchQueue;
@@ -89,6 +90,7 @@ class RecommendationCandidateServiceTest extends TestCase {
 				$this->clock,
 			), new RecommendationTopicCatalog()),
 			new RecommendationTrendCandidates($this->trends, $this->streams, new RecommendationFeatureExtractor(new RecommendationTopicCatalog())),
+			new RecommendationSocialGraphCandidates($this->streams, new RecommendationFeatureExtractor(new RecommendationTopicCatalog())),
 		);
 	}
 
@@ -177,6 +179,33 @@ class RecommendationCandidateServiceTest extends TestCase {
 
 		$this->assertSame(1, $result['count']);
 		$this->assertSame('atproto', $result['candidates'][0]['protocol']);
+	}
+
+	public function testTopicDiscoveryCanUseCachedSecondDegreeFollowCandidates(): void {
+		$this->preferences->method('isEnabled')->willReturn(true);
+		$this->preferences->method('get')->willReturn([
+			'revision' => 0,
+			'generation' => 0,
+			'learning_mode' => 'on',
+			'effective_topics' => ['tech.apple' => 'INTERESTED'],
+		]);
+		$this->interests->method('languagesFor')->willReturn([]);
+		$this->interests->method('hiddenFor')->willReturn([]);
+		$note = (new Note())
+			->setId('https://remote.example/posts/graph-apple')
+			->setAttributedTo('https://remote.example/users/second-degree')
+			->setContent('<p>Apple introduces an iPhone feature</p>')
+			->setPublishedTime(1_999_999_900);
+		$this->streams->method('recommendationCandidatesByTerms')->willReturn([]);
+		$this->streams->expects($this->once())->method('recommendationSocialGraphCandidates')->with(
+			$this->isType('string'), 50, [], []
+		)->willReturn(['125' => $note]);
+		$this->snapshots->method('create')->willReturn(null);
+
+		$result = $this->service()->discover($this->viewer(), 'tech.apple');
+
+		$this->assertSame(1, $result['count']);
+		$this->assertSame('125', $result['candidates'][0]['nid']);
 	}
 
 	public function testRemoteDiscoveryPauseKeepsCachedCandidatesAvailableWithoutQueueing(): void {
