@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Service;
 
+use OCA\Social\Atproto\Reader\BlueskyFeeds;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\RecommendationSignalRequest;
 use OCA\Social\Db\StreamRequest;
@@ -24,6 +25,7 @@ use OCA\Social\Service\RecommendationFollowFeatures;
 use OCA\Social\Service\RecommendationPreferenceService;
 use OCA\Social\Service\RecommendationRanker;
 use OCA\Social\Service\RecommendationReRanker;
+use OCA\Social\Service\RecommendationSavedFeedCandidates;
 use OCA\Social\Service\RecommendationSignalService;
 use OCA\Social\Service\RecommendationSnapshotStore;
 use OCA\Social\Service\RecommendationSocialGraphCandidates;
@@ -45,6 +47,7 @@ class RecommendationCandidateServiceTest extends TestCase {
 	private FollowsRequest $follows;
 	private RecommendationSignalRequest $signals;
 	private TrendService $trends;
+	private BlueskyFeeds $savedFeeds;
 
 	/** @return list<string> */
 	private function appleAliases(): array {
@@ -66,6 +69,7 @@ class RecommendationCandidateServiceTest extends TestCase {
 		$this->follows->method('getBetweenMany')->willReturn(['following' => [], 'followedBy' => []]);
 		$this->signals = $this->createMock(RecommendationSignalRequest::class);
 		$this->trends = $this->createMock(TrendService::class);
+		$this->savedFeeds = $this->createMock(BlueskyFeeds::class);
 	}
 
 	private function service(): RecommendationCandidateService {
@@ -91,6 +95,7 @@ class RecommendationCandidateServiceTest extends TestCase {
 			), new RecommendationTopicCatalog()),
 			new RecommendationTrendCandidates($this->trends, $this->streams, new RecommendationFeatureExtractor(new RecommendationTopicCatalog())),
 			new RecommendationSocialGraphCandidates($this->streams, new RecommendationFeatureExtractor(new RecommendationTopicCatalog())),
+			new RecommendationSavedFeedCandidates($this->savedFeeds, $this->streams, new RecommendationFeatureExtractor(new RecommendationTopicCatalog())),
 		);
 	}
 
@@ -206,6 +211,31 @@ class RecommendationCandidateServiceTest extends TestCase {
 
 		$this->assertSame(1, $result['count']);
 		$this->assertSame('125', $result['candidates'][0]['nid']);
+	}
+
+	public function testTopicDiscoveryCanUseCachedPostsFromSavedBlueskyFeeds(): void {
+		$this->preferences->method('isEnabled')->willReturn(true);
+		$this->preferences->method('get')->willReturn([
+			'revision' => 0,
+			'generation' => 0,
+			'learning_mode' => 'on',
+			'effective_topics' => ['tech.apple' => 'INTERESTED'],
+		]);
+		$this->interests->method('languagesFor')->willReturn([]);
+		$this->interests->method('hiddenFor')->willReturn([]);
+		$post = (new Note())
+			->setId('at://did:plc:bob/app.bsky.feed.post/saved-feed-apple')
+			->setContent('<p>Apple introduces an iPhone feature</p>')
+			->setPublishedTime(1_999_999_900);
+		$this->savedFeeds->expects($this->once())->method('recommendationFeedPostNids')->with($this->isInstanceOf(Person::class), 50)->willReturn(['126']);
+		$this->streams->expects($this->once())->method('getVisibleByNids')->with(['126'])->willReturn(['126' => $post]);
+		$this->streams->method('recommendationCandidatesByTerms')->willReturn([]);
+		$this->snapshots->method('create')->willReturn(null);
+
+		$result = $this->service()->discover($this->viewer(), 'tech.apple');
+
+		$this->assertSame(1, $result['count']);
+		$this->assertSame('126', $result['candidates'][0]['nid']);
 	}
 
 	public function testRemoteDiscoveryPauseKeepsCachedCandidatesAvailableWithoutQueueing(): void {

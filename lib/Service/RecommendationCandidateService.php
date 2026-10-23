@@ -39,6 +39,7 @@ class RecommendationCandidateService {
 		private RecommendationBehavioralProfile $behavioralProfile,
 		private RecommendationTrendCandidates $trendCandidates,
 		private RecommendationSocialGraphCandidates $socialGraphCandidates,
+		private RecommendationSavedFeedCandidates $savedFeedCandidates,
 	) {
 	}
 
@@ -98,6 +99,8 @@ class RecommendationCandidateService {
 		$trendBudget = min($trendBudget, $candidateBudget - $followBudget - $explorationBudget);
 		$socialGraphBudget = min(RecommendationSocialGraphCandidates::MAX_CANDIDATES, max(1, intdiv($candidateBudget, 10)));
 		$socialGraphBudget = min($socialGraphBudget, $candidateBudget - $followBudget - $explorationBudget - $trendBudget);
+		$savedFeedBudget = min(RecommendationSavedFeedCandidates::MAX_CANDIDATES, max(1, intdiv($candidateBudget, 10)));
+		$savedFeedBudget = min($savedFeedBudget, $candidateBudget - $followBudget - $explorationBudget - $trendBudget - $socialGraphBudget);
 		$hiddenNids = array_values(array_unique(array_merge(
 			$this->interests->hiddenFor($viewer),
 			$feedback['hidden_nids']
@@ -120,7 +123,15 @@ class RecommendationCandidateService {
 			[$topicId],
 			$hiddenTopicIds,
 		);
-		$topicBudget = $candidateBudget - $followBudget - $explorationBudget - count($trendPosts) - count($socialGraphPosts);
+		$savedFeedPosts = $this->savedFeedCandidates->matching(
+			$viewer,
+			$savedFeedBudget,
+			array_values(array_unique(array_merge($hiddenNids, array_keys($trendPosts), array_keys($socialGraphPosts)))),
+			$languages,
+			[$topicId],
+			$hiddenTopicIds,
+		);
+		$topicBudget = $candidateBudget - $followBudget - $explorationBudget - count($trendPosts) - count($socialGraphPosts) - count($savedFeedPosts);
 		$posts = $this->streams->recommendationCandidatesByTerms(
 			$aliases,
 			$sinceNid,
@@ -144,6 +155,7 @@ class RecommendationCandidateService {
 		);
 		$posts += $trendPosts;
 		$posts += $socialGraphPosts;
+		$posts += $savedFeedPosts;
 		$followedAuthors = $this->followFeatures->followedAuthors($viewer, array_values($posts));
 		$exposurePenalties = $this->behavioralProfile->exposurePenalties($viewer, array_values($posts));
 		$behavioralAuthors = $this->behavioralProfile->forViewer($viewer)['authors'];

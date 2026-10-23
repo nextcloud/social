@@ -13,6 +13,7 @@
 - **recommendations:** Batch Fediverse tag-provider requests, honour the shared host circuit breaker and `Retry-After`, and cap individual post hydration plus the total discovery pass.
 ### Features
 
+- **recommendations:** Recall topic-matching posts already read from a person’s saved Bluesky custom feeds, using a short-lived local cache and no synchronous AppView request.
 - **recommendations:** Add a capped local public-trend candidate source to ranked For You discovery. Trend candidates still pass viewer visibility, language, moderation and explicit topic-match checks, and trend popularity does not grant a ranking bonus.
 - **recommendations:** Recall a bounded set of public topic matches from the reader's second-degree follow graph, using only accepted local follow edges and rechecking post visibility before ranking.
 - **recommendations:** Add an administrator-only ActivityPub/ATProto discovery health panel with seven-day hourly coverage, failure, rate-limit and latency summaries. The aggregates contain no search terms, topics, reader identities or post identifiers.
