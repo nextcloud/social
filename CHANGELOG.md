@@ -6,6 +6,7 @@
 
 ## Unreleased
 
+- Add a reproducible synthetic offline evaluation harness for For You ranking baselines, coverage, safety constraints, diversity, and runtime.
 
 ### Fixes
 
