@@ -3247,6 +3247,9 @@ OC.L10N.register(
     "Post options" : "Beitragsoptionen",
     "Timing and place" : "Zeit und Ort",
     "Publishing settings" : "Veröffentlichungseinstellungen",
+    "Because you chose {topic}" : "Weil du {topic} ausgewählt hast",
+    "Topics you chose: {topics}" : "Ausgewählte Themen: {topics}",
+    "Why you're seeing this: it matches your chosen topic {topics}" : "Warum du das siehst: Es passt zu deinen ausgewählten Themen {topics}",
     "Back to %s" : "Zurück zu %s"
 },
 "nplurals=2; plural=(n != 1);");

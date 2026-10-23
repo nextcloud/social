@@ -118,10 +118,12 @@
 		<!-- a post no hashtag brought: there is no tag to go to -->
 		<span
 			v-else-if="interest !== null"
-			class="interest-reason interest-reason--popular"
+			class="interest-reason"
+			:class="interest.reason === 'topic' ? 'interest-reason--topic' : 'interest-reason--popular'"
 			role="note"
 			:aria-label="interest.label">
-			<TrendingUp :size="16" />
+			<Pound v-if="interest.reason === 'topic'" :size="16" />
+			<TrendingUp v-else :size="16" />
 			<span class="interest-reason__text">{{ interest.text }}</span>
 		</span>
 		<UserEntry v-if="isNotification && notificationIsAboutAnAccount" :displayFollowButton="false" :item="item.account" />
@@ -417,7 +419,7 @@ export default {
 		 * Why For you shows this post, from the `interest` the feed puts
 		 * on each of its posts; every other timeline sends null.
 		 *
-		 * @return {{tag: string|null, text: string, label: string}|null}
+		 * @return {{tag: string|null, reason?: string, text: string, label: string}|null}
 		 */
 		interest() {
 			if (this.isNotification) {
@@ -835,7 +837,8 @@ export default {
 	}
 
 	// words, not a link: nothing to answer a pointer with
-	&--popular:hover {
+	&--popular:hover,
+	&--topic:hover {
 		color: var(--color-text-maxcontrast);
 	}
 

@@ -11,11 +11,14 @@ namespace OCA\Social\Controller;
 
 use InvalidArgumentException;
 use OCA\Social\Exceptions\ItemNotFoundException;
+use OCA\Social\Model\Client\Filter;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ClientService;
+use OCA\Social\Service\FilterService;
 use OCA\Social\Service\RecommendationCandidateService;
 use OCA\Social\Service\RecommendationFeedbackService;
 use OCA\Social\Service\RecommendationPreferenceService;
+use OCA\Social\Service\RecommendationTimelineService;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\AnonRateLimit;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
@@ -39,6 +42,8 @@ class RecommendationsController extends ClientApiController {
 		private RecommendationPreferenceService $recommendationService,
 		private RecommendationCandidateService $candidateService,
 		private RecommendationFeedbackService $feedbackService,
+		private RecommendationTimelineService $timelineService,
+		private FilterService $filterService,
 	) {
 		parent::__construct($request, $userSession, $logger, $accountService, $clientService);
 	}
@@ -147,6 +152,42 @@ class RecommendationsController extends ClientApiController {
 		return $this->answer(['read:accounts'], fn (): array
 			=> $this->candidateService->discover($this->viewer(), $topicId, $limit, $cursor)
 		);
+	}
+
+	/** The web For You feed, with an envelope for its versioned session cursor. */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[AnonRateLimit(limit: 120, period: 60)]
+	#[UserRateLimit(limit: 120, period: 60)]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/recommendations/timeline')]
+	public function timeline(int $limit = 20, string $cursor = '', string $media = ''): DataResponse {
+		return $this->answer(['read:statuses'], function () use ($limit, $cursor, $media): array {
+			$viewer = $this->viewer();
+			$limit = max(1, min(RecommendationCandidateService::MAX_PAGE_SIZE, $limit));
+			$page = $this->timelineService->page($viewer, $limit, $cursor, $media);
+			$result = $page;
+			$items = [];
+
+			// The legacy timeline applies hide filters after ranking. Apply the
+			// same public-context rules here, and advance the immutable snapshot
+			// while a hidden page leaves room for more visible results.
+			for ($scan = 0; $scan < 5; $scan++) {
+				$items = array_merge($items, $this->filterService->apply($page['items'], Filter::CONTEXT_PUBLIC, $viewer));
+				if (count($items) >= $limit || $page['next_cursor'] === null) {
+					break;
+				}
+				$page = $this->timelineService->page($viewer, $limit - count($items), $page['next_cursor'], $media);
+				$result['next_cursor'] = $page['next_cursor'];
+				$result['cursor_expired'] = $result['cursor_expired'] || $page['cursor_expired'];
+			}
+
+			$result['items'] = array_slice($items, 0, $limit);
+			$result['coverage']['returned'] = count($result['items']);
+			if ($result['mode'] === 'RANKED' && count($result['items']) < min($limit, 15)) {
+				$result['coverage']['state'] = 'UNDERFILLED';
+			}
+			return $result;
+		});
 	}
 
 	/** @param string[] $scopes @param callable(): mixed $callback */
