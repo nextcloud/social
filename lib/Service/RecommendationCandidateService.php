@@ -30,6 +30,8 @@ class RecommendationCandidateService {
 		private RemoteFetchQueue $remoteFetchQueue,
 		private InterestService $interests,
 		private ITimeFactory $timeFactory,
+		private RecommendationRanker $ranker,
+		private RecommendationReRanker $reRanker,
 	) {
 	}
 
@@ -38,7 +40,7 @@ class RecommendationCandidateService {
 	 * discoverable corpus. If it is underfilled, request a single bounded
 	 * background refresh for this topic through the existing queue.
 	 *
-	 * @return array{topic_id: string, count: int, requested: int, underfilled: bool, remote_refresh_queued: bool, sources: array{activitypub: int, atproto: int}, candidates: list<array{nid: string, protocol: string, published_at: int, language: string, format: string, score: float, evidence: string}>}
+	 * @return array{topic_id: string, count: int, requested: int, underfilled: bool, remote_refresh_queued: bool, sources: array{activitypub: int, atproto: int}, candidates: list<array<string, mixed>>}
 	 */
 	public function discover(Person $viewer, string $topicId, int $requested = 20): array {
 		$limit = max(1, min(self::MAX_PAGE_SIZE, $requested));
@@ -89,17 +91,28 @@ class RecommendationCandidateService {
 			$protocol = str_starts_with($post->getId(), 'at://') ? 'atproto' : 'activitypub';
 			$candidates[] = [
 				'nid' => (string)$nid,
+				'author_key' => $post->getActorId(),
+				'topic_ids' => array_keys($features['topics']),
 				'protocol' => $protocol,
 				'published_at' => $post->getPublishedTime(),
 				'language' => $features['language'],
 				'format' => $features['format'],
 				'score' => $match['score'],
+				'topic_match' => $match['score'],
+				'freshness' => self::freshness($post->getPublishedTime(), $this->timeFactory->getTime(), $features['format']),
+				'source_reliability' => 0.5,
 				'evidence' => $match['evidence'],
 			];
-			$empty['sources'][$protocol]++;
-			if (count($candidates) >= $limit) {
-				break;
-			}
+		}
+		$candidates = $this->reRanker->page($this->ranker->rank($candidates), $limit, $mode === 'PRIORITISE' ? [$topicId] : []);
+		$candidates = array_map(static function (array $candidate): array {
+			unset($candidate['author_key'], $candidate['topic_ids'], $candidate['eligible'], $candidate['canonical_key']);
+			return $candidate;
+		}, $candidates);
+		$sources = ['activitypub' => 0, 'atproto' => 0];
+		foreach ($candidates as $candidate) {
+			$protocol = $candidate['protocol'] === 'atproto' ? 'atproto' : 'activitypub';
+			$sources[$protocol]++;
 		}
 
 		$underfilled = count($candidates) < min($limit, self::MIN_COVERAGE_TARGET);
@@ -122,7 +135,7 @@ class RecommendationCandidateService {
 			'requested' => $limit,
 			'underfilled' => $underfilled,
 			'remote_refresh_queued' => $queued,
-			'sources' => $empty['sources'],
+			'sources' => $sources,
 			'candidates' => $candidates,
 		];
 	}
@@ -152,5 +165,15 @@ class RecommendationCandidateService {
 		}
 
 		return '';
+	}
+
+	private static function freshness(int $publishedAt, int $now, string $format): float {
+		if ($publishedAt <= 0 || $now <= 0) {
+			return 0.5;
+		}
+		$ageHours = max(0, $now - $publishedAt) / 3600;
+		$halfLifeHours = $format === 'short' || $format === 'video' ? 12.0 : 24.0;
+
+		return exp(-0.6931471805599453 * (float)$ageHours / $halfLifeHours);
 	}
 }

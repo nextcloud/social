@@ -17,6 +17,8 @@ use OCA\Social\Service\InterestService;
 use OCA\Social\Service\RecommendationCandidateService;
 use OCA\Social\Service\RecommendationFeatureExtractor;
 use OCA\Social\Service\RecommendationPreferenceService;
+use OCA\Social\Service\RecommendationRanker;
+use OCA\Social\Service\RecommendationReRanker;
 use OCA\Social\Service\RecommendationTopicCatalog;
 use OCA\Social\Service\RemoteFetchQueue;
 use OCP\AppFramework\Utility\ITimeFactory;
@@ -47,6 +49,8 @@ class RecommendationCandidateServiceTest extends TestCase {
 			$this->queue,
 			$this->interests,
 			$this->clock,
+			new RecommendationRanker(),
+			new RecommendationReRanker(),
 		);
 	}
 
@@ -98,6 +102,8 @@ class RecommendationCandidateServiceTest extends TestCase {
 		$this->assertTrue($result['remote_refresh_queued']);
 		$this->assertSame('text', $result['candidates'][0]['format']);
 		$this->assertSame('activitypub', $result['candidates'][0]['protocol']);
+		$this->assertSame(1, $result['candidates'][0]['algorithm_version']);
+		$this->assertArrayHasKey('rank_score', $result['candidates'][0]);
 	}
 
 	public function testLessNeutralAndHiddenPreferencesDoNotReadOrQueueCandidates(): void {

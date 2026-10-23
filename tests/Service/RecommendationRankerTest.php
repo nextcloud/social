@@ -1,0 +1,87 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * SPDX-FileCopyrightText: 2026 Aloha Social contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ */
+
+namespace OCA\Social\Tests\Service;
+
+use OCA\Social\Service\RecommendationRanker;
+use OCA\Social\Service\RecommendationReRanker;
+use PHPUnit\Framework\TestCase;
+
+class RecommendationRankerTest extends TestCase {
+	public function testExplicitTopicEvidenceRanksAboveNeutralCandidate(): void {
+		$ranker = new RecommendationRanker();
+		$ranked = $ranker->rank([
+			['nid' => '2', 'topic_match' => 0.0],
+			['nid' => '1', 'topic_match' => 1.0, 'freshness' => 0.9],
+		]);
+
+		$this->assertSame(['1', '2'], array_column($ranked, 'nid'));
+		$this->assertSame(1, $ranked[0]['algorithm_version']);
+		$this->assertGreaterThan($ranked[1]['rank_score'], $ranked[0]['rank_score']);
+	}
+
+	public function testTiesAreStableAndMissingSignalsAreNeutral(): void {
+		$ranker = new RecommendationRanker();
+		$ranked = $ranker->rank([
+			['nid' => 'z', 'topic_match' => NAN, 'freshness' => INF],
+			['nid' => 'a'],
+		]);
+
+		$this->assertSame(['a', 'z'], array_column($ranked, 'nid'));
+		$this->assertSame(0.0, $ranked[1]['rank_features']['topic_match']);
+		$this->assertSame(0.5, $ranked[1]['rank_features']['freshness']);
+		$this->assertTrue(is_finite($ranked[1]['rank_score']));
+	}
+
+	public function testScoreFeaturesAreClippedToTheirDocumentedDomains(): void {
+		$ranked = (new RecommendationRanker())->rank([[
+			'nid' => '1',
+			'topic_match' => 3,
+			'author_affinity' => -2,
+			'format_match' => 4,
+			'exposure_penalty' => 2,
+		]]);
+
+		$this->assertSame(1.0, $ranked[0]['rank_features']['topic_match']);
+		$this->assertSame(0.0, $ranked[0]['rank_features']['author_affinity']);
+		$this->assertSame(1.0, $ranked[0]['rank_features']['format_match']);
+		$this->assertSame(1.0, $ranked[0]['rank_features']['exposure_penalty']);
+	}
+
+	public function testPageAssemblyDeduplicatesAndSoftlySpreadsAuthors(): void {
+		$ranked = [
+			['nid' => '1', 'canonical_key' => 'same', 'rank_score' => 1.0, 'author_key' => 'alice'],
+			['nid' => '2', 'canonical_key' => 'same', 'rank_score' => 0.99, 'author_key' => 'alice'],
+			['nid' => '3', 'rank_score' => 0.98, 'author_key' => 'alice'],
+			['nid' => '4', 'rank_score' => 0.97, 'author_key' => 'alice'],
+			['nid' => '5', 'rank_score' => 0.96, 'author_key' => 'bob'],
+			['nid' => '6', 'rank_score' => 0.95, 'author_key' => 'carol', 'eligible' => false],
+		];
+
+		$page = (new RecommendationReRanker())->page($ranked, 4);
+
+		$this->assertSame(['1', '3', '5', '4'], array_column($page, 'nid'));
+		$this->assertCount(count(array_unique(array_column($page, 'nid'))), $page);
+	}
+
+	public function testPrioritisedTopicsAreExemptFromSoftTopicConcentration(): void {
+		$ranked = [];
+		for ($i = 1; $i <= 10; $i++) {
+			$ranked[] = ['nid' => (string)$i, 'rank_score' => 1.0 - $i / 100, 'topic_ids' => ['topic.one']];
+		}
+		$ranked[] = ['nid' => 'other', 'rank_score' => 0.89, 'topic_ids' => ['topic.two']];
+		$ranker = new RecommendationReRanker();
+
+		$normal = $ranker->page($ranked, 11);
+		$prioritised = $ranker->page($ranked, 11, ['topic.one']);
+
+		$this->assertSame('other', $normal[9]['nid'], 'soft topic concentration yields when another topic is available');
+		$this->assertSame('10', $prioritised[9]['nid'], 'an explicitly prioritised topic is exempt from the soft cap');
+	}
+}
