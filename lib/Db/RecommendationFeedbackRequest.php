@@ -200,11 +200,11 @@ class RecommendationFeedbackRequest extends CoreRequestBuilder {
 			}
 		}
 		$result->closeCursor();
-		foreach ($remove as $id) {
+		foreach (array_chunk($remove, 100) as $ids) {
 			$delete = $this->getQueryBuilder();
 			$delete->delete(self::TABLE)
 				->where($delete->expr()->eq('actor_key', $delete->createNamedParameter($actorKey)))
-				->andWhere($delete->expr()->eq('feedback_id', $delete->createNamedParameter($id)))
+				->andWhere($delete->expr()->in('feedback_id', $delete->createNamedParameter($ids, IQueryBuilder::PARAM_STR_ARRAY)))
 				->executeStatement();
 		}
 	}
