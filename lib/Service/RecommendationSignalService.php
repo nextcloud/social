@@ -16,7 +16,7 @@ use OCA\Social\Model\ActivityPub\Stream;
 use OCP\AppFramework\Utility\ITimeFactory;
 use Throwable;
 
-/** Consent-gated projector from validated observations to compact v4 profiles. */
+/** Consent-gated projector from validated observations to compact recommendation profiles. */
 final class RecommendationSignalService implements IRecommendationSignalRecorder, IRecommendationSignalEvents {
 	public const MAX_EVENTS = 100;
 	public const MAX_DWELL_MS = 30000;

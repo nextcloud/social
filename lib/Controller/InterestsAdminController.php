@@ -38,7 +38,7 @@ class InterestsAdminController extends Controller {
 		parent::__construct(Application::APP_ID, $request);
 	}
 
-	/** The independent For You v4 instance kill switch. */
+	/** The independent ranked-recommendations instance kill switch. */
 	#[FrontpageRoute(verb: 'GET', url: '/admin/recommendations')]
 	public function recommendationSettings(): DataResponse {
 		return new DataResponse($this->recommendationService->adminSettings());

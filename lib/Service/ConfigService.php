@@ -164,7 +164,7 @@ class ConfigService {
 	 */
 	public const SOCIAL_PUBLISH_BLOCKS = 'publish_blocks';
 
-	/** Independent, instance-wide kill switch for the For You v4 rollout. */
+	/** Independent, instance-wide kill switch for ranked For You recommendations. */
 	public const REC_V4_ENABLED = 'rec_v4_enabled';
 	/** Pause only the For You background requests to remote discovery providers. */
 	public const REC_REMOTE_DISCOVERY_PAUSED = 'rec_remote_discovery_paused';
