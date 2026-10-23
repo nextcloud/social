@@ -17,6 +17,9 @@ use OCA\Social\AppInfo\Application;
 use OCA\Social\Controller\AccountApiController;
 use OCA\Social\Controller\StatusApiController;
 use OCA\Social\Service\CountsService;
+use OCA\Social\Service\IRecommendationSignalEvents;
+use OCA\Social\Service\IRecommendationSignalRecorder;
+use OCA\Social\Service\RecommendationSignalService;
 use OCP\AppFramework\Bootstrap\IRegistrationContext;
 use OCP\AppFramework\Http\Response;
 use OCP\IConfig;
@@ -68,6 +71,8 @@ class FollowerCountsTest extends ApiTestCase {
 		);
 
 		$container = new DIContainer('social');
+		$container->registerAlias(IRecommendationSignalEvents::class, RecommendationSignalService::class);
+		$container->registerAlias(IRecommendationSignalRecorder::class, RecommendationSignalService::class);
 		$container->registerService(IRequest::class, static fn (): IRequest => $request);
 		foreach ($this->appMiddlewares() as $middleware) {
 			$container->registerMiddleWare($middleware);

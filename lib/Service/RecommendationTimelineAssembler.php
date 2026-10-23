@@ -10,7 +10,6 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 use OCA\Social\Model\ActivityPub\ACore;
-use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
 
 /** Turns profile and post data into rankable candidates and rendered feed items. */
