@@ -15,7 +15,7 @@ namespace OCA\Social\Service;
  */
 final class RecommendationRanker {
 	public const ALGORITHM_VERSION = 7;
-	public const FEATURE_VERSION = 7;
+	public const FEATURE_VERSION = 8;
 
 	/** @var array<string, float> */
 	private const BALANCED_WEIGHTS = [

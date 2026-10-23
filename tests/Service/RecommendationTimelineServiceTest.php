@@ -62,6 +62,17 @@ class RecommendationTimelineServiceTest extends TestCase {
 		return $this->catalog->find('tech.apple')['aliases'] ?? [];
 	}
 
+	/** @param list<string> $topicIds */
+	private function learnTopics(array $topicIds): void {
+		foreach ($topicIds as $topicId) {
+			$this->learnedProfile['topics'][$topicId] = [
+				'fast' => 3.0,
+				'slow' => 3.0,
+				'updated_at' => 2_000_000_000,
+			];
+		}
+	}
+
 	protected function setUp(): void {
 		$this->preferences = $this->createMock(RecommendationPreferenceService::class);
 		$this->streams = $this->createMock(StreamRequest::class);
@@ -113,7 +124,8 @@ class RecommendationTimelineServiceTest extends TestCase {
 	}
 
 	public function testAcceptedFollowSignalAffectsRankingIndependentlyOfAuthorAffinity(): void {
-		$this->preferences->method('get')->willReturn($this->state([['topic_id' => 'tech.apple', 'mode' => 'INTERESTED']]));
+		$this->learnTopics(['tech.apple']);
+		$this->preferences->method('get')->willReturn($this->state([], []));
 		$this->interests->method('hiddenFor')->willReturn([]);
 		$this->interests->method('languagesFor')->willReturn([]);
 		$followedAuthor = 'https://remote.example/users/followed';
@@ -167,7 +179,8 @@ class RecommendationTimelineServiceTest extends TestCase {
 	}
 
 	public function testSocialGraphSourceCanRecallAnEligibleSecondDegreeTopicMatch(): void {
-		$this->preferences->method('get')->willReturn($this->state([['topic_id' => 'tech.apple', 'mode' => 'INTERESTED']]));
+		$this->learnTopics(['tech.apple']);
+		$this->preferences->method('get')->willReturn($this->state([], []));
 		$this->interests->method('hiddenFor')->willReturn([]);
 		$this->interests->method('languagesFor')->willReturn([]);
 		$graph = (new Note())
@@ -189,7 +202,8 @@ class RecommendationTimelineServiceTest extends TestCase {
 	}
 
 	public function testSavedBlueskyFeedCanContributePreviouslyReadTopicMatches(): void {
-		$this->preferences->method('get')->willReturn($this->state([['topic_id' => 'tech.apple', 'mode' => 'INTERESTED']]));
+		$this->learnTopics(['tech.apple']);
+		$this->preferences->method('get')->willReturn($this->state([], []));
 		$this->interests->method('hiddenFor')->willReturn([]);
 		$this->interests->method('languagesFor')->willReturn([]);
 		$post = (new Note())
@@ -209,7 +223,8 @@ class RecommendationTimelineServiceTest extends TestCase {
 	}
 
 	public function testSimilarityFeedbackChangesTheNextSessionWithoutUsingAuthorAffinity(): void {
-		$this->preferences->method('get')->willReturn($this->state([['topic_id' => 'tech.apple', 'mode' => 'INTERESTED']]));
+		$this->learnTopics(['tech.apple']);
+		$this->preferences->method('get')->willReturn($this->state([], []));
 		$this->interests->method('hiddenFor')->willReturn([]);
 		$this->interests->method('languagesFor')->willReturn([]);
 		$similar = (new Note())
@@ -241,8 +256,9 @@ class RecommendationTimelineServiceTest extends TestCase {
 		return ['revision' => 3, 'generation' => 2, 'learning_mode' => 'on', 'learning' => true, 'topics' => $topics, 'effective_topics' => $effective];
 	}
 
-	public function testExplicitTopicPreferencesServeACombinedRankedStatusPage(): void {
-		$this->preferences->method('get')->with('alice')->willReturn($this->state([['topic_id' => 'tech.apple', 'mode' => 'INTERESTED']]));
+	public function testAutomaticallyLearnedTopicsServeTheSharedRankerWithoutSetupChoices(): void {
+		$this->learnTopics(['tech.apple']);
+		$this->preferences->method('get')->with('alice')->willReturn($this->state([], []));
 		$this->interests->method('hiddenFor')->willReturn([]);
 		$this->interests->method('languagesFor')->willReturn(['en']);
 		$post = (new Note())
@@ -252,10 +268,10 @@ class RecommendationTimelineServiceTest extends TestCase {
 			->setPublishedTime(1_999_999_900);
 		$this->streams->expects($this->once())->method('setViewer')->with($this->isInstanceOf(Person::class));
 		$this->streams->expects($this->once())->method('recommendationCandidatesByTerms')->with(
-			$this->appleAliases(), $this->isType('string'), 70, [], ['en'], 2_000_000_000
+			$this->appleAliases(), $this->isType('string'), 50, [], ['en'], 2_000_000_000
 		)->willReturn(['123' => $post]);
 		$this->snapshots->expects($this->once())->method('create')->with(
-			'alice', 'for-you-v4-explanations-1', '', 3, 2, 2_000_000_000, ['123'], 20, [], $this->anything()
+			'alice', 'for-you-v4-automatic-profile-3', '', 3, 2, 2_000_000_000, ['123'], 20, [], $this->anything()
 		)->willReturn(['session_id' => 'session', 'nids' => ['123'], 'exploration_nids' => [], 'next_cursor' => null]);
 		$this->queue->expects($this->exactly(2))->method('fillPosts')->willReturnCallback(
 			static function (string $kind, string $term, Person $viewer): bool {
@@ -272,7 +288,7 @@ class RecommendationTimelineServiceTest extends TestCase {
 		$this->assertSame('session', $page['session_id']);
 		$this->assertTrue($page['coverage']['remote_refresh_queued']);
 		$this->assertCount(1, $page['items']);
-		$this->assertSame('topic', $page['items'][0]->getInterest()['reason']);
+		$this->assertSame('automatic', $page['items'][0]->getInterest()['reason']);
 		$this->assertSame('tech.apple', $page['items'][0]->getInterest()['topics'][0]['id']);
 	}
 
@@ -303,29 +319,18 @@ class RecommendationTimelineServiceTest extends TestCase {
 		));
 	}
 
-	public function testCandidateSearchCoversEverySelectedTopicBeforeAddingExtraAliases(): void {
-		$selected = array_values(array_filter(
-			$this->catalog->all(),
-			static fn (array $topic): bool => !in_array('sensitive-topic', $topic['policyTags'], true)
-		));
-		$effective = [];
-		$manual = [];
-		foreach ($selected as $topic) {
-			$effective[$topic['id']] = 'INTERESTED';
-			$manual[] = ['topic_id' => $topic['id'], 'mode' => 'INTERESTED'];
-		}
-		$this->preferences->method('get')->willReturn($this->state($manual, $effective));
+	public function testCandidateSearchUsesTheAutomaticallyLearnedTopics(): void {
+		$selected = array_map(fn (string $id): array => $this->catalog->find($id), ['culture', 'sports', 'education', 'science.climate']);
+		$this->learnTopics(array_column($selected, 'id'));
+		$this->preferences->method('get')->willReturn($this->state([], []));
 		$this->interests->method('hiddenFor')->willReturn([]);
 		$this->interests->method('languagesFor')->willReturn([]);
 		$this->streams->expects($this->once())->method('recommendationCandidatesByTerms')
 			->willReturnCallback(static function (array $terms) use ($selected): array {
 				self::assertLessThanOrEqual(20, count($terms));
-				$start = (intdiv(2_000_000_000, 3600) * 20) % count($selected);
-				$expected = [];
-				for ($offset = 0; $offset < min(20, count($selected)); $offset++) {
-					$expected[] = $selected[($start + $offset) % count($selected)]['aliases'][0];
+				foreach ($selected as $topic) {
+					self::assertContains($topic['aliases'][0], $terms, 'Every learned topic receives a primary-alias search opportunity.');
 				}
-				self::assertSame($expected, $terms, 'Each refresh searches a bounded rotating window of selected topic aliases.');
 				return [];
 			});
 		$this->snapshots->method('create')->willReturn(null);
@@ -338,17 +343,9 @@ class RecommendationTimelineServiceTest extends TestCase {
 	}
 
 	public function testUnderfilledRefreshWindowRotatesAcrossSelectedTopics(): void {
-		$selected = array_values(array_filter(
-			$this->catalog->all(),
-			static fn (array $topic): bool => !in_array('sensitive-topic', $topic['policyTags'], true)
-		));
-		$effective = [];
-		$manual = [];
-		foreach ($selected as $topic) {
-			$effective[$topic['id']] = 'INTERESTED';
-			$manual[] = ['topic_id' => $topic['id'], 'mode' => 'INTERESTED'];
-		}
-		$this->preferences->method('get')->willReturn($this->state($manual, $effective));
+		$selected = array_map(fn (string $id): array => $this->catalog->find($id), ['culture', 'sports', 'education', 'science.climate']);
+		$this->learnTopics(array_column($selected, 'id'));
+		$this->preferences->method('get')->willReturn($this->state([], []));
 		$this->interests->method('hiddenFor')->willReturn([]);
 		$this->interests->method('languagesFor')->willReturn([]);
 		$this->streams->method('recommendationCandidatesByTerms')->willReturn([]);
@@ -380,11 +377,9 @@ class RecommendationTimelineServiceTest extends TestCase {
 		$this->assertTrue($page['coverage']['remote_refresh_queued']);
 	}
 
-	public function testRemoteSearchUsesTheFullMultiwordTopicAlias(): void {
-		$this->preferences->method('get')->willReturn($this->state(
-			[['topic_id' => 'tech.ai', 'mode' => 'INTERESTED']],
-			['tech.ai' => 'INTERESTED']
-		));
+	public function testRemoteSearchUsesTheFullMultiwordAutomaticallyLearnedAlias(): void {
+		$this->learnTopics(['tech.ai']);
+		$this->preferences->method('get')->willReturn($this->state([], []));
 		$this->interests->method('hiddenFor')->willReturn([]);
 		$this->interests->method('languagesFor')->willReturn([]);
 		$this->streams->method('recommendationCandidatesByTerms')->willReturn([]);
@@ -398,18 +393,15 @@ class RecommendationTimelineServiceTest extends TestCase {
 		$this->assertTrue($page['coverage']['remote_refresh_queued']);
 	}
 
-	public function testNoV4ChoicesPreserveLegacyHashtagFeedAsColdStart(): void {
+	public function testNoTopicChoicesStillUseTheAutomaticRankedFeed(): void {
 		$this->preferences->method('get')->willReturn($this->state([], ['tech.apple' => null]));
-		$this->interests->method('isEnabled')->willReturn(true);
-		$post = new Note();
-		$post->setId('https://remote.example/posts/legacy')->setNid('123');
-		$this->legacyFeed->expects($this->once())->method('page')->with($this->isInstanceOf(Person::class), 1, '0', 0, '')->willReturn([$post]);
+		$this->interests->method('isEnabled')->willReturn(false);
+		$this->streams->expects($this->never())->method('recommendationCandidatesByTerms');
 
 		$page = $this->service()->page($this->viewer(), 1);
 
-		$this->assertSame('LEGACY', $page['mode']);
-		$this->assertSame('legacy.3.2.MTIz', $page['next_cursor']);
-		$this->assertSame($post, $page['items'][0]);
+		$this->assertSame('RANKED', $page['mode']);
+		$this->assertSame([], $page['items']);
 	}
 
 	public function testAdminLegacyFallbackBypassesRankedCandidates(): void {
@@ -424,16 +416,16 @@ class RecommendationTimelineServiceTest extends TestCase {
 		$this->assertSame([], $page['items']);
 	}
 
-	public function testAnAllHiddenProfileDoesNotFallBackAroundExplicitChoices(): void {
+	public function testSavedTopicHidesDoNotDisableTheAutomaticFeed(): void {
 		$effective = ['tech.apple' => 'HIDE', 'technology' => 'HIDE'];
 		$this->preferences->method('get')->willReturn($this->state([['topic_id' => 'technology', 'mode' => 'HIDE']], $effective));
-		$this->interests->method('isEnabled')->willReturn(true);
+		$this->interests->method('isEnabled')->willReturn(false);
 		$this->legacyFeed->expects($this->never())->method('page');
 		$this->streams->expects($this->never())->method('recommendationCandidatesByTerms');
 
 		$page = $this->service()->page($this->viewer(), 20);
 
-		$this->assertSame('NO_ACTIVE_TOPICS', $page['mode']);
+		$this->assertSame('RANKED', $page['mode']);
 		$this->assertSame([], $page['items']);
 	}
 
@@ -484,7 +476,8 @@ class RecommendationTimelineServiceTest extends TestCase {
 	}
 
 	public function testExplorationSlotIsPersistedAndShownWithItsActualTopicReason(): void {
-		$this->preferences->method('get')->willReturn($this->state([['topic_id' => 'tech.apple', 'mode' => 'INTERESTED']]));
+		$this->learnTopics(['tech.apple']);
+		$this->preferences->method('get')->willReturn($this->state([], []));
 		$this->interests->method('hiddenFor')->willReturn([]);
 		$this->interests->method('languagesFor')->willReturn([]);
 		$this->signals->method('exposures')->willReturn([]);
@@ -518,7 +511,8 @@ class RecommendationTimelineServiceTest extends TestCase {
 	}
 
 	public function testExplorationExplanationSurvivesTheNextSnapshotPage(): void {
-		$this->preferences->method('get')->willReturn($this->state([['topic_id' => 'tech.apple', 'mode' => 'INTERESTED']]));
+		$this->learnTopics(['tech.apple']);
+		$this->preferences->method('get')->willReturn($this->state([], []));
 		$this->signals->method('exposures')->willReturn([]);
 		$post = (new Note())
 			->setId('https://remote.example/posts/exploration')
@@ -551,7 +545,8 @@ class RecommendationTimelineServiceTest extends TestCase {
 	}
 
 	public function testTimelineStoresTheExplanationsFromTheRankedSnapshot(): void {
-		$this->preferences->method('get')->willReturn($this->state([['topic_id' => 'tech.apple', 'mode' => 'INTERESTED']]));
+		$this->learnTopics(['tech.apple']);
+		$this->preferences->method('get')->willReturn($this->state([], []));
 		$this->interests->method('hiddenFor')->willReturn([]);
 		$this->interests->method('languagesFor')->willReturn([]);
 		$post = (new Note())
@@ -575,7 +570,7 @@ class RecommendationTimelineServiceTest extends TestCase {
 		$page = $this->service()->page($this->viewer(), 1);
 		$explanation = $page['items'][0]->getInterest()['explanation'];
 
-		$this->assertSame('TOPIC_EXPLICIT', $explanation['primary']);
+		$this->assertSame('AUTOMATIC_PROFILE', $explanation['primary']);
 		$this->assertSame(['tech.apple'], $explanation['topic_ids']);
 		$this->assertContains('CACHED_CANDIDATE', $explanation['also']);
 		$this->assertSame('atproto', $explanation['protocol']);

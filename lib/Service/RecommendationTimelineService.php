@@ -24,7 +24,7 @@ class RecommendationTimelineService {
 	private const MAX_REFRESH_TOPICS = 2;
 	private const LOOKBACK_DAYS = RecommendationFreshness::LOOKBACK_DAYS;
 	private const MIN_COVERAGE = 15;
-	private const MODE = 'for-you-v4-automatic-profile-1';
+	private const MODE = 'for-you-v4-automatic-profile-3';
 	private const MEDIA = ['', 'photos', 'videos', 'shorts', 'media'];
 
 	public function __construct(
@@ -51,7 +51,8 @@ class RecommendationTimelineService {
 
 	/**
 	 * One ranker blends automatically learned hashtag and behavior signals with
-	 * content features, follows, freshness, and optional topic preferences.
+	 * content features, follows and freshness. Manual topic choices do not
+	 * configure or filter the automatic web feed.
 	 * Mobile API clients keep using the unchanged `/timelines/interests` contract.
 	 *
 	 * @return array{items: list<Stream>, session_id: ?string, next_cursor: ?string, mode: string, algorithm_version: ?int, profile_version: int, cursor_expired: bool, coverage: array{state: string, known_eligible: ?int, returned: int, remote_refresh_queued: bool}}
@@ -70,8 +71,9 @@ class RecommendationTimelineService {
 			// A ranked snapshot cursor cannot be continued against a different source.
 			return $this->empty($state['revision'], true, 'LEGACY');
 		}
-		$topics = $this->selectedTopics($state['effective_topics'] ?? []);
-
+		// Existing preference rows remain readable for API compatibility and
+		// consent revisioning, but the web feed is fully automatic: no saved
+		// topic selections or content-balance choice changes its ranking.
 		if ($cursor !== '' && str_starts_with($cursor, 'legacy.')) {
 			$legacyCursor = $this->decodeLegacyCursor($cursor, $state['revision'], $state['generation']);
 			if ($legacyCursor === null) {
@@ -83,15 +85,10 @@ class RecommendationTimelineService {
 		$this->streams->setViewer($viewer);
 		$feedback = $this->feedbackService->current($viewer->getUserId());
 		$behavioral = $this->behavioralProfile->forViewer($viewer);
-		$candidateTopics = $this->candidateTopics($topics, $behavioral['topics'], $state['effective_topics'] ?? []);
+		$candidateTopics = $this->candidateTopics($behavioral['topics']);
 		$now = $this->timeFactory->getTime();
-		$prioritised = array_values(array_map(
-			static fn (array $topic): string => $topic['id'],
-			array_filter($topics, static fn (array $topic): bool => $topic['mode'] === 'PRIORITISE')
-		));
-
 		if ($cursor !== '') {
-			return $this->continuePage($viewer, $limit, $cursor, $media, $state, $topics, $candidateTopics, $feedback, $behavioral, $now);
+			return $this->continuePage($viewer, $limit, $cursor, $media, $state, $candidateTopics, $feedback, $behavioral, $now);
 		}
 
 		$sinceNid = Nid::fromPublishedTime(max(0, $now - self::LOOKBACK_DAYS * 86400), 0, StreamRequest::NID_LIMIT);
@@ -119,10 +116,10 @@ class RecommendationTimelineService {
 			$hiddenNids,
 			$languages,
 			array_column($candidateTopics, 'id'),
-			array_keys(array_filter($state['effective_topics'] ?? [], static fn (?string $mode): bool => $mode === 'HIDE')),
+			[],
 			$media,
 		);
-		$hiddenTopicIds = array_keys(array_filter($state['effective_topics'] ?? [], static fn (?string $mode): bool => $mode === 'HIDE'));
+		$hiddenTopicIds = [];
 		$socialGraphPosts = $this->socialGraphCandidates->matching(
 			$sinceNid,
 			$socialGraphBudget,
@@ -182,13 +179,13 @@ class RecommendationTimelineService {
 
 		$candidates = [];
 		foreach ($posts as $nid => $post) {
-			$candidate = $this->candidate($post, (string)$nid, $candidateTopics, $state['effective_topics'] ?? [], $media, $now, $feedback, $behavioral, $followedAuthors, $exposurePenalties, $automaticSignals);
+			$candidate = $this->candidate($post, (string)$nid, $candidateTopics, $media, $now, $feedback, $behavioral, $followedAuthors, $exposurePenalties, $automaticSignals);
 			if ($candidate !== null) {
 				$candidates[] = $candidate;
 			}
 		}
-		$contentBalance = $state['content_balance'] ?? 'balanced';
-		$ranked = $this->reRanker->page($this->ranker->rank($candidates, $contentBalance), self::MAX_CANDIDATES, $prioritised, bin2hex(random_bytes(16)), $contentBalance);
+		$contentBalance = 'balanced';
+		$ranked = $this->reRanker->page($this->ranker->rank($candidates, $contentBalance), self::MAX_CANDIDATES, [], bin2hex(random_bytes(16)), $contentBalance);
 		$explorationNids = array_values(array_map(
 			static fn (array $candidate): string => (string)$candidate['nid'],
 			array_filter($ranked, static fn (array $candidate): bool => ($candidate['_exploration_slot'] ?? false) === true)
@@ -244,33 +241,12 @@ class RecommendationTimelineService {
 		];
 	}
 
-	/** @param array<string, string|null> $effective @return list<array{id: string, mode: string, aliases: list<string>, labels: array{en: string, de: string}}> */
-	private function selectedTopics(array $effective): array {
+	/** @param array<string, float> $behavioral @return list<array{id: string, mode: string, aliases: list<string>, labels: array{en: string, de: string}}> */
+	private function candidateTopics(array $behavioral): array {
 		$topics = [];
-		foreach ($this->catalog->all() as $topic) {
-			$mode = $effective[$topic['id']] ?? null;
-			if (!in_array($mode, ['INTERESTED', 'PRIORITISE'], true)
-				|| !$topic['enabled']
-				|| in_array('sensitive-topic', $topic['policyTags'], true)) {
-				continue;
-			}
-			$topics[] = ['id' => $topic['id'], 'mode' => $mode, 'aliases' => $topic['aliases'], 'labels' => $topic['labels']];
-		}
-		usort($topics, static fn (array $a, array $b): int => ($b['mode'] === 'PRIORITISE' ? 1 : 0) <=> ($a['mode'] === 'PRIORITISE' ? 1 : 0));
-		return $topics;
-	}
-
-	/** @param list<array{id: string, mode: string, aliases: list<string>, labels: array{en: string, de: string}}> $selected @param array<string, float> $behavioral @param array<string, string|null> $effective @return list<array{id: string, mode: string, aliases: list<string>, labels: array{en: string, de: string}}> */
-	private function candidateTopics(array $selected, array $behavioral, array $effective): array {
-		$topics = [];
-		$included = [];
-		foreach ($selected as $topic) {
-			$topics[] = $topic;
-			$included[$topic['id']] = true;
-		}
 		arsort($behavioral, SORT_NUMERIC);
 		foreach ($behavioral as $topicId => $affinity) {
-			if ($affinity <= 0.0 || isset($included[$topicId]) || isset($effective[$topicId])) {
+			if ($affinity <= 0.0) {
 				continue;
 			}
 			$topic = $this->catalog->find($topicId);
@@ -278,8 +254,7 @@ class RecommendationTimelineService {
 				continue;
 			}
 			$topics[] = ['id' => $topicId, 'mode' => 'AUTOMATIC', 'aliases' => $topic['aliases'], 'labels' => $topic['labels']];
-			$included[$topicId] = true;
-			if (count($topics) >= count($selected) + 20) {
+			if (count($topics) >= 20) {
 				break;
 			}
 		}
@@ -327,15 +302,10 @@ class RecommendationTimelineService {
 		return $terms;
 	}
 
-	/** @param array<string, string|null> $effective @param array<string, mixed> $feedback @return array<string, mixed>|null */
-	private function candidate(Stream $post, string $nid, array $topics, array $effective, string $media, int $now, array $feedback, array $behavioral, array $followedAuthors, array $exposurePenalties, array $automaticSignals): ?array {
+	/** @param array<string, mixed> $feedback @return array<string, mixed>|null */
+	private function candidate(Stream $post, string $nid, array $topics, string $media, int $now, array $feedback, array $behavioral, array $followedAuthors, array $exposurePenalties, array $automaticSignals): ?array {
 		$features = $this->features->extract($post);
 		$allTopicIds = array_keys($features['topics']);
-		foreach ($allTopicIds as $topicId) {
-			if (($effective[$topicId] ?? null) === 'HIDE') {
-				return null;
-			}
-		}
 		$selected = [];
 		foreach ($topics as $topic) {
 			if (isset($features['topics'][$topic['id']])) {
@@ -531,8 +501,8 @@ class RecommendationTimelineService {
 		return '';
 	}
 
-	/** @param array<string, mixed> $state @param list<array{id: string, mode: string, aliases: list<string>, labels: array{en: string, de: string}}> $topics @param array<string, mixed> $feedback */
-	private function continuePage(Person $viewer, int $limit, string $cursor, string $media, array $state, array $topics, array $candidateTopics, array $feedback, array $behavioral, int $now): array {
+	/** @param array<string, mixed> $state @param list<array{id: string, mode: string, aliases: list<string>, labels: array{en: string, de: string}}> $candidateTopics @param array<string, mixed> $feedback */
+	private function continuePage(Person $viewer, int $limit, string $cursor, string $media, array $state, array $candidateTopics, array $feedback, array $behavioral, int $now): array {
 		$page = $this->snapshots->nextPage($cursor, $viewer->getUserId(), self::MODE, $media, $state['revision'], $state['generation'], $now, $limit);
 		if ($page === null) {
 			return $this->empty($state['revision'], true, 'RANKED');
@@ -554,7 +524,7 @@ class RecommendationTimelineService {
 				if (!$post instanceof Stream || in_array($nid, $feedback['hidden_nids'], true)) {
 					continue;
 				}
-				$candidate = $this->candidate($post, $nid, $candidateTopics, $state['effective_topics'] ?? [], $media, $now, $feedback, $behavioral, $followedAuthors, $exposurePenalties, $automaticSignals);
+				$candidate = $this->candidate($post, $nid, $candidateTopics, $media, $now, $feedback, $behavioral, $followedAuthors, $exposurePenalties, $automaticSignals);
 				if ($candidate !== null) {
 					if (in_array($nid, $page['exploration_nids'] ?? [], true)) {
 						$candidate['_exploration_slot'] = true;

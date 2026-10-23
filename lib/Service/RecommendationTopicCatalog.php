@@ -15,6 +15,10 @@ namespace OCA\Social\Service;
  * network access or infers anything about the reader.
  */
 final class RecommendationTopicCatalog {
+	public const VERSION = 2;
+	private const SENSITIVE_ROOTS = ['health', 'identity', 'politics', 'religion'];
+	private static ?array $topicIndex = null;
+
 	private const TOPICS = [
 		['id' => 'technology', 'parentId' => null, 'labels' => ['en' => 'Technology', 'de' => 'Technologie'], 'aliases' => ['technology', 'technologie', 'tech']],
 		['id' => 'tech.apple', 'parentId' => 'technology', 'labels' => ['en' => 'Apple', 'de' => 'Apple'], 'aliases' => ['apple', 'iphone', 'ipad', 'mac']],
@@ -95,45 +99,89 @@ final class RecommendationTopicCatalog {
 		['id' => 'media.journalism', 'parentId' => 'media', 'labels' => ['en' => 'Journalism', 'de' => 'Journalismus'], 'aliases' => ['journalism', 'reporting', 'journalismus', 'berichterstattung']],
 		['id' => 'media.animation', 'parentId' => 'media', 'labels' => ['en' => 'Animation and comics', 'de' => 'Animation und Comics'], 'aliases' => ['animation', 'comics', 'manga', 'cartoons']],
 		['id' => 'media.social', 'parentId' => 'media', 'labels' => ['en' => 'Social media', 'de' => 'Soziale Medien'], 'aliases' => ['social media', 'online communities', 'soziale medien']],
+		['id' => 'health', 'parentId' => null, 'labels' => ['en' => 'Health and wellbeing', 'de' => 'Gesundheit und Wohlbefinden'], 'aliases' => ['health and wellbeing', 'healthcare', 'gesundheit und wohlbefinden', 'gesundheitswesen']],
+		['id' => 'health.mental', 'parentId' => 'health', 'labels' => ['en' => 'Mental wellbeing', 'de' => 'Psychisches Wohlbefinden'], 'aliases' => ['mental wellbeing', 'mental health', 'psychisches wohlbefinden', 'psychische gesundheit']],
+		['id' => 'health.fitness', 'parentId' => 'health', 'labels' => ['en' => 'Fitness and exercise', 'de' => 'Fitness und Bewegung'], 'aliases' => ['fitness and exercise', 'strength training', 'workout routines', 'fitness und bewegung', 'krafttraining']],
+		['id' => 'health.sleep', 'parentId' => 'health', 'labels' => ['en' => 'Sleep science', 'de' => 'Schlafforschung'], 'aliases' => ['sleep science', 'sleep research', 'schlafforschung', 'schlafqualität']],
+		['id' => 'health.nutrition', 'parentId' => 'health', 'labels' => ['en' => 'Nutrition science', 'de' => 'Ernährungswissenschaft'], 'aliases' => ['nutrition science', 'food science', 'ernährungswissenschaft', 'lebensmittelwissenschaft']],
+		['id' => 'identity', 'parentId' => null, 'labels' => ['en' => 'Identity and personal experience', 'de' => 'Identität und persönliche Erfahrungen'], 'aliases' => ['personal experience', 'identity and culture', 'persönliche erfahrungen', 'identität und kultur']],
+		['id' => 'identity.gender', 'parentId' => 'identity', 'labels' => ['en' => 'Gender and identity', 'de' => 'Geschlecht und Identität'], 'aliases' => ['gender identity', 'gender studies', 'geschlechtsidentität', 'genderforschung']],
+		['id' => 'identity.lgbtq', 'parentId' => 'identity', 'labels' => ['en' => 'LGBTQ+ topics', 'de' => 'LGBTQ+-Themen'], 'aliases' => ['lgbtq', 'lgbtqia', 'queer community', 'queere community']],
+		['id' => 'religion', 'parentId' => null, 'labels' => ['en' => 'Religion and belief', 'de' => 'Religion und Glaube'], 'aliases' => ['religion and belief', 'religious studies', 'religion und glaube', 'religionswissenschaft']],
+		['id' => 'religion.history', 'parentId' => 'religion', 'labels' => ['en' => 'History of religion', 'de' => 'Religionsgeschichte'], 'aliases' => ['history of religion', 'religionsgeschichte']],
+		['id' => 'science.chemistry', 'parentId' => 'science', 'labels' => ['en' => 'Chemistry', 'de' => 'Chemie'], 'aliases' => ['chemistry', 'chemical sciences', 'chemie', 'chemische wissenschaften']],
+		['id' => 'science.geology', 'parentId' => 'science', 'labels' => ['en' => 'Earth science', 'de' => 'Geowissenschaften'], 'aliases' => ['earth science', 'geology', 'geowissenschaften', 'geologie']],
+		['id' => 'science.climate', 'parentId' => 'science', 'labels' => ['en' => 'Climate science', 'de' => 'Klimaforschung'], 'aliases' => ['climate science', 'climate research', 'klimaforschung', 'klimawissenschaft']],
+		['id' => 'science.psychology', 'parentId' => 'science', 'labels' => ['en' => 'Psychology research', 'de' => 'Psychologische Forschung'], 'aliases' => ['psychology research', 'cognitive science', 'psychologische forschung', 'kognitionswissenschaft']],
+		['id' => 'business.markets', 'parentId' => 'business', 'labels' => ['en' => 'Markets and trade', 'de' => 'Märkte und Handel'], 'aliases' => ['financial markets', 'international trade', 'finanzmärkte', 'internationaler handel']],
+		['id' => 'business.management', 'parentId' => 'business', 'labels' => ['en' => 'Management and leadership', 'de' => 'Management und Führung'], 'aliases' => ['management and leadership', 'team leadership', 'management und führung', 'teamleitung']],
+		['id' => 'business.cooperatives', 'parentId' => 'business', 'labels' => ['en' => 'Cooperatives and social enterprise', 'de' => 'Genossenschaften und Sozialunternehmen'], 'aliases' => ['worker cooperatives', 'social enterprise', 'arbeitergenossenschaften', 'sozialunternehmen']],
+		['id' => 'software.accessibility', 'parentId' => 'software', 'labels' => ['en' => 'Accessible technology', 'de' => 'Barrierefreie Technik'], 'aliases' => ['web accessibility', 'accessible software', 'barrierefreies web', 'barrierefreie software']],
+		['id' => 'software.testing', 'parentId' => 'software', 'labels' => ['en' => 'Software testing', 'de' => 'Softwaretests'], 'aliases' => ['software testing', 'test automation', 'softwaretests', 'testautomatisierung']],
+		['id' => 'software.design', 'parentId' => 'software', 'labels' => ['en' => 'Product and UX design', 'de' => 'Produkt- und UX-Design'], 'aliases' => ['user experience design', 'product design', 'nutzererlebnis', 'produktdesign']],
+		['id' => 'tech.robotics', 'parentId' => 'technology', 'labels' => ['en' => 'Robotics', 'de' => 'Robotik'], 'aliases' => ['robotics', 'industrial robots', 'robotik', 'industrieroboter']],
+		['id' => 'tech.telecom', 'parentId' => 'technology', 'labels' => ['en' => 'Telecommunications', 'de' => 'Telekommunikation'], 'aliases' => ['telecommunications', 'mobile networks', 'telekommunikation', 'mobilfunknetze']],
+		['id' => 'tech.accessibility', 'parentId' => 'technology', 'labels' => ['en' => 'Assistive technology', 'de' => 'Assistive Technologien'], 'aliases' => ['assistive technology', 'adaptive technology', 'assistive technologien', 'unterstützende technologien']],
+		['id' => 'culture.theatre', 'parentId' => 'culture', 'labels' => ['en' => 'Theatre and performing arts', 'de' => 'Theater und darstellende Kunst'], 'aliases' => ['performing arts', 'theatre production', 'darstellende kunst', 'theaterproduktion']],
+		['id' => 'culture.architecture', 'parentId' => 'culture', 'labels' => ['en' => 'Architecture', 'de' => 'Architektur'], 'aliases' => ['architecture', 'architectural design', 'architektur', 'baukunst']],
+		['id' => 'culture.crafts', 'parentId' => 'culture', 'labels' => ['en' => 'Craft and making', 'de' => 'Kunsthandwerk und Gestaltung'], 'aliases' => ['craftsmanship', 'traditional crafts', 'kunsthandwerk', 'handwerkstradition']],
+		['id' => 'sports.swimming', 'parentId' => 'sports', 'labels' => ['en' => 'Swimming', 'de' => 'Schwimmen'], 'aliases' => ['swimming', 'open water swimming', 'schwimmen', 'freiluftschwimmen']],
+		['id' => 'sports.racket', 'parentId' => 'sports', 'labels' => ['en' => 'Racket sports', 'de' => 'Rückschlagsport'], 'aliases' => ['racket sports', 'badminton', 'table tennis', 'rückschlagsport', 'tischtennis']],
+		['id' => 'sports.winter', 'parentId' => 'sports', 'labels' => ['en' => 'Winter sports', 'de' => 'Wintersport'], 'aliases' => ['winter sports', 'ski touring', 'wintersport', 'skitouren']],
+		['id' => 'sports.motorsport', 'parentId' => 'sports', 'labels' => ['en' => 'Motorsport', 'de' => 'Motorsport'], 'aliases' => ['motorsport', 'motor racing', 'motorsport', 'autorennsport']],
+		['id' => 'gaming.game_dev', 'parentId' => 'gaming', 'labels' => ['en' => 'Game development', 'de' => 'Spieleentwicklung'], 'aliases' => ['game development', 'game design', 'spieleentwicklung', 'spieldesign']],
+		['id' => 'gaming.reviews', 'parentId' => 'gaming', 'labels' => ['en' => 'Game reviews', 'de' => 'Spielekritik'], 'aliases' => ['video game reviews', 'game reviews', 'videospieltests', 'spielekritik']],
+		['id' => 'food.growing', 'parentId' => 'food', 'labels' => ['en' => 'Food growing', 'de' => 'Lebensmittelanbau'], 'aliases' => ['urban farming', 'food gardens', 'urbaner landbau', 'essbare gärten']],
+		['id' => 'food.world', 'parentId' => 'food', 'labels' => ['en' => 'World cuisines', 'de' => 'Internationale Küchen'], 'aliases' => ['world cuisines', 'regional cuisine', 'internationale küchen', 'regionale küche']],
+		['id' => 'travel.accessible', 'parentId' => 'travel', 'labels' => ['en' => 'Accessible travel', 'de' => 'Barrierefreies Reisen'], 'aliases' => ['accessible travel', 'inclusive tourism', 'barrierefreies reisen', 'inklusiver tourismus']],
+		['id' => 'travel.rail', 'parentId' => 'travel', 'labels' => ['en' => 'Rail travel', 'de' => 'Bahnreisen'], 'aliases' => ['train travel', 'rail holidays', 'bahnreisen', 'zugreisen']],
+		['id' => 'home.repair', 'parentId' => 'home', 'labels' => ['en' => 'Home repair', 'de' => 'Hausreparaturen'], 'aliases' => ['home repair', 'home maintenance', 'hausreparaturen', 'hausinstandhaltung']],
+		['id' => 'transport.bicycles', 'parentId' => 'transport', 'labels' => ['en' => 'Cycling and micromobility', 'de' => 'Radverkehr und Mikromobilität'], 'aliases' => ['urban cycling', 'micromobility', 'radverkehr', 'mikromobilität']],
+		['id' => 'transport.electric', 'parentId' => 'transport', 'labels' => ['en' => 'Electric transport', 'de' => 'Elektrische Mobilität'], 'aliases' => ['electric vehicles', 'electric mobility', 'elektrofahrzeuge', 'elektromobilität']],
+		['id' => 'environment.oceans', 'parentId' => 'environment', 'labels' => ['en' => 'Oceans and marine life', 'de' => 'Ozeane und Meeresleben'], 'aliases' => ['ocean conservation', 'marine biology', 'meeresschutz', 'meeresbiologie']],
+		['id' => 'environment.conservation', 'parentId' => 'environment', 'labels' => ['en' => 'Conservation', 'de' => 'Naturschutz'], 'aliases' => ['wildlife conservation', 'habitat restoration', 'wildtierschutz', 'renaturierung']],
+		['id' => 'education.science', 'parentId' => 'education', 'labels' => ['en' => 'Science education', 'de' => 'Naturwissenschaftliche Bildung'], 'aliases' => ['science education', 'stem education', 'naturwissenschaftliche bildung', 'mint-bildung']],
+		['id' => 'education.open', 'parentId' => 'education', 'labels' => ['en' => 'Open education', 'de' => 'Offene Bildung'], 'aliases' => ['open education', 'open educational resources', 'offene bildung', 'freie bildungsmaterialien']],
+		['id' => 'media.radio', 'parentId' => 'media', 'labels' => ['en' => 'Radio and audio', 'de' => 'Radio und Audio'], 'aliases' => ['radio broadcasting', 'audio production', 'rundfunk', 'audioproduktion']],
+		['id' => 'media.factchecking', 'parentId' => 'media', 'labels' => ['en' => 'Fact-checking', 'de' => 'Faktenprüfung'], 'aliases' => ['fact checking', 'media literacy', 'faktenprüfung', 'medienkompetenz']],
+		['id' => 'community.civic', 'parentId' => 'community', 'labels' => ['en' => 'Civic participation', 'de' => 'Bürgerbeteiligung'], 'aliases' => ['civic participation', 'community organizing', 'bürgerbeteiligung', 'gemeinwesenarbeit']],
+		['id' => 'community.libraries', 'parentId' => 'community', 'labels' => ['en' => 'Libraries and public spaces', 'de' => 'Bibliotheken und öffentliche Räume'], 'aliases' => ['public libraries', 'public spaces', 'öffentliche bibliotheken', 'öffentliche räume']],
+		['id' => 'community.language', 'parentId' => 'community', 'labels' => ['en' => 'Language communities', 'de' => 'Sprachgemeinschaften'], 'aliases' => ['language communities', 'minority languages', 'sprachgemeinschaften', 'minderheitensprachen']],
 	];
 
 	/** @return list<array{id: string, parentId: ?string, labels: array{en: string, de: string}, aliases: list<string>, policyTags: list<string>, languageHints: list<string>, version: int, enabled: bool}> */
 	public function all(): array {
 		return array_map(static fn (array $topic): array => $topic + [
-			'policyTags' => str_starts_with($topic['id'], 'politics') ? ['sensitive-topic'] : [],
+			'policyTags' => self::isSensitive($topic['id']) ? ['sensitive-topic'] : [],
 			'languageHints' => ['en', 'de'],
-			'version' => 1,
+			'version' => self::VERSION,
 			'enabled' => true,
 		], self::TOPICS);
 	}
 
 	public function has(string $topicId): bool {
-		foreach (self::TOPICS as $topic) {
-			if ($topic['id'] === $topicId) {
-				return true;
-			}
-		}
-
-		return false;
+		return isset(self::index()[$topicId]);
 	}
 
 	/** @return array{id: string, parentId: ?string, labels: array{en: string, de: string}, aliases: list<string>, policyTags: list<string>, languageHints: list<string>, version: int, enabled: bool}|null */
 	public function find(string $topicId): ?array {
-		foreach ($this->all() as $topic) {
-			if ($topic['id'] === $topicId) {
-				return $topic;
-			}
-		}
-		return null;
+		return self::index()[$topicId] ?? null;
 	}
 
 	public function parentOf(string $topicId): ?string {
-		foreach (self::TOPICS as $topic) {
-			if ($topic['id'] === $topicId) {
-				return $topic['parentId'];
-			}
-		}
+		return self::index()[$topicId]['parentId'] ?? null;
+	}
 
-		return null;
+	private static function isSensitive(string $topicId): bool {
+		$root = explode('.', $topicId, 2)[0];
+		return in_array($root, self::SENSITIVE_ROOTS, true);
+	}
+
+	/** @return array<string, array{id: string, parentId: ?string, labels: array{en: string, de: string}, aliases: list<string>, policyTags: list<string>, languageHints: list<string>, version: int, enabled: bool}> */
+	private static function index(): array {
+		if (self::$topicIndex === null) {
+			self::$topicIndex = array_column((new self())->all(), null, 'id');
+		}
+		return self::$topicIndex;
 	}
 }

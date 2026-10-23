@@ -17,13 +17,25 @@ use OCA\Social\Tools\SearchTerms;
 
 /** Deterministic, local-only features used to retrieve recommendation candidates. */
 final class RecommendationFeatureExtractor {
-	public const VERSION = 3;
+	public const VERSION = 4;
 	private const MAX_CONTENT_CHARS = 20000;
 	private const MAX_TERMS = 500;
+	/** @var array<string, list<array{alias: string, terms: list<string>}>> */
+	private array $compiledAliases = [];
 
 	public function __construct(
 		private RecommendationTopicCatalog $catalog,
 	) {
+		foreach ($this->catalog->all() as $topic) {
+			$aliases = [];
+			foreach ($topic['aliases'] as $alias) {
+				$terms = SearchTerms::ofText($alias, 20, true);
+				if ($terms !== []) {
+					$aliases[] = ['alias' => $alias, 'terms' => $terms];
+				}
+			}
+			$this->compiledAliases[$topic['id']] = $aliases;
+		}
 	}
 
 	/**
@@ -38,22 +50,20 @@ final class RecommendationFeatureExtractor {
 		$hashtagTerms = array_map(self::normaliseHashtag(...), $post->getHashtags());
 		$matches = [];
 
-		foreach ($this->catalog->all() as $topic) {
-			if (in_array('sensitive-topic', $topic['policyTags'], true)) {
+		foreach ($this->compiledAliases as $topicId => $aliases) {
+			$topic = $this->catalog->find($topicId);
+			if ($topic === null || in_array('sensitive-topic', $topic['policyTags'], true)) {
 				continue;
 			}
-			foreach ($topic['aliases'] as $alias) {
-				$aliasTerms = SearchTerms::ofText($alias, 20, true);
-				if ($aliasTerms === []) {
-					continue;
-				}
-				if (self::containsAlias($topic['id'], $alias, $aliasTerms, $bodySegments, $topic['aliases'])) {
-					$matches[$topic['id']] = ['score' => 0.72, 'evidence' => 'text'];
+			foreach ($aliases as $compiledAlias) {
+				$alias = $compiledAlias['alias'];
+				if (self::containsAlias($topicId, $alias, $compiledAlias['terms'], $bodySegments, $topic['aliases'])) {
+					$matches[$topicId] = ['score' => 0.72, 'evidence' => 'text'];
 					break;
 				}
 				$aliasKey = self::normaliseHashtag($alias);
 				if ($aliasKey !== '' && in_array($aliasKey, $hashtagTerms, true)) {
-					$matches[$topic['id']] = ['score' => 1.0, 'evidence' => 'hashtag'];
+					$matches[$topicId] = ['score' => 1.0, 'evidence' => 'hashtag'];
 					break;
 				}
 			}
@@ -64,7 +74,7 @@ final class RecommendationFeatureExtractor {
 		foreach (array_keys($matches) as $topicId) {
 			$parent = $this->catalog->parentOf($topicId);
 			while ($parent !== null) {
-				$parentTopic = $this->topic($parent);
+				$parentTopic = $this->catalog->find($parent);
 				if ($parentTopic === null || in_array('sensitive-topic', $parentTopic['policyTags'], true)) {
 					break;
 				}
@@ -162,17 +172,6 @@ final class RecommendationFeatureExtractor {
 		$value = mb_strtolower(ltrim(trim($value), '#'), 'UTF-8');
 
 		return preg_replace('/[^\p{L}\p{N}]+/u', '', $value) ?? '';
-	}
-
-	/** @return array{id: string, policyTags: list<string>}|null */
-	private function topic(string $id): ?array {
-		foreach ($this->catalog->all() as $topic) {
-			if ($topic['id'] === $id) {
-				return ['id' => $topic['id'], 'policyTags' => $topic['policyTags']];
-			}
-		}
-
-		return null;
 	}
 
 	private static function formatOf(Stream $post): string {

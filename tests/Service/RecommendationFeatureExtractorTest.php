@@ -27,7 +27,7 @@ class RecommendationFeatureExtractorTest extends TestCase {
 
 		$features = $this->extractor()->extract($post);
 
-		$this->assertSame(3, $features['version']);
+		$this->assertSame(4, $features['version']);
 		$this->assertSame('de', $features['language']);
 		$this->assertSame(0.72, $features['topics']['oss.nextcloud']['score']);
 		$this->assertSame('text', $features['topics']['oss.nextcloud']['evidence']);
@@ -49,8 +49,15 @@ class RecommendationFeatureExtractorTest extends TestCase {
 	public function testSensitivePolicyTopicsAreNotInferredAndFormatUsesStoredMediaFacts(): void {
 		$extractor = $this->extractor();
 		$politics = $extractor->extract((new Note())->setContent('<p>International politics today.</p>'));
+		$health = $extractor->extract((new Note())->setContent('<p>New research on mental health and sleep science.</p>'));
+		$identity = $extractor->extract((new Note())->setContent('<p>A queer community event discusses gender identity.</p>'));
 		$this->assertArrayNotHasKey('politics', $politics['topics']);
 		$this->assertArrayNotHasKey('politics.international', $politics['topics']);
+		$this->assertArrayNotHasKey('health', $health['topics']);
+		$this->assertArrayNotHasKey('health.mental', $health['topics']);
+		$this->assertArrayNotHasKey('health.sleep', $health['topics']);
+		$this->assertArrayNotHasKey('identity', $identity['topics']);
+		$this->assertArrayNotHasKey('identity.lgbtq', $identity['topics']);
 
 		$short = (new Note())->setAttachments([
 			(new MediaAttachment())->import([
@@ -84,7 +91,16 @@ class RecommendationFeatureExtractorTest extends TestCase {
 		$this->assertArrayHasKey('photography', $germanPhotography['topics']);
 		$this->assertArrayHasKey('education', $englishEducation['topics']);
 		$this->assertArrayHasKey('software', $englishSoftware['topics']);
-		$this->assertSame(3, $englishAi['version']);
+		$this->assertSame(4, $englishAi['version']);
+
+		$science = $extractor->extract((new Note())->setContent('<p>Climate science and marine biology findings.</p>'));
+		$softwareTesting = $extractor->extract((new Note())->setContent('<p>Software testing and web accessibility matter.</p>'));
+		$railTravel = $extractor->extract((new Note())->setContent('<p>Mit dem Zug reisen und Bahnreisen nachhaltig gestalten.</p>'));
+		$this->assertArrayHasKey('science.climate', $science['topics']);
+		$this->assertArrayHasKey('environment.oceans', $science['topics']);
+		$this->assertArrayHasKey('software.testing', $softwareTesting['topics']);
+		$this->assertArrayHasKey('software.accessibility', $softwareTesting['topics']);
+		$this->assertArrayHasKey('travel.rail', $railTravel['topics']);
 	}
 
 	public function testAmbiguousAppleRequiresTechnologyContextAndIgnoresQuotedOrCodeText(): void {

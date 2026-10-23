@@ -29,9 +29,12 @@
 			:options="scopes"
 			:value="scope"
 			:label="t('social', 'Which posts to show')" />
-		<p v-if="scopeDescription" class="timeline-scope-description">
-			{{ scopeDescription }}
-		</p>
+		<FeedScopeNotice
+			v-if="scopeDescription"
+			:key="`${accountStore.currentAccountHandle}:${scope}`"
+			:account="accountStore.currentAccountHandle"
+			:scope="scope"
+			:text="scopeDescription" />
 
 		<InterestsLearningBanner v-if="type === 'interests' && hasInterestsTab" />
 
@@ -175,6 +178,7 @@ import IconTagHeart from 'vue-material-design-icons/TagHeart.vue'
 import TimelineList from './../components/TimelineList.vue'
 import DirectMessages from './../components/DirectMessages.vue'
 import TimelineSwitcher from './../components/TimelineSwitcher.vue'
+import FeedScopeNotice from './../components/FeedScopeNotice.vue'
 import FirstPostCelebration from './../components/FirstPostCelebration.vue'
 import Announcements from './../components/Announcements.vue'
 import FirstRun from './../components/FirstRun.vue'
@@ -227,6 +231,7 @@ export default {
 		TimelineList,
 		DirectMessages,
 		TimelineSwitcher,
+		FeedScopeNotice,
 		IconBellCogOutline,
 		IconClose,
 		IconInboxOutline,
@@ -478,7 +483,7 @@ export default {
 				return t('social', 'My Feed shows posts from accounts you follow, in chronological order.')
 			}
 			if (this.scope === 'interests' && this.hasInterestsTab) {
-				return t('social', 'For You learns from your interests and activity, then combines that with post content, freshness, follows and discovery in one personalized ranking. Topic setup is optional.')
+				return t('social', 'For You automatically ranks posts using your learned interests, post content, freshness, follows and discovery. It can include posts from beyond the accounts you follow.')
 			}
 			return ''
 		},
@@ -895,13 +900,6 @@ export default {
 	max-width: var(--social-column);
 	margin: 0 auto;
 	padding: 0;
-}
-
-.timeline-scope-description {
-	max-width: 72ch;
-	margin: calc(var(--default-grid-baseline) * 1) calc(var(--default-grid-baseline) * 2) calc(var(--default-grid-baseline) * 2);
-	color: var(--color-text-maxcontrast);
-	font-size: 0.9rem;
 }
 
 .timeline-heading-row {

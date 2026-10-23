@@ -5,7 +5,7 @@
 <template>
 	<div class="for-you-settings">
 		<NcNoteCard v-if="recommendationsEnabled" type="info">
-			{{ t('social', 'For You learns automatically from the hashtags you read and interact with, then combines that profile with post content, freshness, follows and discovery in one ranking. You do not need to choose topics or set up the feed first. Review or correct the learned hashtag profile below; behavioral learning controls are optional.') }}
+			{{ t('social', 'For You builds one automatic ranking from the hashtags you read and interact with, post content, freshness, follows, discovery and any activity learning you enable. You do not need to choose topics or configure the feed.') }}
 		</NcNoteCard>
 		<NcNoteCard v-else type="info">
 			{{ t('social', 'For You uses your automatically learned hashtag interests in one personalized ranking. The administrator has not enabled the newer recommendation signals on this instance.') }}
@@ -19,7 +19,7 @@
 		<details v-if="recommendationsEnabled" class="for-you-settings__learning">
 			<summary>{{ t('social', 'Behavioral learning and data controls') }}</summary>
 			<p>{{ t('social', 'Likes, saves, qualified views and video watching can refine the same feed. This additional activity profile is off until you turn it on.') }}</p>
-			<RecommendationTopicsSettings automaticProfile />
+			<ActivityLearningSettings />
 		</details>
 	</div>
 </template>
@@ -29,7 +29,7 @@ import { translate as t } from '@nextcloud/l10n'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import { useServerData } from '../composables/useServerData.js'
 import InterestsSettings from './InterestsSettings.vue'
-import RecommendationTopicsSettings from './RecommendationTopicsSettings.vue'
+import ActivityLearningSettings from './ActivityLearningSettings.vue'
 
 export default {
 	name: 'ForYouSettings',
@@ -37,7 +37,7 @@ export default {
 	components: {
 		InterestsSettings,
 		NcNoteCard,
-		RecommendationTopicsSettings,
+		ActivityLearningSettings,
 	},
 
 	setup() {
