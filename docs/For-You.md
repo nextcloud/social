@@ -602,6 +602,10 @@ With the instance switch on, `GET /api/v1/recommendations/candidates/{topicId}` 
 
 The catalog has stable IDs, German and English labels, reviewed local aliases, version, policy tags and language hints. Policy tags classify catalog entries only; they are never inferred or applied to a reader. Manual topic preferences are stored per Nextcloud account in additive tables. Updates require `if_revision`; stale writes receive HTTP 409 with the current state. `HIDE` on a parent applies to descendants, while a child preference may replace an inherited soft value. The preference export is owner-only. Reset is revision-protected, idempotent, increments the generation before clearing choices, and account deletion purges the records.
 
+## Transparent ranking baseline (F2)
+
+Topic candidates are ordered by a deterministic, versioned linear score and then assembled into a page with soft author and topic diversity. The initial weights are a documented, uncalibrated hypothesis, not a claim to reproduce another platform's algorithm. The score uses explicit topic match and freshness now; author affinity, follow status, format preference, usefulness, feedback, novelty and exposure remain neutral until those signals are actually available to this reader. Non-finite inputs are replaced with the feature's neutral value, domains are clipped, ties use source reliability and stable post ID, and the ranker records its algorithm and feature versions. Page assembly deduplicates canonical IDs and never drops an otherwise eligible candidate just because diversity targets cannot be met. A reader's explicitly prioritised topic can exceed the soft topic mix target. This ranks the bounded candidate response only; it does not yet replace or reorder the existing timeline, persist a feed snapshot, or provide a session cursor.
+
 ## Routes
 
 | Method | Route | Purpose |
