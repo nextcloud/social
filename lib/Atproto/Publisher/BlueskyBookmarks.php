@@ -20,6 +20,7 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Model\StreamAction;
 use OCA\Social\Service\AccountService;
+use OCA\Social\Service\IRecommendationSignalRecorder;
 use OCA\Social\Service\StreamActionService;
 use OCA\Social\Service\StreamService;
 use OCA\Social\Tools\Nid;
@@ -53,6 +54,7 @@ class BlueskyBookmarks {
 		private StreamActionService $streamActions,
 		private StreamService $streams,
 		private AccountService $accounts,
+		private IRecommendationSignalRecorder $recommendationSignals,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -92,8 +94,18 @@ class BlueskyBookmarks {
 				$this->store->storeByUri($uri);
 			}
 			$viewer = $this->accounts->getActorFromUserId($session->userId);
+			$on = $method === self::CREATE;
+			$wasBookmarked = $this->streamActions->getActionBool($viewer->getId(), $postId, StreamAction::BOOKMARKED);
 			$this->fromApp = true;
-			$this->streamActions->setActionBool($viewer->getId(), $postId, StreamAction::BOOKMARKED, $method === self::CREATE);
+			$this->streamActions->setActionBool($viewer->getId(), $postId, StreamAction::BOOKMARKED, $on);
+			if ($wasBookmarked !== $on) {
+				try {
+					$post = $this->streams->getStreamById($postId);
+					$this->recommendationSignals->recordAction($viewer, $post, $on ? 'save' : 'unsave');
+				} catch (Throwable $e) {
+					$this->logger->debug('A Bluesky bookmark was not projected into For You learning', ['exception' => $e]);
+				}
+			}
 		} catch (Throwable $e) {
 			$this->logger->info('A Bluesky app\'s bookmark not made here', ['uri' => $uri, 'exception' => $e]);
 		} finally {
