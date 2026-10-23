@@ -179,7 +179,7 @@ const ListsSettings = defineAsyncComponent(() => import(/* webpackChunkName: "se
 const BlueskyFeedsSettings = defineAsyncComponent(() => import(/* webpackChunkName: "settings" */'../components/BlueskyFeedsSettings.vue'))
 const FeaturedTagsSettings = defineAsyncComponent(() => import(/* webpackChunkName: "settings" */'../components/FeaturedTagsSettings.vue'))
 const InterestsSettings = defineAsyncComponent(() => import(/* webpackChunkName: "settings" */'../components/InterestsSettings.vue'))
-const RecommendationTopicsSettings = defineAsyncComponent(() => import(/* webpackChunkName: "settings" */'../components/RecommendationTopicsSettings.vue'))
+const RecommendationTopicsSettings = defineAsyncComponent(() => import(/* webpackChunkName: "recommendation-topics" */'../components/RecommendationTopicsSettings.vue'))
 const SensesSettings = defineAsyncComponent(() => import(/* webpackChunkName: "settings" */'../components/SensesSettings.vue'))
 const SensitiveMediaSettings = defineAsyncComponent(() => import(/* webpackChunkName: "settings" */'../components/SensitiveMediaSettings.vue'))
 const CountsSettings = defineAsyncComponent(() => import(/* webpackChunkName: "settings" */'../components/CountsSettings.vue'))
