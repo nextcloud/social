@@ -109,6 +109,17 @@ class RecommendationsController extends ClientApiController {
 
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[AnonRateLimit(limit: 120, period: 60)]
+	#[UserRateLimit(limit: 120, period: 60)]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/recommendations/context/{postId}')]
+	public function feedbackContext(string $postId): DataResponse {
+		return $this->answer(['read:statuses'], fn (): array
+			=> $this->feedbackService->context($this->viewer(), $postId)
+		);
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
 	#[AnonRateLimit(limit: 30, period: 60)]
 	#[UserRateLimit(limit: 30, period: 60)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/recommendations/feedback')]
