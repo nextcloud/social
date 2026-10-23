@@ -186,6 +186,7 @@ class RouteAuthMatrixTest extends TestCase {
 	 */
 	private const WEB_SESSION_ONLY = [
 		'MediaApiController::mediaFromFile' => 'copies any of the user\'s own files, more than a client allowed to upload media was granted',
+		'StatusApiController::importStatusCalendar' => 'writes a remote event to the user\'s Nextcloud calendar',
 	];
 
 	/** @var array<string, string> the broad scopes that permit a state-changing client-API route */

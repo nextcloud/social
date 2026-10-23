@@ -111,12 +111,20 @@
 					{{ item.event.location }}
 				</span>
 			</div>
+			<NcButton
+				v-if="item.event.start_time && !serverData.public"
+				class="post-event__calendar"
+				:disabled="importingEvent"
+				@click="importEventToCalendar">
+				<template #icon><CalendarMonthOutline :size="16" /></template>
+				{{ importingEvent ? t('social', 'Adding…') : t('social', 'Add to Nextcloud Calendar') }}
+			</NcButton>
 			<a
-				v-if="item.event.start_time"
+				v-else-if="item.event.start_time"
 				class="post-event__calendar"
 				:href="eventCalendarUrl">
 				<CalendarMonthOutline :size="16" />
-				{{ t('social', 'Add to calendar') }}
+				{{ t('social', 'Download calendar file') }}
 			</a>
 		</section>
 		<!-- who is in the picture, when the poster named anybody. Names rather
@@ -690,6 +698,7 @@ export default {
 	data() {
 		return {
 			isEditing: false,
+			importingEvent: false,
 			/** the petal directions, so the template does not build a list per render */
 			PETALS: [0, 1, 2, 3, 4],
 			/** the press-and-hold timer on the heart, null when nothing is held */
@@ -1288,6 +1297,25 @@ export default {
 	methods: {
 		localProfileUrl,
 		isBlueskyAccount,
+
+		/** Import an ActivityStreams event into this user's Nextcloud Calendar. */
+		async importEventToCalendar() {
+			if (this.importingEvent) {
+				return
+			}
+			this.importingEvent = true
+			try {
+				const { data } = await axios.post(generateUrl(`apps/social/api/v1/statuses/${encodeURIComponent(this.item.id)}/calendar/import`))
+				showSuccess(data.already_imported
+					? t('social', 'This event is already in your calendar')
+					: t('social', 'Event added to {calendar}', { calendar: data.calendar || t('social', 'your Nextcloud Calendar') }))
+			} catch (error) {
+				logger.error('Could not import the event into Nextcloud Calendar', { error })
+				showError(t('social', 'Could not add this event to your Nextcloud Calendar'))
+			} finally {
+				this.importingEvent = false
+			}
+		},
 
 		/**
 		 * @param {object} account an Account entity
