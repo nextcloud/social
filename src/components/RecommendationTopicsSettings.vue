@@ -54,13 +54,43 @@
 					<p>{{ t('social', 'No selection means posts in every language. Language choices are a feed filter, not a translation setting.') }}</p>
 					<div class="recommendation-topics__choices">
 						<label v-for="language in languageOptions" :key="language.code" class="recommendation-topics__choice">
-							<input v-model="selectedLanguages" type="checkbox" :value="language.code">
+							<input
+								v-model="selectedLanguages"
+								type="checkbox"
+								:value="language.code"
+								:disabled="selectedLanguages.length >= 20 && !selectedLanguages.includes(language.code)">
 							{{ language.label }}
 						</label>
 						<label class="recommendation-topics__choice">
 							<input type="checkbox" :checked="selectedLanguages.length === 0" @change="selectedLanguages = []">
 							{{ t('social', 'All languages') }}
 						</label>
+					</div>
+					<div class="recommendation-topics__language-entry">
+						<label for="recommendation-language-code">{{ t('social', 'Add another language code') }}</label>
+						<div class="recommendation-topics__language-entry-controls">
+							<input
+								id="recommendation-language-code"
+								v-model.trim="languageInput"
+								:disabled="selectedLanguages.length >= 20"
+								:placeholder="t('social', 'For example, fr or pt-BR')"
+								:aria-describedby="languageError ? 'recommendation-language-error' : undefined"
+								@input="validateLanguageInput"
+								@keyup.enter.prevent="addLanguage">
+							<NcButton :disabled="!canAddLanguage" @click="addLanguage">
+								{{ t('social', 'Add language') }}
+							</NcButton>
+						</div>
+						<p
+							v-if="languageError"
+							id="recommendation-language-error"
+							class="recommendation-topics__error"
+							role="alert">
+							{{ languageError }}
+						</p>
+						<p class="recommendation-topics__hint">
+							{{ t('social', 'Posts with an unknown language remain eligible; up to 20 language codes can be selected.') }}
+						</p>
 					</div>
 				</section>
 				<section v-else-if="wizardStep === 3" aria-labelledby="recommendation-onboarding-balance">
@@ -259,6 +289,8 @@ export default {
 			contentBalance: 'balanced',
 			draftContentBalance: 'balanced',
 			selectedLanguages: [],
+			languageInput: '',
+			languageError: '',
 			learningMode: 'off',
 			savedLearningMode: 'off',
 			stateTopics: [],
@@ -293,7 +325,16 @@ export default {
 		},
 
 		languageOptions() {
-			return [{ code: 'en', label: t('social', 'English') }, { code: 'de', label: t('social', 'German') }]
+			const commonCodes = ['ar', 'cs', 'da', 'de', 'el', 'en', 'es', 'fi', 'fr', 'he', 'hi', 'hu', 'id', 'it', 'ja', 'ko', 'nl', 'no', 'pl', 'pt', 'ro', 'ru', 'sv', 'th', 'tr', 'uk', 'vi', 'zh']
+			const codes = [...new Set([...commonCodes, ...this.selectedLanguages])]
+			return codes.map((code) => ({ code, label: this.languageLabel(code) }))
+		},
+
+		canAddLanguage() {
+			return this.languageInput !== ''
+				&& /^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$/.test(this.languageInput)
+				&& this.selectedLanguages.length < 20
+				&& !this.selectedLanguages.some((language) => language.toLowerCase() === this.languageInput.toLowerCase())
 		},
 
 		balanceOptions() {
@@ -312,7 +353,7 @@ export default {
 			if (this.selectedLanguages.length === 0) {
 				return t('social', 'All languages')
 			}
-			return this.languageOptions.filter((language) => this.selectedLanguages.includes(language.code)).map((language) => language.label).join(', ')
+			return this.selectedLanguages.map((code) => `${this.languageLabel(code)} (${code})`).join(', ')
 		},
 
 		selectedBalanceLabel() {
@@ -347,6 +388,38 @@ export default {
 		labelOf(topic) {
 			const language = (getLanguage() || 'en').toLowerCase().slice(0, 2)
 			return topic.labels?.[language] || topic.labels?.en || topic.id
+		},
+
+		languageLabel(code) {
+			try {
+				return new Intl.DisplayNames([getLanguage() || 'en'], { type: 'language' }).of(code) || code
+			} catch {
+				return code
+			}
+		},
+
+		validateLanguageInput() {
+			if (this.languageInput === '') {
+				this.languageError = ''
+			} else if (!/^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$/.test(this.languageInput)) {
+				this.languageError = t('social', 'Enter a language code such as fr or pt-BR.')
+			} else if (this.selectedLanguages.some((language) => language.toLowerCase() === this.languageInput.toLowerCase())) {
+				this.languageError = t('social', 'That language is already selected.')
+			} else if (this.selectedLanguages.length >= 20) {
+				this.languageError = t('social', 'You can select at most 20 languages.')
+			} else {
+				this.languageError = ''
+			}
+		},
+
+		addLanguage() {
+			this.validateLanguageInput()
+			if (!this.canAddLanguage) {
+				return
+			}
+			this.selectedLanguages = [...this.selectedLanguages, this.languageInput]
+			this.languageInput = ''
+			this.languageError = ''
 		},
 
 		async load() {
@@ -430,11 +503,14 @@ export default {
 
 		async advanceWizard() {
 			if (this.wizardStep === 2) {
+				this.saving = true
 				try {
 					await axios.put(interestsUrl() + '/settings', { languages: this.selectedLanguages })
 				} catch (error) {
 					showError(errorOf(error, t('social', 'Could not save your language choices')))
 					return
+				} finally {
+					this.saving = false
 				}
 			}
 			if (await this.persistWizardStep(this.wizardStep + 1)) {
@@ -583,6 +659,27 @@ export default {
 		&--column {
 			grid-template-columns: 1fr;
 		}
+	}
+
+	&__language-entry {
+		margin-block: 1rem;
+		max-width: 36rem;
+	}
+
+	&__language-entry-controls {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem;
+
+		input {
+			flex: 1 1 14rem;
+			min-width: 0;
+		}
+	}
+
+	&__error {
+		color: var(--color-error);
 	}
 
 	&__choice {

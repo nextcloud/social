@@ -105,8 +105,9 @@ A new section in [src/views/Settings.vue](../src/views/Settings.vue) with id
   tag is added as a manual interest. It floats with the listing threshold as
   its score, so it usually lands low in the cloud; the cloud brings it into
   view so the reader sees where it went.
-- **Languages for For you**: multi-select, empty = all languages. This is
-  a new preference; Aloha Social has no language preference yet.
+- **Languages for For you**: the existing account language preference is reused
+  by both the hashtag feed and For You. An empty list means all languages;
+  posts whose language is unknown remain eligible.
 - **Reset all interests**: clears learned scores, manual entries, pins and the
   dwell baseline. Needs a confirmation step built into the page (the viewer has
   no `confirm()`).
@@ -594,7 +595,13 @@ Resolved 2026-09-24:
 No open points remain.
 # For You 4.0 foundation (F0)
 
-For You 4.0 builds on the existing hashtag based feed. The instance switch `rec_v4_enabled` defaults to off and is exposed in Administration → Social → For you. With it off, the existing feed and its routes keep their current behavior; v4 preference routes, ranked discovery and the user's **Settings → Reading → For You topics** panel are unavailable. When enabled, explicit topic preferences drive the bounded candidate and ranking paths described below. Behavioural online learning and telemetry remain out of scope for this stack.
+For You 4.0 builds on the existing hashtag based feed. The instance switch `rec_v4_enabled` defaults to off and is exposed in Administration → Social → For you. With it off, the existing feed and its routes keep their current behavior; v4 preference routes, ranked discovery and the user's **Settings → Reading → For You topics** panel are unavailable. When enabled, explicit topic preferences drive the bounded candidate and ranking paths described below. Behavioural learning requires the reader's separate consent; discovery telemetry contains instance-level aggregates only.
+
+## First-use setup and content balance (T05)
+
+The settings panel offers a resumable five-step setup: choose broad topics, optionally refine with subtopics, choose languages, set a content balance, then review. Each step can be skipped and progress is stored per account. Topic choices, language filters and content balance can be edited later. The language picker includes common languages and accepts additional locale codes such as `fr` or `pt-BR`; up to 20 codes can be selected. Empty means no language filter, and posts without a known language remain eligible. Language choices reuse the existing `/api/v1/interests/settings` preference so the old hashtag timeline keeps the same behavior.
+
+Content balance adjusts only the re-ranker's bounded discovery cadence: balanced permits up to one qualified new-author pick per ten slots; following emphasizes known accounts and uses up to one in twenty; discovery allows up to one in five. These are upper bounds, not guarantees. An exploration candidate still must pass visibility, moderation, topic-match, novelty and exposure checks. Explicit topic hides and safety rules are never relaxed. Resetting For You choices also reopens setup and restores the balanced default; activity-learning consent remains separate.
 
 ## Candidate discovery (F1)
 

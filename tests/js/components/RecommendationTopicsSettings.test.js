@@ -96,6 +96,39 @@ describe('For You topic settings', () => {
 		expect(wrapper.text()).toContain('Refine with subtopics')
 	})
 
+	it('accepts additional language codes and saves the language step', async () => {
+		put.mockResolvedValue({ data: { ...state, revision: 8, onboarding_step: 3, onboarding_complete: false } })
+		const wrapper = mountSettings()
+		await flushPromises()
+		await wrapper.setData({ onboardingComplete: false, onboardingStep: 2 })
+		await wrapper.find('#recommendation-language-code').setValue('fr-CA')
+		await wrapper.vm.addLanguage()
+		await wrapper.vm.advanceWizard()
+		await flushPromises()
+
+		expect(put).toHaveBeenCalledWith('/index.php/apps/social/api/v1/interests/settings', { languages: ['fr-CA'] })
+		expect(put).toHaveBeenCalledWith(PREFERENCES_URL, expect.objectContaining({ onboarding_step: 3 }))
+		expect(wrapper.vm.selectedLanguages).toEqual(['fr-CA'])
+	})
+
+	it('rejects malformed language codes and enforces the twenty-code limit', async () => {
+		const wrapper = mountSettings()
+		await flushPromises()
+		await wrapper.setData({ onboardingComplete: false, onboardingStep: 2 })
+		await wrapper.find('#recommendation-language-code').setValue('english')
+		await wrapper.vm.addLanguage()
+
+		expect(wrapper.vm.selectedLanguages).toEqual([])
+		expect(wrapper.text()).toContain('Enter a language code such as fr or pt-BR.')
+
+		await wrapper.setData({ selectedLanguages: Array.from({ length: 20 }, (_, index) => `x${index}`) })
+		await wrapper.setData({ languageInput: 'fr' })
+		await wrapper.vm.addLanguage()
+
+		expect(wrapper.vm.selectedLanguages).toHaveLength(20)
+		expect(wrapper.vm.languageError).toContain('at most 20')
+	})
+
 	it('reloads the latest state after a revision conflict', async () => {
 		put.mockRejectedValue({ response: { status: 409, data: { current: { ...state, revision: 8, generation: 4, topics: [] } } } })
 		const wrapper = mountSettings()
