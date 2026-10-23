@@ -236,7 +236,7 @@ class RecommendationCandidateService {
 		if ($match === null) {
 			return null;
 		}
-		$protocol = str_starts_with($post->getId(), 'at://') ? 'atproto' : 'activitypub';
+		$protocol = RecommendationProtocol::of($post);
 		$author = $post->getAttributedTo();
 		$isFollowed = isset($followedAuthors[$author]);
 		$authorAffinity = $this->behavioralProfile->authorAffinity($author, $behavioralAuthors);

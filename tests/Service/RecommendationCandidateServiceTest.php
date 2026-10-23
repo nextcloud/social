@@ -117,7 +117,7 @@ class RecommendationCandidateServiceTest extends TestCase {
 		$this->interests->method('languagesFor')->with('alice')->willReturn(['en']);
 		$this->interests->method('hiddenFor')->with($this->isInstanceOf(Person::class))->willReturn([]);
 		$note = new Note();
-		$note->setId('https://remote.example/posts/1')->setContent('<p>Apple announces a new device</p>')->setLanguage('en')->setPublishedTime(1_999_999_900);
+		$note->setId('https://bsky.app/profile/did:plc:ewvi7nxzyoun6zhxrhs64oiz/post/3k')->setContent('<p>Apple announces a new device</p>')->setLanguage('en')->setPublishedTime(1_999_999_900);
 		$this->streams->expects($this->once())->method('setViewer')->with($this->isInstanceOf(Person::class));
 		$this->streams->expects($this->once())->method('recommendationCandidatesByTerms')->with(
 			$this->appleAliases(), $this->isType('string'), 100, [], ['en']
@@ -137,7 +137,8 @@ class RecommendationCandidateServiceTest extends TestCase {
 		$this->assertTrue($result['underfilled']);
 		$this->assertTrue($result['remote_refresh_queued']);
 		$this->assertSame('text', $result['candidates'][0]['format']);
-		$this->assertSame('activitypub', $result['candidates'][0]['protocol']);
+		$this->assertSame('atproto', $result['candidates'][0]['protocol']);
+		$this->assertSame(['activitypub' => 0, 'atproto' => 1], $result['sources']);
 		$this->assertSame(RecommendationRanker::ALGORITHM_VERSION, $result['candidates'][0]['algorithm_version']);
 		$this->assertArrayHasKey('rank_score', $result['candidates'][0]);
 		$this->assertSame(1.0, $result['candidates'][0]['rank_features']['novelty']);

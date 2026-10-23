@@ -235,7 +235,7 @@ class RecommendationTimelineService {
 			'author_key' => $author,
 			'topic_ids' => $allTopicIds,
 			'matching_topic_ids' => array_keys($selected),
-			'protocol' => str_starts_with($post->getId(), 'at://') ? 'atproto' : 'activitypub',
+			'protocol' => RecommendationProtocol::of($post),
 			'published_at' => $published,
 			'format' => $format,
 			'topic_match' => $bestMatch,
