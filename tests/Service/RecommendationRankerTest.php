@@ -196,6 +196,23 @@ class RecommendationRankerTest extends TestCase {
 		$this->assertSame(['php-security-1', 'php-security-2', 'php-security-3', 'community-story'], array_column($page, 'nid'));
 	}
 
+	public function testMixedTopicCandidatesDoNotBypassASaturatedTopicWhileFreshAlternativesRemain(): void {
+		$ranked = [];
+		for ($i = 1; $i <= 3; $i++) {
+			$ranked[] = ['nid' => 'security-' . $i, 'rank_score' => 1.0 - ($i / 100), 'diversity_topics' => ['software.security']];
+		}
+		$ranked[] = [
+			'nid' => 'security-and-civic',
+			'rank_score' => 0.96,
+			'diversity_topics' => ['software.security', 'community.civic'],
+		];
+		$ranked[] = ['nid' => 'civic-only', 'rank_score' => 0.95, 'diversity_topics' => ['community.civic']];
+
+		$page = (new RecommendationReRanker())->page($ranked, 5, 'mixed-topic-diversity');
+
+		$this->assertSame(['security-1', 'security-2', 'security-3', 'civic-only', 'security-and-civic'], array_column($page, 'nid'));
+	}
+
 	public function testTopicConcentrationRelaxesWhenThereAreNoOtherTopicsToShow(): void {
 		$ranked = [];
 		for ($i = 1; $i <= 5; $i++) {

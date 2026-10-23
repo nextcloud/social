@@ -54,10 +54,10 @@ final class RecommendationReRanker {
 		while ($remaining !== [] && count($selected) < $pageSize) {
 			$window = array_slice($remaining, 0, self::LOOKAHEAD);
 			$saturatedTopics = array_fill_keys(self::saturatedTopics($selected), true);
-			$hasDiverseAlternative = false;
+			$hasUnsaturatedAlternative = false;
 			foreach ($window as $candidate) {
-				if (!self::allTopicsSaturated(self::topicIds($candidate), $saturatedTopics)) {
-					$hasDiverseAlternative = true;
+				if (!self::hasSaturatedTopic(self::topicIds($candidate), $saturatedTopics)) {
+					$hasUnsaturatedAlternative = true;
 					break;
 				}
 			}
@@ -65,7 +65,7 @@ final class RecommendationReRanker {
 			$bestAdjusted = -INF;
 			$adjustedScores = [];
 			foreach ($window as $index => $candidate) {
-				if ($hasDiverseAlternative && self::allTopicsSaturated(self::topicIds($candidate), $saturatedTopics)) {
+				if ($hasUnsaturatedAlternative && self::hasSaturatedTopic(self::topicIds($candidate), $saturatedTopics)) {
 					continue;
 				}
 				$author = (string)($candidate['author_key'] ?? '');
@@ -178,8 +178,14 @@ final class RecommendationReRanker {
 	}
 
 	/** @param list<string> $topics @param array<string, true> $saturated */
-	private static function allTopicsSaturated(array $topics, array $saturated): bool {
-		return $topics !== [] && array_diff($topics, array_keys($saturated)) === [];
+	private static function hasSaturatedTopic(array $topics, array $saturated): bool {
+		foreach ($topics as $topic) {
+			if (isset($saturated[$topic])) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	/** @param array<string, mixed> $candidate @return list<string> */
