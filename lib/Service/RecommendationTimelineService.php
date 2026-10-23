@@ -103,8 +103,8 @@ class RecommendationTimelineService {
 		$sinceNid = Nid::fromPublishedTime(max(0, $now - self::LOOKBACK_DAYS * 86400), 0, StreamRequest::NID_LIMIT);
 		$terms = $this->terms($topics);
 		$candidateBudget = min(self::MAX_CANDIDATES, max($limit * 5, self::MIN_COVERAGE));
-		$followBudget = min(20, max(4, (int)ceil($candidateBudget * 0.2)));
-		$followBudget = min($followBudget, $candidateBudget);
+		$followBudget = (int)min(20, max(4, intdiv($candidateBudget + 4, 5)));
+		$followBudget = (int)min($followBudget, $candidateBudget);
 		$hiddenNids = array_values(array_unique(array_merge(
 			$this->interests->hiddenFor($viewer),
 			$feedback['hidden_nids']
