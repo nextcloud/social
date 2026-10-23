@@ -6,8 +6,13 @@
 
 ## Unreleased
 
+
+### Fixes
+
+- **recommendations:** Batch Fediverse tag-provider requests, honour the shared host circuit breaker and `Retry-After`, and cap individual post hydration plus the total discovery pass.
 ### Features
 
+- **recommendations:** Add an administrator-only ActivityPub/ATProto discovery health panel with seven-day hourly coverage, failure, rate-limit and latency summaries. The aggregates contain no search terms, topics, reader identities or post identifiers.
 - **recommendations:** Add account-local behavioural learning for For You, with explicit off/on/paused consent, generation-safe resets, bounded fast/slow topic, author and format affinities, idempotent events, impressions and video-watch ratios. Learning defaults off and never infers topic or stance from reply text.
 - **recommendations:** Use consented signals and accepted-follow relationships in new ranked sessions; apply bounded exposure-aware novelty and preserve an explanation for constrained exploration placements. Existing chronological feeds and delivered snapshot order remain stable.
 

@@ -17,6 +17,7 @@
 				<p class="interests-admin__hint">
 					{{ t('social', 'This independent instance switch is off by default. Turning it on enables only the explicit topic preference API; recommendations and behavioral learning remain unavailable until their own reviewed stages are released.') }}
 				</p>
+				<DiscoveryHealth />
 			</section>
 			<NcCheckboxRadioSwitch v-model="form.enabled" type="switch">
 				{{ t('social', 'Enable For you') }}
@@ -61,6 +62,7 @@
 <script>
 import axios from '@nextcloud/axios'
 import { translate as t } from '@nextcloud/l10n'
+import { defineAsyncComponent } from 'vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcCheckboxRadioSwitch from '@nextcloud/vue/components/NcCheckboxRadioSwitch'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
@@ -68,6 +70,8 @@ import NcTextField from '@nextcloud/vue/components/NcTextField'
 import { interestsUrl, recommendationsUrl } from '../../services/adminApi.js'
 import { errorOf } from '../../utils/serverError.js'
 import { showError, showSuccess } from '../../services/toast.js'
+
+const DiscoveryHealth = defineAsyncComponent(() => import('./DiscoveryHealth.vue'))
 
 /**
  * The four tuning numbers, with the ranges the server holds them to. Checked
@@ -137,6 +141,7 @@ export default {
 	name: 'InterestsSection',
 
 	components: {
+		DiscoveryHealth,
 		NcButton,
 		NcCheckboxRadioSwitch,
 		NcLoadingIcon,

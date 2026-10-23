@@ -20,6 +20,7 @@ use OCA\Social\Atproto\Reader\BlueskyPostSource;
 use OCA\Social\Atproto\Reader\PostStore;
 use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Service\Discovery\PostSourceStats;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
@@ -40,8 +41,8 @@ class BlueskyPostSourceTest extends TestCase {
 		$store->method('storePost')->willReturnCallback(static fn (array $post): bool => $post['uri'] === 'at://a/1');
 		$source = new BlueskyPostSource($config, $appView, $this->createMock(IdentityService::class), $store, $this->createMock(LabelerService::class), new NullLogger());
 
-		$this->assertSame(1, $source->tagged('nextcloud', 25, null));
-		$this->assertSame(1, $source->matching('open source', 25, null));
+		$this->assertSame(1, $source->tagged('nextcloud', 25, null)->postsStored);
+		$this->assertSame(1, $source->matching('open source', 25, null)->postsStored);
 		$this->assertSame([
 			[['q' => '#nextcloud', 'tag' => ['nextcloud'], 'sort' => 'latest', 'limit' => 25], ['atproto-accept-labelers' => ''], AppViewClient::INTERACTIVE_TIMEOUT],
 			[['q' => 'open source', 'sort' => 'latest', 'limit' => 25], ['atproto-accept-labelers' => ''], AppViewClient::INTERACTIVE_TIMEOUT],
@@ -90,7 +91,7 @@ class BlueskyPostSourceTest extends TestCase {
 		});
 		$source = new BlueskyPostSource($config, $appView, $this->createMock(IdentityService::class), $store, $this->createMock(LabelerService::class), new NullLogger());
 
-		$this->assertSame(1, $source->tagged('nextcloud', 20, null, (int)strtotime('2026-10-08T00:00:00Z')));
+		$this->assertSame(1, $source->tagged('nextcloud', 20, null, (int)strtotime('2026-10-08T00:00:00Z'))->postsStored);
 		$this->assertSame(['at://a/new'], $stored, 'a record dated ahead is as old as when it was seen');
 	}
 
@@ -101,6 +102,6 @@ class BlueskyPostSourceTest extends TestCase {
 		$appView->expects($this->never())->method('query');
 		$source = new BlueskyPostSource($config, $appView, $this->createMock(IdentityService::class), $this->createMock(PostStore::class), $this->createMock(LabelerService::class), new NullLogger());
 
-		$this->assertSame(0, $source->tagged('nextcloud', 20, null, 1));
+		$this->assertEquals(PostSourceStats::empty(), $source->tagged('nextcloud', 20, null, 1));
 	}
 }

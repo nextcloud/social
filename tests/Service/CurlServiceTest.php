@@ -519,11 +519,11 @@ class CurlServiceTest extends TestCase {
 	// --- the transport itself (the OCP http client)
 
 	/** An IResponse double; the body is streamed the way the real client does. */
-	private function answer(string $body, int $code = 200, string $contentType = 'application/json'): IResponse {
+	private function answer(string $body, int $code = 200, string $contentType = 'application/json', array $headers = []): IResponse {
 		$response = $this->createMock(IResponse::class);
 		$response->method('getStatusCode')->willReturn($code);
 		$response->method('getHeader')->willReturnCallback(
-			static fn (string $key): string => (strtolower($key) === 'content-type') ? $contentType : ''
+			static fn (string $key): string => (strtolower($key) === 'content-type') ? $contentType : (string)($headers[strtolower($key)] ?? '')
 		);
 		$response->method('getBody')->willReturnCallback(static function () use ($body) {
 			$stream = fopen('php://memory', 'r+');
@@ -1350,6 +1350,22 @@ class CurlServiceTest extends TestCase {
 		$this->assertSame(['ok' => true], $answers[$base . '/ok']);
 		$this->assertNull($answers[$base . '/missing']);
 		$this->assertSame([$base . '/down', $base . '/busy', $base . '/broken'], $failed);
+	}
+
+	public function testBatchReportsRetryAfterForRateLimitedPeers(): void {
+		$url = 'https://' . self::PUBLIC_IP . '/busy';
+		$this->client->method('getAsync')->willReturn(
+			$this->promiseOf($this->answer('{}', 429, 'application/json', ['retry-after' => '240']))
+		);
+		$statuses = null;
+		$failed = null;
+		$retryAfters = null;
+
+		$this->service()->retrieveJsonMany([$url], [], [], $statuses, $failed, $retryAfters);
+
+		$this->assertSame([$url => 429], $statuses);
+		$this->assertSame([$url], $failed);
+		$this->assertSame([$url => 240], $retryAfters);
 	}
 
 	public function testABlockedHostIsNotReportedAsUnanswered(): void {

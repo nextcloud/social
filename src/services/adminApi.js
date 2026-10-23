@@ -65,6 +65,11 @@ export function recommendationsUrl() {
 	return generateUrl('/apps/social/admin/recommendations')
 }
 
+/** @return {string} the whole URL */
+export function recommendationDiscoveryUrl() {
+	return generateUrl('/apps/social/admin/recommendations/discovery')
+}
+
 /**
  * The relays this instance subscribes to.
  *

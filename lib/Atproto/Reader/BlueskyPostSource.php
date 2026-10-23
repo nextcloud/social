@@ -13,8 +13,10 @@ use OCA\Social\Atproto\AppView\AppViewClient;
 use OCA\Social\Atproto\Identity\IdentityService;
 use OCA\Social\Atproto\Moderation\LabelerService;
 use OCA\Social\Atproto\Service\AtprotoConfig;
+use OCA\Social\Atproto\Xrpc\XrpcException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\Discovery\PostSource;
+use OCA\Social\Service\Discovery\PostSourceStats;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -36,18 +38,19 @@ class BlueskyPostSource implements PostSource {
 	}
 
 	#[\Override]
-	public function tagged(string $tag, int $limit, ?Person $viewer, int $since = 0): int {
+	public function tagged(string $tag, int $limit, ?Person $viewer, int $since = 0): PostSourceStats {
 		return $this->search(['q' => '#' . $tag, 'tag' => [$tag]], $limit, $viewer, $since);
 	}
 
 	#[\Override]
-	public function matching(string $query, int $limit, ?Person $viewer): int {
+	public function matching(string $query, int $limit, ?Person $viewer): PostSourceStats {
 		return $this->search(['q' => $query], $limit, $viewer);
 	}
 
-	private function search(array $params, int $limit, ?Person $viewer, int $since = 0): int {
+	private function search(array $params, int $limit, ?Person $viewer, int $since = 0): PostSourceStats {
+		$startedAt = hrtime(true);
 		if (!$this->config->isEnabled()) {
-			return 0;
+			return PostSourceStats::empty();
 		}
 		$params += ['sort' => 'latest', 'limit' => max(1, min(100, $limit))];
 		try {
@@ -58,22 +61,29 @@ class BlueskyPostSource implements PostSource {
 		} catch (Throwable $e) {
 			$this->logger->info('Bluesky posts not searched', ['exception' => $e]);
 
-			return 0;
+			$rateLimited = $e instanceof XrpcException && $e->status === 429 ? 1 : 0;
+			return new PostSourceStats(1, 1, $rateLimited, 0, 0, self::durationMs($startedAt));
 		}
 		if ($identity !== null && $viewer !== null) {
 			$this->blockedBy?->learn($viewer, $answer);
 		}
 		$stored = 0;
+		$seen = 0;
 		foreach (is_array($answer['posts'] ?? null) ? $answer['posts'] : [] as $post) {
 			if (!is_array($post) || ($since > 0 && self::writtenAt($post) < $since)) {
 				continue;
 			}
+			$seen++;
 			if ($this->store->storePost($post, false)) {
 				$stored++;
 			}
 		}
 
-		return $stored;
+		return new PostSourceStats(1, 0, 0, $seen, $stored, self::durationMs($startedAt));
+	}
+
+	private static function durationMs(int $startedAt): int {
+		return max(0, (int)((hrtime(true) - $startedAt) / 1_000_000));
 	}
 
 	/**

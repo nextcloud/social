@@ -468,12 +468,14 @@ class CurlService {
 	 * @param array<string, array<string, mixed>> $perUrl options for one URL, merged over the shared ones
 	 * @param ?array<string, int> $statuses set to url => the HTTP status of its answer, for the URLs that were answered
 	 * @param list<string>|null $failed set to the URLs that got no answer
+	 * @param ?array<string, int> $retryAfters set to url => the requested wait in seconds, for answered URLs
 	 *
 	 * @return array<string, array<string, mixed>|null> url => the document, or null
 	 */
-	public function retrieveJsonMany(array $urls, array $options = [], array $perUrl = [], ?array &$statuses = null, ?array &$failed = null): array {
+	public function retrieveJsonMany(array $urls, array $options = [], array $perUrl = [], ?array &$statuses = null, ?array &$failed = null, ?array &$retryAfters = null): array {
 		$statuses = [];
 		$failed = [];
+		$retryAfters = [];
 		$urls = array_values(array_unique(array_filter($urls)));
 		if ($urls === []) {
 			return [];
@@ -507,6 +509,7 @@ class CurlService {
 				$response = $this->settledResponse($promise->wait());
 				if ($response !== null) {
 					$statuses[$url] = $response->getStatusCode();
+					$retryAfters[$url] = self::retryAfter($response);
 				}
 				if ($response === null || in_array($response->getStatusCode(), [408, 429], true) || $response->getStatusCode() >= 500) {
 					$failed[] = $url;
