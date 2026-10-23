@@ -38,7 +38,7 @@ class StreamContentSearchTest extends TestCase {
 	private const OTHER = self::BASE . '/users/other';
 	private const AUTHOR = 'https://remote.example/ftsearch/users/author';
 
-	private const SUFFIXES = ['public', 'own-dm', 'foreign-dm', 'unrelated', 'apple', 'nextcloud', 'unlisted', 'recall-20', 'fresh-apple', 'historical-apple', 'historical-apple-en', 'followed-author'];
+	private const SUFFIXES = ['public', 'own-dm', 'foreign-dm', 'unrelated', 'apple', 'nextcloud', 'unlisted', 'recall-20', 'fresh-apple', 'historical-apple', 'historical-apple-en', 'followed-author', 'exploration-public'];
 
 	private StreamRequest $streamRequest;
 	private StreamDestRequest $streamDestRequest;
@@ -280,6 +280,19 @@ class StreamContentSearchTest extends TestCase {
 		$posts = $this->streamRequest->recommendationFollowCandidates($since, 20);
 
 		$this->assertSame([self::BASE . '/notes/followed-author'], array_map(
+			static fn ($post): string => $post->getId(), array_values($posts)
+		));
+	}
+
+	public function testExplorationCandidatesSampleUnfollowedPublicPostsOutsideTheSearchIndex(): void {
+		$this->note('exploration-public', '<p>A thoughtful guide about gardening</p>', ACore::CONTEXT_PUBLIC);
+		$this->note('unlisted', '<p>A private audience guide about gardening</p>', ACore::CONTEXT_PUBLIC, Stream::TYPE_UNLISTED);
+		$this->streamRequest->setViewer($this->viewer());
+		$since = Nid::fromPublishedTime(time() - 86400, 0, StreamRequest::NID_LIMIT);
+
+		$posts = $this->streamRequest->recommendationExplorationCandidates($since, 10, 4);
+
+		$this->assertSame([self::BASE . '/notes/exploration-public'], array_map(
 			static fn ($post): string => $post->getId(), array_values($posts)
 		));
 	}

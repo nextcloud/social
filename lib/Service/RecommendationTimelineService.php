@@ -105,6 +105,9 @@ class RecommendationTimelineService {
 		$candidateBudget = min(self::MAX_CANDIDATES, max($limit * 5, self::MIN_COVERAGE));
 		$followBudget = min(20, max(4, intdiv($candidateBudget + 4, 5)));
 		$followBudget = min($followBudget, $candidateBudget);
+		$explorationBudget = min(10, max(1, intdiv($candidateBudget, 10)));
+		$explorationBudget = min($explorationBudget, $candidateBudget - $followBudget);
+		$topicBudget = $candidateBudget - $followBudget - $explorationBudget;
 		$hiddenNids = array_values(array_unique(array_merge(
 			$this->interests->hiddenFor($viewer),
 			$feedback['hidden_nids']
@@ -113,7 +116,7 @@ class RecommendationTimelineService {
 		$posts = $this->streams->recommendationCandidatesByTerms(
 			$terms,
 			$sinceNid,
-			$candidateBudget - $followBudget,
+			$topicBudget,
 			$hiddenNids,
 			$languages,
 			$now
@@ -128,6 +131,13 @@ class RecommendationTimelineService {
 			$languages
 		);
 		$posts += $followCandidates;
+		$posts += $this->streams->recommendationExplorationCandidates(
+			$sinceNid,
+			$explorationBudget,
+			intdiv($now, 6 * 3600),
+			array_values(array_unique(array_merge($hiddenNids, array_keys($posts)))),
+			$languages
+		);
 		$followedAuthors = $this->followFeatures->followedAuthors($viewer, array_values($posts));
 		$exposurePenalties = $this->behavioralProfile->exposurePenalties($viewer, array_values($posts));
 

@@ -58,7 +58,6 @@ class RecommendationTimelineServiceTest extends TestCase {
 	protected function setUp(): void {
 		$this->preferences = $this->createMock(RecommendationPreferenceService::class);
 		$this->streams = $this->createMock(StreamRequest::class);
-		$this->streams->method('recommendationFollowCandidates')->willReturn([]);
 		$this->interests = $this->createMock(InterestService::class);
 		$this->legacyFeed = $this->createMock(InterestFeedService::class);
 		$this->snapshots = $this->createMock(RecommendationSnapshotStore::class);
@@ -178,7 +177,7 @@ class RecommendationTimelineServiceTest extends TestCase {
 			->setPublishedTime(1_999_999_900);
 		$this->streams->expects($this->once())->method('setViewer')->with($this->isInstanceOf(Person::class));
 		$this->streams->expects($this->once())->method('recommendationCandidatesByTerms')->with(
-			$this->appleAliases(), $this->isType('string'), 80, [], ['en'], 2_000_000_000
+			$this->appleAliases(), $this->isType('string'), 70, [], ['en'], 2_000_000_000
 		)->willReturn(['123' => $post]);
 		$this->snapshots->expects($this->once())->method('create')->with(
 			'alice', 'for-you-v4-explanations-1', '', 3, 2, 2_000_000_000, ['123'], 20, [], $this->anything()
@@ -200,6 +199,33 @@ class RecommendationTimelineServiceTest extends TestCase {
 		$this->assertCount(1, $page['items']);
 		$this->assertSame('topic', $page['items'][0]->getInterest()['reason']);
 		$this->assertSame('tech.apple', $page['items'][0]->getInterest()['topics'][0]['id']);
+	}
+
+	public function testBoundedExplorationCandidatesCanRecoverTopicMatchesOutsideTheWordIndex(): void {
+		$this->preferences->method('get')->willReturn($this->state([['topic_id' => 'tech.apple', 'mode' => 'INTERESTED']]));
+		$this->interests->method('hiddenFor')->willReturn([]);
+		$this->interests->method('languagesFor')->willReturn(['en']);
+		$post = (new Note())
+			->setId('https://remote.example/posts/apple-exploration')
+			->setAttributedTo('https://remote.example/users/author')
+			->setContent('<p>Apple announces a new device</p>')
+			->setLanguage('en')
+			->setPublishedTime(1_999_999_900);
+		$this->streams->method('recommendationCandidatesByTerms')->willReturn([]);
+		$this->streams->expects($this->once())->method('recommendationExplorationCandidates')->with(
+			$this->isType('string'), 10, intdiv(2_000_000_000, 6 * 3600), [], ['en']
+		)->willReturn(['125' => $post]);
+		$this->snapshots->method('create')->willReturn(null);
+		$this->queue->method('fillPosts')->willReturn(false);
+
+		$page = $this->service()->page($this->viewer(), 20);
+
+		$this->assertSame('RANKED', $page['mode']);
+		$this->assertSame(1, $page['coverage']['known_eligible']);
+		$this->assertSame(['https://remote.example/posts/apple-exploration'], array_map(
+			static fn (Note $item): string => $item->getId(),
+			$page['items']
+		));
 	}
 
 	public function testCandidateSearchCoversEverySelectedTopicBeforeAddingExtraAliases(): void {

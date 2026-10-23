@@ -283,6 +283,68 @@ trait StreamInterests {
 		return $ordered;
 	}
 
+	/**
+	 * A small deterministic sample from the recent public corpus. This gives
+	 * the local classifier a chance to find posts missed by topic aliases or a
+	 * lagging search index without scanning more than the bounded newest window.
+	 *
+	 * @param list<string> $excludeNids posts already selected or hidden
+	 * @param list<string> $languages empty means any language
+	 * @return array<string, Stream> visible public statuses keyed by nid
+	 */
+	public function recommendationExplorationCandidates(
+		string $sinceNid,
+		int $limit,
+		int $rotation,
+		array $excludeNids = [],
+		array $languages = [],
+	): array {
+		if ($this->viewer === null || $limit < 1) {
+			return [];
+		}
+
+		$qb = $this->getStreamNidsSelectSql(true);
+		$expr = $qb->expr();
+		$qb->limitToStatusTypes();
+		$qb->andWhere($expr->eq('s.visibility', $qb->createNamedParameter(Stream::TYPE_PUBLIC)));
+		$qb->andWhere($expr->gt('s.nid', $qb->createNamedParameter(Nid::normalize($sinceNid))));
+		$qb->limitToViewer('sd', 'f', true, false, SocialCoreQueryBuilder::HIDDEN_TIMELINE, 'to');
+		$qb->filterDuplicate();
+		$this->filterSilencedActors($qb);
+		$qb->andWhere($expr->neq(
+			's.attributed_to_prim', $qb->createNamedParameter($qb->prim($this->viewer->getId()))
+		));
+		if ($excludeNids !== []) {
+			$qb->andWhere($expr->notIn(
+				's.nid', $qb->createNamedParameter($excludeNids, IQueryBuilder::PARAM_STR_ARRAY)
+			));
+		}
+		if ($languages !== []) {
+			$qb->andWhere($expr->orX(
+				$expr->in('s.language', $qb->createNamedParameter($languages, IQueryBuilder::PARAM_STR_ARRAY)),
+				$expr->eq('s.language', $qb->createNamedParameter('')),
+				$expr->isNull('s.language')
+			));
+		}
+		$qb->orderBy('s.nid', 'desc');
+		$qb->setMaxResults(self::RECOMMENDATION_FALLBACK_SCAN);
+		$nids = $this->getNidsFromRequest($qb);
+		usort($nids, fn (string $left, string $right): int => strcmp(
+			hash('sha256', $this->viewer->getId() . ':' . $rotation . ':' . $left),
+			hash('sha256', $this->viewer->getId() . ':' . $rotation . ':' . $right)
+		));
+		$nids = array_slice($nids, 0, min(100, $limit));
+		$visible = $this->getVisibleByNids($nids);
+		$ordered = [];
+		foreach ($nids as $nid) {
+			if (isset($visible[$nid])) {
+				$ordered[$nid] = $visible[$nid];
+			}
+		}
+
+		return $ordered;
+	}
+
 	/** @param list<string> $terms @param list<string> $excludeNids @param list<string> $languages @return array<string, Stream> */
 	private function recommendationCandidatesInRange(array $terms, string $sinceNid, string $beforeNid, int $limit, array $excludeNids, array $languages): array {
 		$sinceNid = Nid::normalize($sinceNid);
