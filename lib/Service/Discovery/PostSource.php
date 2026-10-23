@@ -22,14 +22,14 @@ interface PostSource {
 	 *
 	 * @param int $since a Unix time: posts written before it are left out;
 	 *                   0 for no bound
-	 * @return int how many were stored
+	 * @return PostSourceStats request, coverage and latency counters
 	 */
-	public function tagged(string $tag, int $limit, ?Person $viewer, int $since = 0): int;
+	public function tagged(string $tag, int $limit, ?Person $viewer, int $since = 0): PostSourceStats;
 
 	/**
 	 * Stores the posts matching the search this server does not hold.
 	 *
-	 * @return int how many were stored
+	 * @return PostSourceStats request, coverage and latency counters
 	 */
-	public function matching(string $query, int $limit, ?Person $viewer): int;
+	public function matching(string $query, int $limit, ?Person $viewer): PostSourceStats;
 }

@@ -38,7 +38,9 @@ use OCA\Social\Atproto\Repository\RepoWrite;
 use OCA\Social\Atproto\Xrpc\XrpcException;
 use OCA\Social\Db\AtprotoBlobRequest;
 use OCA\Social\Model\ActivityPub\Activity\Create;
+use OCA\Social\Model\ActivityPub\Activity\Undo;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Like;
 use OCA\Social\Model\ActivityPub\Object\Note;
@@ -51,12 +53,14 @@ use OCA\Social\Service\BoostService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\FollowService;
+use OCA\Social\Service\IRecommendationSignalRecorder;
 use OCA\Social\Service\LikeService;
 use OCA\Social\Service\ModerationService;
 use OCA\Social\Service\PostReviewService;
 use OCA\Social\Service\PostService;
 use OCA\Social\Service\RelationshipService;
 use OCA\Social\Service\ReportService;
+use OCA\Social\Service\StreamActionService;
 use OCA\Social\Service\StreamService;
 use OCP\IURLGenerator;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
@@ -75,6 +79,14 @@ class WriteServiceTest extends TestCase {
 	private PostReviewService $review;
 	/** @var LikeService&MockObject */
 	private LikeService $likes;
+	/** @var BoostService&MockObject */
+	private BoostService $boosts;
+	/** @var StreamActionService&MockObject */
+	private StreamActionService $streamActions;
+	/** @var IRecommendationSignalRecorder&MockObject */
+	private IRecommendationSignalRecorder $recommendationSignals;
+	/** @var InteractionPublisher&MockObject */
+	private InteractionPublisher $interactions;
 	/** @var StreamService&MockObject */
 	private StreamService $streams;
 	/** @var RepositoryService&MockObject */
@@ -133,6 +145,10 @@ class WriteServiceTest extends TestCase {
 		$this->streams = $this->createMock(StreamService::class);
 		$this->review = $this->createMock(PostReviewService::class);
 		$this->likes = $this->createMock(LikeService::class);
+		$this->boosts = $this->createMock(BoostService::class);
+		$this->streamActions = $this->createMock(StreamActionService::class);
+		$this->recommendationSignals = $this->createMock(IRecommendationSignalRecorder::class);
+		$this->interactions = $this->createMock(InteractionPublisher::class);
 		$this->repositories = $this->createMock(RepositoryService::class);
 		$this->repositories->method('getRecordsByLocalId')->willReturnCallback(fn (string $id): array => array_values(array_filter($this->records, static fn (StoredRecord $r): bool => $r->localId === $id)));
 		$this->repositories->method('getRecord')->willReturnCallback(fn (string $did, string $c, string $rkey): ?StoredRecord => array_values(array_filter($this->records, static fn (StoredRecord $r): bool => $r->collection === $c && $r->rkey === $rkey))[0] ?? null);
@@ -158,12 +174,13 @@ class WriteServiceTest extends TestCase {
 		$this->listImport = $this->createMock(BlueskyListImport::class);
 		$this->activities = $this->createMock(ActivityService::class);
 		$this->writes = new WriteService(
-			$accounts, $this->posts, $this->review, $this->createMock(ModerationService::class), $this->streams, $this->likes, $this->createMock(BoostService::class), $this->createMock(FollowService::class),
+			$accounts, $this->posts, $this->review, $this->createMock(ModerationService::class), $this->streams, $this->likes, $this->boosts, $this->createMock(FollowService::class),
 			$this->cacheActors, $this->createMock(ReportService::class), $this->documents,
-			$this->publisher, $this->pictures, $this->videos, $this->createMock(InteractionPublisher::class), $this->repositories, $this->local, $this->postStore,
+			$this->publisher, $this->pictures, $this->videos, $this->interactions, $this->repositories, $this->local, $this->postStore,
 			$this->blobs, $this->createMock(IURLGenerator::class), new NullLogger(), $this->avatars, $this->banners, $identities,
 			$this->relationships, $this->blocks, $this->declaration, $this->listImport,
 			$this->activities,
+			$this->streamActions, $this->recommendationSignals,
 		);
 		$this->session = new ClientSession('alice', new Identity(1, $this->alice->getId(), self::DID, 'alice.social.test', 'sealed', '', '', Identity::STATE_ACTIVE, '', 0), 'jti');
 	}
@@ -648,11 +665,69 @@ class WriteServiceTest extends TestCase {
 		$like = new Like();
 		$like->setId('https://social.test/@alice#like/1');
 		$this->likes->expects($this->once())->method('create')->with($this->alice, $bobPost)->willReturn($like);
+		$this->recommendationSignals->expects($this->once())->method('recordAction')->with($this->alice, $this->isInstanceOf(Note::class), 'like');
 		$this->streams->method('getStreamById')->willReturn(new Note());
 		$this->records[] = $this->record(RecordMapper::LIKE, '3klike', $like->getId());
 
 		$answer = $this->writes->create($this->session, ['repo' => 'alice.social.test', 'collection' => RecordMapper::LIKE, 'record' => ['subject' => ['uri' => 'at://' . self::BOB . '/app.bsky.feed.post/3kbob', 'cid' => 'x']]]);
 		$this->assertSame('at://' . self::DID . '/app.bsky.feed.like/3klike', $answer['uri']);
+	}
+
+	public function testARepeatedLikeRecordDoesNotRepeatItsLearningSignal(): void {
+		$postId = 'https://bsky.app/profile/' . self::BOB . '/post/3kbob';
+		$this->postStore->method('isKnown')->willReturn(true);
+		$this->streamActions->method('getActionBool')->willReturn(true);
+		$like = new Like();
+		$like->setId('https://social.test/@alice#like/2');
+		$this->likes->expects($this->once())->method('create')->with($this->alice, $postId)->willReturn($like);
+		$this->recommendationSignals->expects($this->never())->method('recordAction');
+		$this->streams->method('getStreamById')->willReturn(new Note());
+		$this->records[] = $this->record(RecordMapper::LIKE, '3klike2', $like->getId());
+
+		$this->writes->create($this->session, ['repo' => self::DID, 'collection' => RecordMapper::LIKE, 'record' => ['subject' => ['uri' => 'at://' . self::BOB . '/app.bsky.feed.post/3kbob', 'cid' => 'x']]]);
+	}
+
+	public function testUndoingABlueskyLikeCompensatesItsLearningSignal(): void {
+		$postId = 'https://bsky.app/profile/' . self::BOB . '/post/3kbob';
+		$likeId = 'https://social.test/@alice#like/3';
+		$bytes = DagCbor::encode(['$type' => RecordMapper::LIKE, 'subject' => ['uri' => 'at://' . self::BOB . '/app.bsky.feed.post/3kbob', 'cid' => 'bafy']]);
+		$this->records[] = new StoredRecord(self::DID, RecordMapper::LIKE, '3klike3', Cid::forDagCbor($bytes), $bytes, $likeId, 0);
+		$this->streamActions->method('getActionBool')->willReturn(true);
+		$post = new Note();
+		$this->streams->method('getStreamById')->willReturn($post);
+		$this->likes->expects($this->once())->method('delete')->with($this->alice, $postId)->willReturn(new Undo());
+		$this->recommendationSignals->expects($this->once())->method('recordAction')->with($this->alice, $post, 'unlike');
+		$this->writes->delete($this->session, ['repo' => self::DID, 'collection' => RecordMapper::LIKE, 'rkey' => '3klike3']);
+	}
+
+	public function testABlueskyRepostAndUndoAreProjectedOncePerStateTransition(): void {
+		$postId = 'https://bsky.app/profile/' . self::BOB . '/post/3kbob';
+		$uri = 'at://' . self::BOB . '/app.bsky.feed.post/3kbob';
+		$rkey = '3krepost';
+		$announceId = 'https://social.test/@alice#boost/1';
+		$bytes = DagCbor::encode(['$type' => RecordMapper::REPOST, 'subject' => ['uri' => $uri, 'cid' => 'bafy']]);
+		$this->records[] = new StoredRecord(self::DID, RecordMapper::REPOST, $rkey, Cid::forDagCbor($bytes), $bytes, $announceId, 0);
+		$this->postStore->method('isKnown')->willReturn(true);
+		$this->streamActions->method('getActionBool')->willReturnOnConsecutiveCalls(false, true);
+		$post = new Note();
+		$this->streams->method('getStreamById')->willReturn($post);
+		$announce = new Announce();
+		$announce->setId($announceId);
+		$this->boosts->expects($this->once())->method('create')->with($this->alice, $postId)->willReturn($announce);
+		$this->boosts->expects($this->once())->method('delete')->with($this->alice, $postId)->willReturn(new Undo());
+		$actions = [];
+		$this->recommendationSignals->expects($this->exactly(2))->method('recordAction')->willReturnCallback(
+			function (Person $actor, Note $status, string $action) use ($post, &$actions): void {
+				$this->assertSame($this->alice, $actor);
+				$this->assertSame($post, $status);
+				$actions[] = $action;
+			}
+		);
+
+		$this->writes->create($this->session, ['repo' => self::DID, 'collection' => RecordMapper::REPOST, 'record' => ['subject' => ['uri' => $uri, 'cid' => 'bafy']]]);
+		$this->writes->delete($this->session, ['repo' => self::DID, 'collection' => RecordMapper::REPOST, 'rkey' => $rkey]);
+
+		$this->assertSame(['boost', 'unboost'], $actions);
 	}
 
 	public function testOnlyTheAccountsOwnRepositoryAndOnlyWhatSocialPublishes(): void {

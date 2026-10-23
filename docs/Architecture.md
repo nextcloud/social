@@ -232,6 +232,8 @@ The tables are created by `lib/Migration/Version1000Date20221118000002.php` — 
 | `social_followed_tag` | The hashtags an account follows: one row per (actor, lowercased tag), unique on the pair; `filled` is when the tag's posts were last read from beyond this server (`FollowedTagsFill`, Unix time, 0 for never), indexed with the tag (`Version1000Date20261009000710`) |
 | `social_interest` | For you: one row per (reader, lowercased tag), unique on the pair — the score reading earned it, when (`scored_at`, unix time, so decay is worked out on read), whether the reader added it (`manual`), the rank they pinned it to (`position`, null to float) and the score as the current week began (`score_week`, for the trend arrow) |
 | `social_interest_hide` | The posts a reader said "less like this" about, by `stream_nid`, unique on (reader, post); forgotten once older than the feed looks back |
+| `social_rec_signal`, `social_rec_event`, `social_rec_seen` | For You behavioural learning: owner-scoped fast/slow affinity aggregates, a seven-day event-idempotency ledger, and bounded hashed post/session exposure counts. Learning defaults off; consent generations reject late events. |
+| `social_rec_discovery` | Instance-wide hourly ActivityPub/ATProto discovery counters, last attempt/success and batch duration; seven-day retention, with no query terms, topic labels, reader IDs or post IDs. |
 | `social_collection` | Collections: an album an account curates out of its own posts, with its title, description and visibility |
 | `social_collection_item` | What is in a collection: one row per (collection, post), unique on the pair, ordered by `position` |
 | `social_place` | Places: one row per distinct place this instance has seen, deduplicated on (name, country). No geocoder — see the migration |
@@ -300,6 +302,10 @@ an account without an identity does not prevent a later match from signing in.
 
 `Version1000Date20260925000020` adds `social_interest` and `social_interest_hide` — For you. A step of its own rather than a paragraph of the squash, because the squash is recorded as run on every instance that existed when it was made: a table added to it would reach fresh installs and nobody else. `SquashedSchemaTest` holds only the steps older than the squash to "move data or go into the squash". No index beyond the unique pairs: every read of `social_interest` is one reader's whole set — a few hundred rows at most, because `InterestService` forgets the faintest once there are more — and every read of `social_interest_hide` is one reader's recent hides or the daily purge by `creation`.
 
+`Version1000Date20261023000002` adds the three owner-scoped For You behavioural tables above. Their rows contain only compact scores, event UUIDs and hashed exposure keys; reset and account deletion clear them.
+
+`Version1000Date20261023000003` adds the hourly, instance-wide `social_rec_discovery` table. The administrator health view aggregates these counters by provider and time window; discovery terms and reader or post identifiers are never written.
+
 `Version1000Date20261005000001` adds `social_cache_doc.ai_source`, the provenance a cached picture stated about itself (see the schema table). A column rather than a flag inside `meta`: `meta` is a JSON blob nothing queries, and this one is read on every attachment of every status a client is handed.
 
 `Version1000Date20261016100400` adds `social_stream.root_prim`, indexed — the root of the thread a direct message belongs to, stored with it: its parent's stored root, else the topmost post a walk up reaches, else itself; replies that arrived before their parent are moved under its root when it comes. A chat is a chain of replies each to the one before, and the conversations walked it up a query a level on every read and every poll of their badge, and grouped a chat longer than the walk under wherever the walk stopped, so its conversation id moved with every message. Now the page reads the roots of its messages in one statement, and the thread of a conversation is read from its root however deep it is (`ConversationsRequest::getThread()`); a message without one — stored before the column, until `Cron\ThreadRoots` (queued here) reaches it — is walked as before. Posts that are not direct messages keep NULL: the muted-thread and hidden-reply checks walk them as they did.
@@ -344,7 +350,7 @@ The business logic lives in `lib/Service/`.
 
 ### Content & Timelines
 
-- **StreamService** — Core stream/timeline engine. Assigns ActivityPub ids, expands recipients (public/unlisted/followers/direct), resolves reply chains, detects stream types, deletes local items, and reads the timelines (home, local, global/federated, tag, account, liked, direct, notifications). Deleting a post takes what belongs to it with it: `StreamRequest::deleteRelatedTo()` removes the `social_stream_dest`, `social_stream_tag`, `social_stream_act` and `social_stream_card` rows, the `social_action` rows pointing at the post, and its cached attachment rows together with the files on disk. The cascade sits in `StreamRequest`, so every caller gets it rather than retention alone. `syncRemoteTimeline()` — a profile timeline asking the account's own server for its outbox — walks at most `SYNC_ITEM_LIMIT` (20) entries of the page it gets back, and puts every field of each through the same validation helpers the inbox path uses. It used to walk the whole page unbounded and store `url`, `content`, `summary` and the tags unchecked, from a public route, against a host the caller names
+- **StreamService** — Core stream/timeline engine. Assigns ActivityPub ids, expands recipients (public/unlisted/followers/direct), resolves reply chains, detects stream types, deletes local items, and reads the timelines (home, local, global/federated, tag, account, liked, direct, notifications). Deleting a post takes what belongs to it with it: `StreamRequest::deleteRelatedTo()` removes the `social_stream_dest`, `social_stream_tag`, `social_stream_act` and `social_stream_card` rows, the `social_action` rows pointing at the post, and its cached attachment rows together with the files on disk. The cascade sits in `StreamRequest`, so every caller gets it rather than retention alone. `syncRemoteTimelinePage()` processes at most 20 entries per queued request; `RemoteOutboxPageReader` owns fetching one ActivityPub page, resolving its `first` and `next` links, and restricting links to the actor's host and port. The durable per-account cursor lets a profile request another page only when its locally stored posts run short; a 15-minute refresh of recent posts leaves older-page progress alone. The imported post fields still use the inbox path's validation helpers. It used to read only the first page, leaving the rest of a remote profile's history unavailable
 - **PostService** — Creates posts (text, attachments, reply-to, mentions, hashtags, the content warning and the `sensitive` flag) and edits existing local posts, delegating federation to `ActivityService`. A visibility a client sent is translated once, in `Post::setType()`: Mastodon calls a followers-only post `private` and this app calls it `followers`, and a visibility the app does not recognise becomes `direct` rather than being addressed to `as:Public`. The content warning is stored as plain text on both paths (`strip_tags()`), because it is read as plain text everywhere it is shown — as the object's `summary`, as `spoiler_text`, and interpolated rather than rendered by this app's own frontend; entity-encoding it federated `Bob&#039;s finale` and baked the entities into the next edit. The body takes the opposite path: it is rendered by `LinkifyService` after the recipients and hashtags are resolved, so the links in the published HTML and the `tag` array come out of one parse
 - **PostReviewService** — First-post review and the spam rules: which posts a person should see before anybody else does, and what happens to one afterwards. Two switches, both on by default (`review_first_post`, `autospam`), and a very short list of rules — the first post of an account that has published nothing here, a wall of links in a short post, and mentions scattered by an account nobody follows and that follows nobody. No wordlist and no score: a queue that says "0.82" tells a moderator nothing they can act on. A **direct message is never held**, because putting private correspondence in front of a moderator who was not written to, for a machine's reason, is worse than the spam; neither is a post by an account a moderator has already decided about, which is being dealt with by that decision. What is held is the request — `StatusAssemblyService` turns it back into the `Post` an immediate one would have been, and approving publishes it dated now, since that is when it became a post. Refusing records a `delete_statuses` strike, so the author is told and the next moderator can see it happened
 - **StatusAssemblyService** — The post a stored request becomes, and the request a client's `Status` becomes. Shared by the scheduler and the review queue: a note built by one path and federated by another drifts, because the quote approval, the language fallback and the source snapshot all happen inside `PostService::createPost()`
@@ -365,6 +371,14 @@ The business logic lives in `lib/Service/`.
 - **NotificationDeliveryService** — *When* a Nextcloud user is told, as opposed to the policy's *whether*: the per-user `NotificationDelivery` setting (`instant`, or `digest` at one to four local times a day, with direct messages and mentions from followed accounts passing through on their own switches, and optional quiet hours in either mode), stored as one JSON user value. `NotificationService::emit()` asks it before raising the bell — after the policy and the conversation mute, which raise nothing at all; the stored notification row is written regardless, because it is the hold — the in-app list, `/api/v1/notifications` and the markers read it as before, and only the Nextcloud notification waits. `digestFor()` raises one `digest` notification with the unread rows since the last digest counted per kind (`StreamRequest::countNotificationsBySubType()`, past the notifications read marker, inside the window, muted conversations left out by the query and what the policy holds subtracted using `NotificationInboxService::held()`), adds `waiting` — how many senders are in the requests inbox, which `Notifier` reads out as a last line — and is never raised for requests alone, takes the older digest off the bell first, and moves the clock to the digest's cut. Switching a digest on starts the clock at that moment, so the first digest is not a dump of the backlog; switching it off raises what it was holding as one last digest. A flag user value (`notification_delivery_scheduled`) marks the users the job has to visit, because Nextcloud can find the users holding a given value but not the users holding any value for a key
 - **HashtagService** — Recomputes hashtag trends over 1h/12h/1d/3d/10d windows and searches hashtags
 - **InterestService / InterestScorer / InterestFeedService** — For you. `InterestScorer` is the arithmetic and nothing else — no database, no clock, every number handed to it: how long a post takes to read at an ordinary pace (1.2 s, 35 ms a character, 1.5 s a picture, at most 20 s), a look judged against the reader's own usual ratio of looking to reading time (twice it is +1, at it +0.3, less is nothing, a skip −0.2), a signal shared evenly among a post's hashtags (none past fifteen), a half-life decay worked out on read, and the list: pinned tags at the rank they were pinned to, everything else — manual and followed tags floored at the listing threshold, learned tags above it — filling the free ranks by score up to the cap. `InterestService` is whose interests they are: it reads the posts a signal names **as the viewer**, through the timelines' visibility filter (`StreamRequest::getVisibleByNids()`), so a client can neither teach a tag no post carried nor learn the hashtags of a post it may not read; it learns from a favourite, boost and bookmark in `ActionService` and a reply in `PostService`, so a Mastodon app's actions count too; it never throws from those hooks; each (post, kind) counts once a day through a distributed-cache key. No signal is stored — each is folded into its tags' scores as it arrives. `InterestFeedService` ranks: candidates are one query (`StreamRequest::interestCandidates()`) over `social_stream_tag` bounded by the nid of the window's start, the reader's tags, the viewer filter, silences, hides and languages; each is scored `relevance × 2^(−age/1 day)` with relevance the sum of the three best matching rank weights (`1/(1+0.15·rank)`) plus −0.5 per tag the reader turned away from; then spread — no author twice in any twenty, no hashtag more than eight, the hashtag limit giving way first — with every tenth slot a post carrying a tag that often travels with the reader's own. The ranking is kept an hour in the distributed cache, under a key that names its kind (`feed/{media}/{md5(viewer)}`), and paged by the last post's nid **Media rankings.** `page()`/`rank()` take a kind — `photos`, `videos`, or `media` for Mastodon's `only_media` — which `interestCandidates()` turns into the Photos and Videos timelines' own filters (`limitToMediaType('image')`, `limitToVideo()`, `limitToMedia()`, all on `media_kind`); such a ranking looks back `MEDIA_WINDOW_FACTOR` (2) times the window, and hides are kept that long too. Short of `POPULAR_FILL` (40) posts it is topped up from `TrendService::trendingStatuses()` in the same kind — the reader's own, hidden and already ranked posts left out — each with reason `popular`. In a `shorts` signal (or `reels`, what older bundles send) a dwell is watch time: `InterestScorer::classifyWatch()` weighs it against the video's running time (`expectedWatchMs()`, capped at 30 s) rather than `expectedDwellMs()`, and leaves the reading pace alone. `InterestService::pageState()` also says whether a reading pace has been written (`profile`), which is when the Shorts stack opens on For you.
+- **For You candidate discovery (F1)** — `RecommendationCandidateService` accepts only a known, enabled, non-sensitive topic the signed-in reader has explicitly marked `INTERESTED` or `PRIORITISE` (including an inherited soft preference). `StreamRequest::recommendationCandidatesByTerms()` reads from the existing stream: it uses `social_search_term` when its backfill is complete, otherwise a capped public scan. Search candidates are filtered in SQL through the same public-recipient, visibility, hidden-actor and duplicate rules as timelines, then hydrated again through viewer-aware reads. Own posts, age, configured languages and caller exclusions are applied before features are emitted. `RecommendationFeatureExtractor` uses bounded, local text and hashtag matching plus stored media/language facts; it intentionally omits sensitive topics and does not build a behavioural profile. An underfilled response can ask `RemoteFetchQueue::fillPosts()` for one ActivityPub hashtag fill and one Bluesky search, using its existing per-term throttle; the HTTP request never contacts either protocol. The additive `/api/v1/recommendations/candidates/{topicId}` route reports `underfilled` and source counts. This slice does not change either feed's ranking; the instance kill switch remains off by default.
+- **For You ranking baseline (F2)** — `RecommendationRanker` applies one finite, clipped and versioned score to a bounded union of candidates. The automatically learned hashtag relevance and recency from `InterestFeedService` are projected into the `automatic_interest` feature; content classification, freshness, follows, explicit feedback and separately consented behavioral signals contribute to that same score. Stored manual topic and balance preferences remain API-compatible but do not change the web rank. Readers do not need topic choices to start or keep the feed. Coefficients remain explicit hypotheses, not validated engagement weights. `RecommendationFreshness` adds local, deterministic content-aware decay shared by ActivityPub and ATProto posts. All candidates still pass public visibility, language, duplicate and hidden-actor checks. `RecommendationReRanker` applies relaxable author and topic concentration costs over a bounded look-ahead and deduplicates canonical keys. The timeline snapshots one final order for an hour; cursors are HMAC signed and bound to the viewer, mode, media kind, profile revision and reset generation. Each page rechecks current visibility and boundedly fills from later snapshot IDs when posts have become unavailable.
+- **For You recommendations explicit feedback (F3)** — `RecommendationFeedbackService` accepts only a post the signed-in viewer can currently read. Topic actions must match a non-sensitive label extracted from that post; author and format scopes are derived server-side. The separate feedback table stores owner-scoped, event-idempotent actions, caps active scopes at 50, and permits exact Undo for ten minutes. `HIDE_POST` filters both newly generated candidates and later pages of an existing snapshot; positive and negative topic/author/format feedback affect new rankings without moving posts already delivered. Reset and account deletion purge this state, and the endpoints require `write:statuses` with user rate limits.
+- **For You recommendations behavioural learning (F4)** — `RecommendationSignalService` accepts bounded, idempotent events only when the account's separate learning consent is `on`; pause and off both reject writes. Browser impressions require at least 750 ms of visible time, dwell is capped, video watch ratio is recorded separately from card visibility, and backgrounded tabs stop accumulating time. Likes, saves, follows, profile visits, media opens and reversals update owner-scoped fast/slow topic, author and format aggregates; replies count only as engagement and never as inferred stance. Generation checks invalidate late events after consent transitions and resets. Ranked sessions use learned scores only for consenting owners; explicit topic HIDE remains a hard control and chronological feeds are unchanged. The three recommendation tables contain no post text or raw actor identifiers; reset and account deletion clear their aggregates and event ledger.
+- **For You recommendations discovery health and operational limits (F5)** — `PostDiscoveryService` records bounded provider call, request, failure, 429, post-seen/stored and duration counters in hourly instance-wide buckets. ActivityPub requests are batched across the configured directory peers, use the shared host circuit breaker and `Retry-After`, and hydrate each origin post under a short per-request and total budget. All optional remote post-discovery paths reserve from one shared 120-request-per-hour ceiling before making network requests. Each request claims a unique expiring slot in `social_durable_cache`, so the cap remains shared across processes even when Nextcloud has only local APCu rather than a distributed cache. If the slot store is unavailable or the budget is exhausted, new remote discovery stops while local cached candidates and the legacy timeline remain available. The admin emergency pause is enforced by the shared discovery service and therefore also stops legacy hashtag fills and followed-tag refreshes. Administrators can also pause behavioral learning or force the legacy For You feed. The admin-only health endpoint reports provider state and coverage without query, topic, reader or post identifiers; hourly rows expire after seven days. A metrics-storage failure is logged and never fails discovery.
+- **For You recommendations offline evaluation (F6)** — `RecommendationOfflineEvaluator` compares legacy hashtag, chronological-following, topic-only, topic-plus-follow, H0 and H0-plus-rerank baselines using synthetic cross-protocol scenarios. It reports NDCG@20, candidate/source coverage, hard-control compliance, topic diversity, duplicate rate, local runtime and profile-cluster uncertainty. Run `composer run recommendations:evaluate`; see [For You offline evaluation](ForYouEvaluation.md). Fixture labels are explicitly single-author synthetic judgments and do not validate serving weights.
+- **For You controls and topic catalog** — `RecommendationTopicCatalog` is a content-classification vocabulary, not a required onboarding checklist. Deterministic post classification maps known narrower matches to their parents, and sensitive entries are excluded. The web presents one feed and one automatically learned profile; stored topic preferences and content-balance overrides remain readable by the API for compatibility but do not alter the web ranking. Learned hashtag interests already provide an automatic starting profile, while separately consented activity learning can add more signals.
+- **For You explanations in the timeline store** — the timeline response carries a viewer-specific explanation for each recommended post; a normal status refresh can omit that field. `indexStatus()` keeps the existing explanation when it indexes such a response, so count and reaction refreshes do not make the “why this post” label disappear.
 - **StreamActionService** — Writes the per-viewer flags in `social_stream_act`
 - **PinService** — Pinned posts: the own posts an account keeps at the top of its profile. A pin is a row in `social_action` (type `Pin`), so there is no schema change, and it is never federated as an activity of its own — remote servers read pins from the actor's `featured` collection. Only a public or unlisted post can be pinned (`pin()` refuses the rest with `InvalidActionException`), and pins are read back through the visibility filter like any other status, so a post that stopped being readable stops being served: both readers of this collection — the `featured` route and `?pinned=true` on the account statuses route — are public pages, and reading these unfiltered served a pinned followers-only post in full to the anonymous internet
 - **PostDecorationService** — What a client is shown on a post that is not part of the stored post: its link preview, its place, its reaction bar (with `me` for the reader) and the people named in its pictures. Every route that serves posts to a client goes through `decorate()` — the timelines and For you (`StreamService`), a single status and the statuses a status route answers with, a thread, a list, a place, a collection, memories, the trends and discover, a Bluesky feed, the photos somebody is in, a portfolio, the archive, the videos to continue and an annual report's top posts — so a post looks the same wherever it is opened. One query per kind for the whole list. It depends on nothing that depends on `StreamService` or `MediaTagService`, which both call it. `DELETE /api/v1/statuses/{nid}` alone answers an undressed status: a redraft takes the text and media.
@@ -528,7 +542,15 @@ path to this daemon.
 
 ## ActivityPub Federation
 
-ActivityPub is the federation protocol this app speaks; it is also a Bluesky host (AT Protocol), with every local account a `did:plc` identity whose repository, firehose and XRPC surface live in `lib/Atproto/` — [Atproto-Compatibility.md](Atproto-Compatibility.md) is the specification, with "as built" notes per phase. Reading Bluesky (`lib/Atproto/Reader/`) goes through the ActivityPub import path: a Bluesky account is a cached actor with id `https://bsky.app/profile/<did>` and the bare handle as account (`BlueskyActorService`, `ActorMapper`), a post read off the public AppView by `FeedPoller` arrives as the `Create` of a `Note` from that actor (`PostMapper`, `FacetRenderer`, `PostStore` — `ImportService::parseIncomingRequest()` with origin `bsky.app`), a repost as the reposter's `Announce`, and what Bluesky did to a local account — follows, likes, reposts, replies, mentions, quotes — comes from the AppView's notifications asked for as that user (`NotificationPoller`, `AppViewClient::queryAs()` with a token `ServiceAuth` mints; on `BadJwtAudience` it retries with the legacy bare AppView DID for older deployments) and arrives as the `Follow`, `Like`, `Announce` or post it stands for. Bluesky apps signed in here read through the same authenticated AppView, with `AppViewProxy` applying the same one-time audience fallback. A local follow, like or boost of something that exists on Bluesky is a record in the local repository (`BlueskyGraphService`, `InteractionPublisher`, through the queued `AtprotoPublish`). `LocalRecordResolver` turns an `at://` reference to one of this instance's own records back into the local post or account.
+ActivityPub is the federation protocol this app speaks; it is also a Bluesky host (AT Protocol), with every local account a `did:plc` identity whose repository, firehose and XRPC surface live in `lib/Atproto/` — [Atproto-Compatibility.md](Atproto-Compatibility.md) is the specification, with "as built" notes per phase. Reading Bluesky (`lib/Atproto/Reader/`) goes through the ActivityPub import path: a Bluesky account is a cached actor with id `https://bsky.app/profile/<did>` and the bare handle as account (`BlueskyActorService`, `ActorMapper`), a post read off the public AppView by `FeedPoller` arrives as the `Create` of a `Note` from that actor (`PostMapper`, `FacetRenderer`, `PostStore` — `ImportService::parseIncomingRequest()` with origin `bsky.app`; image galleries, video playlists and external link cards are retained), a repost as the reposter's `Announce`, and what Bluesky did to a local account — follows, likes, reposts, replies, mentions, quotes — comes from the AppView's notifications asked for as that user (`NotificationPoller`, `AppViewClient::queryAs()` with a token `ServiceAuth` mints; on `BadJwtAudience` it retries with the legacy bare AppView DID for older deployments) and arrives as the `Follow`, `Like`, `Announce` or post it stands for. A Bluesky profile's author feed is fetched on demand through `BlueskyFeeds::authorPage()` before the ordinary account-status query, authenticated as the current reader when they have a linked Bluesky identity and public otherwise; one post beyond the requested page is fetched to cover posts already ingested by the firehose, and each opaque AppView cursor page is expanded once while local statuses are paged by `max_id`. An interactive profile request reads at most two cursor pages with a three-second timeout per page; posts beyond them are fetched as scrolling supplies the next `max_id`. AppView failures leave cached profile posts readable. Bluesky apps signed in here read through the same authenticated AppView, with `AppViewProxy` applying the same one-time audience fallback. A local follow, like or boost of something that exists on Bluesky is a record in the local repository (`BlueskyGraphService`, `InteractionPublisher`, through the queued `AtprotoPublish`). `LocalRecordResolver` turns an `at://` reference to one of this instance's own records back into the local post or account.
+
+Outbound Bluesky posts with up to four pictures keep the existing
+`app.bsky.embed.images` record. Posts with five to ten pictures use
+`app.bsky.embed.gallery`; each gallery item includes alt text and an aspect
+ratio, falling back to a square when image dimensions are unavailable. The
+20-item Lexicon ceiling is not treated as the authoring limit.
+
+The AT Protocol admin checks compare the public relay and AppView views with a sampled local DID and post. If a relay cannot find the PDS host, the diagnostic distinguishes a crawl that has not happened yet from a private/reserved endpoint that cannot be crawled from a public relay; the latter requires public DNS, HTTPS and an externally reachable web server before retrying.
 
 The public `com.atproto.server.describeServer` answer advertises the same
 handle suffix the instance issues (`.<handleHost>`) and the upload ceiling
@@ -552,8 +574,15 @@ profile back to Bluesky.
 
 ### Resuming Bluesky synchronization
 
-`FeedPoller` and `NotificationPoller` read at most one AppView page per due
-account and pass. A feed's first read walks pages to the end, so its cursor
+`Cron\AtprotoSync` runs once a minute and spends its 45-second budget on
+notifications before feeds and direct messages, so a slow feed cannot keep
+likes, reposts and replies to local posts waiting behind it. Notification
+cursors stay on that one-minute cadence even when an inbox is empty; the
+empty result is not evidence that the next event will arrive soon. The
+effective delay still depends on how often Nextcloud runs background jobs and
+how quickly the Bluesky AppView indexes an event. `FeedPoller` and
+`NotificationPoller` read at most one AppView page per due account and pass.
+A feed's first read walks pages to the end, so its cursor
 starts without a committed timestamp and advances only when the walk finishes;
 notification polling starts with a snapshot of its newest page. `Reader\PollCursor` keeps their committed timestamp separate
 from the AppView's opaque pagination cursor. While walking a backlog, the
@@ -1830,18 +1859,45 @@ follows their author. `StreamService::getContextByNid()` asks
 `RemoteFetchQueue::fillThread()` for the conversation's first post and for
 the one opened, at most every ten minutes per post, for a post from another
 server or a public one of this server's (which other networks read too), and
-`Cron\FillThread` hands it to `ThreadService`. That asks every network the
-post is on (`ThreadSource`), with one budget of 150 replies between them:
+`Cron\FillThread` hands it to `ThreadService`. Opening the thread also reads
+the first page of replies inline from its network under a shared three-second
+network budget; the background fill continues paging and following replies
+deeper into the conversation, with one budget of 150 replies:
 
 - `ActivityPubThreadSource` reads the post's `replies` collection as its
   server described it, a few pages, fetches each reply this server does not
   hold from its own server (`StreamQueueService::fetchNow()`, held to the
   same host breaker as the queue), and the replies of those in turn, three
-  levels deep;
+  levels deep. The inline read is limited to 20 direct replies and passes its
+  remaining timeout to both collection and post fetches; additional pages and
+  replies stay on the existing background path. A failed collection or reply
+  fetch keeps any replies already stored, marks the visible read incomplete,
+  and lets the next context poll retry after five seconds instead of caching
+  the partial result as a successful read;
 - `Atproto\Reader\BlueskyThreadSource` asks the AppView for the thread
   (`getPostThread`) of a post that is on Bluesky — read from there, or
   written here and published — and stores each post as any Bluesky post is
   stored, parents first.
+
+Opening a conversation also asks this source inline with a three-second
+timeout, guarded by a per-post lock. Each returned root and continuation is
+checked against the requested AT-URI before it can be stored. A missing,
+unrecognized, or mismatched `thread` view is a failed read, so the queued fill
+remains available; an explicit `notFoundPost` or `blockedPost` is a valid
+empty result only when it names the requested URI. Bluesky caps the
+standard `getPostThread` reply depth at ten. On both inline and background
+reads, every returned post is checked against its `replyCount`; if a node has
+fewer visible direct replies than that count, the AppView's V2 thread view is
+tried with that node as the anchor, with the specced cursor-paged post search
+as fallback. This applies to nested comments as well as the opened post, and
+all inline fallback reads share the same three-second budget. Unfilled
+branches remain pending for the background fill. A successful read also
+queues a background fill when it reached the ten-level limit and a deeper
+branch remains; that fill follows such branches, each with its own bounded
+request, up to twenty continuation reads and the shared 150-new-reply budget.
+A timeout or missing branch does not discard replies already stored. Local
+posts still queue the background fill as well, since their Fediverse replies
+may not yet be known here.
 
 The page is never held up by another server: the answer says so with
 `X-Social-Thread-Filling`, and the web app asks once more a few seconds
@@ -1855,7 +1911,12 @@ ones from here and the ones from wherever the post lives, merged, with
 nothing to tell them apart. `InteractionService` asks each network the post
 is on (`InteractionSource`) in the background (`Cron\FillInteractions`,
 queued by `RemoteFetchQueue::fillInteractions()` at most every ten minutes
-per post and kind):
+per post and kind). Opening a reaction or quote list first asks supported
+sources inline with a three-second timeout and a per-post-and-kind lock, then
+returns fresh actor ids or stored quote posts and queues profile resolution
+for avatars not cached yet.
+The five-second shared freshness marker bounds duplicate work from concurrent
+or rapidly repeated requests; failures fall back to the background queue:
 
 - `ActivityPubInteractionSource` reads the post's `likes` and `shares`
   collections as its server describes them — Mastodon lists only the
@@ -1863,7 +1924,10 @@ per post and kind):
   cached here fetched (`RemoteFetchQueue::resolveActors()`);
 - `Atproto\Reader\BlueskyInteractionSource` asks the AppView
   (`getLikes`, `getRepostedBy`, `getQuotes`) for a post that is on Bluesky,
-  caches each account as it is found and stores each quoting post.
+  checks that the returned subject URI matches the post it asked about,
+  caches each account as it is found and stores each quoting post. A
+  mismatched or malformed answer is a failed read, so it cannot replace the
+  last complete reaction list and is retried through the background queue.
 
 Who reacted is kept an hour in the durable cache's table (`DurableCache::setShared()`, which the cron and the web server share even where APCu is the only memcache), not as actions: the
 counts on a post, and the notifications, stay what they were. Quoting
@@ -1903,8 +1967,11 @@ filled up with the listed accounts, and a page that reaches into them is
 continued by the `max_id` of its last account, which the service finds
 among the listed ones. A page asked for with `min_id` or `since` is the
 follows known here alone. The answers say `X-Social-Filling` while the
-read was just asked for; the web app's list asks for its first page once
-more six seconds later. An account of this server's own is unchanged.
+read is queued and its shared result cache has not been written yet; the web
+app polls the first page every two seconds for up to thirty seconds. Accounts
+named by an ActivityPub collection that are not cached or do not yet have a
+local account id are queued for resolution, and the page remains in the filling
+state until they can be shown. An account of this server's own is unchanged.
 
 ### Counts where a post lives
 
@@ -1917,14 +1984,20 @@ people look at are asked for again, one concept with a source per network
 
 - `ActivityPubCountSource` reads the post's document at its `id` and takes
   the `totalItems` of its `likes`, `shares` and `replies` collections
-  (`Stream::statedCount()`), twenty documents a round; an answer naming some
-  other document, or none — a post deleted at its source among them — leaves
-  what is stored;
+  (`Stream::statedCount()`), twenty documents a round. If an origin gives a
+  collection URL without an inline total, those collection URLs are fetched
+  together in a second round. Mastodon's `quoteCount` extension is retained as
+  the quote total. Requests to origins have a five-second timeout; an answer
+  naming some other document, or none — a post deleted at its source among
+  them — leaves what is stored. An answer with no usable counter is not
+  treated as fresh during an interactive read, so the background path can retry;
 - `Atproto\Reader\BlueskyCountSource` asks the AppView's `getPosts`, 25
   posts a call (`PostStore::postViews()`), for `likeCount`, `repostCount`,
-  `replyCount` and `quoteCount`; a `notFound` post placeholder or an omitted
-  post is deleted as `DeletionSweep` deletes it, while a blocked placeholder
-  is kept;
+  `replyCount` and `quoteCount`; a post is deleted as `DeletionSweep` deletes
+  it only when the AppView explicitly returns `notFound`. Every requested URI
+  must occur exactly once in the response; a missing, duplicate or malformed
+  entry leaves the whole batch untouched and keeps the deletion cursor in
+  place for another attempt. A blocked placeholder is kept;
 - `Atproto\Reader\BlueskyPublishedCountSource` does the same for a post of
   this server's own that is also a record on Bluesky (see **A local post's
   counts on Bluesky** below).
@@ -1933,8 +2006,16 @@ people look at are asked for again, one concept with a source per network
 (`StatusApiController::statusGet()`), a conversation
 (`StreamService::getContextByNid()`) and every timeline page a client reads
 (`StreamService::getTimeline()` in the local format, `visiblePosts()`, the
-list timeline) — and does no network I/O: a boost stands for the post it
-boosts, direct messages are skipped, and so is a local post unless a source
+list timeline) — and queues background reads. `seen()` keeps reporting a page as filling while any count remains due, even when the durable queue has already deduplicated that request. Timeline, profile and list responses carry `X-Social-Filling` during that period; the web app re-requests the page with a fresh URL so an ETag cannot turn the count refresh into a `304`, and stops polling when the worker stamps the new counts. Opening a post also attempts a
+per-post locked refresh with a three-second network budget; concurrent viewers
+reuse that attempt, and an unavailable or incomplete answer falls back to the
+background queue without marking unknown numbers fresh. A status response that
+reports `X-Social-Filling` is read again with bounded exponential backoff, at
+most ten times, so a background result that lands after the initial request is
+merged into the open post. Timeline pages use the same filling signal with bounded backoff and
+a cache-busting query value, so unchanged ETags cannot hide newly stored counts.
+A boost stands for the post it boosts, direct messages are skipped,
+and so is a local post unless a source
 supports it (one that goes to Bluesky, `Publisher::goesToBluesky()`), and a
 post is due when its `counts_at` is older than a quarter of an hour while the post
 is less than a day old, six hours after that. The due ones are handed to
@@ -1961,6 +2042,25 @@ up to fifty more of this server's own posts of the last seven days that have
 a Bluesky record (`StreamRequest::getPublishedStreamsDueForCounts()`, a join
 on `social_atproto_record`); an older one is asked about when somebody looks
 at it.
+
+Posts opened in their detail view have a faster path:
+`TimelineList` refreshes up to four visible non-direct posts on entry, scroll
+and every five seconds, rotating through the visible posts when there are more
+than four. This includes local posts mirrored to Bluesky; the backend chooses
+the source that supports each post. `TimelineSinglePost` also asks for the
+status again when opened, even if a copy is already in the timeline.
+`StatusApiController::statusGet()` asks the matching ActivityPub or Bluesky
+count source directly when `counts_at` is at least five seconds old, with a
+three-second network timeout and a per-post lock, then reads the updated row
+for the response. A failed or timed-out read leaves stored counts untouched
+and queues the normal background retry; the follow-up status read is
+read-only, so it cannot start another slow request. This keeps reader-facing
+counts independent of Nextcloud's cron cadence; posts outside the viewport
+still use the queued background path above. Bluesky thread reads use the same
+three-second timeout and per-post lock, and failed reads remain eligible for
+the background thread queue. When a response says counts or a conversation are
+still being filled, the client checks again after three seconds while the
+reader stays on the page.
 
 `CountWriter` stores an answer: the origin's total less what is counted here
 into `remote_likes`, `remote_boosts` and `remote_replies` — only those keys,
@@ -3196,15 +3296,18 @@ third state.
 **What else a post's own page says.** Four things that belong to a post being
 read rather than to a post being scrolled past.
 
-`PostReactedBy` puts the faces behind the two counts under the post, through
-`GET /api/v1/statuses/{nid}/reblogged_by` and `/favourited_by` — both of which
-the server has answered since the moderation tier and neither of which the web
-client called until now. Nothing is requested when a count is zero, which is
-most posts, so the page costs the two requests only when there is something to
-answer with; a refusal draws nothing, since the counts are still on the post and
-this row is only the elaboration. A dozen faces at most, with the count saying
-how many there are in all, and each row reloads on its own when its own count
-changes — the reader's own boost lands in the row it just changed.
+`PostReactedBy` puts the faces behind likes, boosts and quotes under the post,
+through `GET /api/v1/statuses/{nid}/reblogged_by`, `/favourited_by` and
+`/quotes`. ActivityPub collections and Bluesky's AppView supply actor ids or
+quoted posts; cached profiles become avatar-bearing account objects, and
+unresolved ActivityPub actors are queued for profile resolution.
+`X-Social-Filling` stays set while either the network list or those profile
+pictures are still being filled, so the visible row can reload after the
+background work. Retries stop after eight attempts if a remote profile never
+resolves. Nothing is requested when a count is zero, unless the reader hides
+counts, in which case the number cannot establish that the list is empty. A
+dozen faces at most, with the count saying how many there are in all, and each
+row reloads on its own when its own count changes.
 
 `PostDetails` is the fine print: the full date, the audience in the words the
 composer uses, the language named rather than coded (`Intl.DisplayNames`, the
@@ -3875,7 +3978,7 @@ $context->registerEventListener(PostPublishedEvent::class, MyListener::class);
 | Background Jobs | `Cron\BlocklistSync` | `appinfo/info.xml` | Daily: re-reads the block lists an administrator follows (`BlocklistSubscriptionService::fetchEnabled()`); one app-setting read and nothing else while no source is on |
 | Background Jobs | `Cron\StarterPackSources` | `appinfo/info.xml` | Daily: reads the starter packs the `starter_pack_sources` app value names (`CollectionPackService::refresh()`) — the fediverse's collections, checking every member's `featureAuthorization`, and Bluesky's suggested starter packs while Bluesky is on — and stores them; a source that cannot be reached keeps what was read from it last time. One run at a time (`setAllowParallelRuns(false)`), reading for at most `MAX_DURATION` (300 seconds); what it did not get to keeps what was read last time |
 | Background Jobs | `Cron\ActorCleanup` | queued by `PersonInterface::delete()` | Finishes detaching a deleted account from the posts that addressed it, when there are more of them than one inbox request should rewrite. Not in `appinfo/info.xml`, for the same reason `Cron\DomainPurge` is not: it is meaningless without an argument. Re-queues itself while rows remain |
-| Background Jobs | `Cron\SyncRemoteTimeline` | queued by `RemoteFetchQueue::syncTimeline()` | Reads one remote account's outbox (`StreamService::syncRemoteTimeline()`) after its profile was opened, with the actor id as its argument; not in `appinfo/info.xml`, for the same reason as `Cron\DomainPurge`. The followed accounts are synced by `Cron\Cache` regardless |
+| Background Jobs | `Cron\SyncRemoteTimeline` | queued by `RemoteFetchQueue::syncTimeline()` or `fillTimeline()` | Reads one bounded page of a remote account's outbox after its profile was opened. The first page is refreshed at most every 15 minutes; later pages resume from the durable outbox cursor only when scrolling reaches the end of locally stored posts. A failed page leaves the cursor in place for retry. Not in `appinfo/info.xml`, for the same reason as `Cron\DomainPurge`. The followed accounts are synced by `Cron\Cache` regardless |
 | Background Jobs | `Cron\ResolveActor` | queued by `RemoteFetchQueue::resolveActors()` and `resolveAccounts()` | Fetches and caches one remote actor a page named and did not have, with the actor id (or, from `resolveAccounts()`, a `user@host` handle) as its argument; not in `appinfo/info.xml`, for the same reason as `Cron\DomainPurge`. A failure is logged and dropped: the next page that names the actor queues it again |
 | Background Jobs | `Cron\DomainPurge` | queued by `FediverseService::addAddress()` | Queued with a domain when one is added to the deny list, never registered in `appinfo/info.xml` — a job listed there is added once at install time with no argument, and this one is meaningless without a domain. Runs 10 batches of `DomainPurgeService` per pass and re-queues itself while anything of the domain is left |
 | Background Jobs | `Cron\SearchIndex` | queued by `Version1000Date20261008000401` | Adds the posts stored before `social_search_term` existed to it, 500 at a time in nid order for up to a minute per run, from the cursor in the `search_index_cursor` app setting; re-queues itself until a chunk comes back short, then sets `search_index_ready` and the search stops scanning. A chunk that fails twice at the same cursor (`search_index_failing`) is indexed one post at a time, and the post a chunk of one fails on is logged by nid, counted in `search_index_skipped` (shown by the "index repairs" setup check) and passed over, so no post holds the index back for good. Not in `appinfo/info.xml`: it is a one-off |

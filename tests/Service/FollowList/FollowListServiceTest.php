@@ -129,6 +129,28 @@ class FollowListServiceTest extends TestCase {
 
 		$this->assertSame(['ann', 'cy', 'dee'], self::names($page), 'known here first; nobody twice, not the account itself, only who can be shown');
 		$this->assertSame('', $page['next'], 'the end of the list');
+		$this->assertTrue($page['filling'], 'accounts named by the network are still being resolved');
+	}
+
+	public function testAQueuedReadKeepsReportingThatItIsPendingUntilItsResultIsCached(): void {
+		$this->queue->method('fillFollowList')->willReturn(false);
+		$this->queue->method('followListPending')->with($this->bob, FollowListService::FOLLOWERS)->willReturn(true);
+
+		$page = $this->service->page($this->bob, FollowListService::FOLLOWERS, self::options(5));
+
+		$this->assertSame(['ann'], self::names($page));
+		$this->assertTrue($page['filling']);
+	}
+
+	public function testMissingRemoteProfilesAreQueuedAgainAndKeepThePageInLoadingState(): void {
+		$id = 'https://other.example/users/not-cached-yet';
+		$this->listed([$id]);
+		$this->queue->expects($this->once())->method('resolveActors')->with([$id]);
+
+		$page = $this->service->page($this->bob, FollowListService::FOLLOWERS, self::options(5));
+
+		$this->assertSame(['ann'], self::names($page));
+		$this->assertTrue($page['filling']);
 	}
 
 	public function testAPageReachingIntoTheListedOnesIsContinuedAfterItsLastAccount(): void {

@@ -36,6 +36,7 @@ class ResolveActor extends QueuedJob {
 	protected function run($argument): void {
 		$id = is_array($argument) ? (string)($argument['id'] ?? '') : '';
 		$account = is_array($argument) ? (string)($argument['account'] ?? '') : '';
+		$refresh = is_array($argument) && ($argument['refresh'] ?? false) === true;
 		if ($id === '' && $account === '') {
 			return;
 		}
@@ -43,7 +44,7 @@ class ResolveActor extends QueuedJob {
 		try {
 			// a cached actor costs one query and no request
 			if ($id !== '') {
-				$this->cacheActorService->getFromId($id);
+				$this->cacheActorService->getFromId($id, $refresh);
 			} else {
 				$this->cacheActorService->getFromAccount($account);
 			}

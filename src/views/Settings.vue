@@ -178,7 +178,7 @@ const RecapSettings = defineAsyncComponent(() => import(/* webpackChunkName: "se
 const ListsSettings = defineAsyncComponent(() => import(/* webpackChunkName: "settings" */'../components/ListsSettings.vue'))
 const BlueskyFeedsSettings = defineAsyncComponent(() => import(/* webpackChunkName: "settings" */'../components/BlueskyFeedsSettings.vue'))
 const FeaturedTagsSettings = defineAsyncComponent(() => import(/* webpackChunkName: "settings" */'../components/FeaturedTagsSettings.vue'))
-const InterestsSettings = defineAsyncComponent(() => import(/* webpackChunkName: "settings" */'../components/InterestsSettings.vue'))
+const ForYouSettings = defineAsyncComponent(() => import(/* webpackChunkName: "for-you-settings" */'../components/ForYouSettings.vue'))
 const SensesSettings = defineAsyncComponent(() => import(/* webpackChunkName: "settings" */'../components/SensesSettings.vue'))
 const SensitiveMediaSettings = defineAsyncComponent(() => import(/* webpackChunkName: "settings" */'../components/SensitiveMediaSettings.vue'))
 const CountsSettings = defineAsyncComponent(() => import(/* webpackChunkName: "settings" */'../components/CountsSettings.vue'))
@@ -226,7 +226,7 @@ export default {
 		ExternalStorage,
 		FeaturedTagsSettings,
 		HeldPosts,
-		InterestsSettings,
+		ForYouSettings,
 		IntroductionSettings,
 		InviteSettings,
 		IconAccount,
@@ -338,14 +338,14 @@ export default {
 				},
 				// only where the administrator has the feature on: without it
 				// there is no feed for the list to shape
-				...(this.serverData?.interests?.enabled === true
+				...(this.serverData?.interests?.enabled === true || this.serverData?.interests?.recommendationsEnabled === true
 					? [{
 							id: 'interests',
 							group: 'reading',
 							icon: 'IconInterests',
-							component: 'InterestsSettings',
-							title: t('social', 'For you'),
-							lede: t('social', 'The hashtags your For you feed is made of, learned from what you read. Only you see this.'),
+							component: 'ForYouSettings',
+							title: t('social', 'For You'),
+							lede: t('social', 'One feed that learns your interests automatically. Review, correct, pause or reset its private profile here.'),
 						}]
 					: []),
 				{

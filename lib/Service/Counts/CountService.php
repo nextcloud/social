@@ -9,14 +9,18 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service\Counts;
 
+use OCA\Social\Atproto\AppView\AppViewClient;
 use OCA\Social\Atproto\Reader\BlueskyCountSource;
 use OCA\Social\Atproto\Reader\BlueskyPublishedCountSource;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Service\DurableCache;
 use OCA\Social\Service\RemoteFetchQueue;
 use OCP\AppFramework\Utility\ITimeFactory;
+use OCP\Lock\ILockingProvider;
+use OCP\Lock\LockedException;
 use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -47,6 +51,18 @@ class CountService {
 	public const YOUNG = 86400;
 	public const YOUNG_INTERVAL = 900;
 	public const OLD_INTERVAL = 21600;
+	/** Live reader refresh cadence, separate from the slower background scan. */
+	public const VISIBLE_INTERVAL = 5;
+	// Visible detail views poll every five seconds. Retry a failed inline read
+	// on that same cadence rather than leaving the post stale until the slower
+	// background queue happens to run.
+	private const VISIBLE_RETRY_INTERVAL = self::VISIBLE_INTERVAL;
+	private const VISIBLE_CACHE = 'social.counts.visible';
+	private const VISIBLE_PENDING = 'pending';
+	private const VISIBLE_DONE = 'done';
+	private const VISIBLE_LOCK = 'social-visible-count-';
+	/** Serialize the short cache-check-and-enqueue window across feed requests. */
+	private const QUEUE_LOCK = 'social-counts-queue';
 
 	public function __construct(
 		private StreamRequest $streams,
@@ -54,6 +70,8 @@ class CountService {
 		private RemoteFetchQueue $queue,
 		private ITimeFactory $time,
 		private LoggerInterface $logger,
+		private ILockingProvider $locks,
+		private DurableCache $durableCache,
 		private ?ContainerInterface $container = null,
 	) {
 	}
@@ -64,7 +82,7 @@ class CountService {
 	 * caps a call). A boost stands for the post it boosts.
 	 *
 	 * @param iterable<mixed> $posts
-	 * @return bool whether a read was asked for
+	 * @return bool whether any post still needs its remote counts refreshed
 	 */
 	public function seen(iterable $posts): bool {
 		$now = $this->time->getTime();
@@ -78,7 +96,121 @@ class CountService {
 			}
 		}
 
-		return $due !== [] && $this->queue->refreshCounts($due);
+		if ($due === []) {
+			return false;
+		}
+
+		// The durable-cache throttle and IJobList check are both read-then-write:
+		// two feed requests arriving together could otherwise pass both checks
+		// and enqueue the same remote read twice. Keep this lock only around the
+		// short queue operation; network I/O remains in the background job.
+		try {
+			$this->locks->acquireLock(self::QUEUE_LOCK, ILockingProvider::LOCK_EXCLUSIVE);
+		} catch (LockedException) {
+			// Another request is either checking the throttle or just queued this
+			// work. Its page should keep polling until the worker refreshes counts.
+			return true;
+		} catch (Throwable $e) {
+			// A lock service outage must not prevent counts from ever being queued.
+			$this->logger->info('Could not lock the count refresh queue', ['exception' => $e]);
+			$this->queue->refreshCounts($due);
+
+			return true;
+		}
+		try {
+			// A post is still filling until the worker stamps its new counts, so
+			// callers must keep the refresh signal while the row remains due.
+			$this->queue->refreshCounts($due);
+		} finally {
+			$this->locks->releaseLock(self::QUEUE_LOCK, ILockingProvider::LOCK_EXCLUSIVE);
+		}
+
+		return true;
+	}
+
+	/**
+	 * Refresh counts from the post's network while it is being opened. A queued
+	 * job can take a full scheduler interval to run, which is too late for a
+	 * post the reader is looking at now.
+	 */
+	public function refreshVisibleIfDue(Stream $post, bool $force = false): bool {
+		$now = $this->time->getTime();
+		if ($post->getType() === Announce::TYPE) {
+			$object = $post->getObject();
+			if ($object instanceof Stream) {
+				$post = $object;
+			}
+		}
+
+		$countsAt = $post->getCountsAt();
+		if (!$force && $countsAt !== null && $now - $countsAt < self::VISIBLE_INTERVAL) {
+			return false;
+		}
+		$visible = $this->visibleState($post->getId());
+		if ($visible !== null && (!$force || $visible === self::VISIBLE_PENDING)) {
+			return $visible === self::VISIBLE_PENDING;
+		}
+
+		$lock = self::VISIBLE_LOCK . md5($post->getId());
+		if ($this->locks->isLocked($lock, ILockingProvider::LOCK_EXCLUSIVE)) {
+			return true;
+		}
+		try {
+			$this->locks->acquireLock($lock, ILockingProvider::LOCK_EXCLUSIVE);
+		} catch (LockedException) {
+			return true;
+		}
+
+		try {
+			try {
+				$post = $this->streams->getStreamById($post->getId());
+			} catch (StreamNotFoundException) {
+				return false;
+			}
+			$countsAt = $post->getCountsAt();
+			if (!$force && $countsAt !== null && $now - $countsAt < self::VISIBLE_INTERVAL) {
+				return false;
+			}
+			$visible = $this->visibleState($post->getId());
+			if ($visible !== null && (!$force || $visible === self::VISIBLE_PENDING)) {
+				return $visible === self::VISIBLE_PENDING;
+			}
+
+			foreach ($this->sources() as $source) {
+				if (!$source->supports($post)) {
+					continue;
+				}
+				try {
+					$answered = $source->refresh([$post], AppViewClient::INTERACTIVE_TIMEOUT);
+					if ($answered === 0) {
+						$this->queueVisibleRetry($post);
+						$this->setVisibleState($post->getId(), self::VISIBLE_PENDING, self::VISIBLE_RETRY_INTERVAL);
+					} else {
+						$this->setVisibleState($post->getId(), self::VISIBLE_DONE, self::VISIBLE_INTERVAL);
+					}
+				} catch (Throwable $e) {
+					$this->logger->info('Post counts not read during display', ['post' => $post->getId(), 'exception' => $e]);
+					$this->queueVisibleRetry($post);
+					$this->setVisibleState($post->getId(), self::VISIBLE_PENDING, self::VISIBLE_RETRY_INTERVAL);
+				}
+				return true;
+			}
+
+			return false;
+		} finally {
+			$this->locks->releaseLock($lock, ILockingProvider::LOCK_EXCLUSIVE);
+		}
+	}
+
+	/** Whether a visible refresh of this post is still running or queued. */
+	public function visibleRefreshPending(string $postId): bool {
+		return $this->visibleState($postId) === self::VISIBLE_PENDING
+			|| $this->locks->isLocked(self::VISIBLE_LOCK . md5($postId), ILockingProvider::LOCK_EXCLUSIVE);
+	}
+
+	/** A forced live read may fail even when the ordinary count interval is fresh. */
+	private function queueVisibleRetry(Stream $post): void {
+		$this->queue->refreshCounts([$post->getId() => self::VISIBLE_RETRY_INTERVAL], true);
 	}
 
 	/** How long a post's counts stand before it is asked about again, in seconds. */
@@ -112,7 +244,7 @@ class CountService {
 	 * @param string[] $postIds
 	 * @return array{asked: int, answered: int}
 	 */
-	public function refresh(array $postIds): array {
+	public function refresh(array $postIds, bool $force = false): array {
 		$now = $this->time->getTime();
 		$posts = [];
 		foreach (array_unique($postIds) as $id) {
@@ -121,7 +253,7 @@ class CountService {
 			} catch (StreamNotFoundException) {
 				continue;
 			}
-			if ($this->isDue($post, $now)) {
+			if ($force || $this->isDue($post, $now)) {
 				$posts[] = $post;
 			}
 		}
@@ -158,8 +290,17 @@ class CountService {
 			}
 		}
 		$this->stampAll($left);
-
 		return ['asked' => $asked, 'answered' => $answered];
+	}
+
+	private function visibleState(string $postId): ?string {
+		$value = $this->durableCache->getShared(self::VISIBLE_CACHE, md5($postId));
+
+		return is_string($value) ? $value : null;
+	}
+
+	private function setVisibleState(string $postId, string $state, int $ttl): void {
+		$this->durableCache->setShared(self::VISIBLE_CACHE, md5($postId), $state, $ttl);
 	}
 
 	/**

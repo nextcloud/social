@@ -1011,7 +1011,27 @@ describe('TimelinePost', () => {
 			expect(mountPost().wrapper.findAll('.post-action-count')).toHaveLength(0)
 
 			const { wrapper } = mountPost({ item: makeItem({ replies_count: 3, reblogs_count: 0, favourites_count: 12 }) })
-			expect(wrapper.findAll('.post-action-count').map((count) => count.text())).toEqual(['3', '12'])
+			expect(wrapper.find('.post-action-group--reply .post-action-count').text()).toBe('3')
+			expect(wrapper.find('.post-action-group--like .post-action-count').text()).toBe('12')
+		})
+
+		it('keeps the reply control and count at the outside edge of the action row', () => {
+			const { wrapper } = mountPost({
+				item: makeItem({ replies_count: 3, reblogs_count: 5, favourites_count: 12 }),
+			})
+			const groups = wrapper.find('.post-actions__groups').findAll('.post-action-group')
+
+			const lastGroup = groups[groups.length - 1]
+			expect(lastGroup.classes()).toContain('post-action-group--reply')
+			expect(lastGroup.find('.post-action-count').text()).toBe('3')
+			expect(groups.map((group) => group.find('button').attributes('aria-label'))).toEqual(['Boost', 'Like', 'Reply'])
+		})
+
+		it('keeps the reply action at the outside edge without overhanging nested entries', () => {
+			const source = readFileSync(resolve(process.cwd(), 'src/components/TimelinePost.vue'), 'utf8')
+
+			expect(source).toMatch(/\.post-action-group--reply\s*\{\s*margin-inline-start: auto;/)
+			expect(source).not.toContain('margin-inline-end: calc(var(--thread-depth')
 		})
 
 		/** The page counts on its own when the reader likes, so the server's zero is not enough. */

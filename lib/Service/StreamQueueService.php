@@ -130,13 +130,13 @@ class StreamQueueService {
 	 *
 	 * @throws Throwable the server could not be reached, is held back, or did not answer with a post
 	 */
-	public function fetchNow(string $url): void {
+	public function fetchNow(string $url, ?int $timeout = null): void {
 		$openUntil = $this->breaker->openUntil(self::hostOf($url));
 		if ($openUntil > 0) {
 			throw new RequestNetworkException('held back until ' . $openUntil . ': ' . $url);
 		}
 		try {
-			$this->fetchFromOrigin($url);
+			$this->fetchFromOrigin($url, $timeout);
 		} catch (RequestNetworkException|RequestResultNotJsonException|RequestServerException $e) {
 			$this->holdHost($url, $e);
 
@@ -321,8 +321,11 @@ class StreamQueueService {
 	 * @throws RequestResultNotJsonException
 	 * @throws RequestServerException
 	 */
-	private function fetchFromOrigin(string $url): void {
-		$data = $this->curlService->retrieveObject($url);
+	private function fetchFromOrigin(string $url, ?int $timeout = null): void {
+		$started = hrtime(true);
+		$data = $timeout === null
+			? $this->curlService->retrieveObject($url)
+			: $this->curlService->retrieveObject($url, true, $timeout);
 		$this->breaker->close(self::hostOf($url));
 		$object = AP::instance()->getItemFromData($data);
 		if ($object->getId() !== $url) {
@@ -350,7 +353,15 @@ class StreamQueueService {
 		$activity->setObject($object);
 
 		// its author has to be known before the post can be shown as theirs
-		$this->cacheActorService->getFromId($object->getAttributedTo());
+		if ($timeout === null) {
+			$this->cacheActorService->getFromId($object->getAttributedTo());
+		} else {
+			$remaining = $timeout - (int)ceil((hrtime(true) - $started) / 1_000_000_000);
+			if ($remaining < 1) {
+				throw new \RuntimeException('the visible post fetch exceeded its time budget: ' . $url);
+			}
+			$this->cacheActorService->getActivityPubActorWithTimeout($object->getAttributedTo(), $remaining);
+		}
 
 		$this->importService->parseIncomingRequest($activity);
 	}

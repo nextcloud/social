@@ -17,7 +17,10 @@ const call = async (path) => {
 
 const who = await call('/xrpc/com.atproto.server.getSession')
 const refreshed = await session.refresh()
-const timeline = await call('/xrpc/app.bsky.feed.getTimeline?limit=1')
+const actor = encodeURIComponent(process.env.PROFILE_DID)
+const profile = await call(`/xrpc/app.bsky.actor.getProfile?actor=${actor}`)
+const authorFeed = await call(`/xrpc/app.bsky.feed.getAuthorFeed?actor=${actor}&filter=posts_with_replies&limit=10`)
+const timeline = await call('/xrpc/app.bsky.feed.getTimeline?limit=10')
 const did = session.did
 const tokens = session.session
 await session.logout()
@@ -33,6 +36,8 @@ console.log(JSON.stringify({
 	did,
 	who,
 	refreshed: { did: refreshed.did, handle: refreshed.handle },
+	profile,
+	authorFeed,
 	timeline,
 	logout: { accessStatus: accessAfterLogout.status, refreshStatus: refreshAfterLogout.status },
 }))

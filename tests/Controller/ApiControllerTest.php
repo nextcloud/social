@@ -10,6 +10,8 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Controller;
 
 use OCA\Social\AP;
+use OCA\Social\Atproto\Reader\BlueskyFeeds;
+use OCA\Social\Atproto\Reader\BlueskyIds;
 use OCA\Social\Controller\ApiController;
 use OCA\Social\Controller\MastodonApiController;
 use OCA\Social\Db\CacheDocumentsRequest;
@@ -26,6 +28,7 @@ use OCA\Social\Exceptions\TranslationUnavailableException;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
@@ -188,6 +191,7 @@ class ApiControllerTest extends TestCase {
 	private FeedDisplayService|Stub $feedDisplayService;
 	private \OCA\Social\Service\RemoteFetchQueue|MockObject $remoteFetchQueue;
 	private \OCA\Social\Service\FollowList\FollowListService|MockObject $followLists;
+	private BlueskyFeeds|MockObject $blueskyFeeds;
 	private \OCA\Social\Service\Counts\CountService|MockObject $counts;
 	/** what the AI switch stub answers for the viewer */
 	private bool $hidesAi = false;
@@ -338,6 +342,7 @@ class ApiControllerTest extends TestCase {
 		$this->aiContentService = $this->createStub(\OCA\Social\Service\AiContentService::class);
 		$this->aiContentService->method('hides')->willReturnCallback(fn (string $userId): bool => $this->hidesAi);
 		$this->remoteFetchQueue = $this->createMock(\OCA\Social\Service\RemoteFetchQueue::class);
+		$this->blueskyFeeds = $this->createMock(BlueskyFeeds::class);
 		$this->vapidService = $this->createStub(VapidService::class);
 		$this->vapidService->method('publicKey')->willReturn('instance-vapid-key');
 		$this->followLists = $this->createMock(\OCA\Social\Service\FollowList\FollowListService::class);
@@ -480,6 +485,7 @@ class ApiControllerTest extends TestCase {
 			'feedDisplayService' => $this->feedDisplayService,
 			'remoteFetchQueue' => $this->remoteFetchQueue,
 			'followLists' => $this->followLists,
+			'blueskyFeeds' => $this->blueskyFeeds,
 			'viewCountService' => $this->viewCountService,
 			'teamService' => $this->teamService,
 			'emojiService' => $this->emojiService,
@@ -1459,6 +1465,16 @@ class ApiControllerTest extends TestCase {
 		$this->assertStringContainsString('max_id=41>; rel="next"', $response->getHeaders()['Link'] ?? '');
 	}
 
+	public function testTimelineKeepsItsFillingHeaderWhileCountsArePending(): void {
+		$this->loggedInAs();
+		$this->captureTimelineOptions(['post']);
+		$this->streamService->method('lastTimelineCountsFilling')->willReturn(true);
+
+		$response = $this->controller()->timelines('home');
+
+		$this->assertSame('1', $response->getHeaders()['X-Social-Filling'] ?? null);
+	}
+
 	/** @return iterable<string, array{string}> */
 	public static function unsupportedTimelines(): iterable {
 		yield 'trending' => ['trending'];
@@ -1518,6 +1534,46 @@ class ApiControllerTest extends TestCase {
 
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
 		$this->assertSame('1', $response->getHeaders()['X-Social-Filling'] ?? null, 'the client reads it again a little later');
+	}
+
+	public function testOpeningAStatusCanForceACurrentCountRead(): void {
+		$this->userSession->method('getUser')->willReturn(null);
+		$item = $this->createMock(Stream::class);
+		$this->streamService->method('getStreamByNid')->willReturn($item);
+		$this->counts->expects($this->once())->method('refreshVisibleIfDue')->with($item, true)->willReturn(true);
+
+		$response = $this->controller()->statusGet(42, true, true);
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+	}
+
+	public function testACompletedLiveCountReadDoesNotAskTheClientToPollAgain(): void {
+		$this->userSession->method('getUser')->willReturn(null);
+		$item = $this->createMock(Stream::class);
+		$this->streamService->method('getStreamByNid')->willReturn($item);
+		$this->counts->expects($this->once())->method('refreshVisibleIfDue')->with($item, true)->willReturn(true);
+		$this->counts->expects($this->once())->method('visibleRefreshPending')->with($this->anything())->willReturn(false);
+		$this->counts->expects($this->never())->method('seen');
+
+		$response = $this->controller()->statusGet(42, true, true);
+
+		$this->assertArrayNotHasKey('X-Social-Filling', $response->getHeaders());
+	}
+
+	public function testABoostedPostPollsWhileTheOriginalPostRefreshIsPending(): void {
+		$this->userSession->method('getUser')->willReturn(null);
+		$original = $this->createMock(Stream::class);
+		$original->method('getId')->willReturn('original-post-id');
+		$item = $this->createMock(Stream::class);
+		$item->method('getType')->willReturn(Announce::TYPE);
+		$item->method('getObject')->willReturn($original);
+		$this->streamService->method('getStreamByNid')->willReturn($item);
+		$this->counts->expects($this->once())->method('refreshVisibleIfDue')->with($item, true)->willReturn(true);
+		$this->counts->expects($this->once())->method('visibleRefreshPending')->with('original-post-id')->willReturn(true);
+
+		$response = $this->controller()->statusGet(42, true, true);
+
+		$this->assertSame('1', $response->getHeaders()['X-Social-Filling'] ?? null);
 	}
 
 	public function testAStatusWhoseCountsAreCurrentSaysNothingIsOnItsWay(): void {
@@ -3542,9 +3598,48 @@ class ApiControllerTest extends TestCase {
 		$this->cacheActorService->method('getFromAccount')->with('bob@remote.example')->willReturn($actor);
 		$this->streamService->expects($this->never())->method('syncRemoteTimeline');
 		$this->remoteFetchQueue->expects($this->once())->method('syncTimeline')->with($actor);
+		$this->remoteFetchQueue->expects($this->once())->method('isTimelinePending')->with($actor->getId())->willReturn(true);
 		$this->captureTimelineOptions(['p']);
 
-		$this->assertSame(['p'], $this->controller()->accountStatuses('bob@remote.example')->getData());
+		$response = $this->controller()->accountStatuses('bob@remote.example');
+
+		$this->assertSame(['p'], $response->getData());
+		$this->assertSame('1', $response->getHeaders()['X-Social-Filling'] ?? null);
+		$this->assertSame('1', $response->getHeaders()['X-Social-Profile-Filling'] ?? null);
+	}
+
+	public function testBlueskyProfileStatusesFetchEveryPageThroughTheAuthorFeed(): void {
+		$actor = $this->createStub(Person::class);
+		$actor->method('getId')->willReturn(BlueskyIds::actorId('did:plc:z72i7hdynmk6r22z27h6tvur'));
+		$this->cacheActorService->method('getFromAccount')->willReturn($actor);
+		$this->remoteFetchQueue->expects($this->never())->method('syncTimeline');
+		$this->blueskyFeeds->expects($this->once())
+			->method('authorPage')
+			->with($actor, '123456', 15, null)
+			->willReturn(true);
+		$this->captureTimelineOptions(['post']);
+
+		$response = $this->controller()->accountStatuses('bob.bsky.social', 15, '123456');
+
+		$this->assertSame(['post'], $response->getData());
+		$this->assertSame('1', $response->getHeaders()['X-Social-Filling'] ?? null);
+		$this->assertSame('1', $response->getHeaders()['X-Social-Profile-Filling'] ?? null);
+	}
+
+	public function testBlueskyProfileMediaTabsKeepTheirFilterWhileLoadingAuthorPages(): void {
+		$actor = $this->createStub(Person::class);
+		$actor->method('getId')->willReturn(BlueskyIds::actorId('did:plc:z72i7hdynmk6r22z27h6tvur'));
+		$this->cacheActorService->method('getFromAccount')->willReturn($actor);
+		$this->blueskyFeeds->expects($this->once())
+			->method('authorPage')
+			->with($actor, '', 20, null);
+		$options = $this->captureTimelineOptions(['video']);
+
+		$response = $this->controller()->accountStatuses('bob.bsky.social', 20, 0, 0, 0, false, true, 'video');
+
+		$this->assertSame(['video'], $response->getData());
+		$this->assertTrue($options()->isOnlyMedia());
+		$this->assertSame('video', $options()->getMediaType());
 	}
 
 	/** Scrolling down a profile is reading what is stored, not a reason to sync again. */
@@ -3560,6 +3655,21 @@ class ApiControllerTest extends TestCase {
 		$this->controller()->accountStatuses('bob@remote.example', 20, 40);
 		$this->controller()->accountStatuses('bob@remote.example', 20, 0, 10);
 		$this->controller()->accountStatuses('bob@remote.example', 20, 0, 0, '20');
+	}
+
+	public function testAnExhaustedRemoteProfilePageQueuesItsNextOutboxPage(): void {
+		$this->loggedInAs();
+		$actor = $this->createStub(Person::class);
+		$actor->method('getId')->willReturn('https://remote.example/users/bob');
+		$this->cacheActorService->method('getFromAccount')->willReturn($actor);
+		$this->remoteFetchQueue->expects($this->once())->method('fillTimeline')->with($actor)->willReturn(true);
+		$this->captureTimelineOptions([]);
+
+		$response = $this->controller()->accountStatuses('bob@remote.example', 20, 40);
+
+		$this->assertSame([], $response->getData());
+		$this->assertSame('1', $response->getHeaders()['X-Social-Filling'] ?? null);
+		$this->assertSame('1', $response->getHeaders()['X-Social-Profile-Filling'] ?? null);
 	}
 
 	public function testAccountStatusesProbesTheAccountTimeline(): void {

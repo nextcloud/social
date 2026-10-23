@@ -787,6 +787,7 @@ export const useAccountStore = defineStore('account', {
 				return response.data
 			} catch (error) {
 				this.setFollowersFailed({ actorId: key, failed: true })
+				this.accountsFollowersFilling = { ...this.accountsFollowersFilling, [key]: false }
 				showError(t('social', 'Could not load the list of followers'))
 				logger.error(`Failed to fetch followers list for user ${account}`, { error })
 			} finally {
@@ -822,6 +823,7 @@ export const useAccountStore = defineStore('account', {
 				return response.data
 			} catch (error) {
 				this.setFollowingsFailed({ actorId: key, failed: true })
+				this.accountsFollowingsFilling = { ...this.accountsFollowingsFilling, [key]: false }
 				showError(t('social', 'Could not load the list of followed accounts'))
 				logger.error(`Failed to fetch following list for user ${account}`, { error })
 			} finally {

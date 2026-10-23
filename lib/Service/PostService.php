@@ -789,9 +789,14 @@ class PostService {
 		}
 
 		try {
+			$parent = $this->streamService->getStreamById($replyTo, true);
 			$this->interestService->recordAction(
-				$actor, $this->streamService->getStreamById($replyTo, true), InterestService::ACTION_REPLY
+				$actor, $parent, InterestService::ACTION_REPLY
 			);
+			$signals = $this->container?->get(RecommendationSignalService::class);
+			if ($signals instanceof RecommendationSignalService) {
+				$signals->recordAction($actor, $parent, 'reply');
+			}
 		} catch (\Throwable $e) {
 			$this->logger->debug('[PostService] the post replied to is not one to learn from', ['exception' => $e]);
 		}

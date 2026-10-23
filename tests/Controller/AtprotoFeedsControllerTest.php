@@ -131,6 +131,20 @@ class AtprotoFeedsControllerTest extends TestCase {
 		$this->assertSame([$post], $this->controller()->timeline('at://did:plc:bob/app.bsky.graph.list/3kl', 10, '77')->getData());
 	}
 
+	public function testAnIncompleteFeedPageAsksTheTimelineToContinueFilling(): void {
+		$this->feeds->method('page')->willReturn([]);
+		$this->feeds->method('hasFeedPagePending')->willReturn(true);
+		$request = $this->createStub(IRequest::class);
+		$request->method('getId')->willReturn('test-request');
+		\OC::$server->register(IRequest::class, $request);
+		\OC::$server->register(IUserSession::class, $this->createStub(IUserSession::class));
+
+		$response = $this->controller()->timeline('at://did:plc:bob/app.bsky.feed.generator/cats');
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame('1', $response->getHeaders()['X-Social-Filling']);
+	}
+
 	public function testRemovingAnswersNothing(): void {
 		$this->feeds->expects($this->once())->method('remove')->with($this->anything(), 'at://did:plc:bob/app.bsky.feed.generator/cats');
 

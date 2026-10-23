@@ -166,12 +166,73 @@
 		</NcActionButton>
 		<!-- teaches For you about the post's hashtags; only offered where
 		     there is something to teach it -->
-		<NcActionButton v-if="canLessLikeThis" closeAfterClick @click="$emit('lessLikeThis')">
+		<NcActionButton v-if="canLessLikeThis && !canOfferRecommendationFeedback" closeAfterClick @click="$emit('lessLikeThis')">
 			<template #icon>
 				<ThumbDownOutline :size="20" />
 			</template>
 			{{ t('social', 'Less like this') }}
 		</NcActionButton>
+		<template v-if="canOfferRecommendationFeedback">
+			<NcActionButton
+				v-if="feedbackContext?.topics?.length"
+				closeAfterClick
+				@click="$emit('recommendationFeedback', 'MORE_SIMILAR')">
+				<template #icon>
+					<ThumbUpOutline :size="20" />
+				</template>
+				{{ t('social', 'Show me more like this post') }}
+			</NcActionButton>
+			<NcActionButton
+				v-if="feedbackContext?.topics?.length"
+				closeAfterClick
+				@click="$emit('recommendationFeedback', 'LESS_SIMILAR')">
+				<template #icon>
+					<ThumbDownOutline :size="20" />
+				</template>
+				{{ t('social', 'Show me less like this post') }}
+			</NcActionButton>
+			<NcActionButton closeAfterClick @click="$emit('recommendationFeedback', 'HIDE_POST')">
+				<template #icon>
+					<IconEyeOffOutline :size="20" />
+				</template>
+				{{ t('social', 'Hide this post from For You') }}
+			</NcActionButton>
+			<NcActionButton closeAfterClick @click="$emit('recommendationFeedback', 'MORE_AUTHOR')">
+				<template #icon>
+					<AccountPlusOutline :size="20" />
+				</template>
+				{{ t('social', 'Show me more from this author') }}
+			</NcActionButton>
+			<NcActionButton
+				v-for="topic in feedbackContext?.topics ?? []"
+				:key="topic.id + ':more'"
+				closeAfterClick
+				@click="$emit('recommendationFeedback', 'MORE_TOPIC', topic.id)">
+				<template #icon>
+					<ThumbUpOutline :size="20" />
+				</template>
+				{{ t('social', 'Show me more about {topic}', { topic: topicLabel(topic) }) }}
+			</NcActionButton>
+			<NcActionButton
+				v-for="topic in feedbackContext?.topics ?? []"
+				:key="topic.id + ':less'"
+				closeAfterClick
+				@click="$emit('recommendationFeedback', 'LESS_TOPIC', topic.id)">
+				<template #icon>
+					<ThumbDownOutline :size="20" />
+				</template>
+				{{ t('social', 'Show me less about {topic}', { topic: topicLabel(topic) }) }}
+			</NcActionButton>
+			<NcActionButton
+				v-if="feedbackContext?.format"
+				closeAfterClick
+				@click="$emit('recommendationFeedback', 'MORE_FORMAT')">
+				<template #icon>
+					<ShapeOutline :size="20" />
+				</template>
+				{{ t('social', 'Show me more {format}', { format: formatLabel(feedbackContext.format) }) }}
+			</NcActionButton>
+		</template>
 		<!-- what to do about somebody else, from the post that made the reader
 		     want to: both take their posts out of every timeline at once -->
 		<NcActionButton v-if="canModerateAuthor" closeAfterClick @click="$emit('mute')">
@@ -222,6 +283,9 @@ import Pin from 'vue-material-design-icons/Pin.vue'
 import PinOff from 'vue-material-design-icons/PinOff.vue'
 import SendCheck from 'vue-material-design-icons/SendCheck.vue'
 import ThumbDownOutline from 'vue-material-design-icons/ThumbDownOutline.vue'
+import ThumbUpOutline from 'vue-material-design-icons/ThumbUpOutline.vue'
+import AccountPlusOutline from 'vue-material-design-icons/AccountPlusOutline.vue'
+import ShapeOutline from 'vue-material-design-icons/ShapeOutline.vue'
 import Translate from 'vue-material-design-icons/Translate.vue'
 import VolumeOff from 'vue-material-design-icons/VolumeOff.vue'
 import { allowedByAuthor, isShareable } from '../utils/interactionPolicy.js'
@@ -259,6 +323,10 @@ export default {
 		IconCommentAccountOutline,
 		IconEyeOffOutline,
 		IconEyeOutline,
+		ThumbDownOutline,
+		ThumbUpOutline,
+		AccountPlusOutline,
+		ShapeOutline,
 		NcActionButton,
 		NcActionLink,
 		NcActions,
@@ -267,7 +335,6 @@ export default {
 		Pin,
 		PinOff,
 		SendCheck,
-		ThumbDownOutline,
 		Translate,
 		VolumeOff,
 	},
@@ -320,6 +387,21 @@ export default {
 			type: Object,
 			default: null,
 		},
+
+		timelineType: {
+			type: String,
+			default: '',
+		},
+
+		recommendationFeedbackEnabled: {
+			type: Boolean,
+			default: false,
+		},
+
+		feedbackContext: {
+			type: Object,
+			default: null,
+		},
 	},
 
 	emits: [
@@ -341,12 +423,23 @@ export default {
 		'collect',
 		'pin',
 		'lessLikeThis',
+		'recommendationFeedback',
 		'mute',
 		'block',
 		'report',
 	],
 
 	computed: {
+		/** @return {boolean} whether recommendation feedback applies to this author's post in For You */
+		canOfferRecommendationFeedback() {
+			return this.timelineType === 'interests'
+				&& this.recommendationFeedbackEnabled
+				&& !this.isPublic
+				&& !!this.currentAccount
+				&& !this.isMine
+				&& !!this.item.nid
+		},
+
 		/** @return {boolean} whether the reader wrote this post */
 		isMine() {
 			return this.item.account.acct === this.currentAccount?.acct
@@ -452,6 +545,24 @@ export default {
 
 	methods: {
 		t,
+		/** @param {object} topic a server-confirmed topic @return {string} */
+		topicLabel(topic) {
+			const language = document.documentElement.lang?.replace('_', '-').split('-')[0] || 'en'
+			return topic.labels?.[language] || topic.labels?.en || topic.id
+		},
+
+		/** @param {string} format a server-detected post format @return {string} */
+		formatLabel(format) {
+			return {
+				audio: t('social', 'audio posts'),
+				image: t('social', 'photo posts'),
+				poll: t('social', 'polls'),
+				short: t('social', 'short videos'),
+				text: t('social', 'text posts'),
+				video: t('social', 'video posts'),
+			}[format] || t('social', 'posts like this')
+		},
+
 		async copyEmbedCode() {
 			try {
 				const embedUrl = new URL(this.item.url)

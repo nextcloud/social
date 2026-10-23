@@ -39,19 +39,20 @@ class AtprotoStatusServiceTest extends TestCase {
 	/** how many keys do not open with the instance secret */
 	private int $sealedKeys = 0;
 
-	private function service(array $relays, bool $firehoseUpgraded = false, bool $oauthReachable = false, bool $oauthMissingRefreshGrant = false, ?Identity $identity = null): AtprotoStatusService {
+	private function service(array $relays, bool $firehoseUpgraded = false, bool $oauthReachable = false, bool $oauthMissingRefreshGrant = false, ?Identity $identity = null, string $pdsEndpoint = 'https://social.example', array $configValues = []): AtprotoStatusService {
 		$config = $this->createMock(AtprotoConfig::class);
 		$config->method('isEnabled')->willReturn(true);
-		$config->method('pdsEndpoint')->willReturn('https://social.example');
+		$config->method('pdsEndpoint')->willReturn($pdsEndpoint);
 		$config->method('handleHost')->willReturn('social.example');
 		$config->method('relays')->willReturn($relays);
+		$relayHost = (string)parse_url($pdsEndpoint, PHP_URL_HOST);
 		$curl = $this->createMock(CurlService::class);
 		$curl->method('doWebSocketHandshake')->willReturnCallback(static function (string $url, &$status) use ($firehoseUpgraded): bool {
 			$status = $firehoseUpgraded ? 101 : 426;
 
 			return $firehoseUpgraded;
 		});
-		$curl->method('doRequest')->willReturnCallback(function (string $verb, string $url, array $options, &$contentType, &$status) use ($oauthReachable, $oauthMissingRefreshGrant): string {
+		$curl->method('doRequest')->willReturnCallback(function (string $verb, string $url, array $options, &$contentType, &$status) use ($oauthReachable, $oauthMissingRefreshGrant, $pdsEndpoint, $relayHost): string {
 			if (str_ends_with($url, '/.well-known/oauth-protected-resource')) {
 				if (!$oauthReachable) {
 					$status = 404;
@@ -60,7 +61,7 @@ class AtprotoStatusServiceTest extends TestCase {
 				$status = 200;
 				$contentType = 'application/json; charset=utf-8';
 
-				return json_encode(['resource' => 'https://social.example', 'authorization_servers' => ['https://social.example']]);
+				return json_encode(['resource' => $pdsEndpoint, 'authorization_servers' => [$pdsEndpoint]]);
 			}
 			if (str_ends_with($url, '/.well-known/oauth-authorization-server')) {
 				if (!$oauthReachable) {
@@ -71,10 +72,10 @@ class AtprotoStatusServiceTest extends TestCase {
 				$contentType = 'application/json';
 
 				$metadata = [
-					'issuer' => 'https://social.example',
-					'pushed_authorization_request_endpoint' => 'https://social.example/oauth/par',
-					'authorization_endpoint' => 'https://social.example/oauth/authorize',
-					'token_endpoint' => 'https://social.example/oauth/token',
+					'issuer' => $pdsEndpoint,
+					'pushed_authorization_request_endpoint' => $pdsEndpoint . '/oauth/par',
+					'authorization_endpoint' => $pdsEndpoint . '/oauth/authorize',
+					'token_endpoint' => $pdsEndpoint . '/oauth/token',
 					'require_pushed_authorization_requests' => true,
 					'authorization_response_iss_parameter_supported' => true,
 					'client_id_metadata_document_supported' => true,
@@ -95,7 +96,7 @@ class AtprotoStatusServiceTest extends TestCase {
 				return '';
 			}
 			foreach ($this->relayAnswers as $relay => $answer) {
-				if (str_starts_with($url, $relay . '/xrpc/com.atproto.sync.getHostStatus?hostname=social.example')) {
+				if (str_starts_with($url, $relay . '/xrpc/com.atproto.sync.getHostStatus?hostname=' . rawurlencode($relayHost))) {
 					$status = str_contains($answer, 'HostNotFound') ? 400 : 200;
 
 					return $answer;
@@ -120,9 +121,22 @@ class AtprotoStatusServiceTest extends TestCase {
 		$keySeals = $this->createMock(KeySealService::class);
 		$keySeals->method('countSealed')->willReturnCallback(fn (): int => $this->sealedKeys);
 		$identities = $this->createMock(IdentityService::class);
-		$identities->method('firstActive')->willReturn($identity);
+		$identities->method('latestActive')->willReturn($identity);
 
-		return new AtprotoStatusService($config, $this->createMock(ConfigService::class), $identities, $this->createMock(InstanceKeyService::class), $this->createMock(EventService::class), $daemon, $this->createMock(AtprotoRepoRequest::class), $curl, $this->createMock(IConfig::class), $cacheFactory, $this->createMock(ITimeFactory::class), null, null, null, $keySeals);
+		$configService = $this->createMock(ConfigService::class);
+		$configService->method('getAppValue')->willReturnCallback(static fn (string $key): string => $configValues[$key] ?? '0');
+
+		return new AtprotoStatusService($config, $configService, $identities, $this->createMock(InstanceKeyService::class), $this->createMock(EventService::class), $daemon, $this->createMock(AtprotoRepoRequest::class), $curl, $this->createMock(IConfig::class), $cacheFactory, $this->createMock(ITimeFactory::class), null, null, null, $keySeals);
+	}
+
+	public function testAdminStatusShowsAutomaticRelayCrawlTimesAndResults(): void {
+		$status = $this->service([], configValues: [
+			ConfigService::ATPROTO_CRAWL_ATTEMPTED => '100',
+			ConfigService::ATPROTO_CRAWL_ACCEPTED => '90',
+			ConfigService::ATPROTO_CRAWL_RESULTS => '{"https://bsky.network":"ok"}',
+		])->current()['status']['relay_crawl'];
+
+		self::assertSame(['attempted_at' => 100, 'accepted_at' => 90, 'results' => ['https://bsky.network' => 'ok']], $status);
 	}
 
 	private function keysCheck(): array {
@@ -143,8 +157,8 @@ class AtprotoStatusServiceTest extends TestCase {
 		$this->assertSame('3 keys cannot be opened with the current secret: run occ social:atproto:keys:reseal with the previous secret in OC_OLD_SECRET', $check['detail']);
 	}
 
-	private function relayCheck(array $relays): array {
-		foreach ($this->service($relays)->checks(true) as $check) {
+	private function relayCheck(array $relays, string $pdsEndpoint = 'https://social.example'): array {
+		foreach ($this->service($relays, pdsEndpoint: $pdsEndpoint)->checks(true) as $check) {
 			if ($check['id'] === 'relay_host') {
 				return $check;
 			}
@@ -165,7 +179,16 @@ class AtprotoStatusServiceTest extends TestCase {
 		$check = $this->relayCheck(['https://bsky.network', 'https://relay.example']);
 
 		$this->assertSame('warning', $check['state'], 'never an error: the switch does not wait for a relay');
-		$this->assertSame('bsky.network throttles this server at 100 accounts: ask its operator to raise the limit for this host; relay.example has not crawled this server yet: run occ social:atproto:crawl', $check['detail']);
+		$this->assertSame('bsky.network throttles this server at 100 accounts: ask its operator to raise the limit for this host; relay.example cannot crawl this PDS because social.example is a local or reserved hostname; configure public DNS, HTTPS and an externally reachable web server before requesting a crawl', $check['detail']);
+	}
+
+	public function testPrivatePdsAddressExplainsWhyRelayCrawlingCannotWork(): void {
+		$this->relayAnswers['https://bsky.network'] = '{"error":"HostNotFound","message":"host not found"}';
+
+		$check = $this->relayCheck(['https://bsky.network'], 'http://192.168.178.110');
+
+		$this->assertSame('warning', $check['state']);
+		$this->assertSame('bsky.network cannot crawl this PDS because 192.168.178.110 is a private or reserved IP address; configure public DNS, HTTPS and an externally reachable web server before requesting a crawl', $check['detail']);
 	}
 
 	public function testNoRelayIsAWarning(): void {
@@ -191,10 +214,10 @@ class AtprotoStatusServiceTest extends TestCase {
 		$this->assertSame('bsky.network has not synchronized alice.social.example yet', $check['detail']);
 	}
 
-	public function testHttp426WarnsThatTheFirehoseWebsocketIsNotProxied(): void {
+	public function testHttp426BlocksEnablingThePdsUntilTheFirehoseWebsocketIsProxied(): void {
 		$firehose = array_values(array_filter($this->service([])->checks(true), static fn (array $check): bool => $check['id'] === 'firehose'))[0];
 
-		$this->assertSame('warning', $firehose['state']);
+		$this->assertSame('error', $firehose['state']);
 		$this->assertStringContainsString('did not accept a WebSocket upgrade', $firehose['detail']);
 	}
 
@@ -227,7 +250,7 @@ class AtprotoStatusServiceTest extends TestCase {
 	public function testPublicDidProfileAndPostVisibilityAreChecked(): void {
 		$identity = new Identity(1, 'https://social.example/users/alice', 'did:plc:ewvi7nxzyoun6zhxrhs64oiz', 'alice.social.example', '', '', '', Identity::STATE_ACTIVE, '', 0);
 		$identities = $this->createMock(IdentityService::class);
-		$identities->method('firstActive')->willReturn($identity);
+		$identities->method('latestActive')->willReturn($identity);
 		$record = new StoredRecord($identity->did, 'app.bsky.feed.post', '3kabc', Cid::parse('bafyreie5737gdxlw5i64vzichcalba3z2v5n6icifvx5xytvske7mr3hpm'), '', '1', 1);
 		$records = $this->createMock(AtprotoRepoRequest::class);
 		$records->method('latestActivePost')->willReturn($record);

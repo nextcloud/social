@@ -10,6 +10,8 @@ declare(strict_types=1);
 namespace OCA\Social\Controller;
 
 use OCA\Social\Atproto\Identity\IdentityService;
+use OCA\Social\Atproto\Reader\BlueskyActorService;
+use OCA\Social\Atproto\Reader\BlueskyFeeds;
 use OCA\Social\Exceptions\AtprotoIdentityNotFoundException;
 use OCA\Social\Exceptions\FollowNotFoundException;
 use OCA\Social\Exceptions\InvalidActionException;
@@ -101,6 +103,7 @@ class AccountApiController extends MastodonApiController {
 		private RemoteFetchQueue $remoteFetchQueue,
 		private IdentityService $atprotoIdentities,
 		private FollowListService $followLists,
+		private BlueskyFeeds $blueskyFeeds,
 	) {
 		parent::__construct($request, $urlGenerator, $userSession, $logger, $clientService, $accountService, $cacheActorService, $streamService, $followService);
 	}
@@ -822,15 +825,24 @@ class AccountApiController extends MastodonApiController {
 				);
 			}
 
-			// only for a caller with a session: a sync fetches the account's
-			// outbox from its server and stores every post of it, so an
-			// anonymous caller could make this instance fetch and keep the
-			// posts of any account they can name. Only for the first page,
-			// which is where new posts appear, and in the background, at most
-			// once a quarter-hour per account: this page answers with what is
-			// stored, and the next look has what the sync found.
-			if ($this->viewer !== null && !$max_id && !$min_id && !$since_id) {
+			$profileFilling = false;
+			$remoteProfile = !$local->isLocal() && !BlueskyActorService::isBluesky($local);
+			// Bluesky profiles have no ActivityPub outbox. Read their public
+			// author feed into the shared stream before the ordinary profile
+			// timeline query; keep AppView's cursor behind the local max_id so
+			// clients continue paging through this endpoint as usual.
+			if (BlueskyActorService::isBluesky($local) && !$min_id && !$since_id) {
+				$profileFilling = $this->blueskyFeeds->authorPage($local, $max_id ? (string)$max_id : '', $limit, $this->viewer);
+			} elseif ($remoteProfile && $this->viewer !== null && !$max_id && !$min_id && !$since_id) {
+				// only for a caller with a session: a sync fetches the account's
+				// outbox from its server and stores every post of it, so an
+				// anonymous caller could make this instance fetch and keep the
+				// posts of any account they can name. Only for the first page,
+				// which is where new posts appear, and in the background, at most
+				// once a quarter-hour per account: this page answers with what is
+				// stored, and the next look has what the sync found.
 				$this->remoteFetchQueue->syncTimeline($local);
+				$profileFilling = $this->remoteFetchQueue->isTimelinePending($local->getId());
 			}
 
 			$options = new ProbeOptions($this->request);
@@ -859,13 +871,28 @@ class AccountApiController extends MastodonApiController {
 				$posts,
 				static fn (mixed $post): bool => !($post instanceof Announce) || $post->getObject() instanceof Stream
 			));
+			if ($remoteProfile && $this->viewer !== null && $max_id && !$min_id && !$since_id
+				&& count($shown) < $options->getLimit()) {
+				$profileFilling = $this->remoteFetchQueue->fillTimeline($local)
+					|| $this->remoteFetchQueue->isTimelinePending($local->getId())
+					|| $profileFilling;
+			}
 
-			return $this->paged(
+			$response = $this->paged(
 				$this->filterService->apply($shown, Filter::CONTEXT_ACCOUNT, $this->viewer),
 				$options->getLimit(),
 				$posts,
 				$this->streamService->lastTimelineRowCount()
 			);
+			if ($this->streamService->lastTimelineCountsFilling()) {
+				$response->addHeader('X-Social-Filling', '1');
+			}
+			if ($profileFilling) {
+				$response->addHeader('X-Social-Filling', '1');
+				$response->addHeader('X-Social-Profile-Filling', '1');
+			}
+
+			return $response;
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}

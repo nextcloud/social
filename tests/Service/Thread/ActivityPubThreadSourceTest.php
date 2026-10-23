@@ -77,6 +77,82 @@ class ActivityPubThreadSourceTest extends TestCase {
 		$this->assertSame(2, $this->source->fill($post, 2));
 	}
 
+	public function testFollowsReplyPageLinksEncodedAsObjects(): void {
+		$post = $this->note('https://remote.example/notes/1', ['replies' => [
+			'type' => 'OrderedCollection',
+			'first' => ['id' => 'https://remote.example/notes/1/replies?page=1'],
+		]]);
+		$this->remote = [
+			'https://remote.example/notes/1/replies?page=1' => [
+				'type' => 'OrderedCollectionPage',
+				'orderedItems' => ['https://a.example/notes/1'],
+				'next' => ['id' => 'https://remote.example/notes/1/replies?page=2'],
+			],
+			'https://remote.example/notes/1/replies?page=2' => [
+				'type' => 'OrderedCollectionPage',
+				'orderedItems' => ['https://b.example/notes/2'],
+			],
+			'https://a.example/notes/1' => [],
+			'https://b.example/notes/2' => [],
+		];
+
+		$this->assertSame(2, $this->source->fill($post, 10));
+		$this->assertSame([
+			'https://a.example/notes/1',
+			'https://b.example/notes/2',
+		], $this->fetched);
+	}
+
+	public function testStopsWhenReplyPageLinksLoop(): void {
+		$post = $this->note('https://remote.example/notes/1', ['replies' => 'https://remote.example/notes/1/replies']);
+		$this->remote = [
+			'https://remote.example/notes/1/replies' => [
+				'type' => 'OrderedCollectionPage',
+				'orderedItems' => [],
+				'next' => ['id' => 'https://remote.example/notes/1/replies'],
+			],
+		];
+
+		$this->assertSame(0, $this->source->fill($post, 10));
+		$this->assertSame([], $this->fetched);
+	}
+
+	public function testAFailedRepliesCollectionIsReportedAsIncompleteForLiveRetry(): void {
+		$post = $this->note('https://remote.example/notes/1', ['replies' => 'https://remote.example/notes/1/replies']);
+
+		$this->assertSame(0, $this->source->fillVisible($post, 20));
+		$this->assertTrue($this->source->hasReadFailures());
+	}
+
+	public function testAFailedReplyFetchIsReportedAsIncompleteForLiveRetry(): void {
+		$post = $this->note('https://remote.example/notes/1', ['replies' => [
+			'type' => 'Collection', 'items' => ['https://remote.example/notes/reply'],
+		]]);
+
+		$this->assertSame(0, $this->source->fillVisible($post, 20));
+		$this->assertTrue($this->source->hasReadFailures());
+	}
+
+	public function testFollowsActivityStreamsHrefLinks(): void {
+		$post = $this->note('https://remote.example/notes/1', ['replies' => [
+			'type' => 'OrderedCollection',
+			'first' => ['type' => 'Link', 'href' => 'https://remote.example/notes/1/replies?page=1'],
+		]]);
+		$this->remote = [
+			'https://remote.example/notes/1/replies?page=1' => [
+				'type' => 'OrderedCollectionPage',
+				'orderedItems' => ['https://a.example/notes/1'],
+				'next' => ['type' => 'Link', 'href' => 'https://remote.example/notes/1/replies?page=2'],
+			],
+			'https://remote.example/notes/1/replies?page=2' => ['type' => 'OrderedCollectionPage', 'orderedItems' => ['https://b.example/notes/2']],
+			'https://a.example/notes/1' => [],
+			'https://b.example/notes/2' => [],
+		];
+
+		$this->assertSame(2, $this->source->fill($post, 10));
+		$this->assertSame(['https://a.example/notes/1', 'https://b.example/notes/2'], $this->fetched);
+	}
+
 	public function testAPostWithoutARepliesCollectionOrOfThisServerIsNotAskedAbout(): void {
 		$this->assertFalse($this->source->supports($this->note('https://remote.example/notes/1')));
 		$this->assertFalse($this->source->supports($this->note('https://social.test/@alice/1', ['replies' => 'https://social.test/@alice/1/replies'], true)));

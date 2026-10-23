@@ -242,7 +242,9 @@ class QueryBudgetTest extends ReaderTestCase {
 		$replies = 0;
 
 		$this->assertFlatCostWithin(
-			'status and context', 17,
+			// Opening a post reads its live-count refresh marker and records that
+			// the viewer saw it before loading the conversation context.
+			'status and context', 19,
 			function (int $count) use (&$replies, $root): void {
 				for ($i = 0; $i < $count; $i++, $replies++) {
 					$this->post(

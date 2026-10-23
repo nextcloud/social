@@ -84,10 +84,10 @@ Taken by the product owner; the date is the interview. **Do not re-ask.**
 | D6 | The firehose is served by a daemon, **`occ social:atproto:serve`**, run under systemd. | 09-25 |
 | D7 | `/xrpc/` reaches the app through the existing root web-server rules (`contrib/webserver/*-social-root.conf`), like `/api/` and `/oauth/`. | 09-25 |
 | D8 | **Every public post goes to Bluesky automatically.** Unlisted, followers-only and direct posts never do. No per-post switch. | 10-06 |
-| D9 | A post that does not fit Bluesky is **truncated with a link** to the full post; **first four pictures**; a poll becomes **the question plus a link**; a content warning becomes a **self-label plus a text prefix**. No threads. | 09-25, fixed 10-06 |
+| D9 | A post that does not fit Bluesky is **truncated with a link** to the full post; up to **ten pictures** (the first four use `app.bsky.embed.images`, five to ten use `app.bsky.embed.gallery`); a poll becomes **the question plus a link**; a content warning becomes **a self-label plus a text prefix**. No threads. | 09-25, fixed 10-06; galleries 10-21 |
 | D10 | **Edits**: within a grace period of five minutes the Bluesky record is deleted and recreated; after that the Bluesky copy keeps its text and its likes, and its link leads to the current version here. | 10-06 |
-| D11 | **Pictures** go with the first posting phase; **video** through Bluesky's video service is a later phase, and until then a video post links here. | 10-06 |
-| D12 | **Inbound** reads by **polling** the public AppView per followed author, with a cap and backoff; **Jetstream** is an optional daemon an administrator may run for instant delivery on a large instance. | 09-25 polling, 10-06 the optional daemon |
+| D11 | **Pictures and video** are published as native Bluesky embeds. Video is processed by Bluesky's video service; arbitrary file blobs are not a supported `app.bsky.feed.post` embed. | 10-06; video and galleries implemented 10-21 |
+| D12 | **Inbound** reads by **polling** the public AppView per followed author, with a cap and backoff; notifications stay on a one-minute cadence so an empty inbox cannot delay the next interaction for hours. **Jetstream** is an optional daemon an administrator may run for instant feed delivery on a large instance. | 09-25 polling, 10-06 the optional daemon; 10-21 notification cadence |
 | D13 | Bluesky posts appear **in the same timelines**, their authors addressed as bare `@alice.bsky.social` with a **badge**. | 09-25, confirmed 10-06 |
 | D14 | **All Bluesky interactions** (like, repost, follow, reply, mention, quote) show in Activities like their ActivityPub counterparts, under the same **notification policy** and requests inbox. | 10-06 |
 | D15 | **Direct messages** are Bluesky's chat service's: a Bluesky app signed in here reaches them through this PDS (`chat.bsky.*` proxied to the configured chat service), with a privileged app password or an OAuth app given `transition:chat.bsky`, as on Bluesky. Revised again 10-09: they are also this app's own direct messages (§10.1): a message from Bluesky arrives in the person's messages, and a direct message written here to somebody on Bluesky is sent there as a Bluesky direct message; what the person writes in a Bluesky app shows here too, read state goes both ways, a message request is what a direct message from a stranger is here (held by the notification policy), and who may send them direct messages is one setting for both networks (`chat.bsky.actor.declaration`). | 10-06, revised 10-09 twice |
@@ -564,9 +564,12 @@ anything but a picture, a video or a sound is kept as
 a sound as `application/octet-stream` with `Content-Disposition:
 attachment`; `listBlobs` lists them per repository; a blob no record refers
 to is deleted by the ordinary document retention. Limits are Bluesky's:
-pictures ≤ 2,000,000 bytes (re-encoded to fit, §8.4), at most four per
-post; a video is one mp4 ≤ 100,000,000 bytes and three minutes, made into
-a stream by Bluesky's video service (D11, built in 3d).
+pictures ≤ 2,000,000 bytes (re-encoded to fit, §8.4), at most ten per
+post (four in `app.bsky.embed.images`, five to ten in
+`app.bsky.embed.gallery`); a video is one mp4 ≤ 100,000,000 bytes and
+three minutes, made into a stream by Bluesky's video service (D11, built
+in 3d). AT Protocol blobs can hold other bytes, but the Bluesky post
+Lexicon does not define arbitrary file attachments.
 
 ## 6. The XRPC surface
 
@@ -725,11 +728,15 @@ reachable" connects to the public URL and reads an `#info` frame.
 ### 7.2 Telling the relay
 
 `com.atproto.sync.requestCrawl` is sent to the relay (`bsky.network` by
-default, configurable, several allowed) when Bluesky is enabled and after
-the daemon has been unreachable for more than the replay window. The relay
-then subscribes, backfills with `getRepo` per DID, and stays connected. The
-admin page shows the relay's last connection and the lag between the head
-`seq` and what was served.
+default, configurable, several allowed) by the five-minute maintenance job
+after Bluesky is enabled and after the daemon has been unreachable for more
+than the replay window. Failed initial requests retry after 15 minutes; outage
+recovery requests are spaced six hours apart. When a relay accepts a crawl but
+the relay or public AppView still cannot find an active repository after an
+hour, maintenance retries hourly while the indexing gap remains. The relay
+then subscribes,
+backfills with `getRepo` per DID, and stays connected. The admin page shows the
+relay's last connection and the lag between the head `seq` and what was served.
 
 ### 7.3 Backfill and consistency
 
@@ -852,15 +859,17 @@ go there).
   as a blob (fetched through the cache, resized to ≤ 1,000,000 bytes, the
   lexicon's limit for a card's thumbnail).
 
-### 8.4 Pictures
+### 8.4 Pictures and galleries
 
-Up to four `media_attachments` of image type, in order; more are dropped
+Up to ten `media_attachments` of image type, in order; more are dropped
 and the text gains a line "+N more pictures" before the link. Each is
 re-encoded to fit **2,000,000 bytes** — JPEG at descending quality, then
 downscaled — through `gumlet/php-image-resize` which the app already
-depends on, uploaded as a blob (§5.4), and placed in
-`app.bsky.embed.images` with its `alt` (the Social description) and
-`aspectRatio`. A post with pictures and a link card keeps the pictures.
+depends on, and uploaded as a blob (§5.4). One to four pictures use
+`app.bsky.embed.images`; five to ten use `app.bsky.embed.gallery`. Both
+preserve each picture's `alt` (the Social description) and aspect ratio;
+when dimensions are unavailable, gallery items use a square ratio. A post
+with pictures and a link card keeps the pictures.
 
 ### 8.5 Edits and deletes
 
@@ -934,18 +943,22 @@ there within minutes of the relay indexing the commit.
 
 ### 9.3 Polling (D12)
 
-`Cron\AtprotoSync` (a `TimedJob`, every two minutes) takes the watches due
+`Cron\AtprotoSync` (a `TimedJob`, every minute) takes the watches due
 (`next_sync <= now`), at most `SYNC_BATCH` per pass, at most the
 instance-wide `atproto_sync_ceiling` (default 200 requests per pass; the
 admin page shows how far behind the slowest watch is) and within the pass's
-wall-clock budget (`AtprotoSync::MAX_DURATION`, 90 seconds for its three
-steps — feeds, notifications, direct messages — each checking the clock
+wall-clock budget (`AtprotoSync::MAX_DURATION`, 45 seconds for its three
+steps — notifications, feeds, direct messages — each checking the clock
 between accounts, so a slow AppView ends the pass and what is still due is
 read on the next one), and asks the public
 AppView `app.bsky.feed.getAuthorFeed` for each (`filter=posts_with_replies`,
 `limit=50`, the stored cursor): new posts are stored, the cursor advanced,
 `next_sync` set by backoff — one interval after a page with posts, doubling
-up to six hours after empty pages, reset by the next post. Reposts in the
+up to six hours after empty pages, reset by the next post. Notifications are
+polled first every minute and do not back off after empty pages: they are the
+only inbound signal for likes, reposts and replies to local posts. The
+effective delay still depends on the Nextcloud background-job runner cadence
+and Bluesky AppView indexing. Reposts in the
 feed become boosts (`Announce`) by the Bluesky author; replies are stored
 with their `in_reply_to` and the parent fetched through `getPostThread`
 when it is not here (bounded, one hop per pass). Only the public AppView is
@@ -974,13 +987,31 @@ mention's `Mention` tag is named by the `@handle` the text shows, the DID
 only in its target, and a reply to a local post names its author by their
 handle), pictures
 as `social_cache_doc` rows pointing at the AppView's CDN URL with the
-blob's CID and alt text, a quote as `quoted_id`, an embedded custom feed,
-list or starter pack as a link to its bsky.app page with a card made from
-what the AppView says of it — its name, description, creator and picture,
-no page read (`PostMapper::cardOf()`); the card's provider line and the
-link that stands in for a video not yet playable say what the thing is
-("Feed by @…", "List", "Starter pack", "Video"), not which network it is
-on — a reply as `in_reply_to`,
+blob's CID and alt text. Both the legacy four-image embed and
+`app.bsky.embed.gallery#view` are mapped; gallery items use their full image
+URL, fall back to the AppView thumbnail when it is missing, and flow into
+the existing paged gallery UI. Video embeds use the video playlist; when an
+AppView view is missing but the original record has a validated video blob,
+the public Bluesky video service playlist and thumbnail are derived from the
+author DID and blob CID. Blob references in third-party embed lexicons are
+also mapped when they carry a valid CID and media type: supported image blobs
+use the Bluesky CDN, while other public attachments use the author's validated
+HTTPS PDS `com.atproto.sync.getBlob` endpoint and this instance's streamed-file
+route. Streamed images use that same-origin route as their preview as well, so
+formats the Bluesky image CDN does not transform still render in the timeline.
+Their declared filename is kept where available, otherwise a useful type-based
+name is shown; the file card identifies its type from that name or the
+validated MIME type even though the streamed URL has no filename suffix.
+Logged-in-only posts never expose these public file routes. Unknown MIME types,
+malformed CIDs and unsafe PDS endpoints are omitted.
+External link embeds retain their URL, title, description and thumbnail as a link
+preview. A quote becomes `quoted_id`; an embedded custom feed, list or
+starter pack becomes a link to its bsky.app page with a card made from what
+the AppView says of it — its name, description, creator and picture, no page
+read (`PostMapper::cardOf()`); the card's provider line and the
+link that stands in for a video with no usable playlist or blob says what the
+thing is ("Feed by @…", "List", "Starter pack", "Video"), not which network
+it is on — a reply as `in_reply_to`,
 labels as `summary` (content warning) or `sensitive` per §12.1, `published`
 from `indexedAt`, `local` false, and `details.atproto` with the CID and
 the like/repost/reply counts the AppView reported. It goes through
@@ -988,6 +1019,23 @@ the like/repost/reply counts the AppView reported. It goes through
 side effect of an arriving post — recipients, `social_stream_dest`,
 notifications, filters, interests — happens the way it happens for
 ActivityPub; nothing downstream knows a Bluesky post from any other.
+
+When an AppView omits a usable embed view, standard post-record embeds remain
+visible: image blobs resolve from their validated CID, image MIME type and
+author DID to the Bluesky image CDN. Standard image-record blobs whose format
+the CDN does not transform are recovered from the author's validated HTTPS
+PDS and streamed through this instance. AVIF remains an inline preview;
+formats not reliably rendered by browsers, such as HEIC/HEIF, are presented as
+named downloads rather than broken image previews. A later AppView response can
+fill media that was missing when the post was first indexed. External embeds retain their link
+and blob thumbnail; quote-with-media records retain both the quote and its
+images.
+A raw video record remains a link to its post until the AppView supplies the
+playable video playlist. Blobs in unknown/custom embed records are mapped as
+files only when their CID, MIME type and public PDS endpoint validate; they
+are streamed on demand rather than downloaded during feed ingestion. Unknown
+MIME types and malformed CIDs are omitted rather than rendered as broken or
+misleading media; arbitrary blobs are not assumed to be images.
 
 A post is addressed to the public with the author's followers collection in
 `cc`, which is what the home timeline joins on. An author who asked apps not
@@ -1045,20 +1093,38 @@ on their first read and deleted.
 ### 9.4a Whole threads
 
 Opening a post that is on Bluesky reads its thread from the AppView
-(`BlueskyThreadSource`, `getPostThread`, depth 6, 20 parents up) in the
-background, as one of the sources of `ThreadService` beside the fediverse's
-`replies` collections, so the replies of accounts nobody here follows are in
-the conversation too. A post written here and published is read the same
-way, for the replies it got on Bluesky. See **Whole conversations** in
-Architecture.md.
+(`BlueskyThreadSource`, `getPostThread`, ten reply levels and 20 parents up)
+inline within one shared three-second budget across the sequential AppView
+requests, so fallback reads cannot add another full timeout to the page load.
+Thread roots and depth-continuation responses are accepted only when their
+post URI matches the requested AT-URI; unavailable-post results must identify
+that same URI as well.
+Replies appear without waiting for cron. The reader compares every post's
+visible direct replies with its `replyCount`, including replies nested below
+the opened post. Where a node is incomplete, it tries the first-party
+AppView's unspecced V2 thread view anchored at that post, then the specced
+cursor-paged search fallback; remaining branches stay pending for background
+retry. If the stable read reaches the endpoint's ten-level limit with a deeper
+branch remaining, it also queues a background fill to continue that branch, up
+to twenty bounded reads and the shared 150-new-reply budget. Context responses
+keep their filling signal while that queued read is pending, including when
+the inline thread is served from its short freshness cache, so the client
+continues polling until the new replies are returned. A timeout or unavailable
+deep branch leaves already stored replies intact. This also reads replies of
+accounts nobody here follows and works for posts written here and published to
+Bluesky. See **Whole conversations** in Architecture.md.
 
 ### 9.4b Who liked, reposted and quoted
 
 The likes, boosts and quotes lists of a post that is on Bluesky — read from
 there, or written here and published — have Bluesky's in them too
 (`BlueskyInteractionSource`: `getLikes`, `getRepostedBy`, `getQuotes`), read
-in the background beside the fediverse's collections. See **Who liked,
-boosted or quoted** in Architecture.md.
+in the background beside the fediverse's collections. A visible read also
+refreshes changed avatars on already cached Bluesky reactors, preserving their
+full cached profile. The source checks each response's required `uri` against
+the requested post before accepting actors, so a misrouted response cannot
+replace the cached reactions. See **Who liked, boosted or quoted** in
+Architecture.md.
 
 ### 9.4c Hashtags and searches
 
@@ -1091,20 +1157,21 @@ itself. Bluesky has no way to hide the lists, so nothing is hidden. See
 
 ### 9.4e Counts
 
-A post read from Bluesky is stored once with the `likeCount`,
-`repostCount`, `replyCount` and `quoteCount` the AppView had at that moment,
-and no later feed read touches a stored post. Its counts are kept current
-like a fediverse post's: when somebody here sees it (its page, its
-conversation, a timeline page), and its counts are older than a quarter of
-an hour (a post less than a day old) or six hours (older), it is queued for
-a background `getPosts`, 25 posts a call (`BlueskyCountSource`); the cron's
-pass over the posts nobody looked at asks the same way every two hours. The
-answer replaces what the post's own network said (`remote_*`) and the quote
-count in the post's `atproto` block, and `quoteCount` is the origin's half
-of the post's quote counter, which the status entity carries as
-`quotes_count`; a post the AppView no longer has is deleted as §9.5 deletes
-it. Nothing is notified. See **Counts where a post lives** in
-Architecture.md.
+A post read from Bluesky is initially stored with the `likeCount`,
+`repostCount`, `replyCount` and `quoteCount` the AppView had at that moment.
+When a thread is opened, its fresh `getPostThread` views also refresh those
+counters on posts already stored from a feed or profile, without importing a
+duplicate post. This makes the replies' counts current along with the thread
+contents. Elsewhere, when somebody here sees a post (its page, a conversation
+or a timeline page) and its counts are older than a quarter of an hour (a post
+less than a day old) or six hours (older), it is queued for a background
+`getPosts`, 25 posts a call (`BlueskyCountSource`); the cron's pass over posts
+nobody looked at asks the same way every two hours. The answer replaces what
+the post's own network said (`remote_*`) and the quote count in the post's
+`atproto` block, and `quoteCount` is the origin's half of the post's quote
+counter, which the status entity carries as `quotes_count`; a post the AppView
+no longer has is deleted as §9.5 deletes it. Nothing is notified. See
+**Counts where a post lives** in Architecture.md.
 
 A local post that went to Bluesky is counted here, from the likes, boosts,
 replies and quotes this server holds; the ones on Bluesky arrive as the
@@ -1170,9 +1237,10 @@ Bluesky's custom feeds and lists are read here as timelines
   database when the instance has no memcache; it is private to the viewer
   and feed and expires after that hour. A remote page with no visible posts
   but a continuation cursor is not the end of the feed: the reader follows
-  up to ten such pages in the same request. It checkpoints a longer run and
-  reports the incomplete read, so a retry resumes instead of making the
-  timeline look complete. The XRPC specification describes a missing cursor
+  such pages only within the three-second interactive AppView budget, with a
+  ten-page hard cap. If time runs out, it checkpoints the opaque cursor and
+  marks the response for timeline refill, so the client resumes without
+  keeping the original request open. The XRPC specification describes a missing cursor
   as the end of pagination and flags the empty-page-with-cursor case as an
   area needing clarification; Social follows a returned cursor with a bound
   and retry checkpoint.
@@ -1429,15 +1497,29 @@ reaching the chat service another way goes by it.
 - **Profiles**: a Bluesky account's profile is the ordinary profile page at
   `/@alice.bsky.social` (the handle has no second `@`, which is how the
   router tells it apart), the follow button, the counts, the posts from
-  the author feed (fetched live and paged by the AppView cursor when the
-  account is not watched), and a **Bluesky badge** next to the name — the
+  the author feed (fetched live as the reader's linked Bluesky identity when
+  available, and publicly when no usable identity is linked, with one post of overlap beyond the API page
+  and AppView cursors expanded once while local `max_id` pages through cached
+  posts, when the account is not watched), and a **Bluesky badge** next to the name — the
   butterfly glyph with `title="On Bluesky"`; beside it, the one verified
   check (`VerifiedBadge`) for Bluesky's trusted verifications and this
   instance's own (§12.6). The badge appears on every card the author
-  appears in: post header, notification, follower list, search result.
+  appears in: post header, notification, follower list, search result. The
+  profile status API reads `getAuthorFeed` into the shared stream
+  before its regular account query; opaque cursors are stored against local
+  status ids, and each AppView page is read once while its cached posts are
+  traversed, preserving the profile's existing `max_id` pagination. A bounded
+  refill resumes from its saved cursor after an invalid or failed AppView page,
+  so hidden records do not have to be traversed again. An AppView outage does
+  not prevent already stored posts from being read. The
+  same endpoint serves the Posts, Photos and Videos profile tabs, so imported
+  records keep the existing media filtering, cards and post actions. Pinned
+  posts continue through the profile's pin endpoint.
 - **Addressing**: `@alice.bsky.social` in a post mentions the Bluesky
   account; the composer's mention picker completes Bluesky handles from the
-  AppView typeahead when the typed text has a dot and no second `@`.
+  AppView typeahead when the typed text has a dot and no second `@`. Visible
+  typeahead and post-search requests share the three-second AppView timeout;
+  background reads keep the longer timeout.
 - **The person's own profile** shows both handles under the name, each
   with *Copy*; the Bluesky one links to `https://bsky.app/profile/<handle>`.
   No switch between "Fediverse" and "Bluesky" views: one account, one
@@ -2097,11 +2179,19 @@ that capability instead of reporting success. These checks establish
 reachability and visibility for the sampled identity and post, not universal
 indexing by every Bluesky relay or AppView.
 
+When a relay reports `HostNotFound`, the admin check distinguishes a
+non-public PDS address (private/reserved IP or local/reserved hostname) from a
+public host the relay has not crawled yet. The former explains that public DNS,
+HTTPS and an externally reachable web server are required before a crawl can
+work; it does not recommend retrying `requestCrawl` against an unreachable
+LAN address.
+
 The admin health check sends an RFC 6455 upgrade request to the public
 `subscribeRepos` route. It validates the `101` response, `Upgrade`, `Connection`
 and `Sec-WebSocket-Accept` headers, using the same public-address guard and DNS
-pinning as other outbound requests. An HTTP `426` is only a warning: it proves
-the route answers, but not that the reverse proxy reached the daemon.
+pinning as other outbound requests. An HTTP `426` is an error that blocks
+enabling the PDS: it proves the route answers, but not that the reverse proxy
+reached the daemon. Configure the proxy to pass the WebSocket upgrade through.
 
 ### 14.3 Commands
 
@@ -2293,7 +2383,7 @@ Architecture/API/OCC-Commands/Admin/User-Guide as it lands
 | Phase | Delivers | Demonstrable as |
 |---|---|---|
 | **1 — Visible on Bluesky** (D20) | §4 identity and PLC, §5 repository with profile and post records (text, links, pictures, CW, polls-as-text, quotes-as-link), §6.1–6.2 sync + identity endpoints and root rules, §7 firehose daemon and `requestCrawl`, §8.1–8.5 publisher (edits/deletes), §14 requirements, admin section, setup checks, `occ` basics, §15 tables 1–8, §16, §17.1 + the interop job's first tests | A Bluesky user searches `alice.<host>`, sees profile and posts, follows |
-| **2 — Reading Bluesky** | §9 resolution, following, the poller, the storer, deletes; §10 notifications poll and the mapping; §8.6 likes/reposts/follows; §11 badges, profiles, addressing, mention picker; §12.1 labels honoured; §9.4 optional Jetstream | alice follows `bob.bsky.social`, reads him in her feed, likes his post, sees his like and reply in Activities |
+| **2 — Reading Bluesky** | §9 resolution, following, the poller, the storer, deletes; §10 notifications poll and the mapping; §8.6 likes/reposts/follows; §11 badges, profiles, addressing, mention picker; §12.1 labels honoured; §9.4 optional Jetstream | alice reads a followed account in her feed and an unfollowed author's profile across AppView cursor pages, likes a Bluesky post, and sees its like and reply in Activities |
 | **3 — Complete interaction and apps** | §8.3 replies and quotes to Bluesky posts both ways, link cards, §12.2 labelers, §12.3 reporting, §12.4 instance blocks, §6.3 app passwords and OAuth for Bluesky clients, threadgates, video (D11) through the video service | the official Bluesky app logs in to Aloha Social as its PDS with a Social app password; an OAuth-capable client uses the consent flow; a thread spans both networks |
 | **4 — Moving** (D19) | §13 move in, move away, Bridgy twins; §4.2 custom handles | a Bluesky account moves here with its followers; a person sets `alice.example.org` as their handle |
 

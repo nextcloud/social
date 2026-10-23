@@ -91,6 +91,16 @@ class DurableCacheRequest extends CoreRequestBuilder {
 		$qb->executeStatement();
 	}
 
+	/** Deletes one cache row only when it has expired. */
+	public function deleteExpired(string $key, int $now): void {
+		$qb = $this->getQueryBuilder();
+		$qb->delete(self::TABLE_DURABLE_CACHE)
+			->where($qb->expr()->eq('cache_key', $qb->createNamedParameter($key)))
+			->andWhere($qb->expr()->lte('expires', $qb->createNamedParameter($now, IQueryBuilder::PARAM_INT)));
+
+		$qb->executeStatement();
+	}
+
 	/**
 	 * Deletes what has expired.
 	 *

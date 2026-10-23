@@ -36,6 +36,7 @@ use OCA\Social\Db\PortfoliosRequest;
 use OCA\Social\Db\PostHoldsRequest;
 use OCA\Social\Db\QuoteGrantRequest;
 use OCA\Social\Db\ReactionsRequest;
+use OCA\Social\Db\RecommendationPreferenceRequest;
 use OCA\Social\Db\ReportsRequest;
 use OCA\Social\Db\RequestQueueRequest;
 use OCA\Social\Db\ScheduledStatusesRequest;
@@ -89,6 +90,7 @@ class ActorCascadeService {
 		private ConversationsRequest $conversationsRequest,
 		private FeaturedTagsRequest $featuredTagsRequest,
 		private InterestsRequest $interestsRequest,
+		private RecommendationPreferenceRequest $recommendationPreferences,
 		private AnnouncementsRequest $announcementsRequest,
 		private ScheduledStatusesRequest $scheduledStatusesRequest,
 		private CollectionsRequest $collectionsRequest,
@@ -175,6 +177,11 @@ class ActorCascadeService {
 			'featuredTags' => fn () => $this->featuredTagsRequest->deleteRelatedId($actorId),
 			// what For you learned about it, and the posts it hid there
 			'interests' => fn () => $this->interestsRequest->deleteRelatedId($actorId),
+			'recommendationPreferences' => function () use ($reversible, $userId): void {
+				if (!$reversible && $userId !== '') {
+					$this->recommendationPreferences->purge($userId);
+				}
+			},
 			'announcements' => fn () => $this->announcementsRequest->deleteRelatedId($actorId),
 			// the posts it had asked to have published later, which are the one
 			// thing here that would otherwise go *out* under an account nothing

@@ -42,7 +42,10 @@ use Throwable;
 class PictureService {
 	/** Bluesky's limit per picture */
 	public const MAX_BYTES = 2000000;
-	public const MAX_PER_POST = 4;
+	/** Bluesky's current authoring soft limit for galleries */
+	public const MAX_PER_POST = 10;
+	/** the older images embed still has a hard limit of four */
+	public const MAX_PER_IMAGES_EMBED = 4;
 	/** what a profile's avatar or banner may weigh, and be */
 	public const PROFILE_MAX_BYTES = 1000000;
 	public const PROFILE_TYPES = ['image/jpeg', 'image/png'];

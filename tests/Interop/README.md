@@ -444,7 +444,10 @@ her repository; his like of her post and his reply to it come in through the
 AppView's notifications, asked for as her — the like in her Activities, the
 reply under her post. The test polls the watch and the notification cursor
 directly rather than the timed pass, because an empty first read backs a row
-off past the test's wait.
+off past the test's wait. It also resolves a separate author nobody here
+follows, reads three of that author's posts through the profile status API,
+and follows the API's `max_id` into the next AppView cursor page without
+repeating the first page.
 
 `AtprotoThreadsTest` is phase 3a: a reply from here to a dev-PDS post is in
 that post's thread on the AppView (parent and root), a quote of it is a
@@ -459,10 +462,11 @@ watch dropped.
 
 `AtprotoAppsTest` is phase 3c: a Bluesky app — `Bluesky/AppClient.php`,
 speaking XRPC — signs in to this instance with an app password (a wrong one
-is refused), reads its timeline from the development AppView through this
-server's proxy, posts (the post is a Social post here and reaches the
-AppView), likes a dev-PDS post this instance had not read, is refused a
-block, deletes its post (gone here) and signs out.
+is refused), reads a known external profile and post through this server's
+proxy, and sees a followed author's post in its populated timeline using the
+official password-session client. It also posts (the post is a Social post
+here and reaches the AppView), likes a dev-PDS post this instance had not
+read, is refused a block, deletes its post (gone here) and signs out.
 
 What it cannot prove: indexing by `bsky.app` itself, which needs a public
 https host with wildcard DNS and is done by hand; and anything of reading

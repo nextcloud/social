@@ -30,6 +30,8 @@ use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\ICache;
 use OCP\ICacheFactory;
 use OCP\IConfig;
+use OCP\Lock\ILockingProvider;
+use OCP\Lock\LockedException;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -50,10 +52,14 @@ class BlueskyFeedsTest extends TestCase {
 	private array $cached = [];
 	/** @var list<array{string, array, bool}> what the AppView was asked, and whether as the person */
 	private array $asked = [];
+	/** @var list<?int> timeout supplied for each AppView request */
+	private array $askedTimeouts = [];
 	/** @var array<string, array> the AppView's answers, by method */
 	private array $answers = [];
 	/** @var array<string, list<array>> queued AppView pages, by method */
 	private array $answerPages = [];
+	private int $firstAuthorFeedDelayMicros = 0;
+	private int $firstCustomFeedDelayMicros = 0;
 	/** @var string[] posts hidden from the viewer */
 	private array $hidden = [];
 	private ?BlueskyBlockedBy $blockedBy = null;
@@ -73,18 +79,32 @@ class BlueskyFeedsTest extends TestCase {
 		];
 	}
 
-	private function feeds(bool $memcache = true): BlueskyFeeds {
+	private function feeds(bool $memcache = true, ?ILockingProvider $locks = null): BlueskyFeeds {
 		$appView = $this->createMock(AppViewClient::class);
 		$answer = function (string $method, array $params, bool $asPerson): array {
 			$this->asked[] = [$method, $params, $asPerson];
+			if (in_array($method, ['app.bsky.feed.getFeed', 'app.bsky.feed.getListFeed'], true) && count(array_filter($this->asked, static fn (array $request): bool => $request[0] === $method)) === 1 && $this->firstCustomFeedDelayMicros > 0) {
+				usleep($this->firstCustomFeedDelayMicros);
+			}
+			if ($method === 'app.bsky.feed.getAuthorFeed' && count(array_filter($this->asked, static fn (array $request): bool => $request[0] === $method)) === 1 && $this->firstAuthorFeedDelayMicros > 0) {
+				usleep($this->firstAuthorFeedDelayMicros);
+			}
 			if (($this->answerPages[$method] ?? []) !== []) {
 				return array_shift($this->answerPages[$method]);
 			}
 
 			return $this->answers[$method] ?? throw new \RuntimeException('not answered: ' . $method);
 		};
-		$appView->method('query')->willReturnCallback(fn (string $method, array $params = []): array => $answer($method, $params, false));
-		$appView->method('queryAs')->willReturnCallback(fn (string $did, PrivateKey $key, string $method, array $params = []): array => $answer($method, $params, true));
+		$appView->method('query')->willReturnCallback(function (string $method, array $params = [], array $headers = [], ?int $timeout = null) use ($answer): array {
+			$this->askedTimeouts[] = $timeout;
+
+			return $answer($method, $params, false);
+		});
+		$appView->method('queryAs')->willReturnCallback(function (string $did, PrivateKey $key, string $method, array $params = [], ?int $timeout = null) use ($answer): array {
+			$this->askedTimeouts[] = $timeout;
+
+			return $answer($method, $params, true);
+		});
 		$identities = $this->createMock(IdentityService::class);
 		$identities->method('forActor')->willReturnCallback(fn (): ?Identity => $this->identity);
 		$identities->method('activeForActor')->willReturnCallback(fn (): ?Identity => $this->identity?->isActive() ? $this->identity : null);
@@ -123,7 +143,7 @@ class BlueskyFeedsTest extends TestCase {
 		$time->method('getTime')->willReturnCallback(fn (): int => $this->now);
 		$cursors = new DurableCache($cacheFactory, $this->cursorTable, $time);
 
-		return new BlueskyFeeds($appView, $identities, new Preferences($config, $this->createMock(\OCA\Social\Atproto\Client\MutedWords::class), $this->createMock(\OCA\Social\Service\AccountService::class)), $this->createMock(PostStore::class), $streams, $cursors, new NullLogger(), $this->blockedBy);
+		return new BlueskyFeeds($appView, $identities, new Preferences($config, $this->createMock(\OCA\Social\Atproto\Client\MutedWords::class), $this->createMock(\OCA\Social\Service\AccountService::class)), $this->createMock(PostStore::class), $streams, $cursors, $locks ?? $this->createStub(ILockingProvider::class), new NullLogger(), $this->blockedBy);
 	}
 
 	/** @return list<array> the saved-feeds items as stored */
@@ -217,6 +237,208 @@ class BlueskyFeedsTest extends TestCase {
 		$this->assertCount(2, $this->asked, 'without asking again');
 	}
 
+	public function testForYouReadsOnlyCachedPostsFromSavedCustomFeedsWithoutCallingTheAppView(): void {
+		$this->stored['atproto_preferences'] = json_encode([['$type' => BlueskyFeeds::SAVED, 'items' => [
+			['type' => 'feed', 'value' => self::FEED, 'pinned' => true, 'id' => 'saved'],
+			['type' => 'list', 'value' => self::LIST, 'pinned' => true, 'id' => 'list'],
+		]]]);
+		$postUris = [
+			'at://' . self::BOB . '/app.bsky.feed.post/3kcache1',
+			'at://' . self::BOB . '/app.bsky.feed.post/3kcache2',
+		];
+		$this->answers['app.bsky.feed.getFeed'] = ['feed' => array_map(static fn (string $uri): array => ['post' => ['uri' => $uri]], $postUris)];
+		$feedReader = $this->feeds();
+		$feedReader->page($this->alice, self::FEED, '', 10);
+		$requestsBeforeRead = count($this->asked);
+
+		$nids = $this->feeds()->recommendationFeedPostNids($this->alice, 10);
+
+		$this->assertSame(array_map(static fn (string $uri): string => (string)crc32(BlueskyIds::postIdOfUri($uri)), $postUris), $nids);
+		$this->assertCount($requestsBeforeRead, $this->asked, 'For You uses cached membership and makes no AppView request');
+
+		$this->feeds()->remove($this->alice, self::FEED);
+
+		$this->assertSame([], $this->feeds()->recommendationFeedPostNids($this->alice, 10), 'removed feeds no longer contribute cached posts');
+	}
+
+	public function testUnwatchedProfileFeedUsesItsAppViewCursorAsTheLinkedViewer(): void {
+		$actor = (new Person())->setId(BlueskyIds::actorId(self::BOB));
+		$firstPage = [];
+		$secondPage = [];
+		for ($index = 0; $index < 21; $index++) {
+			$firstPage[] = ['post' => ['uri' => 'at://' . self::BOB . '/app.bsky.feed.post/profile-post-' . $index]];
+			$secondPage[] = ['post' => ['uri' => 'at://' . self::BOB . '/app.bsky.feed.post/profile-older-' . $index]];
+		}
+		$uri = 'at://' . self::BOB . '/app.bsky.feed.post/profile-post-20';
+		$this->answerPages['app.bsky.feed.getAuthorFeed'] = [
+			['feed' => $firstPage, 'cursor' => 'profile-next'],
+			['feed' => $secondPage, 'cursor' => 'profile-end'],
+		];
+		$feeds = $this->feeds(false);
+
+		self::assertFalse($feeds->authorPage($actor, '', 20, $this->alice));
+		$after = (string)crc32(BlueskyIds::postIdOfUri($uri));
+		self::assertFalse($feeds->authorPage($actor, $after, 20, $this->alice));
+
+		self::assertSame(['app.bsky.feed.getAuthorFeed', [
+			'actor' => self::BOB,
+			'filter' => 'posts_with_replies',
+			'limit' => 21,
+		], true], $this->asked[0]);
+		self::assertSame(['app.bsky.feed.getAuthorFeed', [
+			'actor' => self::BOB,
+			'filter' => 'posts_with_replies',
+			'limit' => 21,
+			'cursor' => 'profile-next',
+		], true], $this->asked[1]);
+
+		self::assertFalse($feeds->authorPage($actor, $after, 20, $this->alice));
+		self::assertCount(2, $this->asked, 'a consumed AppView page is not fetched again while local max_id pages through its posts');
+	}
+
+	public function testProfileFeedUsesThePublicAppViewWhenTheViewerHasNoLinkedIdentity(): void {
+		$actor = (new Person())->setId(BlueskyIds::actorId(self::BOB));
+		$this->identity = null;
+		$this->answerPages['app.bsky.feed.getAuthorFeed'] = [['feed' => []]];
+
+		self::assertFalse($this->feeds(false)->authorPage($actor, '', 20, $this->alice));
+		self::assertSame(['app.bsky.feed.getAuthorFeed', [
+			'actor' => self::BOB,
+			'filter' => 'posts_with_replies',
+			'limit' => 21,
+		], false], $this->asked[0]);
+	}
+
+	public function testAProfileWithHiddenPostsContinuesInBoundedRefillsUntilItHasAFullPage(): void {
+		$actor = (new Person())->setId(BlueskyIds::actorId(self::BOB));
+		$hiddenPages = [];
+		for ($page = 1; $page <= 2; $page++) {
+			$feed = [];
+			for ($index = 0; $index < 21; $index++) {
+				$uri = 'at://' . self::BOB . '/app.bsky.feed.post/hidden-' . $page . '-' . $index;
+				$feed[] = ['post' => ['uri' => $uri]];
+				$this->hidden[] = BlueskyIds::postIdOfUri($uri);
+			}
+			$hiddenPages[] = ['feed' => $feed, 'cursor' => 'profile-hidden-' . ($page + 1)];
+		}
+		$visible = [];
+		for ($index = 0; $index < 21; $index++) {
+			$visible[] = ['post' => ['uri' => 'at://' . self::BOB . '/app.bsky.feed.post/visible-' . $index]];
+		}
+		$this->answerPages['app.bsky.feed.getAuthorFeed'] = [
+			...$hiddenPages,
+			['feed' => $visible, 'cursor' => 'profile-after-visible'],
+		];
+		$feeds = $this->feeds(false);
+
+		self::assertTrue($feeds->authorPage($actor, '', 20, $this->alice), 'the first request stops after two AppView pages and asks the client to continue');
+		self::assertFalse($feeds->authorPage($actor, '', 20, $this->alice), 'the refill reads the saved cursor and completes the visible page');
+		self::assertSame('profile-hidden-3', $this->asked[2][1]['cursor']);
+		self::assertCount(3, $this->asked, 'the refill consumes one subsequent AppView page');
+	}
+
+	public function testProfileRefillSharesOneInteractiveTimeoutBudgetAcrossAppViewPages(): void {
+		$actor = (new Person())->setId(BlueskyIds::actorId(self::BOB));
+		$hidden = [];
+		$visible = [];
+		for ($index = 0; $index < 21; $index++) {
+			$hiddenUri = 'at://' . self::BOB . '/app.bsky.feed.post/slow-hidden-' . $index;
+			$hidden[] = ['post' => ['uri' => $hiddenUri]];
+			$this->hidden[] = BlueskyIds::postIdOfUri($hiddenUri);
+			$visible[] = ['post' => ['uri' => 'at://' . self::BOB . '/app.bsky.feed.post/after-slow-page-' . $index]];
+		}
+		$this->answerPages['app.bsky.feed.getAuthorFeed'] = [
+			['feed' => $hidden, 'cursor' => 'after-slow-hidden-page'],
+			['feed' => $visible, 'cursor' => 'after-visible-page'],
+		];
+		$this->firstAuthorFeedDelayMicros = 1_200_000;
+		$feeds = $this->feeds(false);
+
+		self::assertFalse($feeds->authorPage($actor, '', 20, $this->alice));
+
+		self::assertSame(AppViewClient::INTERACTIVE_TIMEOUT, $this->askedTimeouts[0]);
+		self::assertLessThan(AppViewClient::INTERACTIVE_TIMEOUT, $this->askedTimeouts[1], 'the next AppView page gets only the remaining time');
+		self::assertGreaterThan(0, $this->askedTimeouts[1]);
+	}
+
+	public function testATemporaryAuthorFeedFailureRequestsARefillInsteadOfLookingLikeAnEmptyProfile(): void {
+		$actor = (new Person())->setId(BlueskyIds::actorId(self::BOB));
+
+		self::assertTrue($this->feeds()->authorPage($actor, '', 20, $this->alice));
+	}
+
+	public function testAConcurrentProfilePageRequestWaitsForTheCurrentCursorRead(): void {
+		$actor = (new Person())->setId(BlueskyIds::actorId(self::BOB));
+		$locks = $this->createMock(ILockingProvider::class);
+		$locks->expects(self::once())
+			->method('acquireLock')
+			->with(self::callback(static fn (string $key): bool => str_starts_with($key, 'social-atproto-profile-page-')), ILockingProvider::LOCK_EXCLUSIVE)
+			->willThrowException(new LockedException('another profile page request is active'));
+
+		self::assertTrue($this->feeds(false, $locks)->authorPage($actor, '', 20, $this->alice));
+		self::assertSame([], $this->asked, 'a concurrent request does not repeat the AppView fetch');
+	}
+
+	public function testAProfileRefillResumesAfterHiddenPagesWhenTheNextPageHasAnInvalidCursor(): void {
+		$actor = (new Person())->setId(BlueskyIds::actorId(self::BOB));
+		$hidden = [];
+		$visible = [];
+		for ($index = 0; $index < 21; $index++) {
+			$hiddenUri = 'at://' . self::BOB . '/app.bsky.feed.post/hidden-before-error-' . $index;
+			$hidden[] = ['post' => ['uri' => $hiddenUri]];
+			$this->hidden[] = BlueskyIds::postIdOfUri($hiddenUri);
+			$visible[] = ['post' => ['uri' => 'at://' . self::BOB . '/app.bsky.feed.post/visible-after-error-' . $index]];
+		}
+		$this->answerPages['app.bsky.feed.getAuthorFeed'] = [
+			['feed' => $hidden, 'cursor' => 'after-hidden-page'],
+			['feed' => [], 'cursor' => 'after-hidden-page'], // repeated cursor: invalid continuation response
+			['feed' => $visible, 'cursor' => 'after-visible-page'],
+		];
+		$feeds = $this->feeds(false);
+
+		self::assertTrue($feeds->authorPage($actor, '', 20, $this->alice));
+		self::assertFalse($feeds->authorPage($actor, '', 20, $this->alice));
+		self::assertSame('after-hidden-page', $this->asked[1][1]['cursor']);
+		self::assertSame('after-hidden-page', $this->asked[2][1]['cursor'], 'the retry starts after the hidden page already read');
+	}
+
+	public function testAProfileRefillForALaterPageResumesFromItsOwnCursor(): void {
+		$actor = (new Person())->setId(BlueskyIds::actorId(self::BOB));
+		$firstPage = [];
+		for ($index = 0; $index < 21; $index++) {
+			$firstPage[] = ['post' => ['uri' => 'at://' . self::BOB . '/app.bsky.feed.post/page-one-' . $index]];
+		}
+		$hiddenPages = [];
+		for ($page = 2; $page <= 3; $page++) {
+			$feed = [];
+			for ($index = 0; $index < 21; $index++) {
+				$uri = 'at://' . self::BOB . '/app.bsky.feed.post/page-' . $page . '-hidden-' . $index;
+				$feed[] = ['post' => ['uri' => $uri]];
+				$this->hidden[] = BlueskyIds::postIdOfUri($uri);
+			}
+			$hiddenPages[] = ['feed' => $feed, 'cursor' => 'profile-page-' . ($page + 1)];
+		}
+		$lastOnFirstPage = BlueskyIds::postIdOfUri('at://' . self::BOB . '/app.bsky.feed.post/page-one-20');
+		$finalPage = [];
+		for ($index = 0; $index < 21; $index++) {
+			$finalPage[] = ['post' => ['uri' => 'at://' . self::BOB . '/app.bsky.feed.post/page-four-' . $index]];
+		}
+		$this->answerPages['app.bsky.feed.getAuthorFeed'] = [
+			['feed' => $firstPage, 'cursor' => 'profile-page-2'],
+			...$hiddenPages,
+			['feed' => $finalPage, 'cursor' => 'profile-page-5'],
+		];
+		$feeds = $this->feeds(false);
+
+		self::assertFalse($feeds->authorPage($actor, '', 20, $this->alice));
+		$after = (string)crc32($lastOnFirstPage);
+		self::assertTrue($feeds->authorPage($actor, $after, 20, $this->alice));
+		self::assertFalse($feeds->authorPage($actor, $after, 20, $this->alice));
+		self::assertSame('profile-page-2', $this->asked[1][1]['cursor']);
+		self::assertSame('profile-page-4', $this->asked[3][1]['cursor'], 'the refill resumes after the two pages consumed by the previous request');
+		self::assertCount(4, $this->asked);
+	}
+
 	public function testEmptyPagesWithCursorsAreSkippedUntilAVisiblePostAppears(): void {
 		$hiddenUri = 'at://' . self::BOB . '/app.bsky.feed.post/3kh';
 		$visibleUri = 'at://' . self::BOB . '/app.bsky.feed.post/3kv';
@@ -233,7 +455,30 @@ class BlueskyFeedsTest extends TestCase {
 		self::assertCount(2, $this->asked);
 	}
 
-	public function testLongRunsOfEmptyPagesKeepASeparateRetryCursor(): void {
+	public function testCustomFeedRefillSharesInteractiveBudgetAndResumesOnNextRequest(): void {
+		$hiddenUri = 'at://' . self::BOB . '/app.bsky.feed.post/slow-hidden';
+		$visibleUri = 'at://' . self::BOB . '/app.bsky.feed.post/after-slow-page';
+		$this->hidden = [BlueskyIds::postIdOfUri($hiddenUri)];
+		$this->answerPages['app.bsky.feed.getFeed'] = [
+			['feed' => [['post' => ['uri' => $hiddenUri]]], 'cursor' => 'after-hidden'],
+			['feed' => [['post' => ['uri' => $visibleUri]]], 'cursor' => 'after-visible'],
+		];
+		$this->firstCustomFeedDelayMicros = 2_100_000;
+		$feeds = $this->feeds(false);
+
+		self::assertSame([], $feeds->page($this->alice, self::FEED, '', 20));
+		self::assertTrue($feeds->hasFeedPagePending());
+		self::assertSame(AppViewClient::INTERACTIVE_TIMEOUT, $this->askedTimeouts[0]);
+
+		$page = $feeds->page($this->alice, self::FEED, '', 20);
+
+		self::assertFalse($feeds->hasFeedPagePending());
+		self::assertSame([BlueskyIds::postIdOfUri($visibleUri)], array_map(static fn (Note $note): string => $note->getId(), $page));
+		self::assertSame('after-hidden', $this->asked[1][1]['cursor'], 'the next request resumes after the hidden page already consumed');
+		self::assertSame(AppViewClient::INTERACTIVE_TIMEOUT, $this->askedTimeouts[1]);
+	}
+
+	public function testLongRunsOfEmptyPagesKeepACursorAndAskTheTimelineToContinue(): void {
 		$pages = [];
 		for ($i = 1; $i <= 10; $i++) {
 			$pages[] = ['feed' => [], 'cursor' => 'empty-' . $i];
@@ -243,15 +488,12 @@ class BlueskyFeedsTest extends TestCase {
 		$this->answerPages['app.bsky.feed.getFeed'] = $pages;
 		$feeds = $this->feeds(false);
 
-		try {
-			$feeds->page($this->alice, self::FEED, '', 20);
-			self::fail('A bounded empty-page walk must report that it needs another request');
-		} catch (\UnexpectedValueException $e) {
-			self::assertStringContainsString('too many consecutive pages', $e->getMessage());
-		}
+		self::assertSame([], $feeds->page($this->alice, self::FEED, '', 20));
+		self::assertTrue($feeds->hasFeedPagePending());
 
 		$page = $feeds->page($this->alice, self::FEED, '', 20);
 
+		self::assertFalse($feeds->hasFeedPagePending());
 		self::assertSame([BlueskyIds::postIdOfUri($visibleUri)], array_map(static fn (Note $note): string => $note->getId(), $page));
 		self::assertSame(['feed' => self::FEED, 'limit' => 20, 'cursor' => 'empty-10'], $this->asked[10][1]);
 		self::assertCount(11, $this->asked);

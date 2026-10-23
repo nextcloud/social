@@ -164,6 +164,15 @@ class ConfigService {
 	 */
 	public const SOCIAL_PUBLISH_BLOCKS = 'publish_blocks';
 
+	/** Independent, instance-wide kill switch for ranked For You recommendations. */
+	public const REC_V4_ENABLED = 'rec_v4_enabled';
+	/** Pause only the For You background requests to remote discovery providers. */
+	public const REC_REMOTE_DISCOVERY_PAUSED = 'rec_remote_discovery_paused';
+	/** Stop For You behavioural learning regardless of individual consent. */
+	public const REC_LEARNING_PAUSED = 'rec_learning_paused';
+	/** Serve the established hashtag-interest feed in place of the ranked web feed. */
+	public const REC_FORCE_LEGACY_FEED = 'rec_force_legacy_feed';
+
 	/**
 	 * How far the closed-poll sweep has got, as a timestamp.
 	 *
@@ -522,6 +531,12 @@ class ConfigService {
 	public const ATPROTO_SYNC_CEILING = 'atproto_sync_ceiling';
 	/** the firehose daemon's last report (JSON), written by `occ social:atproto:serve` */
 	public const ATPROTO_FIREHOSE_STATUS = 'atproto_firehose_status';
+	/** last time a relay accepted a crawl request for this PDS */
+	public const ATPROTO_CRAWL_ACCEPTED = 'atproto_crawl_accepted';
+	/** last time a crawl request was attempted, including failed attempts */
+	public const ATPROTO_CRAWL_ATTEMPTED = 'atproto_crawl_attempted';
+	/** per-relay result of the last automatic crawl request, as JSON */
+	public const ATPROTO_CRAWL_RESULTS = 'atproto_crawl_results';
 	/** where older versions kept the Jetstream listener's report and cursor; JetstreamState moves them out */
 	public const ATPROTO_JETSTREAM_STATUS = 'atproto_jetstream_status';
 	public const ATPROTO_JETSTREAM_CURSOR = 'atproto_jetstream_cursor';
@@ -550,6 +565,9 @@ class ConfigService {
 		self::ATPROTO_CHAT => 'https://api.bsky.chat',
 		self::ATPROTO_SYNC_CEILING => '200',
 		self::ATPROTO_FIREHOSE_STATUS => '',
+		self::ATPROTO_CRAWL_ACCEPTED => '0',
+		self::ATPROTO_CRAWL_ATTEMPTED => '0',
+		self::ATPROTO_CRAWL_RESULTS => '[]',
 		self::ATPROTO_DELETE_CURSOR => '0',
 		self::ATPROTO_DETACH_CURSOR => '0',
 		self::ATPROTO_MODERATION_DID => 'did:plc:ar7c4by46qjdydhdevvrndac',
