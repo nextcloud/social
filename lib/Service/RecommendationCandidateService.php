@@ -62,7 +62,7 @@ class RecommendationCandidateService {
 
 		$state = $this->preferences->get($viewer->getUserId());
 		$mode = $state['effective_topics'][$topicId] ?? null;
-		if (!in_array($mode, ['LESS', 'INTERESTED', 'PRIORITISE'], true)) {
+		if (!in_array($mode, ['INTERESTED', 'PRIORITISE'], true)) {
 			return $empty;
 		}
 
