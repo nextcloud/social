@@ -80,7 +80,7 @@ describe('For You topic settings', () => {
 	})
 
 	it('saves progress and resumes at the next onboarding step', async () => {
-		put.mockResolvedValue({ data: { ...state, revision: 8, onboarding_step: 1, onboarding_complete: false } })
+		put.mockResolvedValue({ data: { ...state, revision: 8, onboarding_step: 2, onboarding_complete: false } })
 		const wrapper = mount(RecommendationTopicsSettings)
 		await flushPromises()
 		await wrapper.setData({ onboardingComplete: false, onboardingStep: 0 })
@@ -89,11 +89,29 @@ describe('For You topic settings', () => {
 
 		expect(put).toHaveBeenCalledWith(PREFERENCES_URL, expect.objectContaining({
 			if_revision: 7,
-			onboarding_step: 1,
+			onboarding_step: 2,
 			onboarding_complete: false,
 			content_balance: 'balanced',
 		}))
-		expect(wrapper.text()).toContain('Refine with subtopics')
+		expect(wrapper.text()).toContain('Choose languages')
+		expect(wrapper.text()).not.toContain('Refine with subtopics')
+	})
+
+	it('maps existing in-progress setup states past the removed subtopic step', async () => {
+		const wrapper = mountSettings()
+		await flushPromises()
+		await wrapper.setData({ onboardingComplete: false, onboardingStep: 1 })
+		expect(wrapper.vm.wizardStep).toBe(1)
+		expect(wrapper.text()).toContain('Choose languages')
+		expect(wrapper.text()).not.toContain('Refine with subtopics')
+
+		await wrapper.setData({ onboardingStep: 3 })
+		expect(wrapper.vm.wizardStep).toBe(2)
+		expect(wrapper.text()).toContain('Choose your content balance')
+
+		await wrapper.setData({ onboardingStep: 4 })
+		expect(wrapper.vm.wizardStep).toBe(3)
+		expect(wrapper.text()).toContain('Review and start')
 	})
 
 	it('accepts additional language codes and saves the language step', async () => {
