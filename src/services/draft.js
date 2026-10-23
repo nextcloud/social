@@ -88,6 +88,7 @@ const MAX_AGE_MS = 7 * 24 * 3600 * 1000
  *   the reader's own
  * @property {DraftMedia[]} media the attachments, in order
  * @property {?DraftPoll} poll the poll, null when there is none
+ * @property {?{name: string, start: string, end: string, location: string}} event the event being written
  * @property {string} scheduledAt when it is to go out, as an ISO date, '' for now
  * @property {string} language the language it is written in, '' for the default
  * @property {string} replyPolicy who may reply, '' for the default
@@ -117,6 +118,7 @@ export function saveDraft({
 	postAs = '',
 	media = [],
 	poll = null,
+	event = null,
 	scheduledAt = '',
 	language = '',
 	replyPolicy = '',
@@ -125,7 +127,7 @@ export function saveDraft({
 	card = '',
 }, context = '') {
 	const pollWritten = poll !== null && poll.options.some((option) => option.trim() !== '')
-	if ((text ?? '').trim() === '' && spoilerText.trim() === '' && media.length === 0 && !pollWritten) {
+	if ((text ?? '').trim() === '' && spoilerText.trim() === '' && media.length === 0 && !pollWritten && event === null) {
 		return clearDraft(context)
 	}
 
@@ -141,6 +143,7 @@ export function saveDraft({
 			postAs,
 			media,
 			poll,
+			event,
 			scheduledAt,
 			language,
 			replyPolicy,
@@ -208,6 +211,14 @@ export function loadDraft(context = '') {
 		postAs: stringOr(draft.postAs),
 		media: Array.isArray(draft.media) ? draft.media.map(mediaOf).filter((item) => item !== null) : [],
 		poll: pollOf(draft.poll),
+		event: isObject(draft.event)
+			? {
+					name: stringOr(draft.event.name),
+					start: stringOr(draft.event.start),
+					end: stringOr(draft.event.end),
+					location: stringOr(draft.event.location),
+				}
+			: null,
 		scheduledAt: stringOr(draft.scheduledAt),
 		language: stringOr(draft.language),
 		replyPolicy: stringOr(draft.replyPolicy),

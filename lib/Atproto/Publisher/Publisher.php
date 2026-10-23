@@ -428,7 +428,7 @@ class Publisher {
 		if (!$this->config->isEnabled() || !$post->isLocal() || $post->isArchived()) {
 			return false;
 		}
-		if (!in_array($post->getType(), ['Note', 'Question'], true)) {
+		if (!in_array($post->getType(), ['Note', 'Question'], true) || $post->getSubType() === 'Event') {
 			return false;
 		}
 

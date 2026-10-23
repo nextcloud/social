@@ -25,6 +25,7 @@
  * @param {{id?: string, name?: string, country?: string}|null} post.place where it was taken
  * @param {Date|null} post.scheduledAt when it is to go out, null for now
  * @param {{options: string[], expiresIn: number, multiple: boolean}|null} post.poll the poll, null for none
+ * @param {{name: string, start_time: string, end_time: string|null, location: string}|null} post.event the Fediverse event, null for an ordinary post
  * @return {object} the request body
  */
 export function statusPayload(post) {
@@ -45,6 +46,7 @@ export function statusPayload(post) {
 		// the same default, but what the poster saw is what goes
 		language: post.language,
 		...(post.video === null ? {} : videoFields(post.video)),
+		...(post.event === null ? {} : { event: post.event }),
 	}
 
 	// where it was taken, only ever as the poster said: a known place by its

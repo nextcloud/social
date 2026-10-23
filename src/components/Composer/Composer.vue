@@ -265,6 +265,46 @@
 				v-model:expiresIn="pollExpiresIn"
 				@remove="togglePoll" />
 
+			<section v-if="showEvent" class="event-editor" :aria-label="t('social', 'Create an event')">
+				<h3>{{ t('social', 'Create an event') }}</h3>
+				<label>
+					{{ t('social', 'Event title') }}
+					<input
+						v-model="eventName"
+						type="text"
+						maxlength="300"
+						required
+						:placeholder="t('social', 'What is happening?')">
+				</label>
+				<div class="event-editor__times">
+					<label>
+						{{ t('social', 'Starts') }}
+						<input v-model="eventStart" type="datetime-local" required>
+					</label>
+					<label>
+						{{ t('social', 'Ends (optional)') }}
+						<input v-model="eventEnd" type="datetime-local">
+					</label>
+				</div>
+				<label>
+					{{ t('social', 'Event location (optional)') }}
+					<input
+						v-model="eventLocation"
+						type="text"
+						maxlength="500"
+						:placeholder="t('social', 'Venue or meeting place')">
+				</label>
+				<p class="event-editor__hint">
+					{{ t('social', 'Your event is shared with the audience selected below. Times use your local timezone.') }}
+				</p>
+				<p v-if="reachesBluesky" class="event-editor__hint">
+					{{ t('social', 'Events are published to the Fediverse and are not copied to Bluesky.') }}
+				</p>
+				<p v-if="!eventIsValid" class="event-editor__error" role="status">
+					{{ t('social', 'Add a title and start time; the end must be after the start.') }}
+				</p>
+			</section>
+
 			<!-- When the post goes out, if not now. The picker is most of a
 			     date library and arrives when the clock is pressed, not with
 			     every composer; until then this block is not here at all. -->
@@ -438,12 +478,23 @@
 					<NcButton
 						:title="showPoll ? t('social', 'Remove poll') : t('social', 'Add poll')"
 						variant="tertiary"
+						:disabled="showEvent"
 						:aria-label="showPoll ? t('social', 'Remove poll') : t('social', 'Add poll')"
 						@click.prevent="togglePoll">
 						<template #icon>
 							<PollIcon :size="22" decorative title="" />
 						</template>
 						<span v-if="compactOptions">{{ showPoll ? t('social', 'Remove poll') : t('social', 'Add poll') }}</span>
+					</NcButton>
+					<NcButton
+						:title="showEvent ? t('social', 'Remove event') : t('social', 'Create an event')"
+						variant="tertiary"
+						:aria-pressed="showEvent"
+						@click.prevent="toggleEvent">
+						<template #icon>
+							<CalendarMonthOutline :size="22" decorative title="" />
+						</template>
+						<span v-if="compactOptions">{{ showEvent ? t('social', 'Remove event') : t('social', 'Create an event') }}</span>
 					</NcButton>
 					<span v-if="compactOptions" class="composer-advanced-options__label">{{ t('social', 'Timing and place') }}</span>
 					<NcButton
@@ -575,6 +626,7 @@
 
 import EmoticonOutline from 'vue-material-design-icons/EmoticonOutline.vue'
 import ClockOutline from 'vue-material-design-icons/ClockOutline.vue'
+import CalendarMonthOutline from 'vue-material-design-icons/CalendarMonthOutline.vue'
 import MapMarkerOutline from 'vue-material-design-icons/MapMarkerOutline.vue'
 import CameraOutline from 'vue-material-design-icons/CameraOutline.vue'
 import Close from 'vue-material-design-icons/Close.vue'
@@ -717,6 +769,7 @@ export default {
 		Paperclip,
 		EmoticonOutline,
 		ClockOutline,
+		CalendarMonthOutline,
 		MapMarkerOutline,
 		PlacePicker,
 		SchedulePicker,
@@ -945,6 +998,11 @@ export default {
 			schedulePickerLoading: false,
 			loading: false,
 			showPoll: false,
+			showEvent: false,
+			eventName: '',
+			eventStart: '',
+			eventEnd: '',
+			eventLocation: '',
 			showWarning: false,
 			/** what a video is called, and what it is; blank unless asked for */
 			videoTitle: '',
@@ -1125,6 +1183,9 @@ export default {
 			if (this.statusIsTooLong) {
 				return false
 			}
+			if (!this.eventIsValid) {
+				return false
+			}
 
 			if (this.statusIsEmpty) {
 				return false
@@ -1138,7 +1199,19 @@ export default {
 		},
 
 		statusIsEmpty() {
-			return this.statusText.trim().length === 0 && this.mediaIds.length === 0
+			return this.statusText.trim().length === 0 && this.mediaIds.length === 0 && !this.showEvent
+		},
+
+		eventIsValid() {
+			if (!this.showEvent) {
+				return true
+			}
+			if (this.eventName.trim() === '' || this.eventStart === '') {
+				return false
+			}
+			const start = new Date(this.eventStart).getTime()
+			const end = this.eventEnd === '' ? null : new Date(this.eventEnd).getTime()
+			return Number.isFinite(start) && (end === null || (Number.isFinite(end) && end > start))
 		},
 
 		/**
@@ -1164,6 +1237,7 @@ export default {
 				|| (this.replyTo !== null && !this.anchoredReply)
 				|| this.quoteOf !== null
 				|| this.showPoll
+				|| this.showEvent
 				|| this.scheduling
 				|| this.showWarning
 				|| !this.statusIsEmpty
@@ -1215,7 +1289,7 @@ export default {
 		canBeCard() {
 			const length = this.statusText.trim().length
 
-			return length > 0 && length <= CARD_MAX && !this.hasAttachments && !this.showPoll
+			return length > 0 && length <= CARD_MAX && !this.hasAttachments && !this.showPoll && !this.showEvent
 		},
 
 		/** @return {object[]} the backgrounds a card can have, the writer's own first */
@@ -1284,6 +1358,7 @@ export default {
 			const scheduled = this.scheduling && this.scheduledAt instanceof Date && !Number.isNaN(this.scheduledAt.getTime())
 			const video = { title: this.videoTitle, category: this.videoCategory, licence: this.videoLicence }
 			const poll = { options: [...this.pollOptions], multiple: this.pollMultiple, expiresIn: this.pollExpiresIn }
+			const event = { name: this.eventName, start: this.eventStart, end: this.eventEnd, location: this.eventLocation }
 
 			return {
 				text: this.statusText,
@@ -1294,6 +1369,7 @@ export default {
 				postAs: this.postAs || this.pendingPostAs,
 				media: this.draftMedia,
 				poll: this.showPoll ? poll : null,
+				event: this.showEvent ? event : null,
 				scheduledAt: scheduled ? this.scheduledAt.toISOString() : '',
 				language: this.language,
 				replyPolicy: this.replyPolicy,
@@ -1508,6 +1584,11 @@ export default {
 			}
 			this.clearAttachments()
 			this.showPoll = false
+			this.showEvent = false
+			this.eventName = ''
+			this.eventStart = ''
+			this.eventEnd = ''
+			this.eventLocation = ''
 			this.pollOptions = ['', '']
 			this.pollMultiple = false
 			this.showWarning = false
@@ -1770,6 +1851,7 @@ export default {
 				return false
 			}
 			this.moreOptionsOpen = draft.poll !== null
+				|| draft.event !== null
 				|| draft.scheduledAt !== ''
 				|| draft.place !== null
 				|| draft.card !== ''
@@ -1807,6 +1889,13 @@ export default {
 				this.pollOptions = draft.poll.options.length >= 2 ? draft.poll.options : ['', '']
 				this.pollMultiple = draft.poll.multiple
 				this.pollExpiresIn = draft.poll.expiresIn
+			}
+			if (draft.event !== null) {
+				this.showEvent = true
+				this.eventName = draft.event.name
+				this.eventStart = draft.event.start
+				this.eventEnd = draft.event.end
+				this.eventLocation = draft.event.location
 			}
 			if (draft.scheduledAt !== '') {
 				// a time that has come too close in the meantime is shown as
@@ -2063,6 +2152,14 @@ export default {
 				poll: this.showPoll
 					? { options: this.pollOptions, expiresIn: this.pollExpiresIn, multiple: this.pollMultiple }
 					: null,
+				event: this.showEvent
+					? {
+							name: this.eventName.trim(),
+							start_time: new Date(this.eventStart).toISOString(),
+							end_time: this.eventEnd === '' ? null : new Date(this.eventEnd).toISOString(),
+							location: this.eventLocation.trim(),
+						}
+					: null,
 			})
 
 			// a short post as a card: the words drawn on colour and attached
@@ -2290,6 +2387,27 @@ export default {
 			}
 		},
 
+		toggleEvent() {
+			this.showEvent = !this.showEvent
+			if (this.showEvent) {
+				this.showPoll = false
+				this.pollOptions = ['', '']
+				this.pollMultiple = false
+				if (this.eventStart === '') {
+					const start = new Date()
+					start.setHours(start.getHours() + 1, 0, 0, 0)
+					this.eventStart = new Date(start.getTime() - start.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+					const end = new Date(start.getTime() + 60 * 60 * 1000)
+					this.eventEnd = new Date(end.getTime() - end.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+				}
+			} else {
+				this.eventName = ''
+				this.eventStart = ''
+				this.eventEnd = ''
+				this.eventLocation = ''
+			}
+		},
+
 		closeReply() {
 			this.replyTo = this.inReplyTo
 			// an anchored composer is part of the page rather than something
@@ -2357,6 +2475,59 @@ function rememberedVisibility() {
 
 .video-row__title {
 	width: 100%;
+}
+
+.event-editor {
+	display: grid;
+	gap: 10px;
+	margin-block: 8px 12px;
+	padding: 14px;
+	border: 1px solid var(--color-border);
+	border-radius: var(--border-radius-large);
+	background: var(--color-background-dark);
+
+	h3 {
+		margin: 0;
+		font-size: 1rem;
+	}
+
+	label {
+		display: grid;
+		gap: 4px;
+		color: var(--color-text-maxcontrast);
+		font-size: 0.9rem;
+	}
+
+	input {
+		width: 100%;
+		min-width: 0;
+	}
+}
+
+.event-editor__times {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 10px;
+}
+
+.event-editor__hint,
+.event-editor__error {
+	margin: 0;
+	font-size: 0.85rem;
+}
+
+.event-editor__hint {
+	color: var(--color-text-maxcontrast);
+}
+
+.event-editor__error {
+	color: var(--color-error);
+}
+
+@media (max-width: 600px) {
+	.event-editor__times {
+		grid-template-columns: 1fr;
+	}
 }
 
 // one duration and one curve for the whole opening, so the parts of it arrive

@@ -101,6 +101,7 @@
 			v-if="item.event"
 			class="post-event"
 			:aria-label="t('social', 'Event details')">
+			<strong v-if="item.event.name" class="post-event__title">{{ item.event.name }}</strong>
 			<div class="post-event__facts">
 				<span v-if="eventTimeLabel" class="post-event__fact">
 					<CalendarMonthOutline :size="16" />
@@ -116,7 +117,9 @@
 				class="post-event__calendar"
 				:disabled="importingEvent"
 				@click="importEventToCalendar">
-				<template #icon><CalendarMonthOutline :size="16" /></template>
+				<template #icon>
+					<CalendarMonthOutline :size="16" />
+				</template>
 				{{ importingEvent ? t('social', 'Adding…') : t('social', 'Add to Nextcloud Calendar') }}
 			</NcButton>
 			<a
@@ -2162,6 +2165,11 @@ export default {
 		flex-wrap: wrap;
 		gap: 6px 14px;
 		min-width: 0;
+	}
+
+	.post-event__title {
+		flex-basis: 100%;
+		font-size: 14px;
 	}
 
 	.post-event__fact,

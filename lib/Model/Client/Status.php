@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Model\Client;
 
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Tools\ActivityPubEvent;
 use OCA\Social\Tools\Traits\TArrayTools;
 
 class Status implements \JsonSerializable {
@@ -20,6 +21,8 @@ class Status implements \JsonSerializable {
 	private string $spoilerText = '';
 	private array $mediaIds = [];
 	private ?array $poll = null;
+	/** @var array{name:string,start_time:?string,end_time:?string,location:string}|null */
+	private ?array $event = null;
 	private int $inReplyToId = 0;
 	/**
 	 * The post this one quotes, as the client named it: the numeric status id
@@ -249,6 +252,13 @@ class Status implements \JsonSerializable {
 		$this->setStatus($this->get('status', $data));
 		$this->setLanguage($this->get('language', $data));
 		$this->setPostAs($this->get('post_as', $data));
+		$event = $this->getArray('event', $data);
+		$this->setEvent($event === [] ? null : ActivityPubEvent::metadata([
+			'name' => $event['name'] ?? '',
+			'startTime' => $event['start_time'] ?? null,
+			'endTime' => $event['end_time'] ?? null,
+			'location' => $event['location'] ?? '',
+		]));
 
 		// Where the post was taken, if the client said. Either an id it got
 		// from /api/v1/places/search, or a name it already had.
@@ -271,6 +281,18 @@ class Status implements \JsonSerializable {
 
 	public function getPoll(): ?array {
 		return $this->poll;
+	}
+
+	/** @param array{name:string,start_time:?string,end_time:?string,location:string}|null $event */
+	public function setEvent(?array $event): self {
+		$this->event = $event;
+
+		return $this;
+	}
+
+	/** @return array{name:string,start_time:?string,end_time:?string,location:string}|null */
+	public function getEvent(): ?array {
+		return $this->event;
 	}
 
 	private int $placeId = 0;

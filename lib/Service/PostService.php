@@ -138,6 +138,10 @@ class PostService {
 		}
 
 		$note = new Note();
+		if ($post->getEvent() !== null) {
+			$note->setSubType('Event');
+			$note->setDetailArray(Details::EVENT, $post->getEvent());
+		}
 		if ($post->hasPoll()) {
 			$poll = $post->getPoll();
 			$options = self::pollOptions($poll['options'] ?? []);

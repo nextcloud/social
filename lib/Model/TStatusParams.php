@@ -9,6 +9,8 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model;
 
+use OCA\Social\Tools\ActivityPubEvent;
+
 /**
  * Reading a stored post request, for the two models that keep one.
  *
@@ -48,6 +50,21 @@ trait TStatusParams {
 		$poll = $this->params['poll'] ?? null;
 
 		return (is_array($poll) && $poll !== []) ? $poll : null;
+	}
+
+	/** @return array{name:string,start_time:?string,end_time:?string,location:string}|null */
+	public function paramEvent(): ?array {
+		$event = $this->params['event'] ?? null;
+		if (!is_array($event)) {
+			return null;
+		}
+
+		return ActivityPubEvent::metadata([
+			'name' => $event['name'] ?? '',
+			'startTime' => $event['start_time'] ?? null,
+			'endTime' => $event['end_time'] ?? null,
+			'location' => $event['location'] ?? '',
+		]);
 	}
 
 	/**

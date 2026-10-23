@@ -42,6 +42,8 @@ class Post implements JsonSerializable {
 	private string $type = '';
 	private array $hashtags = [];
 	private ?array $poll = null;
+	/** @var array{name:string,start_time:?string,end_time:?string,location:string}|null */
+	private ?array $event = null;
 
 	/** the content warning, hiding the body until the reader asks for it */
 	private string $spoilerText = '';
@@ -281,6 +283,18 @@ class Post implements JsonSerializable {
 
 	public function getPoll(): ?array {
 		return $this->poll;
+	}
+
+	/** @param array{name:string,start_time:?string,end_time:?string,location:string}|null $event */
+	public function setEvent(?array $event): self {
+		$this->event = $event;
+
+		return $this;
+	}
+
+	/** @return array{name:string,start_time:?string,end_time:?string,location:string}|null */
+	public function getEvent(): ?array {
+		return $this->event;
 	}
 
 	public function getLanguage(): string {
