@@ -47,6 +47,9 @@ use OCA\Social\Middleware\HideCountsMiddleware;
 use OCA\Social\Middleware\RateLimitHeadersMiddleware;
 use OCA\Social\Notification\Notifier;
 use OCA\Social\Search\UnifiedSearchProvider;
+use OCA\Social\Service\IRecommendationSignalEvents;
+use OCA\Social\Service\IRecommendationSignalRecorder;
+use OCA\Social\Service\RecommendationSignalService;
 use OCA\Social\UserMigration\SocialMigrator;
 use OCA\Social\WellKnown\WebfingerHandler;
 use OCP\Accounts\UserUpdatedEvent;
@@ -93,6 +96,11 @@ class ApplicationTest extends TestCase {
 
 		// the button under the login form that leads to the registration page
 		$context->expects($this->once())->method('registerAlternativeLoginProvider')->with(SignupLoginProvider::class);
+		$serviceAliases = [];
+		$context->expects($this->exactly(2))->method('registerServiceAlias')
+			->willReturnCallback(static function (string $alias, string $target) use (&$serviceAliases): void {
+				$serviceAliases[$alias] = $target;
+			});
 
 		$listeners = [];
 		$all = [];
@@ -114,6 +122,10 @@ class ApplicationTest extends TestCase {
 			});
 
 		$this->application()->register($context);
+		$this->assertSame([
+			IRecommendationSignalEvents::class => RecommendationSignalService::class,
+			IRecommendationSignalRecorder::class => RecommendationSignalService::class,
+		], $serviceAliases);
 
 		$this->assertSame([
 			BeforeTemplateRenderedEvent::class => ProfileSectionListener::class,

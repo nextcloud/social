@@ -101,7 +101,7 @@ class RecommendationPreferenceRequestTest extends TestCase {
 		self::assertTrue($duplicate['duplicate']);
 		self::assertSame(1, count($this->signals->profile($this->owner)['topics']));
 
-		$reset = $this->request->resetLearning($this->owner, $enabled['revision']);
+		$reset = $this->request->resetLearning($this->owner, $duplicate['profile_version']);
 		self::assertNotNull($reset);
 		self::assertSame([], $this->signals->profile($this->owner)['topics']);
 		$late = $this->signals->record($this->owner, '5c5bc6c7-787f-4df7-a5bd-973cf942c55c', $generation, 'like', [$signal], null, 2_000_000_002);
