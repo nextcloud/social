@@ -16,6 +16,7 @@ use OCA\Social\Service\Discovery\FediversePostSource;
 use OCA\Social\Service\Discovery\PostDiscoveryService;
 use OCA\Social\Service\Discovery\PostSourceStats;
 use OCA\Social\Service\RecommendationDiscoveryHealthService;
+use OCA\Social\Service\RecommendationPreferenceService;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
@@ -46,7 +47,7 @@ class PostDiscoveryServiceTest extends TestCase {
 				$recorded[] = [$provider, $stats->postsStored];
 			}
 		);
-		$service = new PostDiscoveryService($cacheActors, new NullLogger(), $health, $container);
+		$service = new PostDiscoveryService($cacheActors, new NullLogger(), $health, $this->createStub(RecommendationPreferenceService::class), $container);
 
 		$this->assertSame(7, $service->fill(PostDiscoveryService::TAG, 'nextcloud'));
 		$this->assertSame(2, $service->fill(PostDiscoveryService::SEARCH, 'open source', $alice->getId()));
@@ -62,8 +63,28 @@ class PostDiscoveryServiceTest extends TestCase {
 		$container->method('get')->willReturnMap([[FediversePostSource::class, $fediverse], [BlueskyPostSource::class, $bluesky]]);
 		$health = $this->createMock(RecommendationDiscoveryHealthService::class);
 		$health->expects($this->exactly(2))->method('record');
-		$service = new PostDiscoveryService($this->createMock(CacheActorService::class), new NullLogger(), $health, $container);
+		$service = new PostDiscoveryService($this->createMock(CacheActorService::class), new NullLogger(), $health, $this->createStub(RecommendationPreferenceService::class), $container);
 
 		$this->assertSame(2, $service->fillTag('nextcloud', 20, 1_700_000_000), 'one network failing leaves the other');
+	}
+
+	public function testAdminPauseBlocksEveryPostDiscoveryEntryPoint(): void {
+		$container = $this->createMock(ContainerInterface::class);
+		$container->expects($this->never())->method('get');
+		$health = $this->createMock(RecommendationDiscoveryHealthService::class);
+		$health->expects($this->never())->method('record');
+		$preferences = $this->createStub(RecommendationPreferenceService::class);
+		$preferences->method('remoteDiscoveryPaused')->willReturn(true);
+		$service = new PostDiscoveryService(
+			$this->createMock(CacheActorService::class),
+			new NullLogger(),
+			$health,
+			$preferences,
+			$container,
+		);
+
+		$this->assertSame(0, $service->fill(PostDiscoveryService::TAG, 'nextcloud'));
+		$this->assertSame(0, $service->fill(PostDiscoveryService::SEARCH, 'open source'));
+		$this->assertSame(0, $service->fillTag('nextcloud', 20, 1_700_000_000));
 	}
 }

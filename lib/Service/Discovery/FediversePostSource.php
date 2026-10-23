@@ -43,6 +43,7 @@ class FediversePostSource implements PostSource {
 		private StreamQueueService $queue,
 		private LoggerInterface $logger,
 		private HostBreaker $hostBreaker,
+		private RemotePostDiscoveryBudget $budget,
 	) {
 	}
 
@@ -60,6 +61,14 @@ class FediversePostSource implements PostSource {
 			}
 			$requests[$host] = 'https://' . $host . '/api/v1/timelines/tag/' . rawurlencode($tag) . '?limit=20';
 		}
+		$authorizedRequests = [];
+		foreach ($requests as $host => $url) {
+			if (!$this->budget->reserve()) {
+				break;
+			}
+			$authorizedRequests[$host] = $url;
+		}
+		$requests = $authorizedRequests;
 		if ($requests === []) {
 			return PostSourceStats::empty();
 		}
@@ -127,6 +136,9 @@ class FediversePostSource implements PostSource {
 			}
 			$remainingSeconds = (int)floor(($deadline - hrtime(true)) / 1_000_000_000);
 			if ($remainingSeconds < 1) {
+				break;
+			}
+			if (!$this->budget->reserve()) {
 				break;
 			}
 			try {

@@ -242,4 +242,16 @@ class DurableCacheTest extends TestCase {
 		$this->assertNull($cache->getShared('social.test', 'listed'));
 		$this->assertSame([], $this->table->rows);
 	}
+
+	#[DataProvider('backends')]
+	public function testSharedAddClaimsAnUnoccupiedSlotAndReclaimsOnlyExpiredRows(bool $memcache): void {
+		$cache = $this->cache($memcache);
+		$this->assertTrue($cache->addShared('social.test', 'slot', 1, 60));
+		$this->assertFalse($cache->addShared('social.test', 'slot', 2, 60));
+		$this->assertSame(1, $cache->getShared('social.test', 'slot'));
+
+		$this->now += 61;
+		$this->assertTrue($cache->addShared('social.test', 'slot', 3, 60));
+		$this->assertSame(3, $cache->getShared('social.test', 'slot'));
+	}
 }

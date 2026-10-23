@@ -107,6 +107,34 @@ class DurableCache {
 	}
 
 	/**
+	 * Atomically claims a shared key that does not have a live row.
+	 *
+	 * Unlike `setShared()`, simultaneous callers cannot overwrite one
+	 * another's claim: the table's unique key decides which insert wins. This
+	 * is useful for bounded shared slots when no distributed atomic cache is
+	 * configured.
+	 */
+	public function addShared(string $namespace, string $key, mixed $value, int $ttl): bool {
+		$now = $this->now();
+		$expires = $now + $this->ttl($ttl);
+		$rowKey = $this->rowKey($namespace, $key);
+		$encoded = $this->encode($value);
+
+		if ($this->durableCacheRequest->insertIfAbsent($rowKey, $encoded, $expires)) {
+			return true;
+		}
+		if ($this->durableCacheRequest->read($rowKey, $now) !== null) {
+			return false;
+		}
+
+		// The unique row may be expired but not yet purged. Delete only that
+		// expired row; an unqualified delete could erase a concurrent claim.
+		$this->durableCacheRequest->deleteExpired($rowKey, $now);
+
+		return $this->durableCacheRequest->insertIfAbsent($rowKey, $encoded, $expires);
+	}
+
+	/**
 	 * `remove()` from the table whatever memcache there is: what `setShared()`
 	 * wrote.
 	 */

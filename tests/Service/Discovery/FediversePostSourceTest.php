@@ -17,6 +17,7 @@ use OCA\Social\Model\Client\DirectorySource;
 use OCA\Social\Service\CurlService;
 use OCA\Social\Service\Discovery\FediversePostSource;
 use OCA\Social\Service\Discovery\PostSourceStats;
+use OCA\Social\Service\Discovery\RemotePostDiscoveryBudget;
 use OCA\Social\Service\FediverseDirectoryService;
 use OCA\Social\Service\HostBreaker;
 use OCA\Social\Service\StreamQueueService;
@@ -26,6 +27,13 @@ use Psr\Log\NullLogger;
 
 #[AllowMockObjectsWithoutExpectations]
 class FediversePostSourceTest extends TestCase {
+	private function budget(bool $allowed = true): RemotePostDiscoveryBudget {
+		$budget = $this->createStub(RemotePostDiscoveryBudget::class);
+		$budget->method('reserve')->willReturn($allowed);
+
+		return $budget;
+	}
+
 	public function testThePeersHashtagTimelinesAreReadAndEachPostFetchedFromItsOwnServer(): void {
 		$directory = $this->createMock(FediverseDirectoryService::class);
 		$directory->method('sources')->willReturn([
@@ -57,7 +65,7 @@ class FediversePostSourceTest extends TestCase {
 			$fetched[] = $uri;
 			$timeouts[] = $timeout;
 		});
-		$source = new FediversePostSource($directory, $curl, $streams, $queue, new NullLogger(), $this->createMock(HostBreaker::class));
+		$source = new FediversePostSource($directory, $curl, $streams, $queue, new NullLogger(), $this->createMock(HostBreaker::class), $this->budget());
 
 		$stats = $source->tagged('nextcloud', 10, null);
 		$this->assertSame(2, $stats->postsStored);
@@ -95,7 +103,7 @@ class FediversePostSourceTest extends TestCase {
 			$fetched[] = $uri;
 			self::assertSame(2, $timeout);
 		});
-		$source = new FediversePostSource($directory, $curl, $streams, $queue, new NullLogger(), $this->createMock(HostBreaker::class));
+		$source = new FediversePostSource($directory, $curl, $streams, $queue, new NullLogger(), $this->createMock(HostBreaker::class), $this->budget());
 
 		$stats = $source->tagged('nextcloud', 20, null, (int)strtotime('2026-10-08T00:00:00Z'));
 		$this->assertSame(1, $stats->postsStored);
@@ -128,7 +136,7 @@ class FediversePostSourceTest extends TestCase {
 		$breaker->method('openUntil')->willReturn(0);
 		$breaker->expects($this->once())->method('open')->with('limited.example', 240);
 		$breaker->expects($this->once())->method('close')->with('healthy.example');
-		$source = new FediversePostSource($directory, $curl, $streams, $queue, new NullLogger(), $breaker);
+		$source = new FediversePostSource($directory, $curl, $streams, $queue, new NullLogger(), $breaker, $this->budget());
 
 		$stats = $source->tagged('nextcloud', 10, null);
 		$this->assertSame(1, $stats->postsStored);
@@ -151,8 +159,59 @@ class FediversePostSourceTest extends TestCase {
 			$this->createMock(StreamQueueService::class),
 			new NullLogger(),
 			$breaker,
+			$this->budget(),
 		);
 
 		$this->assertEquals(PostSourceStats::empty(), $source->tagged('nextcloud', 10, null));
+	}
+
+	public function testExhaustedSharedBudgetSkipsProviderRequests(): void {
+		$directory = $this->createMock(FediverseDirectoryService::class);
+		$directory->method('sources')->willReturn([new DirectorySource('mastodon.example', DirectorySource::KIND_MASTODON, 'Mastodon')]);
+		$curl = $this->createMock(CurlService::class);
+		$curl->expects($this->never())->method('retrieveJsonMany');
+		$source = new FediversePostSource(
+			$directory,
+			$curl,
+			$this->createMock(StreamRequest::class),
+			$this->createMock(StreamQueueService::class),
+			new NullLogger(),
+			$this->createMock(HostBreaker::class),
+			$this->budget(false),
+		);
+
+		$this->assertEquals(PostSourceStats::empty(), $source->tagged('nextcloud', 10, null));
+	}
+
+	public function testPartialSharedBudgetOnlyAsksTheAuthorizedPeer(): void {
+		$directory = $this->createMock(FediverseDirectoryService::class);
+		$directory->method('sources')->willReturn([
+			new DirectorySource('first.example', DirectorySource::KIND_MASTODON, 'First'),
+			new DirectorySource('second.example', DirectorySource::KIND_MASTODON, 'Second'),
+		]);
+		$curl = $this->createMock(CurlService::class);
+		$curl->expects($this->once())->method('retrieveJsonMany')->with(
+			['https://first.example/api/v1/timelines/tag/nextcloud?limit=20'],
+			$this->anything(), $this->anything(), $this->anything(), $this->anything(), $this->anything()
+		)->willReturnCallback(static function (array $urls, array $options, array $perUrl, ?array &$statuses, ?array &$failed, ?array &$retryAfters): array {
+			$statuses = [$urls[0] => 200];
+			$failed = [];
+			$retryAfters = [];
+
+			return [$urls[0] => []];
+		});
+		$budget = $this->createMock(RemotePostDiscoveryBudget::class);
+		$budget->expects($this->exactly(2))->method('reserve')->willReturnOnConsecutiveCalls(true, false);
+		$source = new FediversePostSource(
+			$directory,
+			$curl,
+			$this->createMock(StreamRequest::class),
+			$this->createMock(StreamQueueService::class),
+			new NullLogger(),
+			$this->createMock(HostBreaker::class),
+			$budget,
+		);
+
+		$this->assertSame(1, $source->tagged('nextcloud', 10, null)->requests);
 	}
 }

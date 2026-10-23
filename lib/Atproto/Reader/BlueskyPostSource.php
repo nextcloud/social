@@ -17,6 +17,7 @@ use OCA\Social\Atproto\Xrpc\XrpcException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\Discovery\PostSource;
 use OCA\Social\Service\Discovery\PostSourceStats;
+use OCA\Social\Service\Discovery\RemotePostDiscoveryBudget;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -33,6 +34,7 @@ class BlueskyPostSource implements PostSource {
 		private PostStore $store,
 		private LabelerService $labelers,
 		private LoggerInterface $logger,
+		private RemotePostDiscoveryBudget $budget,
 		private ?BlueskyBlockedBy $blockedBy = null,
 	) {
 	}
@@ -55,6 +57,9 @@ class BlueskyPostSource implements PostSource {
 		$params += ['sort' => 'latest', 'limit' => max(1, min(100, $limit))];
 		try {
 			$identity = $viewer === null ? null : $this->identities->activeForActor($viewer);
+			if (!$this->budget->reserve()) {
+				return PostSourceStats::empty();
+			}
 			$answer = $identity !== null
 				? $this->appView->queryAs($identity->did, $this->identities->signingKey($identity), 'app.bsky.feed.searchPosts', $params, AppViewClient::INTERACTIVE_TIMEOUT)
 				: $this->appView->query('app.bsky.feed.searchPosts', $params, ['atproto-accept-labelers' => $this->labelers->acceptHeader()], AppViewClient::INTERACTIVE_TIMEOUT);

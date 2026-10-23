@@ -12,6 +12,7 @@ namespace OCA\Social\Service\Discovery;
 use OCA\Social\Atproto\Reader\BlueskyPostSource;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\RecommendationDiscoveryHealthService;
+use OCA\Social\Service\RecommendationPreferenceService;
 use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -33,6 +34,7 @@ class PostDiscoveryService {
 		private CacheActorService $cacheActors,
 		private LoggerInterface $logger,
 		private RecommendationDiscoveryHealthService $health,
+		private RecommendationPreferenceService $preferences,
 		private ?ContainerInterface $container = null,
 	) {
 	}
@@ -69,6 +71,10 @@ class PostDiscoveryService {
 	 * @param callable(PostSource): PostSourceStats $read
 	 */
 	private function ask(string $kind, callable $read): int {
+		if ($this->preferences->remoteDiscoveryPaused()) {
+			return 0;
+		}
+
 		$stored = 0;
 		foreach ($this->sources() as $source) {
 			try {
