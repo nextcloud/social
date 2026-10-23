@@ -116,15 +116,15 @@
 			<Pound :size="16" />
 			<span class="interest-reason__text">{{ interest.text }}</span>
 		</router-link>
-		<!-- a post no hashtag brought: there is no tag to go to -->
+		<!-- A discovery post has no tag route to open. -->
 		<span
 			v-else-if="interest !== null"
 			class="interest-reason"
-			:class="['topic', 'exploration'].includes(interest.reason) ? 'interest-reason--topic' : 'interest-reason--popular'"
+			:class="interest.reason === 'exploration' ? 'interest-reason--exploration' : 'interest-reason--popular'"
 			role="note"
 			:title="interest.label"
 			:aria-label="interest.label">
-			<Pound v-if="['topic', 'exploration'].includes(interest.reason)" :size="16" />
+			<Pound v-if="interest.reason === 'exploration'" :size="16" />
 			<TrendingUp v-else :size="16" />
 			<span class="interest-reason__text">{{ interest.text }}</span>
 		</span>

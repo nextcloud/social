@@ -128,7 +128,7 @@ class RecommendationsControllerTest extends TestCase {
 
 	public function testRankedTimelineUsesOnlyTheAuthenticatedReader(): void {
 		$result = [
-			'items' => [], 'session_id' => null, 'next_cursor' => null, 'mode' => 'NO_ACTIVE_TOPICS',
+			'items' => [], 'session_id' => null, 'next_cursor' => null, 'mode' => 'RANKED',
 			'algorithm_version' => 1, 'profile_version' => 2, 'cursor_expired' => false,
 			'coverage' => ['state' => 'UNDERFILLED', 'known_eligible' => 0, 'returned' => 0, 'remote_refresh_queued' => false],
 		];

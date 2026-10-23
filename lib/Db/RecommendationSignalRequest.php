@@ -154,7 +154,7 @@ class RecommendationSignalRequest extends CoreRequestBuilder {
 		return ['accepted' => true, 'duplicate' => false, 'profile_version' => $this->profileVersion($actorKey)];
 	}
 
-	/** Remove learned aggregates and exposures; keep explicit topic choices. */
+	/** Remove learned aggregates and exposures while preserving the consent profile. */
 	public function reset(string $actorKey): void {
 		foreach ([self::TABLE_SIGNAL, self::TABLE_EVENT, self::TABLE_SEEN] as $table) {
 			$qb = $this->getQueryBuilder();

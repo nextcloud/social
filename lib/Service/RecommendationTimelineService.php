@@ -274,8 +274,8 @@ class RecommendationTimelineService {
 			}
 		}
 
-		// Keep indexed lookup bounded, while rotating the primary alias window so
-		// large topic selections are all searched over successive hourly refreshes.
+		// Keep indexed lookup bounded while rotating through large automatic
+		// profiles over successive hourly refreshes.
 		$count = count($aliasesByTopic);
 		if ($count === 0) {
 			return [];
@@ -452,7 +452,7 @@ class RecommendationTimelineService {
 		}
 
 		// Rotate the bounded refresh window with the same interval used to
-		// throttle each remote query, so later selected topics are not starved.
+		// throttle each remote query, so later profile topics are not starved.
 		$start = (intdiv(max(0, $now), RemoteFetchQueue::POSTS_INTERVAL) * self::MAX_REFRESH_TOPICS) % count($topics);
 		$queued = false;
 		$refreshCount = min(self::MAX_REFRESH_TOPICS, count($topics));
