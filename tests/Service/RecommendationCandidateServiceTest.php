@@ -100,15 +100,17 @@ class RecommendationCandidateServiceTest extends TestCase {
 		$this->assertSame('activitypub', $result['candidates'][0]['protocol']);
 	}
 
-	public function testNeutralAndHiddenPreferencesDoNotReadOrQueueCandidates(): void {
+	public function testLessNeutralAndHiddenPreferencesDoNotReadOrQueueCandidates(): void {
 		$this->preferences->method('isEnabled')->willReturn(true);
 		$this->preferences->method('get')->willReturnOnConsecutiveCalls(
+			['effective_topics' => ['tech.apple' => 'LESS']],
 			['effective_topics' => ['tech.apple' => 'NEUTRAL']],
 			['effective_topics' => ['tech.apple' => 'HIDE']]
 		);
 		$this->streams->expects($this->never())->method('recommendationCandidatesByTerms');
 		$this->queue->expects($this->never())->method('fillPosts');
 
+		$this->service()->discover($this->viewer(), 'tech.apple');
 		$this->service()->discover($this->viewer(), 'tech.apple');
 		$this->service()->discover($this->viewer(), 'tech.apple');
 	}
