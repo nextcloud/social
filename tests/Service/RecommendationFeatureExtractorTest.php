@@ -27,7 +27,7 @@ class RecommendationFeatureExtractorTest extends TestCase {
 
 		$features = $this->extractor()->extract($post);
 
-		$this->assertSame(2, $features['version']);
+		$this->assertSame(3, $features['version']);
 		$this->assertSame('de', $features['language']);
 		$this->assertSame(0.72, $features['topics']['oss.nextcloud']['score']);
 		$this->assertSame('text', $features['topics']['oss.nextcloud']['evidence']);
@@ -84,6 +84,26 @@ class RecommendationFeatureExtractorTest extends TestCase {
 		$this->assertArrayHasKey('photography', $germanPhotography['topics']);
 		$this->assertArrayHasKey('education', $englishEducation['topics']);
 		$this->assertArrayHasKey('software', $englishSoftware['topics']);
-		$this->assertSame(2, $englishAi['version']);
+		$this->assertSame(3, $englishAi['version']);
+	}
+
+	public function testAmbiguousAppleRequiresTechnologyContextAndIgnoresQuotedOrCodeText(): void {
+		$extractor = $this->extractor();
+		$brand = $extractor->extract((new Note())->setContent('<p>Apple unveils macOS today.</p>'));
+		$fruit = $extractor->extract((new Note())->setContent('<p>I ate an apple after visiting the orchard.</p>'));
+		$quoted = $extractor->extract((new Note())->setContent('<blockquote>Apple unveils macOS today.</blockquote><p>A sunny afternoon.</p>'));
+		$markdownQuote = $extractor->extract((new Note())->setContent("> Apple unveils macOS today.\nA sunny afternoon."));
+		$code = $extractor->extract((new Note())->setContent('<pre><code>Nextcloud and Apple iPhone</code></pre><p>A sunny afternoon.</p>'));
+		$markdownCode = $extractor->extract((new Note())->setContent("A sunny afternoon.\n```\nNextcloud Apple iPhone\n```"));
+
+		$this->assertArrayHasKey('tech.apple', $brand['topics']);
+		$this->assertArrayNotHasKey('tech.apple', $fruit['topics']);
+		$this->assertArrayNotHasKey('tech.apple', $quoted['topics']);
+		$this->assertArrayNotHasKey('technology', $quoted['topics']);
+		$this->assertArrayNotHasKey('tech.apple', $markdownQuote['topics']);
+		$this->assertArrayNotHasKey('oss.nextcloud', $code['topics']);
+		$this->assertArrayNotHasKey('tech.apple', $code['topics']);
+		$this->assertArrayNotHasKey('oss.nextcloud', $markdownCode['topics']);
+		$this->assertArrayNotHasKey('tech.apple', $markdownCode['topics']);
 	}
 }

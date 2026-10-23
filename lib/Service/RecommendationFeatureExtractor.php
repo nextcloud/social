@@ -17,7 +17,7 @@ use OCA\Social\Tools\SearchTerms;
 
 /** Deterministic, local-only features used to retrieve recommendation candidates. */
 final class RecommendationFeatureExtractor {
-	public const VERSION = 2;
+	public const VERSION = 3;
 	private const MAX_CONTENT_CHARS = 20000;
 	private const MAX_TERMS = 500;
 
@@ -34,7 +34,7 @@ final class RecommendationFeatureExtractor {
 	 * @return array{version: int, topics: array<string, array{score: float, evidence: string}>, format: string, language: string}
 	 */
 	public function extract(Stream $post): array {
-		$bodyTerms = self::contentTerms(mb_substr($post->getContent(), 0, self::MAX_CONTENT_CHARS, 'UTF-8'));
+		$bodySegments = self::contentSegments(mb_substr($post->getContent(), 0, self::MAX_CONTENT_CHARS, 'UTF-8'));
 		$hashtagTerms = array_map(self::normaliseHashtag(...), $post->getHashtags());
 		$matches = [];
 
@@ -47,7 +47,7 @@ final class RecommendationFeatureExtractor {
 				if ($aliasTerms === []) {
 					continue;
 				}
-				if (self::containsSequence($bodyTerms, $aliasTerms)) {
+				if (self::containsAlias($topic['id'], $alias, $aliasTerms, $bodySegments, $topic['aliases'])) {
 					$matches[$topic['id']] = ['score' => 0.72, 'evidence' => 'text'];
 					break;
 				}
@@ -81,6 +81,36 @@ final class RecommendationFeatureExtractor {
 		];
 	}
 
+	/** @param list<string> $aliasTerms @param list<list<string>> $segments @param list<string> $aliases */
+	private static function containsAlias(string $topicId, string $alias, array $aliasTerms, array $segments, array $aliases): bool {
+		foreach ($segments as $terms) {
+			if (!self::containsSequence($terms, $aliasTerms)) {
+				continue;
+			}
+			if ($topicId !== 'tech.apple' || $alias !== 'apple' || self::hasAppleTechnologyContext($terms, $aliases)) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/** @param list<string> $terms @param list<string> $aliases */
+	private static function hasAppleTechnologyContext(array $terms, array $aliases): bool {
+		$contextAliases = array_merge($aliases, ['macos', 'macbook', 'ios', 'app store', 'tim cook', 'computer', 'laptop', 'smartphone', 'device']);
+		foreach ($contextAliases as $alias) {
+			if ($alias === 'apple') {
+				continue;
+			}
+			$aliasTerms = SearchTerms::ofText($alias, 20, true);
+			if ($aliasTerms !== [] && self::containsSequence($terms, $aliasTerms)) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
 	/** @param list<string> $haystack @param list<string> $needle */
 	private static function containsSequence(array $haystack, array $needle): bool {
 		$length = count($needle);
@@ -96,24 +126,36 @@ final class RecommendationFeatureExtractor {
 		return false;
 	}
 
-	/** @return list<string> */
-	private static function contentTerms(string $html): array {
+	/** @return list<list<string>> */
+	private static function contentSegments(string $html): array {
+		$html = preg_replace('#```[\\s\\S]*?```|~~~[\\s\\S]*?~~~|`[^`\\r\\n]*`#u', ' ', $html) ?? $html;
+		$html = preg_replace('/^[\\t ]{0,3}>.*(?:\\R|$)/mu', ' ', $html) ?? $html;
+		$html = preg_replace('#<(blockquote|pre|code)\\b[^>]*>.*?</\\1\\s*>#isu', ' ', $html) ?? $html;
 		$text = ACore::withoutMarkup(str_replace('<', ' <', $html));
 		$text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5 | ENT_SUBSTITUTE, 'UTF-8');
 		$text = mb_strtolower(mb_scrub($text, 'UTF-8'), 'UTF-8');
-		$words = preg_split('/[^\p{L}\p{N}\p{M}]+/u', $text, -1, PREG_SPLIT_NO_EMPTY);
-		$terms = [];
-		foreach (($words === false) ? [] : $words as $word) {
-			if (mb_strlen($word, 'UTF-8') < SearchTerms::MIN_LENGTH) {
-				continue;
+		$sentences = preg_split('/(?<=[.!?。！？])\s+|[\r\n]+/u', $text, -1, PREG_SPLIT_NO_EMPTY);
+		$segments = [];
+		$termCount = 0;
+		foreach (($sentences === false) ? [] : $sentences as $sentence) {
+			$words = preg_split('/[^\p{L}\p{N}\p{M}]+/u', $sentence, -1, PREG_SPLIT_NO_EMPTY);
+			$terms = [];
+			foreach (($words === false) ? [] : $words as $word) {
+				if (mb_strlen($word, 'UTF-8') < SearchTerms::MIN_LENGTH) {
+					continue;
+				}
+				$terms[] = mb_substr($word, 0, SearchTerms::MAX_LENGTH, 'UTF-8');
+				$termCount++;
+				if ($termCount >= self::MAX_TERMS) {
+					break 2;
+				}
 			}
-			$terms[] = mb_substr($word, 0, SearchTerms::MAX_LENGTH, 'UTF-8');
-			if (count($terms) >= self::MAX_TERMS) {
-				break;
+			if ($terms !== []) {
+				$segments[] = $terms;
 			}
 		}
 
-		return $terms;
+		return $segments;
 	}
 
 	private static function normaliseHashtag(string $value): string {

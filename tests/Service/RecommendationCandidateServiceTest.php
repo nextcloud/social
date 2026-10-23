@@ -166,8 +166,8 @@ class RecommendationCandidateServiceTest extends TestCase {
 			'learning_mode' => 'on',
 			'effective_topics' => ['tech.apple' => 'INTERESTED'],
 		]);
-		$first = (new Note())->setId('https://remote.example/posts/2')->setContent('<p>Apple publishes an update</p>')->setPublishedTime(1_999_999_900);
-		$second = (new Note())->setId('https://remote.example/posts/3')->setContent('<p>Apple publishes another update</p>')->setPublishedTime(1_999_999_800);
+		$first = (new Note())->setId('https://remote.example/posts/2')->setContent('<p>Apple publishes an iPhone update</p>')->setPublishedTime(1_999_999_900);
+		$second = (new Note())->setId('https://remote.example/posts/3')->setContent('<p>Apple publishes another iPhone update</p>')->setPublishedTime(1_999_999_800);
 		$this->streams->expects($this->once())->method('setViewer')->with($this->isInstanceOf(Person::class));
 		$this->streams->expects($this->exactly(2))->method('getVisibleByNids')->willReturnOnConsecutiveCalls(
 			['2' => $first],
