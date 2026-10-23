@@ -477,7 +477,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 *
 	 * @var array{tags: string[], reason: string}|null
 	 */
-	/** @var array{tags: string[], reason: string, topics?: list<array{id: string, labels: array{en: string, de: string}}>, selection_stage?: string}|null */
+	/** @var array{tags: string[], reason: string, topics?: list<array{id: string, labels: array{en: string, de: string}}>, selection_stage?: string, explanation?: array<string, mixed>}|null */
 	private ?array $interest = null;
 
 	/** @var array{position: int, duration: int, updated_at: ?string}|null */
