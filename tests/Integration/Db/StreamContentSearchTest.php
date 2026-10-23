@@ -74,10 +74,7 @@ class StreamContentSearchTest extends TestCase {
 		$note->setAttributedTo(self::AUTHOR);
 		$note->setTo($to);
 		$note->setContent($content);
-		if ($visibility !== null) {
-			$note->setVisibility($visibility);
-		}
-		$note->setVisibility($to === ACore::CONTEXT_PUBLIC ? 'public' : 'direct');
+		$note->setVisibility($visibility ?? ($to === ACore::CONTEXT_PUBLIC ? 'public' : 'direct'));
 		$note->setPublishedTime(time());
 		$note->setPublished(gmdate('Y-m-d\TH:i:s\Z'));
 		$this->streamRequest->save($note);
