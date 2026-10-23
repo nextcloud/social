@@ -67,6 +67,16 @@ describe('the For you card', () => {
 		expect(wrapper.text()).toContain('The GDPR-relevant choice: off makes learning opt-in')
 	})
 
+	it('describes the ranked feed, explicit learning choice and bounded discovery accurately', () => {
+		const wrapper = mountCard()
+
+		expect(wrapper.text()).toContain('For You 4.0 recommendations')
+		expect(wrapper.text()).toContain('use the ranked For You feed after choosing active topics')
+		expect(wrapper.text()).toContain('Behavioral learning stays off until a reader explicitly enables it')
+		expect(wrapper.text()).toContain('Discovery uses bounded background jobs and eligible public posts')
+		expect(wrapper.text()).not.toContain('recommendations and behavioral learning remain unavailable')
+	})
+
 	it('fills in the defaults for an instance that never saved the card', () => {
 		const wrapper = mountCard({})
 

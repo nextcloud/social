@@ -6,16 +6,16 @@
 	<div>
 		<div class="interests-admin">
 			<section class="interests-admin__v4">
-				<h4>{{ t('social', 'For You 4.0 foundation') }}</h4>
+				<h4>{{ t('social', 'For You 4.0 recommendations') }}</h4>
 				<NcCheckboxRadioSwitch
 					v-model="form.recommendationsEnabled"
 					type="switch"
 					:disabled="v4Saving"
 					@update:modelValue="saveRecommendations">
-					{{ t('social', 'Enable the For You 4.0 foundation') }}
+					{{ t('social', 'Enable For You 4.0 recommendations') }}
 				</NcCheckboxRadioSwitch>
 				<p class="interests-admin__hint">
-					{{ t('social', 'This independent instance switch is off by default. Turning it on enables only the explicit topic preference API; recommendations and behavioral learning remain unavailable until their own reviewed stages are released.') }}
+					{{ t('social', 'This instance switch is off by default. When enabled, readers can set topic preferences and use the ranked For You feed after choosing active topics. Behavioral learning stays off until a reader explicitly enables it. Discovery uses bounded background jobs and eligible public posts; the chronological Following feed is unchanged.') }}
 				</p>
 				<DiscoveryHealth />
 			</section>
