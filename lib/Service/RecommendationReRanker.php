@@ -95,6 +95,7 @@ final class RecommendationReRanker {
 			if ($wasExploration) {
 				$chosen['_exploration_slot'] = true;
 			}
+			$chosen['_promoted_by_diversity'] = !$wasExploration && $bestIndex > 0;
 			unset($chosen['_base_position']);
 			array_splice($remaining, $bestIndex, 1);
 			$selected[] = $chosen;

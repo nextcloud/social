@@ -20,6 +20,7 @@ use OCA\Social\Service\InterestFeedService;
 use OCA\Social\Service\InterestService;
 use OCA\Social\Service\RecommendationBehavioralProfile;
 use OCA\Social\Service\RecommendationContentCluster;
+use OCA\Social\Service\RecommendationExplanationService;
 use OCA\Social\Service\RecommendationFeatureExtractor;
 use OCA\Social\Service\RecommendationFeedbackService;
 use OCA\Social\Service\RecommendationFollowFeatures;
@@ -84,6 +85,7 @@ class RecommendationTimelineServiceTest extends TestCase {
 			new RecommendationRanker(),
 			new RecommendationReRanker(),
 			$this->snapshots,
+			new RecommendationExplanationService($this->catalog),
 			$this->feedback,
 			new RecommendationBehavioralProfile(new RecommendationSignalService(
 				$this->preferences,
@@ -178,7 +180,7 @@ class RecommendationTimelineServiceTest extends TestCase {
 			$this->appleAliases(), $this->isType('string'), 100, [], ['en']
 		)->willReturn(['123' => $post]);
 		$this->snapshots->expects($this->once())->method('create')->with(
-			'alice', 'for-you-v4-candidate-recall-2', '', 3, 2, 2_000_000_000, ['123'], 20, []
+			'alice', 'for-you-v4-explanations-1', '', 3, 2, 2_000_000_000, ['123'], 20, [], $this->anything()
 		)->willReturn(['session_id' => 'session', 'nids' => ['123'], 'exploration_nids' => [], 'next_cursor' => null]);
 		$this->queue->expects($this->exactly(2))->method('fillPosts')->willReturnCallback(
 			static function (string $kind, string $term, Person $viewer): bool {
@@ -385,6 +387,7 @@ class RecommendationTimelineServiceTest extends TestCase {
 				'session_id' => 'exploration-session',
 				'nids' => $arguments[6],
 				'exploration_nids' => $arguments[8],
+				'explanations' => $arguments[9],
 				'next_cursor' => null,
 			];
 		});
@@ -410,6 +413,14 @@ class RecommendationTimelineServiceTest extends TestCase {
 			'session_id' => 'exploration-session',
 			'nids' => ['123'],
 			'exploration_nids' => ['123'],
+			'explanations' => [[
+				'nid' => '123',
+				'reason' => (new RecommendationExplanationService($this->catalog))->explain([
+					'matching_topic_ids' => ['tech.apple'],
+					'_exploration_slot' => true,
+					'protocol' => 'activitypub',
+				], 3, 2_000_000_000),
+			]],
 			'next_cursor' => null,
 		]);
 		$this->streams->method('getVisibleByNids')->with(['123'])->willReturn(['123' => $post]);
@@ -418,5 +429,42 @@ class RecommendationTimelineServiceTest extends TestCase {
 
 		$this->assertSame('exploration', $page['items'][0]->getInterest()['reason']);
 		$this->assertSame('tech.apple', $page['items'][0]->getInterest()['topics'][0]['id']);
+		$this->assertSame('EXPLORATION', $page['items'][0]->getInterest()['explanation']['primary']);
+		$this->assertSame(2_000_000_000, $page['items'][0]->getInterest()['explanation']['created_at']);
+	}
+
+	public function testTimelineStoresTheExplanationsFromTheRankedSnapshot(): void {
+		$this->preferences->method('get')->willReturn($this->state([['topic_id' => 'tech.apple', 'mode' => 'INTERESTED']]));
+		$this->interests->method('hiddenFor')->willReturn([]);
+		$this->interests->method('languagesFor')->willReturn([]);
+		$post = (new Note())
+			->setId('https://bsky.app/profile/did:plc:ewvi7nxzyoun6zhxrhs64oiz/post/3k')
+			->setNid('123')
+			->setAttributedTo('https://example.test/users/alice')
+			->setContent('<p>Apple announces a new device</p>')
+			->setPublishedTime(1_999_999_900);
+		$this->streams->method('recommendationCandidatesByTerms')->willReturn(['123' => $post]);
+		$this->follows->method('getBetweenMany')->willReturn(['following' => [], 'followedBy' => []]);
+		$this->snapshots->method('create')->willReturnCallback(static function (...$arguments): array {
+			return [
+				'session_id' => 'explanation-session',
+				'nids' => ['123'],
+				'exploration_nids' => [],
+				'explanations' => $arguments[9],
+				'next_cursor' => null,
+			];
+		});
+
+		$page = $this->service()->page($this->viewer(), 1);
+		$explanation = $page['items'][0]->getInterest()['explanation'];
+
+		$this->assertSame('TOPIC_EXPLICIT', $explanation['primary']);
+		$this->assertSame(['tech.apple'], $explanation['topic_ids']);
+		$this->assertContains('CACHED_CANDIDATE', $explanation['also']);
+		$this->assertSame('atproto', $explanation['protocol']);
+		$this->assertTrue($explanation['personalisation_used']);
+		$this->assertSame('RERANK', $explanation['selection_stage']);
+		$this->assertSame(3, $explanation['profile_version']);
+		$this->assertSame($explanation, $page['items'][0]->jsonSerialize()['interest']['explanation']);
 	}
 }

@@ -13,11 +13,11 @@ use InvalidArgumentException;
 
 /** Immutable, bounded ranking snapshot with viewer- and mode-bound cursors. */
 final readonly class RecommendationFeedSnapshot {
-	public const CURSOR_VERSION = 2;
+	public const CURSOR_VERSION = 3;
 	public const MAX_POSTS = 1000;
-	public const ALGORITHM_VERSION = 3;
+	public const ALGORITHM_VERSION = 4;
 
-	/** @param list<string> $rankedNids @param list<string> $explorationNids */
+	/** @param list<string> $rankedNids @param list<string> $explorationNids @param list<array{nid: string, reason: array<string, mixed>}> $explanations */
 	public function __construct(
 		public string $id,
 		public string $viewerKey,
@@ -30,6 +30,7 @@ final readonly class RecommendationFeedSnapshot {
 		public int $expiresAt,
 		public array $rankedNids,
 		public array $explorationNids = [],
+		public array $explanations = [],
 	) {
 		if (preg_match('/^[a-f0-9]{32}$/', $id) !== 1 || preg_match('/^[a-f0-9]{64}$/', $viewerKey) !== 1) {
 			throw new InvalidArgumentException('Invalid recommendation snapshot identity');
@@ -60,9 +61,12 @@ final readonly class RecommendationFeedSnapshot {
 			|| array_diff($explorationNids, $rankedNids) !== []) {
 			throw new InvalidArgumentException('Exploration posts must be unique members of the ranked snapshot');
 		}
+		if (!self::validExplanations($explanations, $rankedNids)) {
+			throw new InvalidArgumentException('Snapshot explanations must be bounded and match ranked posts');
+		}
 	}
 
-	/** @param list<string> $rankedNids @param list<string> $explorationNids */
+	/** @param list<string> $rankedNids @param list<string> $explorationNids @param list<array{nid: string, reason: array<string, mixed>}> $explanations */
 	public static function create(
 		string $viewerId,
 		string $mode,
@@ -73,6 +77,7 @@ final readonly class RecommendationFeedSnapshot {
 		array $rankedNids,
 		int $ttl = 3600,
 		array $explorationNids = [],
+		array $explanations = [],
 	): self {
 		$rankedNids = array_slice($rankedNids, 0, self::MAX_POSTS);
 		foreach ($rankedNids as $nid) {
@@ -98,10 +103,11 @@ final readonly class RecommendationFeedSnapshot {
 			$now + max(1, min(3600, $ttl)),
 			$rankedNids,
 			$explorationNids,
+			$explanations,
 		);
 	}
 
-	/** @return array<string, int|string|list<string>> */
+	/** @return array<string, mixed> */
 	public function toArray(): array {
 		return [
 			'id' => $this->id,
@@ -115,6 +121,7 @@ final readonly class RecommendationFeedSnapshot {
 			'expires_at' => $this->expiresAt,
 			'ranked_nids' => $this->rankedNids,
 			'exploration_nids' => $this->explorationNids,
+			'explanations' => $this->explanations,
 		];
 	}
 
@@ -130,7 +137,8 @@ final readonly class RecommendationFeedSnapshot {
 			|| !is_int($data['created_at'] ?? null)
 			|| !is_int($data['expires_at'] ?? null)
 			|| !is_array($data['ranked_nids'] ?? null)
-			|| (array_key_exists('exploration_nids', $data) && !is_array($data['exploration_nids']))) {
+			|| (array_key_exists('exploration_nids', $data) && !is_array($data['exploration_nids']))
+			|| (array_key_exists('explanations', $data) && !is_array($data['explanations']))) {
 			return null;
 		}
 		try {
@@ -146,10 +154,55 @@ final readonly class RecommendationFeedSnapshot {
 				$data['expires_at'],
 				$data['ranked_nids'],
 				$data['exploration_nids'] ?? [],
+				$data['explanations'] ?? [],
 			);
 		} catch (InvalidArgumentException) {
 			return null;
 		}
+	}
+
+	/** @param list<string> $rankedNids */
+	private static function validExplanations(array $explanations, array $rankedNids): bool {
+		if (!array_is_list($explanations) || count($explanations) > count($rankedNids)) {
+			return false;
+		}
+		$seen = [];
+		foreach ($explanations as $entry) {
+			if (!is_array($entry) || !is_string($entry['nid'] ?? null) || !is_array($entry['reason'] ?? null)
+				|| !in_array($entry['nid'], $rankedNids, true) || isset($seen[$entry['nid']])) {
+				return false;
+			}
+			$seen[$entry['nid']] = true;
+			$reason = $entry['reason'];
+			$allowedAlso = ['FOLLOWED_AUTHOR', 'BEHAVIORAL_PROFILE', 'SIMILARITY_FEEDBACK', 'AUTHOR_FEEDBACK', 'FORMAT_FEEDBACK', 'CACHED_CANDIDATE'];
+			$allowedNotes = ['BASE_RANK', 'DIVERSITY_PLACEMENT', 'EXPLORATION_SLOT'];
+			if (!in_array($reason['primary'] ?? null, ['TOPIC_EXPLICIT', 'EXPLORATION'], true)
+				|| !is_array($reason['topic_ids'] ?? null) || !array_is_list($reason['topic_ids']) || count($reason['topic_ids']) > 8
+				|| !is_array($reason['also'] ?? null) || !array_is_list($reason['also']) || count($reason['also']) > count($allowedAlso)
+				|| ($reason['candidate_source'] ?? null) !== 'LOCAL_CACHED_POSTS'
+				|| !in_array($reason['protocol'] ?? null, ['activitypub', 'atproto'], true)
+				|| !is_bool($reason['personalisation_used'] ?? null)
+				|| ($reason['selection_stage'] ?? null) !== 'RERANK'
+				|| !in_array($reason['rerank_note'] ?? null, $allowedNotes, true)
+				|| !is_int($reason['profile_version'] ?? null) || $reason['profile_version'] < 0
+				|| !is_int($reason['eligibility_policy_version'] ?? null) || $reason['eligibility_policy_version'] < 1
+				|| !is_int($reason['explanation_version'] ?? null) || $reason['explanation_version'] < 1
+				|| !is_int($reason['algorithm_version'] ?? null) || $reason['algorithm_version'] < 1
+				|| !is_int($reason['created_at'] ?? null) || $reason['created_at'] < 0) {
+				return false;
+			}
+			foreach ($reason['also'] as $also) {
+				if (!is_string($also) || !in_array($also, $allowedAlso, true)) {
+					return false;
+				}
+			}
+			foreach ($reason['topic_ids'] as $topicId) {
+				if (!is_string($topicId) || preg_match('/^[a-z0-9][a-z0-9._-]{0,63}$/', $topicId) !== 1) {
+					return false;
+				}
+			}
+		}
+		return true;
 	}
 
 	public function cursor(int $position, string $secret): string {

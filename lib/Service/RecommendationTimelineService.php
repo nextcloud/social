@@ -24,7 +24,7 @@ class RecommendationTimelineService {
 	private const MAX_REFRESH_TOPICS = 2;
 	private const LOOKBACK_DAYS = 30;
 	private const MIN_COVERAGE = 15;
-	private const MODE = 'for-you-v4-candidate-recall-2';
+	private const MODE = 'for-you-v4-explanations-1';
 	private const MEDIA = ['', 'photos', 'videos', 'shorts', 'media'];
 
 	public function __construct(
@@ -37,6 +37,7 @@ class RecommendationTimelineService {
 		private RecommendationRanker $ranker,
 		private RecommendationReRanker $reRanker,
 		private RecommendationSnapshotStore $snapshots,
+		private RecommendationExplanationService $explanations,
 		private RecommendationFeedbackService $feedbackService,
 		private RecommendationBehavioralProfile $behavioralProfile,
 		private RecommendationFollowFeatures $followFeatures,
@@ -117,9 +118,16 @@ class RecommendationTimelineService {
 			static fn (array $candidate): string => (string)$candidate['nid'],
 			array_filter($ranked, static fn (array $candidate): bool => ($candidate['_exploration_slot'] ?? false) === true)
 		));
+		$explanationEntries = [];
+		foreach ($ranked as $candidate) {
+			$explanationEntries[] = [
+				'nid' => (string)$candidate['nid'],
+				'reason' => $this->explanations->explain($candidate, $state['revision'], $now),
+			];
+		}
 		$snapshot = $this->snapshots->create(
 			$viewer->getUserId(), self::MODE, $media, $state['revision'], $state['generation'], $now,
-			array_column($ranked, 'nid'), $limit, $explorationNids
+			array_column($ranked, 'nid'), $limit, $explorationNids, $explanationEntries
 		);
 
 		if ($snapshot === null) {
@@ -132,7 +140,13 @@ class RecommendationTimelineService {
 			$nextCursor = $snapshot['next_cursor'];
 		}
 
-		$items = $this->hydrate($posts, $selected, $topics, $snapshot['exploration_nids'] ?? $explorationNids);
+		$items = $this->hydrate(
+			$posts,
+			$selected,
+			$topics,
+			$snapshot['exploration_nids'] ?? $explorationNids,
+			$snapshot['explanations'] ?? $explanationEntries,
+		);
 		$underfilled = count($ranked) < min($limit, self::MIN_COVERAGE);
 		$queued = $underfilled ? $this->queueCoverage($topics, $viewer, $now) : false;
 
@@ -306,11 +320,15 @@ class RecommendationTimelineService {
 		return array_values(array_filter(array_map(static fn (string $nid): ?array => $byNid[$nid] ?? null, $nids)));
 	}
 
-	/** @param array<string, Stream> $posts @param list<array<string, mixed>> $candidates @param list<array{id: string, mode: string, aliases: list<string>, labels: array{en: string, de: string}}> $topics @return list<Stream> */
-	private function hydrate(array $posts, array $candidates, array $topics, array $explorationNids = []): array {
+	/** @param array<string, Stream> $posts @param list<array<string, mixed>> $candidates @param list<array{id: string, mode: string, aliases: list<string>, labels: array{en: string, de: string}}> $topics @param list<string> $explorationNids @param list<array{nid: string, reason: array<string, mixed>}> $explanationEntries @return list<Stream> */
+	private function hydrate(array $posts, array $candidates, array $topics, array $explorationNids = [], array $explanationEntries = []): array {
 		$byId = [];
 		foreach ($topics as $topic) {
 			$byId[$topic['id']] = $topic;
+		}
+		$explanationsByNid = [];
+		foreach ($explanationEntries as $entry) {
+			$explanationsByNid[$entry['nid']] = $entry['reason'];
 		}
 		$items = [];
 		foreach ($candidates as $candidate) {
@@ -327,11 +345,14 @@ class RecommendationTimelineService {
 			}
 			$isExploration = ($candidate['_exploration_slot'] ?? false) === true
 				|| in_array((string)$candidate['nid'], $explorationNids, true);
+			$explanation = $explanationsByNid[(string)$candidate['nid']]
+				?? $this->explanations->explain($candidate, 0, 0);
 			$post->setExportFormat(ACore::FORMAT_LOCAL)->setInterest([
 				'tags' => [],
 				'reason' => $isExploration ? 'exploration' : 'topic',
 				'topics' => $matched,
 				'selection_stage' => 'RERANK',
+				'explanation' => $explanation,
 			]);
 			$items[] = $post;
 		}
@@ -413,7 +434,7 @@ class RecommendationTimelineService {
 					$ordered[] = $candidate;
 				}
 			}
-			$items = array_merge($items, $this->hydrate($posts, $ordered, $topics, $page['exploration_nids'] ?? []));
+			$items = array_merge($items, $this->hydrate($posts, $ordered, $topics, $page['exploration_nids'] ?? [], $page['explanations'] ?? []));
 			if (count($items) >= $limit || $nextCursor === null) {
 				break;
 			}

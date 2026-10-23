@@ -58,6 +58,32 @@ class RecommendationFeedSnapshotTest extends TestCase {
 		$this->assertNull(RecommendationFeedSnapshot::verifyCursor($cursor, 'short', 'alice', 'for-you', 'all', 0, 0, self::NOW));
 	}
 
+	public function testSnapshotRoundTripsBoundedSelectionExplanationsAndRejectsUnknownFields(): void {
+		$reason = [
+			'primary' => 'TOPIC_EXPLICIT',
+			'topic_ids' => ['tech.apple'],
+			'also' => ['CACHED_CANDIDATE'],
+			'candidate_source' => 'LOCAL_CACHED_POSTS',
+			'protocol' => 'atproto',
+			'personalisation_used' => true,
+			'selection_stage' => 'RERANK',
+			'rerank_note' => 'DIVERSITY_PLACEMENT',
+			'profile_version' => 4,
+			'eligibility_policy_version' => 1,
+			'explanation_version' => 1,
+			'algorithm_version' => 5,
+			'created_at' => self::NOW,
+		];
+		$snapshot = RecommendationFeedSnapshot::create('alice', 'for-you', 'all', 4, 2, self::NOW, ['1', '2'], 900, [], [
+			['nid' => '2', 'reason' => $reason],
+		]);
+
+		$this->assertSame([['nid' => '2', 'reason' => $reason]], RecommendationFeedSnapshot::fromArray($snapshot->toArray())->explanations);
+		$malformed = $snapshot->toArray();
+		$malformed['explanations'][0]['reason']['also'][] = 'RAW_BEHAVIORAL_SCORE';
+		$this->assertNull(RecommendationFeedSnapshot::fromArray($malformed));
+	}
+
 	public function testMalformedCachedIdListsAreRejectedAndCreationDeduplicates(): void {
 		$snapshot = RecommendationFeedSnapshot::create('alice', 'for-you', 'all', 0, 0, self::NOW, ['1', '1', '2']);
 		$this->assertSame(['1', '2'], $snapshot->rankedNids);

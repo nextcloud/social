@@ -131,6 +131,7 @@ class RecommendationRankerTest extends TestCase {
 		$page = (new RecommendationReRanker())->page($ranked, 4);
 
 		$this->assertSame(['1', '3', '5', '4'], array_column($page, 'nid'));
+		$this->assertTrue($page[2]['_promoted_by_diversity'], 'the reason record can identify an actual diversity placement');
 		$this->assertCount(count(array_unique(array_column($page, 'nid'))), $page);
 	}
 
@@ -187,6 +188,7 @@ class RecommendationRankerTest extends TestCase {
 		$this->assertSame(array_column($page, 'nid'), array_column($again, 'nid'));
 		$this->assertSame('explore', $page[9]['nid']);
 		$this->assertTrue($page[9]['_exploration_slot']);
+		$this->assertFalse($page[9]['_promoted_by_diversity']);
 		$this->assertCount(1, array_filter($page, static fn (array $item): bool => ($item['_exploration_slot'] ?? false) === true));
 		$this->assertArrayNotHasKey('_base_position', $page[9]);
 	}

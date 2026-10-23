@@ -73,6 +73,25 @@ describe('why a post is in For you', () => {
 		document.documentElement.lang = originalLanguage
 	})
 
+	it('explains the saved selection stage, protocol, and actual additional signals', () => {
+		expect(interestReason({
+			tags: [],
+			reason: 'topic',
+			topics: [{ id: 'tech.apple', labels: { en: 'Apple', de: 'Apple' } }],
+			explanation: {
+				also: ['FOLLOWED_AUTHOR', 'BEHAVIORAL_PROFILE', 'CACHED_CANDIDATE'],
+				protocol: 'atproto',
+				rerank_note: 'DIVERSITY_PLACEMENT',
+				created_at: 2_000_000_000,
+			},
+		})).toEqual({
+			tag: null,
+			reason: 'topic',
+			text: 'Because you chose Apple · From an account you follow',
+			label: "Why you're seeing this: it matches your chosen topic Apple. From an account you follow. Your recent activity also influenced this ranking. Selected from posts available on this server. Bluesky post. Placed here to mix authors and topics. Explanation recorded when the feed was loaded.",
+		})
+	})
+
 	it('has nothing to say without a tag', () => {
 		expect(interestReason(null)).toBeNull()
 		expect(interestReason({ tags: [], reason: 'interest' })).toBeNull()

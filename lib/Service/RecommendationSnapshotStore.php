@@ -30,7 +30,7 @@ class RecommendationSnapshotStore {
 	/**
 	 * @param list<string> $rankedNids
 	 * @param list<string> $explorationNids
-	 * @return array{session_id: string, nids: list<string>, exploration_nids: list<string>, next_cursor: ?string}|null
+	 * @return array{session_id: string, nids: list<string>, exploration_nids: list<string>, explanations: list<array{nid: string, reason: array<string, mixed>}>, next_cursor: ?string}|null
 	 */
 	public function create(
 		string $viewerId,
@@ -42,13 +42,14 @@ class RecommendationSnapshotStore {
 		array $rankedNids,
 		int $pageSize = self::PAGE_SIZE,
 		array $explorationNids = [],
+		array $explanations = [],
 	): ?array {
 		$secret = $this->secret();
 		if ($viewerId === '' || $mode === '' || $now <= 0 || strlen($secret) < 32) {
 			return null;
 		}
 		$snapshot = RecommendationFeedSnapshot::create(
-			$viewerId, $mode, $mediaKind, $profileVersion, $generation, $now, $rankedNids, self::TTL, $explorationNids
+			$viewerId, $mode, $mediaKind, $profileVersion, $generation, $now, $rankedNids, self::TTL, $explorationNids, $explanations
 		);
 		if (!$this->cache()->set($this->key($snapshot->id), $snapshot->toArray(), self::TTL)) {
 			return null;
@@ -62,7 +63,7 @@ class RecommendationSnapshotStore {
 	 * viewer, mode, media kind, profile revision and reset generation must agree.
 	 * The caller must recheck visibility before hydrating the returned NIDs.
 	 *
-	 * @return array{session_id: string, nids: list<string>, exploration_nids: list<string>, next_cursor: ?string}|null
+	 * @return array{session_id: string, nids: list<string>, exploration_nids: list<string>, explanations: list<array{nid: string, reason: array<string, mixed>}>, next_cursor: ?string}|null
 	 */
 	public function nextPage(
 		string $cursor,
@@ -102,16 +103,22 @@ class RecommendationSnapshotStore {
 		return $this->pageResponse($snapshot, $verified['position'], $pageSize, $secret);
 	}
 
-	/** @return array{session_id: string, nids: list<string>, exploration_nids: list<string>, next_cursor: ?string} */
+	/** @return array{session_id: string, nids: list<string>, exploration_nids: list<string>, explanations: list<array{nid: string, reason: array<string, mixed>}>, next_cursor: ?string} */
 	private function pageResponse(RecommendationFeedSnapshot $snapshot, int $position, int $pageSize, string $secret): array {
 		$pageSize = max(1, min(50, $pageSize));
 		$nids = $snapshot->page($position, $pageSize);
 		$nextPosition = $position + count($nids);
+		$explanationNids = array_fill_keys($nids, true);
+		$explanations = array_values(array_filter(
+			$snapshot->explanations,
+			static fn (array $entry): bool => isset($explanationNids[$entry['nid']])
+		));
 
 		return [
 			'session_id' => $snapshot->id,
 			'nids' => $nids,
 			'exploration_nids' => $snapshot->explorationNids,
+			'explanations' => $explanations,
 			'next_cursor' => $nextPosition < count($snapshot->rankedNids) ? $snapshot->cursor($nextPosition, $secret) : null,
 		];
 	}

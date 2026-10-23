@@ -111,6 +111,7 @@
 			v-if="interest !== null && interest.tag !== null"
 			class="interest-reason"
 			:to="{ name: 'tags', params: { tag: interest.tag } }"
+			:title="interest.label"
 			:aria-label="interest.label">
 			<Pound :size="16" />
 			<span class="interest-reason__text">{{ interest.text }}</span>
@@ -121,6 +122,7 @@
 			class="interest-reason"
 			:class="['topic', 'exploration'].includes(interest.reason) ? 'interest-reason--topic' : 'interest-reason--popular'"
 			role="note"
+			:title="interest.label"
 			:aria-label="interest.label">
 			<Pound v-if="['topic', 'exploration'].includes(interest.reason)" :size="16" />
 			<TrendingUp v-else :size="16" />
