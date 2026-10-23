@@ -41,6 +41,7 @@ class RecommendationTimelineService {
 		private RecommendationFeedbackService $feedbackService,
 		private RecommendationBehavioralProfile $behavioralProfile,
 		private RecommendationFollowFeatures $followFeatures,
+		private RecommendationTrendCandidates $trendCandidates,
 		private RemoteFetchQueue $remoteFetchQueue,
 		private ITimeFactory $timeFactory,
 	) {
@@ -107,12 +108,23 @@ class RecommendationTimelineService {
 		$followBudget = min($followBudget, $candidateBudget);
 		$explorationBudget = min(10, max(1, intdiv($candidateBudget, 10)));
 		$explorationBudget = min($explorationBudget, $candidateBudget - $followBudget);
-		$topicBudget = $candidateBudget - $followBudget - $explorationBudget;
+		$trendBudget = min(RecommendationTrendCandidates::MAX_CANDIDATES, max(1, intdiv($candidateBudget, 10)));
+		$trendBudget = min($trendBudget, $candidateBudget - $followBudget - $explorationBudget);
 		$hiddenNids = array_values(array_unique(array_merge(
 			$this->interests->hiddenFor($viewer),
 			$feedback['hidden_nids']
 		)));
 		$languages = $this->interests->languagesFor($viewer->getUserId());
+		$trendPosts = $this->trendCandidates->forViewer(
+			$viewer,
+			$trendBudget,
+			$hiddenNids,
+			$languages,
+			array_column($topics, 'id'),
+			array_keys(array_filter($state['effective_topics'] ?? [], static fn (?string $mode): bool => $mode === 'HIDE')),
+			$media,
+		);
+		$topicBudget = $candidateBudget - $followBudget - $explorationBudget - count($trendPosts);
 		$posts = $this->streams->recommendationCandidatesByTerms(
 			$terms,
 			$sinceNid,
@@ -138,6 +150,7 @@ class RecommendationTimelineService {
 			array_values(array_unique(array_merge($hiddenNids, array_keys($posts)))),
 			$languages
 		);
+		$posts += $trendPosts;
 		$followedAuthors = $this->followFeatures->followedAuthors($viewer, array_values($posts));
 		$exposurePenalties = $this->behavioralProfile->exposurePenalties($viewer, array_values($posts));
 

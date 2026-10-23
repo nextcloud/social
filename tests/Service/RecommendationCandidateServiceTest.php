@@ -27,7 +27,9 @@ use OCA\Social\Service\RecommendationReRanker;
 use OCA\Social\Service\RecommendationSignalService;
 use OCA\Social\Service\RecommendationSnapshotStore;
 use OCA\Social\Service\RecommendationTopicCatalog;
+use OCA\Social\Service\RecommendationTrendCandidates;
 use OCA\Social\Service\RemoteFetchQueue;
+use OCA\Social\Service\TrendService;
 use OCP\AppFramework\Utility\ITimeFactory;
 use PHPUnit\Framework\TestCase;
 
@@ -41,6 +43,7 @@ class RecommendationCandidateServiceTest extends TestCase {
 	private RecommendationFeedbackService $feedback;
 	private FollowsRequest $follows;
 	private RecommendationSignalRequest $signals;
+	private TrendService $trends;
 
 	/** @return list<string> */
 	private function appleAliases(): array {
@@ -61,6 +64,7 @@ class RecommendationCandidateServiceTest extends TestCase {
 		$this->follows = $this->createMock(FollowsRequest::class);
 		$this->follows->method('getBetweenMany')->willReturn(['following' => [], 'followedBy' => []]);
 		$this->signals = $this->createMock(RecommendationSignalRequest::class);
+		$this->trends = $this->createMock(TrendService::class);
 	}
 
 	private function service(): RecommendationCandidateService {
@@ -84,6 +88,7 @@ class RecommendationCandidateServiceTest extends TestCase {
 				$this->streams,
 				$this->clock,
 			), new RecommendationTopicCatalog()),
+			new RecommendationTrendCandidates($this->trends, $this->streams, new RecommendationFeatureExtractor(new RecommendationTopicCatalog())),
 		);
 	}
 

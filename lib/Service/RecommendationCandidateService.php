@@ -37,6 +37,7 @@ class RecommendationCandidateService {
 		private RecommendationFeedbackService $feedbackService,
 		private RecommendationFollowFeatures $followFeatures,
 		private RecommendationBehavioralProfile $behavioralProfile,
+		private RecommendationTrendCandidates $trendCandidates,
 	) {
 	}
 
@@ -88,16 +89,26 @@ class RecommendationCandidateService {
 		);
 		$aliases = $topic['aliases'];
 		$candidateBudget = min(100, max($limit * 5, self::MIN_COVERAGE_TARGET));
-		$followBudget = (int)min(20, max(4, intdiv($candidateBudget + 4, 5)));
-		$followBudget = (int)min($followBudget, $candidateBudget);
-		$explorationBudget = (int)min(10, max(1, (int)floor($candidateBudget * 0.1)));
-		$explorationBudget = (int)min($explorationBudget, $candidateBudget - $followBudget);
-		$topicBudget = $candidateBudget - $followBudget - $explorationBudget;
+		$followBudget = min(20, max(4, intdiv($candidateBudget + 4, 5)));
+		$followBudget = min($followBudget, $candidateBudget);
+		$explorationBudget = min(10, max(1, intdiv($candidateBudget, 10)));
+		$explorationBudget = min($explorationBudget, $candidateBudget - $followBudget);
+		$trendBudget = min(RecommendationTrendCandidates::MAX_CANDIDATES, max(1, intdiv($candidateBudget, 10)));
+		$trendBudget = min($trendBudget, $candidateBudget - $followBudget - $explorationBudget);
 		$hiddenNids = array_values(array_unique(array_merge(
 			$this->interests->hiddenFor($viewer),
 			$feedback['hidden_nids']
 		)));
 		$languages = $this->interests->languagesFor($viewer->getUserId());
+		$trendPosts = $this->trendCandidates->forViewer(
+			$viewer,
+			$trendBudget,
+			$hiddenNids,
+			$languages,
+			[$topicId],
+			array_keys(array_filter($state['effective_topics'] ?? [], static fn (?string $effectiveMode): bool => $effectiveMode === 'HIDE')),
+		);
+		$topicBudget = $candidateBudget - $followBudget - $explorationBudget - count($trendPosts);
 		$posts = $this->streams->recommendationCandidatesByTerms(
 			$aliases,
 			$sinceNid,
@@ -119,6 +130,7 @@ class RecommendationCandidateService {
 			array_values(array_unique(array_merge($hiddenNids, array_keys($posts)))),
 			$languages
 		);
+		$posts += $trendPosts;
 		$followedAuthors = $this->followFeatures->followedAuthors($viewer, array_values($posts));
 		$exposurePenalties = $this->behavioralProfile->exposurePenalties($viewer, array_values($posts));
 		$behavioralAuthors = $this->behavioralProfile->forViewer($viewer)['authors'];

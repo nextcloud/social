@@ -31,7 +31,9 @@ use OCA\Social\Service\RecommendationSignalService;
 use OCA\Social\Service\RecommendationSnapshotStore;
 use OCA\Social\Service\RecommendationTimelineService;
 use OCA\Social\Service\RecommendationTopicCatalog;
+use OCA\Social\Service\RecommendationTrendCandidates;
 use OCA\Social\Service\RemoteFetchQueue;
+use OCA\Social\Service\TrendService;
 use OCP\AppFramework\Utility\ITimeFactory;
 use PHPUnit\Framework\TestCase;
 
@@ -47,6 +49,7 @@ class RecommendationTimelineServiceTest extends TestCase {
 	private RecommendationTopicCatalog $catalog;
 	private RecommendationSignalRequest $signals;
 	private FollowsRequest $follows;
+	private TrendService $trends;
 	private array $learnedProfile = ['topics' => [], 'authors' => [], 'formats' => []];
 	private array $currentFeedback = ['hidden_nids' => [], 'similarities' => [], 'topics' => [], 'authors' => [], 'formats' => []];
 
@@ -69,6 +72,7 @@ class RecommendationTimelineServiceTest extends TestCase {
 		$this->catalog = new RecommendationTopicCatalog();
 		$this->signals = $this->createMock(RecommendationSignalRequest::class);
 		$this->follows = $this->createMock(FollowsRequest::class);
+		$this->trends = $this->createMock(TrendService::class);
 		$this->follows->method('getBetweenMany')->willReturn(['following' => [], 'followedBy' => []]);
 		$this->signals->method('profile')->willReturnCallback(fn (): array => $this->learnedProfile);
 		$this->preferences->method('isEnabled')->willReturn(true);
@@ -95,6 +99,7 @@ class RecommendationTimelineServiceTest extends TestCase {
 				$this->clock,
 			), $this->catalog),
 			new RecommendationFollowFeatures($this->follows),
+			new RecommendationTrendCandidates($this->trends, $this->streams, new RecommendationFeatureExtractor($this->catalog)),
 			$this->queue,
 			$this->clock,
 		);
@@ -131,6 +136,27 @@ class RecommendationTimelineServiceTest extends TestCase {
 			static fn (Note $post): string => $post->getId(),
 			$page['items']
 		));
+	}
+
+	public function testTrendingSourceCanRecallAnEligibleTopicMatchMissingFromTheTermIndex(): void {
+		$this->preferences->method('get')->willReturn($this->state([['topic_id' => 'tech.apple', 'mode' => 'INTERESTED']]));
+		$this->interests->method('hiddenFor')->willReturn([]);
+		$this->interests->method('languagesFor')->willReturn([]);
+		$trend = (new Note())
+			->setNid(501)
+			->setId('https://remote.example/posts/trending-apple')
+			->setAttributedTo('https://remote.example/users/trend-author')
+			->setContent('<p>Apple and iPhone software update</p>')
+			->setPublishedTime(1_999_999_900);
+		$this->streams->method('recommendationCandidatesByTerms')->willReturn([]);
+		$this->trends->expects($this->once())->method('trendingStatuses')->willReturn([$trend]);
+		$this->streams->expects($this->once())->method('getVisibleByNids')->with(['501'])->willReturn(['501' => $trend]);
+		$this->snapshots->method('create')->willReturn(null);
+
+		$page = $this->service()->page($this->viewer(), 5);
+
+		$this->assertCount(1, $page['items']);
+		$this->assertSame('https://remote.example/posts/trending-apple', $page['items'][0]->getId());
 	}
 
 	public function testSimilarityFeedbackChangesTheNextSessionWithoutUsingAuthorAffinity(): void {
