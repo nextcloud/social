@@ -231,7 +231,10 @@ final readonly class RecommendationFeedSnapshot {
 			return null;
 		}
 		$decoded = base64_decode(strtr($value, '-_', '+/'), true);
+		if ($decoded === false || self::base64UrlEncode($decoded) !== $value) {
+			return null;
+		}
 
-		return $decoded === false ? null : $decoded;
+		return $decoded;
 	}
 }
