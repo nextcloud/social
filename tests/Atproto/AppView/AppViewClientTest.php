@@ -23,12 +23,90 @@ use Psr\Log\NullLogger;
 
 #[AllowMockObjectsWithoutExpectations]
 class AppViewClientTest extends TestCase {
+	public function testInteractiveQueriesCanUseAShortNetworkTimeout(): void {
+		$config = $this->createMock(AtprotoConfig::class);
+		$config->method('appView')->willReturn('https://api.bsky.app');
+		$curl = $this->createMock(CurlService::class);
+		$curl->expects($this->once())->method('doRequest')->with(
+			'get',
+			'https://api.bsky.app/xrpc/app.bsky.feed.getPosts?uris=at%3A%2F%2Fdid%3Aplc%3Aalice%2Fapp.bsky.feed.post%2F1',
+			$this->callback(static fn (array $options): bool => $options['timeout'] === AppViewClient::INTERACTIVE_TIMEOUT),
+			$this->anything(),
+			$this->anything(),
+		)->willReturnCallback(static function (string $method, string $url, array $options, &$contentType, &$status): string {
+			$status = 200;
+
+			return '{"posts":[]}';
+		});
+		$client = new AppViewClient($config, $this->createMock(ServiceAuth::class), $curl, new NullLogger());
+
+		$this->assertSame(['posts' => []], $client->query('app.bsky.feed.getPosts', ['uris' => ['at://did:plc:alice/app.bsky.feed.post/1']], [], AppViewClient::INTERACTIVE_TIMEOUT));
+	}
+
+	public function testAuthenticatedQueriesCanUseAShortNetworkTimeout(): void {
+		$config = $this->createMock(AtprotoConfig::class);
+		$config->method('appViewAuth')->willReturn('https://api.bsky.app');
+		$config->method('appViewDid')->willReturn('did:web:api.bsky.app');
+		$curl = $this->createMock(CurlService::class);
+		$curl->expects($this->once())->method('doRequest')->with(
+			'get',
+			'https://api.bsky.app/xrpc/app.bsky.feed.searchPosts?q=cats',
+			$this->callback(static fn (array $options): bool => $options['timeout'] === AppViewClient::INTERACTIVE_TIMEOUT),
+			$this->anything(),
+			$this->anything(),
+		)->willReturnCallback(static function (string $method, string $url, array $options, &$contentType, &$status): string {
+			$status = 200;
+
+			return '{"posts":[]}';
+		});
+		$client = new AppViewClient($config, $this->createMock(ServiceAuth::class), $curl, new NullLogger());
+
+		$this->assertSame(['posts' => []], $client->queryAs(
+			'did:plc:alice',
+			PrivateKey::generate(Curve::K256),
+			'app.bsky.feed.searchPosts',
+			['q' => 'cats'],
+			AppViewClient::INTERACTIVE_TIMEOUT,
+		));
+	}
+
+	public function testAuthenticatedQueriesPreserveLabelerHeadersAlongsideAuthorization(): void {
+		$config = $this->createMock(AtprotoConfig::class);
+		$config->method('appViewAuth')->willReturn('https://api.bsky.app');
+		$config->method('appViewDid')->willReturn('did:web:api.bsky.app');
+		$auth = $this->createMock(ServiceAuth::class);
+		$auth->method('token')->willReturn('signed');
+		$curl = $this->createMock(CurlService::class);
+		$curl->expects($this->once())->method('doRequest')->with(
+			'get',
+			'https://api.bsky.app/xrpc/app.bsky.feed.getPostThread?uri=at%3A%2F%2Fdid%3Aplc%3Aalice%2Fapp.bsky.feed.post%2F1',
+			$this->callback(static fn (array $options): bool => $options['headers']['Authorization'] === 'Bearer signed'
+				&& $options['headers']['atproto-accept-labelers'] === 'did:plc:labeler'
+				&& $options['timeout'] === AppViewClient::INTERACTIVE_TIMEOUT),
+			$this->anything(),
+			$this->anything(),
+		)->willReturnCallback(static function (string $method, string $url, array $options, &$contentType, &$status): string {
+			$status = 200;
+
+			return '{"thread":{}}';
+		});
+
+		$this->assertSame(['thread' => []], (new AppViewClient($config, $auth, $curl, new NullLogger()))->queryAs(
+			'did:plc:alice',
+			PrivateKey::generate(Curve::K256),
+			'app.bsky.feed.getPostThread',
+			['uri' => 'at://did:plc:alice/app.bsky.feed.post/1'],
+			AppViewClient::INTERACTIVE_TIMEOUT,
+			['atproto-accept-labelers' => 'did:plc:labeler'],
+		));
+	}
+
 	public function testAProcedureIsAPostOfItsInputAsThePerson(): void {
 		$config = $this->createMock(AtprotoConfig::class);
 		$config->method('appViewAuth')->willReturn('https://api.bsky.app');
 		$config->method('appViewDid')->willReturn('did:web:api.bsky.app');
 		$auth = $this->createMock(ServiceAuth::class);
-		$auth->method('token')->with($this->anything(), 'did:plc:alice', 'did:web:api.bsky.app', 'app.bsky.notification.putActivitySubscription')->willReturn('signed');
+		$auth->method('token')->with($this->anything(), 'did:plc:alice', 'did:web:api.bsky.app#bsky_appview', 'app.bsky.notification.putActivitySubscription')->willReturn('signed');
 		$sent = [];
 		$curl = $this->createMock(CurlService::class);
 		$curl->method('doRequest')->willReturnCallback(static function (string $verb, string $url, array $options, &$contentType, &$status) use (&$sent): string {
@@ -42,6 +120,65 @@ class AppViewClientTest extends TestCase {
 
 		$this->assertSame(['subject' => 'did:plc:bob'], $answer);
 		$this->assertSame(['post', 'https://api.bsky.app/xrpc/app.bsky.notification.putActivitySubscription', 'Bearer signed', 'application/json', ['subject' => 'did:plc:bob']], $sent);
+	}
+
+	public function testAnOlderAppViewCanReadWithTheLegacyBareDidAudience(): void {
+		$config = $this->createMock(AtprotoConfig::class);
+		$config->method('appViewAuth')->willReturn('https://api.bsky.app');
+		$config->method('appViewDid')->willReturn('did:web:api.bsky.app');
+		$audiences = [];
+		$auth = $this->createMock(ServiceAuth::class);
+		$auth->expects($this->exactly(2))->method('token')->willReturnCallback(static function (PrivateKey $key, string $did, string $audience, string $method) use (&$audiences): string {
+			$audiences[] = $audience;
+
+			return count($audiences) === 1 ? 'service-ref-token' : 'legacy-token';
+		});
+		$curl = $this->createMock(CurlService::class);
+		$curl->expects($this->exactly(2))->method('doRequest')->willReturnCallback(static function (string $verb, string $url, array $options, &$contentType, &$status): string {
+			$contentType = 'application/json';
+			if ($options['headers']['Authorization'] === 'Bearer service-ref-token') {
+				$status = 401;
+
+				return '{"error":"BadJwtAudience"}';
+			}
+			$status = 200;
+
+			return '{"did":"did:plc:bob"}';
+		});
+
+		$answer = (new AppViewClient($config, $auth, $curl, new NullLogger()))->queryAs('did:plc:alice', PrivateKey::generate(Curve::K256), 'app.bsky.actor.getProfile', ['actor' => 'did:plc:bob']);
+
+		$this->assertSame(['did:web:api.bsky.app#bsky_appview', 'did:web:api.bsky.app'], $audiences);
+		$this->assertSame('did:plc:bob', $answer['did']);
+	}
+
+	public function testAnOlderAppViewCanAcceptAProcedureWithTheLegacyAudience(): void {
+		$config = $this->createMock(AtprotoConfig::class);
+		$config->method('appViewAuth')->willReturn('https://api.bsky.app');
+		$config->method('appViewDid')->willReturn('did:web:api.bsky.app');
+		$auth = $this->createMock(ServiceAuth::class);
+		$auth->expects($this->exactly(2))->method('token')->willReturnOnConsecutiveCalls('service-ref-token', 'legacy-token');
+		$curl = $this->createMock(CurlService::class);
+		$verbs = [];
+		$curl->expects($this->exactly(2))->method('doRequest')->willReturnCallback(static function (string $verb, string $url, array $options, &$contentType, &$status) use (&$verbs): string {
+			$verbs[] = [$verb, $options['headers']['Authorization'], $options['body']];
+			$contentType = 'application/json';
+			if (count($verbs) === 1) {
+				$status = 401;
+
+				return '{"error":"BadJwtAudience"}';
+			}
+			$status = 200;
+
+			return '{}';
+		});
+
+		$answer = (new AppViewClient($config, $auth, $curl, new NullLogger()))->procedureAs('did:plc:alice', PrivateKey::generate(Curve::K256), 'app.bsky.notification.putActivitySubscription', ['subject' => 'did:plc:bob']);
+
+		$this->assertSame(['post', 'post'], array_column($verbs, 0));
+		$this->assertSame('Bearer legacy-token', $verbs[1][1]);
+		$this->assertSame(['subject' => 'did:plc:bob'], json_decode($verbs[1][2], true));
+		$this->assertSame([], $answer);
 	}
 
 	public function testAProcedureWithoutOutputAnswersNothingAndAQueryMustAnswerJson(): void {

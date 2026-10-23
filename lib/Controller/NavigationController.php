@@ -25,6 +25,7 @@ use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CountsService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\ExternalMediaQuota;
+use OCA\Social\Service\FeedDisplayService;
 use OCA\Social\Service\FilterService;
 use OCA\Social\Service\InterestService;
 use OCA\Social\Service\ModeratorService;
@@ -85,6 +86,7 @@ class NavigationController extends Controller {
 		private CheckService $checkService,
 		private SensitiveMediaService $sensitiveMediaService,
 		private CountsService $countsService,
+		private FeedDisplayService $feedDisplayService,
 		private SectionsService $sectionsService,
 		private InterestService $interestService,
 		private StreamService $streamService,
@@ -185,6 +187,7 @@ class NavigationController extends Controller {
 			// resolves to
 			'nsfwChoice' => $this->sensitiveMediaService->choiceOf($this->userId),
 			'hideCounts' => $this->countsService->hides($this->userId),
+			'hideRepliesInFeeds' => $this->feedDisplayService->hidesReplies($this->userId),
 			// whether j, k, l, b and the rest act on the timeline, read before
 			// the first key can be pressed
 			'keyboardShortcuts' => $this->configService->getUserValue(ConfigService::USER_KEYBOARD_SHORTCUTS, $this->userId) !== '0',
@@ -413,11 +416,12 @@ class NavigationController extends Controller {
 				->setProbe(ProbeOptions::HOME)
 				->setLimit(self::FIRST_PAGE);
 
+			$posts = $this->streamService->getTimeline($options);
+			if ($this->feedDisplayService->hidesReplies($this->userId)) {
+				$posts = array_values(array_filter($posts, static fn ($post): bool => $post->getInReplyTo() === ''));
+			}
 			$this->initialState->provideInitialState(
-				'firstPage',
-				$this->filterService->apply(
-					$this->streamService->getTimeline($options), Filter::CONTEXT_HOME, $viewer
-				)
+				'firstPage', $this->filterService->apply($posts, Filter::CONTEXT_HOME, $viewer)
 			);
 		} catch (Exception $e) {
 			$this->logger->debug('[NavigationController] no first page to hand the page', [

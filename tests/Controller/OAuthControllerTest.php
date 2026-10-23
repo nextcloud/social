@@ -32,9 +32,12 @@ use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CheckService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\DeviceAuthorizationService;
 use OCA\Social\Service\InstanceService;
+use OCA\Social\Service\VapidService;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
+use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\RedirectResponse;
 use OCP\AppFramework\Http\TemplateResponse;
@@ -52,6 +55,10 @@ use Psr\Log\NullLogger;
 
 #[AllowMockObjectsWithoutExpectations]
 class OAuthControllerTest extends TestCase {
+	public function testWebPushScopeIsAdvertisedByOAuthDiscovery(): void {
+		self::assertContains('push', OAuthController::SCOPES);
+	}
+
 	/** @var AuthorizationServer&MockObject */
 	private AuthorizationServer $atprotoOAuth;
 	/** @var AtprotoConfig&MockObject */
@@ -94,7 +101,7 @@ class OAuthControllerTest extends TestCase {
 	}
 
 	/** The controller under test, on one ClientService — a mock or the real one. */
-	private function controllerWith(ClientService $clientService): OAuthController {
+	private function controllerWith(ClientService $clientService, ?DeviceAuthorizationService $deviceAuthorization = null): OAuthController {
 		return new OAuthController(
 			$this->request,
 			$this->userSession,
@@ -109,7 +116,18 @@ class OAuthControllerTest extends TestCase {
 			$this->atprotoOAuth,
 			$this->atprotoConfig,
 			$this->createMock(DpopNonce::class),
+			$this->vapidService(),
+			$deviceAuthorization ?? $this->createStub(DeviceAuthorizationService::class),
+			null,
+			null,
 		);
+	}
+
+	private function vapidService(): VapidService {
+		$vapid = $this->createStub(VapidService::class);
+		$vapid->method('publicKey')->willReturn('instance-vapid-key');
+
+		return $vapid;
 	}
 
 	protected function tearDown(): void {
@@ -240,7 +258,7 @@ class OAuthControllerTest extends TestCase {
 			// Mastodon's Application entity always carries both, and a client
 			// that decodes this into a typed struct fails without them
 			'redirect_uri' => 'https://tusky.app/callback',
-			'vapid_key' => '',
+			'vapid_key' => 'instance-vapid-key',
 		], $response->getData());
 	}
 
@@ -907,6 +925,22 @@ class OAuthControllerTest extends TestCase {
 		return $requested;
 	}
 
+	public function testABlueskyLoginSendsAVisitorToNextcloudLoginAndPreservesTheRequest(): void {
+		$authorizeUrl = '/oauth/authorize?client_id=' . rawurlencode(self::ATPROTO_CLIENT)
+			. '&request_uri=' . rawurlencode(self::REQUEST_URI);
+		$this->request->method('getRequestUri')->willReturn($authorizeUrl);
+		$this->urlGenerator->expects($this->once())
+			->method('linkToRoute')
+			->with('core.login.showLoginForm', ['redirect_url' => $authorizeUrl])
+			->willReturn('/index.php/login?redirect_url=' . rawurlencode($authorizeUrl));
+
+		$response = $this->controller->authorize(self::ATPROTO_CLIENT, '', '', '', '', '', '', self::REQUEST_URI);
+
+		$this->assertInstanceOf(RedirectResponse::class, $response);
+		$this->assertSame('/index.php/login?redirect_url=' . rawurlencode($authorizeUrl), $response->getRedirectURL());
+		$this->assertNotEmpty((new \ReflectionMethod(OAuthController::class, 'authorize'))->getAttributes(PublicPage::class));
+	}
+
 	public function testABlueskyAppsSignInOffersSetupToAReaderWithoutAnAccount(): void {
 		$this->signedInWithoutAnAccount();
 		$this->atprotoRequest();
@@ -1053,6 +1087,74 @@ class OAuthControllerTest extends TestCase {
 		$this->assertSame('read write follow', $response->getData()['scope']);
 	}
 
+	public function testDeviceGrantIssuesATokenForTheApprovingAccountOnce(): void {
+		$client = $this->knownClient();
+		$client->setAppScopes(['read', 'write']);
+		$actor = (new Person())->setPreferredUsername('alice');
+		$this->accountService->expects(self::once())->method('getActorFromUserId')->with('alice')->willReturn($actor);
+		$this->clientService->expects(self::once())->method('authClient')->willReturnCallback(
+			static fn (SocialClient $authorized): SocialClient => $authorized->setAuthCode('issued-code')
+		);
+		$this->clientService->expects(self::once())->method('exchangeCode')
+			->with($this->identicalTo($client), 'issued-code', '', self::OOB)
+			->willReturnCallback(static fn (SocialClient $authorized): SocialClient => $authorized->setToken('device-token'));
+		$deviceAuthorization = $this->createMock(DeviceAuthorizationService::class);
+		$deviceAuthorization->expects(self::once())->method('poll')->with('device-code', 'client-1')
+			->willReturn(['user_id' => 'alice', 'scopes' => 'read']);
+		$controller = $this->controllerWith($this->clientService, $deviceAuthorization);
+
+		$response = $controller->token('', 'urn:ietf:params:oauth:grant-type:device_code', 'client-1', '', '', '', 'device-code');
+
+		self::assertSame(Http::STATUS_OK, $response->getStatus());
+		self::assertSame('device-token', $response->getData()['access_token']);
+		self::assertSame('read', $response->getData()['scope']);
+	}
+
+	public function testDeviceGrantReturnsPendingErrorsWithoutIssuingAToken(): void {
+		$this->knownClient();
+		$deviceAuthorization = $this->createMock(DeviceAuthorizationService::class);
+		$deviceAuthorization->expects(self::once())->method('poll')->willReturn(['error' => 'authorization_pending']);
+		$this->clientService->expects(self::never())->method('authClient');
+		$controller = $this->controllerWith($this->clientService, $deviceAuthorization);
+
+		$response = $controller->token('', 'urn:ietf:params:oauth:grant-type:device_code', 'client-1', '', '', '', 'device-code');
+
+		self::assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
+		self::assertSame(['error' => 'authorization_pending'], $response->getData());
+	}
+
+	public function testDeviceGrantRequiresARegisteredClientSecretWhenOneExists(): void {
+		$client = $this->knownClient();
+		$client->setAppClientSecret('stored-secret-hash');
+		$this->clientService->expects(self::once())->method('confirmData')
+			->with($this->identicalTo($client), ['client_secret' => ''])
+			->willThrowException(new ClientException('wrong client_secret'));
+		$deviceAuthorization = $this->createMock(DeviceAuthorizationService::class);
+		$deviceAuthorization->expects(self::never())->method('poll');
+		$controller = $this->controllerWith($this->clientService, $deviceAuthorization);
+
+		$response = $controller->token('', 'urn:ietf:params:oauth:grant-type:device_code', 'client-1', '', '', '', 'device-code');
+
+		self::assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
+		self::assertTrue($response->isThrottled());
+	}
+
+	public function testDeviceAuthorizationRequiresARegisteredClientSecretWhenOneExists(): void {
+		$client = $this->knownClient();
+		$client->setAppClientSecret('stored-secret-hash');
+		$this->clientService->expects(self::once())->method('confirmData')
+			->with($this->identicalTo($client), ['app_scopes' => 'read', 'client_secret' => ''])
+			->willThrowException(new ClientException('wrong client_secret'));
+		$deviceAuthorization = $this->createMock(DeviceAuthorizationService::class);
+		$deviceAuthorization->expects(self::never())->method('create');
+		$controller = $this->controllerWith($this->clientService, $deviceAuthorization);
+
+		$response = $controller->deviceAuthorization('client-1');
+
+		self::assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
+		self::assertTrue($response->isThrottled());
+	}
+
 	public function testTokenThrottlesAWrongClientSecret(): void {
 		$this->knownClient();
 		$this->clientService->method('confirmData')
@@ -1179,7 +1281,13 @@ class OAuthControllerTest extends TestCase {
 		$clientRequest = $this->createMock(ClientRequest::class);
 		$clientAuthRequest = $this->createStub(ClientAuthRequest::class);
 		$clientService = new ClientService(
-			$clientRequest, $hasher, $clientAuthRequest, $this->createStub(\OCA\Social\Service\ConfigService::class)
+			$clientRequest,
+			$hasher,
+			$clientAuthRequest,
+			$this->createStub(\OCA\Social\Service\ConfigService::class),
+			$this->createStub(\OCA\Social\Service\PushSubscriptionService::class),
+			$this->createStub(\OCA\Social\Db\DeviceAuthorizationRequest::class),
+			new NullLogger(),
 		);
 
 		// exactly the columns saveApp() writes, read back the way
@@ -1306,6 +1414,23 @@ class OAuthControllerTest extends TestCase {
 
 	// what the consent page is told
 
+	public function testDevicePagesOmitAccountStateWhenNoSocialAccountIsAvailable(): void {
+		$states = $this->recordInitialState();
+
+		$this->controller->device('ABCD-EFGH');
+
+		self::assertArrayNotHasKey('account', $states);
+		self::assertArrayNotHasKey('deviceAccount', $states);
+		self::assertNotContains(null, iterator_to_array($states));
+
+		$states = $this->recordInitialState();
+		$this->controller->deviceDecision('ABCD-EFGH', 'allow');
+
+		self::assertArrayNotHasKey('account', $states);
+		self::assertArrayNotHasKey('deviceAccount', $states);
+		self::assertNotContains(null, iterator_to_array($states));
+	}
+
 	public function testAuthorizeShowsTheScopesAndWhereTheCodeIsGoing(): void {
 		$this->loggedIn();
 		$this->knownClient('client-1', 'Tusky', ['https://app.example/cb']);
@@ -1403,12 +1528,13 @@ class OAuthControllerTest extends TestCase {
 
 		$data = $this->controller->oauthMetadata()->getData();
 
-		$this->assertSame(['authorization_code', 'client_credentials'], $data['grant_types_supported']);
+		$this->assertSame(['authorization_code', 'client_credentials', 'urn:ietf:params:oauth:grant-type:device_code'], $data['grant_types_supported']);
 		$this->assertSame(['S256'], $data['code_challenge_methods_supported']);
 		$this->assertSame(
 			['client_secret_post', 'client_secret_basic'], $data['token_endpoint_auth_methods_supported']
 		);
 		$this->assertSame('https://nc.example/apps/social/oauth/token', $data['token_endpoint']);
+		$this->assertSame('https://nc.example/apps/social/oauth/device_authorization', $data['device_authorization_endpoint']);
 	}
 
 	/**
@@ -1429,6 +1555,33 @@ class OAuthControllerTest extends TestCase {
 		$this->assertSame('https://nc.example/oauth/authorize', $data['authorization_endpoint']);
 		$this->assertSame('https://nc.example/oauth/token', $data['token_endpoint']);
 		$this->assertSame('https://nc.example/api/v1/apps', $data['app_registration_endpoint']);
+	}
+
+	public function testTheRootDocumentIncludesAtprotoDiscoveryWhenBlueskyIsReady(): void {
+		$this->atprotoConfig->method('isEnabled')->willReturn(true);
+		$this->atprotoOAuth->method('metadata')->willReturn([
+			'issuer' => 'https://nc.example',
+			'pushed_authorization_request_endpoint' => 'https://nc.example/oauth/par',
+			'require_pushed_authorization_requests' => true,
+			'authorization_response_iss_parameter_supported' => true,
+			'dpop_signing_alg_values_supported' => ['ES256'],
+			'client_id_metadata_document_supported' => true,
+			'token_endpoint_auth_signing_alg_values_supported' => ['ES256'],
+			'response_modes_supported' => ['query', 'fragment'],
+			'protected_resources' => ['https://nc.example'],
+		]);
+		$this->checkService->method('clientApiRootIsKnownGood')->willReturn(true);
+		$this->configService->method('getSocialUrl')->willReturn('https://nc.example/apps/social/');
+		$this->configService->method('getCloudUrl')->willReturn('https://nc.example');
+
+		$data = $this->controller->oauthMetadata()->getData();
+
+		$this->assertSame('https://nc.example', $data['issuer']);
+		$this->assertSame('https://nc.example/oauth/par', $data['pushed_authorization_request_endpoint']);
+		$this->assertTrue($data['require_pushed_authorization_requests']);
+		$this->assertSame(['ES256'], $data['dpop_signing_alg_values_supported']);
+		$this->assertContains('atproto', $data['scopes_supported']);
+		$this->assertSame('https://nc.example/oauth/token', $data['token_endpoint']);
 	}
 
 	/**

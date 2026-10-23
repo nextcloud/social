@@ -350,7 +350,20 @@ export default {
 	&__progress-done {
 		display: block;
 		block-size: 100%;
-		background: #f00;
+		background: var(--color-primary-element);
+	}
+
+	// a thumbnail is an arbitrary picture: the theme's own colours are not
+	// guaranteed to stand out on it, so high contrast uses the system ones
+	@media (forced-colors: active) {
+		&__progress {
+			background: ButtonFace;
+			border-block: 1px solid ButtonText;
+		}
+
+		&__progress-done {
+			background: Highlight;
+		}
 	}
 
 	&__details {

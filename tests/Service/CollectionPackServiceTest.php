@@ -212,7 +212,7 @@ class CollectionPackServiceTest extends TestCase {
 			}
 
 			#[\Override]
-			public function retrieveObject(string $id, bool $acceptActivityJson = true): array {
+			public function retrieveObject(string $id, bool $acceptActivityJson = true, ?int $timeout = null): array {
 				return ($this->one)($id);
 			}
 

@@ -33,7 +33,7 @@ import { useSettingsStore } from '../store/settings.js'
  * @property {{enabled: boolean, host: string}} [bluesky] - Whether this instance offers a Bluesky identity to every account, and the host its handles end in
  * @property {boolean} [canVerify] - Whether the reader may verify accounts in this instance's name (a moderator)
  * @property {SetupChecks} [checks] - The setup checks, only for an administrator
- * @property {{enabled: boolean, learning: boolean, paused: boolean, noticeAcknowledged: boolean, profile?: boolean}} [interests] - For you: whether the feature is on for this instance, whether this
+ * @property {{enabled: boolean, learning: boolean, paused: boolean, noticeAcknowledged: boolean, profile?: boolean, recommendationsEnabled?: boolean}} [interests] - For you: whether the feature is on for this instance, whether this
  *   reader learns, and whether they have paused it (`InterestService::pageState()`)
  * @property {string} cliUrl - The URL the background jobs address this instance by
  * @property {string} cloudAddress - This instance's own address
@@ -45,6 +45,7 @@ import { useSettingsStore } from '../store/settings.js'
  * @property {string} [resolve] - The account a follow link names that this server does not hold yet, for the reader to have looked up (Only on '/ostatus/follow')
  * @property {boolean} needsAccount - Whether the reader has no account in this app yet
  * @property {boolean} [hideCounts] - Whether the reader hides how many likes, dislikes, boosts and followers things have
+ * @property {boolean} [hideRepliesInFeeds] - Whether standalone replies are omitted from the reader's feeds
  * @property {boolean} [keyboardShortcuts] - Whether the reader has the one-key shortcuts on (not on a public page)
  * @property {''|'show_all'|'default'|'hide_all'} [nsfwChoice] - What the reader chose for sensitive media; '' follows the instance (not on a public page)
  * @property {'show_all'|'default'|'hide_all'} [nsfwPolicy] - What happens to sensitive media for this reader (not on a public page)

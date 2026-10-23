@@ -269,7 +269,7 @@
 							"format": "url"
 						}
 					},
-					"description": "Deliberate deviation: no streaming server, so `urls` is an empty object and clients poll at once (docs/Mastodon-Compatibility.md, Tier 2 item 10)."
+					"description": "`streaming` advertises this instance's streaming host; clients may poll when its optional streaming daemon is unavailable (docs/Mastodon-Compatibility.md, Tier 2 item 10)."
 				},
 				"translation": {
 					"type": "object",

@@ -14,6 +14,7 @@ use DateTimeZone;
 use Exception;
 use JsonSerializable;
 use OCA\Social\AP;
+use OCA\Social\Atproto\Reader\BlueskyIds;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\StreamRequest;
@@ -433,6 +434,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	private string $updated = '';
 	private string $attributedTo = '';
 	private string $inReplyTo = '';
+	private string $activityPubReplyLink = '';
 	/** FEP-044f: the id of the object this post quotes, empty when it quotes none */
 	private string $quote = '';
 	/** FEP-044f: the quoted author's stamp of approval, once one has been granted */
@@ -475,6 +477,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 *
 	 * @var array{tags: string[], reason: string}|null
 	 */
+	/** @var array{tags: string[], reason: string, topics?: list<array{id: string, labels: array{en: string, de: string}}>, selection_stage?: string, explanation?: array<string, mixed>}|null */
 	private ?array $interest = null;
 
 	/** @var array{position: int, duration: int, updated_at: ?string}|null */
@@ -564,8 +567,18 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 */
 	private static int $quoteDepth = 0;
 
+	/** @var list<string> ATProto blob URLs explicitly allowed to remain streamed for this import */
+	private array $atprotoStreamedBlobs = [];
+
 	public function __construct(?ACore $parent = null) {
 		parent::__construct($parent);
+	}
+
+	/** Mark only mapper-produced ATProto blob URLs as stream-only attachments. */
+	public function setAtprotoStreamedBlobs(array $urls): self {
+		$this->atprotoStreamedBlobs = array_values(array_unique(array_filter($urls, static fn (mixed $url): bool => is_string($url) && str_starts_with($url, 'https://'))));
+
+		return $this;
 	}
 
 	/**
@@ -777,6 +790,13 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 */
 	public function setInReplyTo(string $inReplyTo): Stream {
 		$this->inReplyTo = $inReplyTo;
+
+		return $this;
+	}
+
+	/** Keep an AT Protocol parent as a link when this post is sent over ActivityPub. */
+	public function setActivityPubReplyLink(string $replyId): self {
+		$this->activityPubReplyLink = BlueskyIds::isPostId($replyId) ? $replyId : '';
 
 		return $this;
 	}
@@ -1667,12 +1687,12 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		return $this->taggedPeople;
 	}
 
-	/** @return array{tags: string[], reason: string}|null */
+	/** @return array{tags: string[], reason: string, topics?: list<array{id: string, labels: array{en: string, de: string}}>, selection_stage?: string, explanation?: array<string, mixed>}|null */
 	public function getInterest(): ?array {
 		return $this->interest;
 	}
 
-	/** @param array{tags: string[], reason: string}|null $interest */
+	/** @param array{tags: string[], reason: string, topics?: list<array{id: string, labels: array{en: string, de: string}}>, selection_stage?: string, explanation?: array<string, mixed>}|null $interest */
 	public function setInterest(?array $interest): self {
 		$this->interest = $interest;
 
@@ -2123,6 +2143,9 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 				$dropped[] = ['reason' => 'no url'];
 				continue;
 			}
+			if (in_array($attachment->getUrl(), $this->atprotoStreamedBlobs, true)) {
+				$attachment->setLocalCopy(Document::COPY_STREAMED);
+			}
 
 			try {
 				$interface = AP::instance()->getInterfaceFromType($attachment->getType());
@@ -2167,6 +2190,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		}
 
 		$this->setAttachments($new);
+		$this->atprotoStreamedBlobs = [];
 	}
 
 	/**
@@ -2399,6 +2423,14 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			$this->exportLanguageMaps(),
 			$this->exportPageAsActivityPub()
 		);
+
+		if ($this->activityPubReplyLink !== '') {
+			unset($result['inReplyTo']);
+			$authorId = BlueskyIds::actorId(BlueskyIds::didOf($this->activityPubReplyLink));
+			$result['cc'] = array_values(array_diff($result['cc'] ?? [], [$authorId]));
+			$url = htmlspecialchars($this->activityPubReplyLink, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+			$result['content'] = rtrim($result['content'] ?? '') . '<p><a href="' . $url . '">' . $url . '</a></p>';
+		}
 
 		// Bookkeeping this app keeps about a post — the counts it has seen, the
 		// last action taken on it, what it still has to fetch — carried in the

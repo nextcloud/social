@@ -161,6 +161,7 @@ class StreamRequest extends StreamRequestBuilder {
 		private RenditionsRequest $renditionsRequest,
 		private FollowsRequest $followsRequest,
 		private SearchTermsRequest $searchTermsRequest,
+		private StatusDeletionEventsRequest $statusDeletionEventsRequest,
 	) {
 		parent::__construct($connection, $logger, $urlGenerator, $configService, $miscService);
 	}
@@ -547,6 +548,27 @@ class StreamRequest extends StreamRequestBuilder {
 	public function getStream(string $idPrim): Stream {
 		$qb = $this->getStreamSelectSql();
 		$qb->limitToIdPrim($idPrim);
+
+		return $this->getStreamFromRequest($qb);
+	}
+
+	/**
+	 * One post by its internal id, with the actor that wrote it, as a
+	 * client-API status carries it.
+	 *
+	 * @param string $idPrim
+	 *
+	 * @return Stream
+	 * @throws StreamNotFoundException
+	 */
+	public function getStreamByIdPrim(string $idPrim, bool $asViewer = false): Stream {
+		$qb = $this->getStreamSelectSql(ACore::FORMAT_LOCAL);
+		$qb->limitToIdPrim($idPrim);
+		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
+		if ($asViewer) {
+			$qb->limitToViewer('sd', 'f', true, true, SocialCoreQueryBuilder::HIDDEN_DIRECT);
+			$qb->leftJoinStreamAction('sa');
+		}
 
 		return $this->getStreamFromRequest($qb);
 	}

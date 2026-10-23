@@ -60,6 +60,9 @@ if (command === 'start') {
 	}
 	const who = await call('/xrpc/com.atproto.server.getSession')
 	const timeline = await call('/xrpc/app.bsky.feed.getTimeline?limit=1')
+	const profileDid = process.env.OAUTH_PROFILE_DID
+	const profile = profileDid ? await call(`/xrpc/app.bsky.actor.getProfile?actor=${encodeURIComponent(profileDid)}`) : null
+	const authorFeed = profileDid ? await call(`/xrpc/app.bsky.feed.getAuthorFeed?actor=${encodeURIComponent(profileDid)}&limit=10&filter=posts_with_replies`) : null
 	const posted = await call('/xrpc/com.atproto.repo.createRecord', {
 		method: 'POST',
 		headers: { 'content-type': 'application/json' },
@@ -89,6 +92,8 @@ if (command === 'start') {
 		refreshedAt: refreshed.expiresAt,
 		who,
 		timeline: { status: timeline.status },
+		profile,
+		authorFeed,
 		posted,
 		liked: { status: liked.status, error: liked.body?.error ?? '' },
 		again: { status: again.status },

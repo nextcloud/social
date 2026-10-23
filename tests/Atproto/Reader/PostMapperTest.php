@@ -163,13 +163,364 @@ class PostMapperTest extends TestCase {
 		$this->assertSame('https://bsky.app/profile/' . self::OTHER . '/post/3kquoted', $detached['quote'], 'a detached quote is still a quote');
 		$this->assertTrue($detached['_atproto']['quote_detached']);
 
-		$card = $mapper->note($this->postView(['embed' => ['$type' => 'app.bsky.embed.external#view', 'external' => ['uri' => 'https://nextcloud.com/blog', 'title' => 'A <post>']]]));
+		$card = $mapper->note($this->postView(['embed' => ['$type' => 'app.bsky.embed.external#view', 'external' => ['uri' => 'https://nextcloud.com/blog', 'title' => 'A <post>', 'description' => 'A post description', 'thumb' => 'https://cdn.bsky.app/card.jpg']]]));
 		$this->assertStringEndsWith('<p><a href="https://nextcloud.com/blog" rel="nofollow noopener noreferrer" target="_blank">A &lt;post&gt;</a></p>', $card['content']);
+		$this->assertSame([
+			'url' => 'https://nextcloud.com/blog',
+			'title' => 'A <post>',
+			'description' => 'A post description',
+			'image' => 'https://cdn.bsky.app/card.jpg',
+			'provider' => 'nextcloud.com',
+		], $card['_atproto']['card'], 'the external embed is retained as a link preview with its image');
 
 		$pending = $mapper->note($this->postView(['embed' => ['$type' => 'app.bsky.embed.video#view', 'cid' => 'bafkrei']]));
 		$this->assertSame('Note', $pending['type'], 'no playlist yet: a link to the post');
 		$this->assertStringContainsString('<a href="https://bsky.app/profile/' . self::DID . '/post/3kznmn7xqxl22"', $pending['content']);
 		$this->assertStringContainsString('target="_blank">Video</a>', $pending['content'], 'named for what it is, not where it is');
+	}
+
+	public function testGalleryAndImageViewsBecomeUsableImageAttachments(): void {
+		$items = [];
+		for ($i = 0; $i < 5; $i++) {
+			$items[] = [
+				'thumbnail' => 'https://cdn.bsky.app/thumb-' . $i . '.jpg',
+				'fullsize' => $i === 0 ? '' : 'https://cdn.bsky.app/full-' . $i . '.jpg',
+				'alt' => 'photo ' . $i,
+				'aspectRatio' => ['width' => 1200, 'height' => 800],
+			];
+		}
+		$gallery = (new PostMapper($this->resolver()))->note($this->postView([
+			'embed' => ['$type' => 'app.bsky.embed.gallery#view', 'items' => $items],
+		]));
+
+		$this->assertCount(5, $gallery['attachment'], 'all supported gallery images must reach the carousel');
+		$this->assertSame('https://cdn.bsky.app/thumb-0.jpg', $gallery['attachment'][0]['url'], 'the thumbnail remains usable when the full image is absent');
+		$this->assertSame('photo 0', $gallery['attachment'][0]['name']);
+		$this->assertSame(1200, $gallery['attachment'][0]['width']);
+		$this->assertSame('https://cdn.bsky.app/full-1.jpg', $gallery['attachment'][1]['url']);
+
+		$image = (new PostMapper($this->resolver()))->note($this->postView([
+			'embed' => ['$type' => 'app.bsky.embed.images#view', 'images' => [['thumb' => 'https://cdn.bsky.app/thumb.png', 'fullsize' => '', 'alt' => 'preview']]],
+		]));
+		$this->assertSame('https://cdn.bsky.app/thumb.png', $image['attachment'][0]['url'], 'legacy image views also fall back to their thumbnail');
+	}
+
+	public function testRawImageBlobsAreUsedWhenAppViewOmitsTheEmbedView(): void {
+		$cid = Cid::forRaw('original bluesky image bytes')->toString();
+		$view = $this->postView();
+		$view['embed'] = ['$type' => 'app.bsky.embed.images#view', 'images' => []];
+		$view['record']['embed'] = [
+			'$type' => 'app.bsky.embed.images',
+			'images' => [[
+				'image' => [
+					'$type' => 'blob',
+					'ref' => ['$link' => $cid],
+					'mimeType' => 'image/png',
+					'size' => 1234,
+				],
+				'alt' => 'the original record image',
+				'aspectRatio' => ['width' => 1200, 'height' => 800],
+			]],
+		];
+
+		$note = (new PostMapper($this->resolver()))->note($view);
+
+		$this->assertSame([[
+			'type' => 'Image',
+			'mediaType' => 'image/png',
+			'url' => 'https://cdn.bsky.app/img/feed_fullsize/plain/' . self::DID . '/' . $cid . '@png',
+			'name' => 'the original record image',
+			'width' => 1200,
+			'height' => 800,
+		]], $note['attachment'], 'the post remains viewable when its CDN-enriched embed is missing');
+	}
+
+	public function testRawImageBlobsOutsideTheCdnFormatsStreamFromThePds(): void {
+		$cid = Cid::forRaw('original HEIC image bytes')->toString();
+		$view = $this->postView();
+		$view['embed'] = ['$type' => 'app.bsky.embed.images#view', 'images' => []];
+		$view['record']['embed'] = [
+			'$type' => 'app.bsky.embed.images',
+			'images' => [[
+				'image' => ['$type' => 'blob', 'ref' => ['$link' => $cid], 'mimeType' => 'image/heic', 'size' => 4096],
+				'alt' => 'Original camera photo',
+				'aspectRatio' => ['width' => 1600, 'height' => 1200],
+			]],
+		];
+
+		$mapper = new PostMapper($this->resolver());
+		$this->assertTrue(PostMapper::hasGenericBlobs($view['record']['embed']), 'the unsupported standard image needs a later PDS recovery');
+		$this->assertSame([], $mapper->note($view)['attachment'], 'do not invent a CDN URL when the PDS has not been resolved');
+
+		$note = $mapper->note($view, 'https://pds.example');
+		$this->assertSame([[
+			'type' => 'Document',
+			'mediaType' => 'image/heic',
+			'url' => 'https://pds.example/xrpc/com.atproto.sync.getBlob?did=' . rawurlencode(self::DID) . '&cid=' . $cid,
+			'name' => 'Original camera photo.heic',
+			'width' => 1600,
+			'height' => 1200,
+		]], $note['attachment']);
+		$this->assertSame([$note['attachment'][0]['url']], $note['_atproto']['streamed_blobs']);
+	}
+
+	public function testUnsupportedStandardImageIsStreamedAsInlinePreviewableAvif(): void {
+		$cid = Cid::forRaw('original AVIF image bytes')->toString();
+		$view = $this->postView();
+		$view['embed'] = ['$type' => 'app.bsky.embed.images#view', 'images' => []];
+		$view['record']['embed'] = [
+			'$type' => 'app.bsky.embed.images',
+			'images' => [['image' => ['$type' => 'blob', 'ref' => ['$link' => $cid], 'mimeType' => 'image/avif'], 'alt' => 'Alpine lake']],
+		];
+
+		$note = (new PostMapper($this->resolver()))->note($view, 'https://pds.example');
+
+		$this->assertSame('Image', $note['attachment'][0]['type']);
+		$this->assertSame('image/avif', $note['attachment'][0]['mediaType']);
+		$this->assertSame('Alpine lake', $note['attachment'][0]['name']);
+	}
+
+	public function testRawImageBlobReferencesMustHaveAValidCidAndImageMimeType(): void {
+		$view = $this->postView();
+		$view['embed'] = null;
+		$view['record']['embed'] = [
+			'$type' => 'app.bsky.embed.images',
+			'images' => [
+				['image' => ['ref' => ['$link' => 'not-a-cid'], 'mimeType' => 'image/png']],
+				['image' => ['ref' => ['$link' => Cid::forRaw('opaque file bytes')->toString()], 'mimeType' => 'application/pdf']],
+			],
+		];
+
+		$note = (new PostMapper($this->resolver()))->note($view);
+
+		$this->assertSame([], $note['attachment'], 'an opaque or non-image blob is never presented as a broken image');
+	}
+
+	public function testThirdPartyEmbedFilesBecomeNamedStreamedAttachments(): void {
+		$cid = Cid::forRaw('a PDF from a custom embed')->toString();
+		$embed = [
+			'$type' => 'org.example.embed.files',
+			'files' => [[
+				'name' => 'meeting-notes.pdf',
+				'blob' => ['$type' => 'blob', 'ref' => ['$link' => $cid], 'mimeType' => 'application/pdf', 'size' => 512],
+			]],
+		];
+		$view = $this->postView([
+			'embed' => ['$type' => 'org.example.embed.files#view'],
+			'record' => array_merge($this->postView()['record'], ['embed' => $embed]),
+		]);
+
+		$note = (new PostMapper($this->resolver()))->note($view, 'https://pds.example');
+
+		$this->assertSame([[
+			'type' => 'Document',
+			'mediaType' => 'application/pdf',
+			'url' => 'https://pds.example/xrpc/com.atproto.sync.getBlob?did=' . rawurlencode(self::DID) . '&cid=' . $cid,
+			'name' => 'meeting-notes.pdf',
+			'size' => 512,
+		]], $note['attachment']);
+		$this->assertSame([$note['attachment'][0]['url']], $note['_atproto']['streamed_blobs']);
+		$this->assertTrue(PostMapper::hasGenericBlobs($embed));
+	}
+
+	public function testGenericBlobsNeedAValidCidPdsAndPublicPost(): void {
+		$embed = ['$type' => 'org.example.embed.file', 'file' => [
+			'name' => 'report.pdf', 'blob' => ['$type' => 'blob', 'ref' => ['$link' => Cid::forRaw('report')->toString()], 'mimeType' => 'application/pdf'],
+		]];
+		$view = $this->postView([
+			'embed' => ['$type' => 'org.example.embed.file#view'],
+			'record' => array_merge($this->postView()['record'], ['embed' => $embed]),
+		]);
+		$mapper = new PostMapper($this->resolver());
+		$this->assertSame([], $mapper->note($view)['attachment'], 'without a verified PDS there is no external file URL');
+		$this->assertSame([], $mapper->note($view, 'http://pds.example')['attachment'], 'insecure PDS endpoints are refused');
+		foreach ([
+			'https://user@pds.example',
+			'https://user:password@pds.example',
+			'https://pds.example?mode=unsafe',
+			'https://pds.example#fragment',
+		] as $unsafePds) {
+			$this->assertSame([], $mapper->note($view, $unsafePds)['attachment'], 'PDS endpoints with credentials, query strings, or fragments are refused');
+		}
+
+		$view['labels'] = [['val' => PostMapper::NO_UNAUTHENTICATED]];
+		$this->assertSame([], $mapper->note($view, 'https://pds.example')['attachment'], 'logged-in-only Bluesky posts do not leak through the public media route');
+	}
+
+	public function testGenericFileBlobsNestedInRecordWithMediaAreEligibleForPdsRecovery(): void {
+		$blob = [
+			'$type' => 'blob',
+			'ref' => ['$link' => Cid::forRaw('nested custom file')->toString()],
+			'mimeType' => 'application/pdf',
+		];
+		foreach (['app.bsky.embed.recordWithMedia', 'app.bsky.embed.recordWithMedia#view'] as $wrapperType) {
+			$embed = [
+				'$type' => $wrapperType,
+				'media' => ['$type' => 'org.example.embed.file', 'file' => ['name' => 'notes.pdf', 'blob' => $blob]],
+				'record' => [],
+			];
+			$this->assertTrue(PostMapper::hasGenericBlobs($embed), $wrapperType . ' must recurse into its media union');
+		}
+	}
+
+	public function testImagesInThirdPartyEmbedsUseTheValidatedBlueskyCdn(): void {
+		$cid = Cid::forRaw('custom image')->toString();
+		$embed = ['$type' => 'org.example.embed.file', 'file' => [
+			'name' => 'cover.png', 'blob' => ['$type' => 'blob', 'ref' => ['$link' => $cid], 'mimeType' => 'image/png'],
+		]];
+		$view = $this->postView([
+			'embed' => ['$type' => 'org.example.embed.file#view'],
+			'record' => array_merge($this->postView()['record'], ['embed' => $embed]),
+		]);
+
+		$note = (new PostMapper($this->resolver()))->note($view);
+
+		$this->assertSame([[
+			'type' => 'Image',
+			'mediaType' => 'image/png',
+			'url' => 'https://cdn.bsky.app/img/feed_fullsize/plain/' . self::DID . '/' . $cid . '@png',
+			'name' => 'cover.png',
+		]], $note['attachment']);
+	}
+
+	public function testUnsupportedCdnImageFormatsRemainAvailableAsPdsFiles(): void {
+		$cid = Cid::forRaw('a third-party AVIF image')->toString();
+		$embed = ['$type' => 'org.example.embed.file', 'file' => [
+			'name' => 'portrait.avif', 'blob' => ['$type' => 'blob', 'ref' => ['$link' => $cid], 'mimeType' => 'image/avif', 'size' => 2048],
+		]];
+		$view = $this->postView([
+			'embed' => ['$type' => 'org.example.embed.file#view'],
+			'record' => array_merge($this->postView()['record'], ['embed' => $embed]),
+		]);
+
+		$this->assertSame([], (new PostMapper($this->resolver()))->note($view)['attachment'], 'without a verified PDS, an unknown blob URL is not invented');
+		$note = (new PostMapper($this->resolver()))->note($view, 'https://pds.example');
+
+		$this->assertSame([[
+			'type' => 'Document',
+			'mediaType' => 'image/avif',
+			'url' => 'https://pds.example/xrpc/com.atproto.sync.getBlob?did=' . rawurlencode(self::DID) . '&cid=' . $cid,
+			'name' => 'portrait.avif',
+			'size' => 2048,
+		]], $note['attachment']);
+		$this->assertTrue(PostMapper::hasGenericBlobs($embed), 'a later view may add the PDS endpoint and recover this file');
+	}
+
+	public function testUnnamedBlobsUseReadableMimetypeNames(): void {
+		$pdfCid = Cid::forRaw('unnamed PDF')->toString();
+		$imageCid = Cid::forRaw('unnamed AVIF image')->toString();
+		$embed = ['$type' => 'org.example.embed.files', 'files' => [
+			['blob' => ['$type' => 'blob', 'ref' => ['$link' => $pdfCid], 'mimeType' => 'application/pdf']],
+			['blob' => ['$type' => 'blob', 'ref' => ['$link' => $imageCid], 'mimeType' => 'image/avif']],
+		]];
+		$view = $this->postView([
+			'embed' => ['$type' => 'org.example.embed.files#view'],
+			'record' => array_merge($this->postView()['record'], ['embed' => $embed]),
+		]);
+
+		$note = (new PostMapper($this->resolver()))->note($view, 'https://pds.example');
+
+		$this->assertSame(['PDF document.pdf', 'AVIF image.avif'], array_column($note['attachment'], 'name'));
+	}
+
+	public function testOpaqueBlobKeysAreNotShownAsFilenames(): void {
+		$pdfCid = Cid::forRaw('opaque named PDF')->toString();
+		$uuid = '550e8400-e29b-41d4-a716-446655440000';
+		$opaqueCid = Cid::forRaw('opaque filename CID')->toString();
+		$embed = ['$type' => 'org.example.embed.files', 'files' => [
+			['name' => '123456789', 'blob' => ['$type' => 'blob', 'ref' => ['$link' => $pdfCid], 'mimeType' => 'application/pdf']],
+			['filename' => $uuid . '.pdf', 'blob' => ['$type' => 'blob', 'ref' => ['$link' => Cid::forRaw('uuid named PDF')->toString()], 'mimeType' => 'application/pdf']],
+			['fileName' => $opaqueCid, 'blob' => ['$type' => 'blob', 'ref' => ['$link' => Cid::forRaw('cid named PDF')->toString()], 'mimeType' => 'application/pdf']],
+		]];
+		$view = $this->postView([
+			'embed' => ['$type' => 'org.example.embed.files#view'],
+			'record' => array_merge($this->postView()['record'], ['embed' => $embed]),
+		]);
+
+		$note = (new PostMapper($this->resolver()))->note($view, 'https://pds.example');
+
+		$this->assertSame(
+			['PDF document.pdf', 'PDF document.pdf', 'PDF document.pdf'],
+			array_column($note['attachment'], 'name'),
+			'opaque identifiers must be replaced by readable labels derived from each blob MIME type'
+		);
+	}
+
+	public function testRawExternalEmbedKeepsItsLinkAndBlobThumbnail(): void {
+		$cid = Cid::forRaw('external card image bytes')->toString();
+		$view = $this->postView();
+		$view['embed'] = ['$type' => 'app.bsky.embed.future#view'];
+		$view['record']['embed'] = [
+			'$type' => 'app.bsky.embed.external',
+			'external' => [
+				'uri' => 'https://example.org/report.pdf',
+				'title' => 'The report',
+				'description' => 'A linked file',
+				'thumb' => [
+					'$type' => 'blob',
+					'ref' => ['$link' => $cid],
+					'mimeType' => 'image/jpeg',
+					'size' => 1234,
+				],
+			],
+		];
+
+		$note = (new PostMapper($this->resolver()))->note($view);
+
+		$this->assertSame([
+			'url' => 'https://example.org/report.pdf',
+			'title' => 'The report',
+			'description' => 'A linked file',
+			'image' => 'https://cdn.bsky.app/img/feed_fullsize/plain/' . self::DID . '/' . $cid . '@jpeg',
+			'provider' => 'example.org',
+		], $note['_atproto']['card']);
+		$this->assertStringContainsString('https://example.org/report.pdf', $note['content']);
+	}
+
+	public function testRawVideoAndRecordWithMediaEmbedsRemainVisible(): void {
+		$video = $this->postView();
+		$video['embed'] = null;
+		$video['record']['embed'] = [
+			'$type' => 'app.bsky.embed.video',
+			'video' => ['ref' => ['$link' => Cid::forRaw('original video bytes')->toString()], 'mimeType' => 'video/mp4', 'size' => 1234],
+			'aspectRatio' => ['width' => 640, 'height' => 360],
+			'alt' => 'A video before the AppView built its playlist',
+		];
+		$videoNote = (new PostMapper($this->resolver()))->note($video);
+		$playlist = 'https://video.bsky.app/watch/' . rawurlencode(self::DID) . '/' . Cid::forRaw('original video bytes') . '/playlist.m3u8';
+		$this->assertSame('Video', $videoNote['type'], 'a raw video blob uses the Bluesky video service while its AppView view is missing');
+		$this->assertSame($playlist, $videoNote['url'][1]['href']);
+		$this->assertSame(640, $videoNote['url'][1]['width']);
+		$this->assertSame(360, $videoNote['url'][1]['height']);
+		$this->assertSame('https://video.bsky.app/watch/' . rawurlencode(self::DID) . '/' . Cid::forRaw('original video bytes') . '/thumbnail.jpg', $videoNote['icon']['url']);
+
+		$invalidVideo = $video;
+		$invalidVideo['record']['embed']['video']['mimeType'] = 'application/octet-stream';
+		$invalidNote = (new PostMapper($this->resolver()))->note($invalidVideo);
+		$this->assertSame('Note', $invalidNote['type'], 'unknown raw blob types are not sent to the video service');
+		$this->assertStringContainsString('target="_blank">Video</a>', $invalidNote['content']);
+
+		$cid = Cid::forRaw('quoted post image bytes')->toString();
+		$quoted = $this->postView();
+		$quoted['embed'] = [
+			'$type' => 'app.bsky.embed.recordWithMedia#view',
+			'record' => [],
+			'media' => ['$type' => 'app.bsky.embed.images#view', 'images' => []],
+		];
+		$quoted['record']['embed'] = [
+			'$type' => 'app.bsky.embed.recordWithMedia',
+			'record' => ['uri' => 'at://' . self::OTHER . '/app.bsky.feed.post/3kquoted', 'cid' => 'bafyreibjifzpqj6o6wcq3hejh7y4z4z2vmiklkvykc57tw3pcbx3kxifpm'],
+			'media' => [
+				'$type' => 'app.bsky.embed.images',
+				'images' => [[
+					'image' => ['ref' => ['$link' => $cid], 'mimeType' => 'image/png'],
+					'alt' => 'A quoted image',
+				]],
+			],
+		];
+		$quotedNote = (new PostMapper($this->resolver()))->note($quoted);
+		$this->assertSame('https://bsky.app/profile/' . self::OTHER . '/post/3kquoted', $quotedNote['quote']);
+		$this->assertSame('https://cdn.bsky.app/img/feed_fullsize/plain/' . self::DID . '/' . $cid . '@png', $quotedNote['attachment'][0]['url']);
 	}
 
 	public function testAVideoPostIsAFederatedVideoStreamedFromItsPlaylist(): void {

@@ -27,12 +27,14 @@ class DurableCacheTableTest extends TestCase {
 
 	private DurableCacheRequest $request;
 
+	#[\Override]
 	protected function setUp(): void {
 		parent::setUp();
 		$this->request = Server::get(DurableCacheRequest::class);
 		$this->cleanup();
 	}
 
+	#[\Override]
 	protected function tearDown(): void {
 		$this->cleanup();
 		parent::tearDown();
@@ -70,6 +72,17 @@ class DurableCacheTableTest extends TestCase {
 		$this->assertTrue($this->request->replaceValue(self::KEY, '2', self::NOW));
 		$this->assertNull($this->request->read(self::KEY, self::NOW + 60));
 		$this->assertFalse($this->request->replaceValue(self::KEY, '3', self::NOW + 60));
+	}
+
+	public function testDeletingAnExpiredSlotDoesNotDeleteALiveConcurrentClaim(): void {
+		$this->request->write(self::KEY, 'expired', self::NOW);
+		$this->request->write(self::OTHER, 'live', self::NOW + 60);
+
+		$this->request->deleteExpired(self::KEY, self::NOW);
+		$this->request->deleteExpired(self::OTHER, self::NOW);
+
+		$this->assertNull($this->request->read(self::KEY, self::NOW));
+		$this->assertSame('live', $this->request->read(self::OTHER, self::NOW));
 	}
 
 	public function testThePurgeTakesOnlyWhatHasExpired(): void {

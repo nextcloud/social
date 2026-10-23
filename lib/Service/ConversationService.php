@@ -137,14 +137,16 @@ class ConversationService {
 	 *
 	 * @return array{conversations: Conversation[], next: int|string, prev: int|string}
 	 */
-	public function getPage(Person $viewer, int $limit, int|string $maxId = '0', int|string $minId = 0, int|string $sinceId = '0'): array {
+	public function getPage(Person $viewer, int $limit, int|string $maxId = '0', int|string $minId = 0, int|string $sinceId = '0', bool $pollChats = true): array {
 		$limit = max(1, min(self::MAX_LIMIT, $limit));
 		// somebody reading their messages: the ones on Bluesky are read next
 		// run, not when the backoff says; resolved here, as the Bluesky side
 		// needs services that need this one
-		try {
-			$this->container?->get(ChatPoller::class)->wakeActor($viewer);
-		} catch (Throwable) {
+		if ($pollChats) {
+			try {
+				$this->container?->get(ChatPoller::class)->wakeActor($viewer);
+			} catch (Throwable) {
+			}
 		}
 		$messages = $this->directMessages($viewer, $maxId, $minId, $sinceId);
 		if ($messages === []) {
@@ -181,6 +183,35 @@ class ConversationService {
 			'next' => $next,
 			'prev' => $prev,
 		];
+	}
+
+	/**
+	 * The current conversation after one of its messages was edited.
+	 *
+	 * @return Conversation|null null when the viewer cannot read the message
+	 *                           or has dismissed its conversation
+	 */
+	public function updatedByStatus(Person $viewer, int|string $statusNid): ?Conversation {
+		try {
+			[$root, $thread] = $this->threadOf($viewer, $statusNid);
+		} catch (ItemNotFoundException) {
+			return null;
+		}
+
+		$lastNid = $this->newestOf($thread);
+		$markers = $this->conversationsRequest->getMarkers($viewer->getId(), [$root['id']]);
+		$marker = $markers[$root['id']] ?? ['readNid' => 0, 'hiddenNid' => 0];
+		if ($this->isDismissed($lastNid, $marker['hiddenNid'])) {
+			return null;
+		}
+
+		$last = $this->streamService->getStreamByNid($lastNid);
+		return $this->single(
+			$viewer,
+			$root,
+			$lastNid,
+			$this->isUnread($viewer, $last->getAttributedTo(), $lastNid, $marker['readNid'])
+		);
 	}
 
 	/**

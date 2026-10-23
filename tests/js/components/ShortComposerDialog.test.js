@@ -36,7 +36,7 @@ vi.mock('../../../src/utils/shortVideo.js', async (importOriginal) => ({
 }))
 
 const stubs = {
-	NcModal: { props: ['name'], emits: ['close'], template: '<div class="modal-stub" :data-name="name"><slot /></div>' },
+	NcModal: { props: ['name', 'size'], emits: ['close'], template: '<div class="modal-stub" :data-name="name" :data-size="size"><slot /></div>' },
 	NcButton: { template: '<button class="nc-button" type="button"><slot name="icon" /><slot /></button>' },
 	NcLoadingIcon: true,
 	StoryComposerDialog: { name: 'StoryComposerDialog', props: ['open', 'initialFile'], emits: ['update:open', 'posted'], template: '<div class="editor-stub" />' },
@@ -101,6 +101,7 @@ describe('ShortComposerDialog', () => {
 		await flushPromises()
 
 		expect(wrapper.find('.modal-stub').attributes('data-name')).toBe('New short')
+		expect(wrapper.find('.modal-stub').attributes('data-size')).toBe('large')
 		expect(wrapper.text()).toContain('Upload a video')
 		// jsdom has no MediaRecorder, and a Record button that cannot record is a lie
 		expect(wrapper.find('.short__source--record').exists()).toBe(false)
@@ -142,6 +143,7 @@ describe('ShortComposerDialog', () => {
 		const { wrapper } = mountDialog()
 		await withVideo(wrapper, 20)
 
+		expect(wrapper.find('.modal-stub').attributes('data-size')).toBe('large')
 		expect(wrapper.vm.trim).toEqual({ start: 0, end: 20 })
 		expect(wrapper.findAll('.short__strip img')).toHaveLength(2)
 		expect(wrapper.find('.short__trim-times strong').text()).toBe('0:20')

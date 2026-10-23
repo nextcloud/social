@@ -137,6 +137,34 @@ class AtprotoIdentityRequest extends CoreRequestBuilder {
 		return $identities;
 	}
 
+	/** The first active identity, without loading the other local accounts. */
+	public function firstActive(): ?Identity {
+		$qb = $this->getQueryBuilder();
+		$qb->select(...self::FIELDS)->from(self::TABLE_ATPROTO_IDENTITY)
+			->where($qb->expr()->eq('state', $qb->createNamedParameter(Identity::STATE_ACTIVE)))
+			->orderBy('id', 'asc')
+			->setMaxResults(1);
+		$cursor = $qb->executeQuery();
+		$row = $cursor->fetch();
+		$cursor->closeCursor();
+
+		return $row === false ? null : $this->identity($row);
+	}
+
+	/** The newest active identity, used for public visibility health checks. */
+	public function latestActive(): ?Identity {
+		$qb = $this->getQueryBuilder();
+		$qb->select(...self::FIELDS)->from(self::TABLE_ATPROTO_IDENTITY)
+			->where($qb->expr()->eq('state', $qb->createNamedParameter(Identity::STATE_ACTIVE)))
+			->orderBy('id', 'desc')
+			->setMaxResults(1);
+		$cursor = $qb->executeQuery();
+		$row = $cursor->fetch();
+		$cursor->closeCursor();
+
+		return $row === false ? null : $this->identity($row);
+	}
+
 	public function count(): int {
 		$qb = $this->getQueryBuilder();
 		$qb->select($qb->func()->count('id', 'n'))->from(self::TABLE_ATPROTO_IDENTITY);

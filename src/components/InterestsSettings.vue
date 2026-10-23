@@ -9,7 +9,7 @@
 		</p>
 
 		<template v-else>
-			<div class="interests-settings__switches">
+			<div v-if="!legacyFallback" class="interests-settings__switches">
 				<NcCheckboxRadioSwitch
 					type="switch"
 					class="interests-settings__learning"
@@ -35,17 +35,17 @@
 				</p>
 			</div>
 
-			<NcNoteCard v-if="!settings.learning" type="info" class="interests-settings__note">
+			<NcNoteCard v-if="!legacyFallback && !settings.learning" type="info" class="interests-settings__note">
 				{{ t('social', 'Learning is off, so this list is frozen and For you is hidden. You can still change it, and it is all here when you turn learning back on.') }}
 			</NcNoteCard>
-			<NcNoteCard v-else-if="thin" type="info" class="interests-settings__note">
+			<NcNoteCard v-else-if="!legacyFallback && thin" type="info" class="interests-settings__note">
 				{{ t('social', 'Still learning what you like. Until it knows more, For you also shows hashtags you follow and what is trending here.') }}
 			</NcNoteCard>
 
 			<InterestCloud
 				ref="cloud"
 				:interests="interests"
-				:frozen="!settings.learning"
+				:frozen="!legacyFallback && !settings.learning"
 				@update="apply">
 				<template #end>
 					<!-- The Add pill is the last word of the cloud, and turns
@@ -149,7 +149,7 @@
 				</div>
 			</div>
 
-			<div class="interests-settings__languages">
+			<div v-if="!legacyFallback" class="interests-settings__languages">
 				<NcSelect
 					:modelValue="chosenLanguages"
 					class="interests-settings__language-select"
@@ -171,7 +171,7 @@
 					<template #icon>
 						<IconRestore :size="20" />
 					</template>
-					{{ t('social', 'Reset all interests') }}
+					{{ legacyFallback ? t('social', 'Reset hashtag fallback') : t('social', 'Reset all interests') }}
 				</NcButton>
 				<p class="interests-settings__hint">
 					{{ t('social', 'Forgets everything learned, and the hashtags you added, placed and pinned. Hashtags you follow stay followed.') }}
@@ -245,7 +245,6 @@ const MAX_SUGGESTIONS = 6
  */
 export default {
 	name: 'InterestsSettings',
-
 	components: {
 		IconCheck,
 		IconChevronDown,
@@ -257,6 +256,14 @@ export default {
 		NcDialog,
 		NcNoteCard,
 		NcSelect,
+	},
+
+	props: {
+		/** The ranked For You page already owns activity and language controls. */
+		legacyFallback: {
+			type: Boolean,
+			default: false,
+		},
 	},
 
 	data() {

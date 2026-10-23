@@ -9,11 +9,13 @@ declare(strict_types=1);
 
 namespace OCA\Social\Atproto\Service;
 
+use OCA\Social\Atproto\AppView\AppViewClient;
 use OCA\Social\Atproto\Firehose\EventService;
 use OCA\Social\Atproto\Firehose\FirehoseDaemon;
 use OCA\Social\Atproto\Identity\IdentityService;
 use OCA\Social\Atproto\Identity\InstanceKeyService;
 use OCA\Social\Atproto\Identity\KeySealService;
+use OCA\Social\Atproto\Model\Identity;
 use OCA\Social\Atproto\Moderation\Blocklist;
 use OCA\Social\Atproto\Reader\Jetstream\JetstreamListener;
 use OCA\Social\Db\AtprotoRepoRequest;
@@ -55,6 +57,7 @@ class AtprotoStatusService {
 		private ?Blocklist $blocklist = null,
 		private ?JetstreamListener $listener = null,
 		private ?KeySealService $keySeals = null,
+		private ?AppViewClient $appView = null,
 	) {
 	}
 
@@ -74,6 +77,7 @@ class AtprotoStatusService {
 				'repositories' => $this->repoRequest->countHeads(),
 				'events_in_window' => $this->events->countInWindow(),
 				'head_seq' => $this->events->latestSeq(),
+				'relay_crawl' => $this->relayCrawlStatus(),
 				// reading Bluesky: the followed authors and the local accounts
 				// whose notifications are asked for, and how far behind the
 				// slowest of each is
@@ -85,6 +89,17 @@ class AtprotoStatusService {
 				'listener' => $this->config->jetstream() === '' ? null : $this->listener?->status(),
 			],
 			'checks' => $this->checks(),
+		];
+	}
+
+	/** The last automatic request and whether any relay accepted it. */
+	private function relayCrawlStatus(): array {
+		$results = json_decode((string)$this->configService->getAppValue(ConfigService::ATPROTO_CRAWL_RESULTS), true);
+
+		return [
+			'attempted_at' => (int)$this->configService->getAppValue(ConfigService::ATPROTO_CRAWL_ATTEMPTED),
+			'accepted_at' => (int)$this->configService->getAppValue(ConfigService::ATPROTO_CRAWL_ACCEPTED),
+			'results' => is_array($results) ? $results : [],
 		];
 	}
 
@@ -111,6 +126,7 @@ class AtprotoStatusService {
 		$checks[] = ['id' => 'https', 'state' => $secure ? 'ok' : 'error', 'detail' => $secure ? '' : 'The instance is served over plain http; a PDS has to be https'];
 		$checks[] = $this->trustedDomainCheck();
 		$checks[] = $this->rootCheck();
+		$checks[] = $this->oauthReachabilityCheck();
 		$checks[] = $this->wellKnownCheck();
 		$daemon = $this->daemon->status();
 		$checks[] = [
@@ -120,6 +136,11 @@ class AtprotoStatusService {
 		];
 		$checks[] = $this->firehoseCheck();
 		$checks[] = $this->relayCheck();
+		$identity = $this->identities->latestActive();
+		$checks[] = $this->relayRepoCheck($identity);
+		$checks[] = $this->didResolutionCheck($identity);
+		$checks[] = $this->appViewProfileCheck($identity);
+		$checks[] = $this->appViewPostCheck();
 		if ($this->keySeals !== null) {
 			$checks[] = $this->keysCheck();
 		}
@@ -139,6 +160,21 @@ class AtprotoStatusService {
 		}
 
 		return true;
+	}
+
+	/** Whether an active repository is still missing from configured relays or the public AppView. */
+	public function hasRelayIndexingGap(): bool {
+		if ($this->identities->latestActive() === null) {
+			return false;
+		}
+		$watched = ['relay_repo', 'appview_profile', 'appview_post'];
+		foreach ($this->checks() as $check) {
+			if (in_array($check['id'] ?? '', $watched, true) && ($check['state'] ?? '') !== 'ok') {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	private function trustedDomainCheck(): array {
@@ -164,6 +200,70 @@ class AtprotoStatusService {
 			'state' => $ok ? 'ok' : 'error',
 			'detail' => $ok ? '' : $endpoint . '/xrpc/ does not reach the app: add the root rules from contrib/webserver',
 		];
+	}
+
+	/** Verify the public OAuth discovery chain that Bluesky clients use to sign in. */
+	private function oauthReachabilityCheck(): array {
+		$endpoint = rtrim($this->safe(fn (): string => $this->config->pdsEndpoint()), '/');
+		$resource = $this->fetchOAuthMetadata($endpoint . '/.well-known/oauth-protected-resource');
+		if ($resource === null || ($resource['resource'] ?? null) !== $endpoint || ($resource['authorization_servers'] ?? null) !== [$endpoint]) {
+			return ['id' => 'oauth_discovery', 'state' => 'error', 'detail' => $endpoint . '/.well-known/oauth-protected-resource does not identify this PDS and its authorization server; add the root rules from contrib/webserver'];
+		}
+
+		$metadata = $this->fetchOAuthMetadata($endpoint . '/.well-known/oauth-authorization-server');
+		$valid = $metadata !== null
+			&& ($metadata['issuer'] ?? null) === $endpoint
+			&& ($metadata['pushed_authorization_request_endpoint'] ?? '') === $endpoint . '/oauth/par'
+			&& ($metadata['authorization_endpoint'] ?? '') === $endpoint . '/oauth/authorize'
+			&& ($metadata['token_endpoint'] ?? '') === $endpoint . '/oauth/token'
+			&& ($metadata['require_pushed_authorization_requests'] ?? false) === true
+			&& ($metadata['authorization_response_iss_parameter_supported'] ?? false) === true
+			&& ($metadata['client_id_metadata_document_supported'] ?? false) === true
+			&& ($metadata['require_request_uri_registration'] ?? true) !== false
+			&& $this->containsAll($metadata['response_types_supported'] ?? null, ['code'])
+			&& $this->containsAll($metadata['grant_types_supported'] ?? null, ['authorization_code', 'refresh_token'])
+			&& $this->containsAll($metadata['code_challenge_methods_supported'] ?? null, ['S256'])
+			&& $this->containsAll($metadata['token_endpoint_auth_methods_supported'] ?? null, ['none', 'private_key_jwt'])
+			&& $this->containsAll($metadata['token_endpoint_auth_signing_alg_values_supported'] ?? null, ['ES256'])
+			&& $this->containsAll($metadata['scopes_supported'] ?? null, ['atproto'])
+			&& $this->containsAll($metadata['dpop_signing_alg_values_supported'] ?? null, ['ES256']);
+
+		return [
+			'id' => 'oauth_discovery',
+			'state' => $valid ? 'ok' : 'error',
+			'detail' => $valid ? '' : $endpoint . '/.well-known/oauth-authorization-server is missing required AT Protocol OAuth metadata or is not served as JSON without redirects',
+		];
+	}
+
+	/** @param mixed $values */
+	private function containsAll(mixed $values, array $required): bool {
+		return is_array($values)
+			&& array_is_list($values)
+			&& count(array_filter($values, 'is_string')) === count($values)
+			&& array_diff($required, $values) === [];
+	}
+
+	/** Discovery documents must be JSON responses, not redirects or HTML fallbacks. */
+	private function fetchOAuthMetadata(string $url): ?array {
+		$status = 0;
+		try {
+			$body = $this->curlService->doRequest('get', $url, [
+				'timeout' => 5,
+				'json_headers' => false,
+				'accept_errors' => true,
+				'max_redirects' => 0,
+				'headers' => ['Accept' => 'application/json'],
+				'allow_local_address' => !str_starts_with($url, 'https://'),
+			], $contentType, $status);
+		} catch (Throwable) {
+			return null;
+		}
+		if ($status !== 200 || !is_string($contentType) || preg_match('/^application\/json(?:\s*;|$)/i', trim($contentType)) !== 1) {
+			return null;
+		}
+		$decoded = json_decode($body, true);
+
+		return is_array($decoded) ? $decoded : null;
 	}
 
 	private function wellKnownCheck(): array {
@@ -192,19 +292,25 @@ class AtprotoStatusService {
 	private function firehoseCheck(): array {
 		$endpoint = $this->safe(fn (): string => $this->config->pdsEndpoint());
 		$status = 0;
+		$upgraded = false;
 		try {
-			$this->curlService->doRequest('get', $endpoint . '/xrpc/com.atproto.sync.subscribeRepos', ['timeout' => 5, 'json_headers' => false, 'allow_local_address' => !str_starts_with($endpoint, 'https://')], $contentType, $status);
+			$upgraded = $this->curlService->doWebSocketHandshake($endpoint . '/xrpc/com.atproto.sync.subscribeRepos', $status);
 		} catch (Throwable) {
 		}
-		// without the upgrade the daemon answers 426; the app answers 426 too,
-		// so a 426 says only that something is there — the daemon check says
-		// whether it is the daemon
-		$ok = $status === 426;
+		// HTTP 426 confirms that the path exists, but it is not a WebSocket
+		// connection. Relays need the firehose to see repository commits, so
+		// enabling this PDS without a successful upgrade leaves its posts
+		// invisible to Bluesky clients.
 
 		return [
 			'id' => 'firehose',
-			'state' => $ok ? 'ok' : 'error',
-			'detail' => $ok ? '' : $endpoint . '/xrpc/com.atproto.sync.subscribeRepos is not served (' . (int)$status . '): the web server must proxy the WebSocket to the daemon',
+			'state' => $upgraded ? 'ok' : 'error',
+			'detail' => $upgraded
+				? ''
+				: ($status === 426
+					? 'The endpoint answers HTTP 426 but did not accept a WebSocket upgrade; verify the reverse proxy and firehose daemon'
+					: $endpoint . '/xrpc/com.atproto.sync.subscribeRepos is not served (' . $status . '): the web server must proxy the WebSocket to the daemon'
+				),
 		];
 	}
 
@@ -222,6 +328,7 @@ class AtprotoStatusService {
 		if ($host === '' || $relays === []) {
 			return ['id' => 'relay_host', 'state' => 'warning', 'detail' => 'No relay is configured, so nothing on Bluesky reads this server'];
 		}
+		$nonPublicReason = $this->nonPublicHostReason($host);
 		$state = 'ok';
 		$details = [];
 		foreach ($relays as $relay) {
@@ -230,7 +337,8 @@ class AtprotoStatusService {
 			$status = (string)($answer['status'] ?? '');
 			$accounts = (int)($answer['accountCount'] ?? 0);
 			[$ok, $detail] = match (true) {
-				($answer['error'] ?? '') === 'HostNotFound' => [false, $name . ' has not crawled this server yet: run occ social:atproto:crawl'],
+				($answer['error'] ?? '') === 'HostNotFound' && $nonPublicReason !== null => [false, $name . ' cannot crawl this PDS because ' . $host . ' is ' . $nonPublicReason . '; configure public DNS, HTTPS and an externally reachable web server before requesting a crawl'],
+				($answer['error'] ?? '') === 'HostNotFound' => [false, $name . ' has not crawled this server: verify public DNS, HTTPS and firehose reachability, then run occ social:atproto:crawl'],
 				$status === 'active', $status === 'idle' => [true, $name . ': ' . $status . ', ' . $accounts . ' accounts'],
 				$status === 'throttled' => [false, $name . ' throttles this server at ' . $accounts . ' accounts: ask its operator to raise the limit for this host'],
 				$status === 'banned' => [false, $name . ' has banned this server: nothing it publishes reaches Bluesky through this relay'],
@@ -242,6 +350,103 @@ class AtprotoStatusService {
 		}
 
 		return ['id' => 'relay_host', 'state' => $state, 'detail' => implode('; ', $details)];
+	}
+
+	private function nonPublicHostReason(string $host): ?string {
+		if (filter_var($host, FILTER_VALIDATE_IP) !== false
+			&& filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+			return 'a private or reserved IP address';
+		}
+
+		$host = strtolower(rtrim($host, '.'));
+		if (in_array($host, ['localhost', 'ip6-localhost'], true)
+			|| preg_match('/\.(?:localhost|local|test|invalid|example|internal)$/D', $host) === 1
+			|| str_ends_with($host, '.home.arpa')) {
+			return 'a local or reserved hostname';
+		}
+
+		return null;
+	}
+
+	private function didResolutionCheck(?Identity $identity): array {
+		if ($identity === null) {
+			return ['id' => 'did_resolution', 'state' => 'warning', 'detail' => 'No active identity is available for a public DID resolution check'];
+		}
+		$document = $this->fetch($this->config->plcDirectory() . '/' . rawurlencode($identity->did));
+		$services = is_array($document['service'] ?? null) ? $document['service'] : [];
+		$pds = null;
+		foreach ($services as $service) {
+			if (is_array($service) && ($service['id'] ?? '') === '#atproto_pds') {
+				$pds = $service['serviceEndpoint'] ?? null;
+				break;
+			}
+		}
+		$ok = ($document['id'] ?? '') === $identity->did && is_string($pds) && rtrim($pds, '/') === rtrim($this->config->pdsEndpoint(), '/');
+
+		return ['id' => 'did_resolution', 'state' => $ok ? 'ok' : 'warning', 'detail' => $ok ? '' : 'The public PLC directory did not resolve an active local DID to this PDS'];
+	}
+
+	/** Whether each configured relay has synchronized an actual local repository. */
+	private function relayRepoCheck(?Identity $identity): array {
+		if ($identity === null) {
+			return ['id' => 'relay_repo', 'state' => 'warning', 'detail' => 'No active identity is available to check repository visibility on relays'];
+		}
+		$relays = $this->config->relays();
+		if ($relays === []) {
+			return ['id' => 'relay_repo', 'state' => 'warning', 'detail' => 'No relay is configured to check repository visibility'];
+		}
+
+		$state = 'ok';
+		$details = [];
+		foreach ($relays as $relay) {
+			$name = (string)parse_url($relay, PHP_URL_HOST);
+			$answer = $this->fetchAnswer($relay . '/xrpc/com.atproto.sync.getRepoStatus?did=' . rawurlencode($identity->did));
+			if (($answer['did'] ?? '') === $identity->did && ($answer['active'] ?? false) === true) {
+				$details[] = $name . ': repository active' . (isset($answer['rev']) && is_string($answer['rev']) ? ', revision ' . $answer['rev'] : '');
+				continue;
+			}
+
+			$state = 'warning';
+			if (($answer['error'] ?? '') === 'RepoNotFound') {
+				$details[] = $name . ' has not synchronized ' . $identity->handle . ' yet';
+			} elseif (($answer['did'] ?? '') === $identity->did && ($answer['active'] ?? null) === false) {
+				$details[] = $name . ' reports ' . ($answer['status'] ?? 'an inactive repository') . ' for ' . $identity->handle;
+			} else {
+				$details[] = $name . ' could not confirm repository visibility for ' . $identity->handle;
+			}
+		}
+
+		return ['id' => 'relay_repo', 'state' => $state, 'detail' => implode('; ', $details)];
+	}
+
+	private function appViewProfileCheck(?Identity $identity): array {
+		if ($identity === null || $this->appView === null) {
+			return ['id' => 'appview_profile', 'state' => 'warning', 'detail' => 'No active identity or public AppView client is available for this check'];
+		}
+		try {
+			$profile = $this->appView->query('app.bsky.actor.getProfile', ['actor' => $identity->did]);
+			$ok = ($profile['did'] ?? '') === $identity->did;
+		} catch (Throwable) {
+			$ok = false;
+		}
+
+		return ['id' => 'appview_profile', 'state' => $ok ? 'ok' : 'warning', 'detail' => $ok ? '' : 'The public AppView cannot currently resolve an active local profile; check relay crawling and allow indexing time'];
+	}
+
+	private function appViewPostCheck(): array {
+		$record = $this->repoRequest->latestActivePost();
+		if ($record === null || $this->appView === null) {
+			return ['id' => 'appview_post', 'state' => 'warning', 'detail' => 'No active local post or public AppView client is available to verify post indexing'];
+		}
+		try {
+			$answer = $this->appView->query('app.bsky.feed.getPostThread', ['uri' => $record->uri(), 'depth' => 0]);
+			$post = $answer['thread']['post']['uri'] ?? '';
+			$ok = $post === $record->uri();
+		} catch (Throwable) {
+			$ok = false;
+		}
+
+		return ['id' => 'appview_post', 'state' => $ok ? 'ok' : 'warning', 'detail' => $ok ? '' : 'The public AppView does not yet show the newest local post; check relay/firehose reachability and allow indexing time'];
 	}
 
 	/**

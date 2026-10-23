@@ -44,6 +44,9 @@ class DeletionSweep {
 			return 0;
 		}
 		$deleted = $this->store->deleteGone(array_values($ids));
+		if ($deleted === null) {
+			return 0;
+		}
 		$this->configService->setAppValue(ConfigService::ATPROTO_DELETE_CURSOR, (string)max(array_keys($ids)));
 
 		return $deleted;

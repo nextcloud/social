@@ -91,6 +91,7 @@ class InstanceService {
 		private InstanceStatsRequest $instanceStatsRequest,
 		private TranslationService $translationService,
 		private AccountService $accountService,
+		private VapidService $vapidService,
 	) {
 	}
 
@@ -346,6 +347,9 @@ class InstanceService {
 			],
 			'accounts' => [
 				'max_featured_tags' => FeaturedTagService::MAX_FEATURED_TAGS,
+			],
+			'vapid' => [
+				'public_key' => $this->vapidService->publicKey(),
 			],
 			// Mastodon carries this in the v2 entity only. It is in both here,
 			// because this app's own web client reads the v1 entity for the

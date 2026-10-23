@@ -134,6 +134,7 @@ function rememberCelebrated() {
  * @property {{identity: string, timeline: string[], parentsTimeline: string[], removedFrom: object, fetchedAt?: number}[]} remembered the lists lately visited
  * @property {boolean} restored whether the list was put back rather than loaded
  * @property {Object<string, true>} filled the lists that have shown a post this session, by identity
+ * @property {Record<string, string|null>} recommendationCursors opaque continuation cursors for ranked For You timelines, by identity
  * @property {boolean} composerDisplayStatus whether the composer is open
  * @property {string} searchQuery what is being searched for
  * @property {boolean} firstPostCelebration whether the celebration is on screen
@@ -163,6 +164,13 @@ function rememberCelebrated() {
 function indexStatus(state, status) {
 	if (status === undefined || status === null || status.id === undefined) {
 		return
+	}
+	// A timeline page carries this reader-specific explanation; the ordinary
+	// status endpoint used to refresh counts and reactions does not. Keep the
+	// explanation with the indexed copy until a new timeline page replaces it.
+	const existing = state.statuses[status.id]
+	if (status.interest === undefined && existing?.interest !== undefined) {
+		status = { ...status, interest: existing.interest }
 	}
 
 	// assigned in place: replacing the whole map per status meant fifteen full
@@ -276,6 +284,16 @@ function appendNew(list, statuses) {
 	}
 }
 
+/** @param {{type: string, account?: string, params: object}} list the timeline */
+function usesV4RecommendationTimeline(list) {
+	const isInterests = list.type === 'interests'
+		|| (['photos', 'videos', 'shorts'].includes(list.type) && list.params?.scope === 'interests')
+	return isInterests && loadState('social', 'serverData', {
+		public: false,
+		interests: { recommendationsEnabled: false },
+	})?.interests?.recommendationsEnabled === true
+}
+
 /**
  * Where a list is asked for, and what the request has to add to say which.
  *
@@ -317,9 +335,15 @@ function timelineRequest(list, params) {
 			url = generateUrl('apps/social/api/v1/timelines/public')
 			break
 		case 'interests':
-			url = generateUrl('apps/social/api/v1/timelines/interests')
-			// narrowed to one kind, a ranking of its own on the server
-			if (list.params.media === 'photos' || list.params.media === 'videos') {
+			url = generateUrl(usesV4RecommendationTimeline(list)
+				? 'apps/social/api/v1/recommendations/timeline'
+				: 'apps/social/api/v1/timelines/interests')
+			// Each media kind has its own signed snapshot.
+			if (usesV4RecommendationTimeline(list)) {
+				if (['photos', 'videos'].includes(list.params.media)) {
+					params.media = list.params.media
+				}
+			} else if (list.params.media === 'photos' || list.params.media === 'videos') {
 				params.media = list.params.media
 			}
 			break
@@ -339,8 +363,12 @@ function timelineRequest(list, params) {
 		// same kind, which is a ranking rather than a circle of people
 		// and asks nothing about attachments: the server narrows it.
 			if (list.params.scope === 'interests') {
-				url = generateUrl('apps/social/api/v1/timelines/interests')
-				if (list.type === 'shorts') {
+				url = generateUrl(usesV4RecommendationTimeline(list)
+					? 'apps/social/api/v1/recommendations/timeline'
+					: 'apps/social/api/v1/timelines/interests')
+				if (usesV4RecommendationTimeline(list)) {
+					params.media = list.type === 'shorts' ? 'shorts' : list.type
+				} else if (list.type === 'shorts') {
 					params.only_short = true
 				} else {
 					params.media = list.type
@@ -412,11 +440,27 @@ function timelineRequest(list, params) {
  * the reader does to a post in it.
  */
 /** How long after a conversation is opened its replies from elsewhere are asked for again. */
-const THREAD_REFETCH_MS = 6000
+const THREAD_REFETCH_MS = 1000
+const THREAD_REFETCH_MAX_MS = 5000
+const MAX_THREAD_REFETCHES = 30
+const PROFILE_REFETCH_MS = 2000
+const STATUS_REFETCH_MS = 1000
+const STATUS_REFETCH_MAX_MS = 3000
+// Visible count reads back off for fifteen seconds after a failed request.
+// Keep the opened post fresh long enough to cross that cooldown and to show
+// the result of the queued refresh, while bounding both requests and lifetime.
+const MAX_STATUS_REFETCHES = 10
 
 export const useTimelineStore = defineStore('timeline', {
 	state: () => ({
 		statuses: {},
+		statusRefetching: {},
+		/** Whether the current page is still being read from its remote source. */
+		timelinePageFilling: false,
+		/** Whether an account profile has another Bluesky AppView page to read. */
+		profilePageFilling: false,
+		/** Whether the last page read for the current timeline had no visible posts. */
+		timelinePageEmpty: false,
 		timeline: [],
 		parentsTimeline: [],
 		/** which list a removed status came from, so a rollback restores it there */
@@ -461,6 +505,8 @@ export const useTimelineStore = defineStore('timeline', {
 		 * @type {{identity: string, timeline: string[], parentsTimeline: string[], removedFrom: object, fetchedAt?: number}[]}
 		 */
 		remembered: [],
+		/** Opaque ranked-feed cursors keyed by the same identity as the timeline lists. */
+		recommendationCursors: {},
 		/**
 		 * Whether the list on screen was put back rather than loaded: what tells
 		 * the view that it already holds its pages and must not ask for another
@@ -808,10 +854,18 @@ export const useTimelineStore = defineStore('timeline', {
 			this.statuses = statuses
 		},
 		resetTimeline() {
+			if (usesV4RecommendationTimeline(this)) {
+				const cursors = { ...this.recommendationCursors }
+				delete cursors[this.getTimelineIdentity]
+				this.recommendationCursors = cursors
+			}
 			this.timeline = []
 			this.parentsTimeline = []
 			this.removedFrom = {}
 			this.hiddenByAuthor = 0
+			this.timelinePageFilling = false
+			this.profilePageFilling = false
+			this.timelinePageEmpty = false
 			// the id lists used to be the only thing cleared, so `statuses` grew
 			// for the whole session: every page of every timeline ever opened.
 			// Pruned rather than emptied, because the remembered lists read it
@@ -1003,7 +1057,7 @@ export const useTimelineStore = defineStore('timeline', {
 		},
 		updateStatus(updatedStatus) {
 			if (this.statuses[updatedStatus.id] !== undefined) {
-				this.statuses[updatedStatus.id] = updatedStatus
+				indexStatus(this, updatedStatus)
 			}
 		},
 		/**
@@ -1088,6 +1142,9 @@ export const useTimelineStore = defineStore('timeline', {
 			if (this.getTimelineIdentity === left.identity) {
 				return
 			}
+			this.timelinePageFilling = false
+			this.profilePageFilling = false
+			this.timelinePageEmpty = false
 
 			// a page still on its way for the list being left would be dropped
 			// on arrival; cancelled, it costs the server nothing more either
@@ -1160,13 +1217,17 @@ export const useTimelineStore = defineStore('timeline', {
 			}
 
 			// the reader got there first, and the list's own request answers
-			if (!Array.isArray(data) || identity === this.getTimelineIdentity) {
+			const items = Array.isArray(data) ? data : (Array.isArray(data?.items) ? data.items : null)
+			if (items === null || identity === this.getTimelineIdentity) {
 				return
 			}
+			if (!Array.isArray(data) && usesV4RecommendationTimeline({ type, account: '', params })) {
+				this.recommendationCursors = { ...this.recommendationCursors, [identity]: data.next_cursor ?? null }
+			}
 
-			data.forEach((status) => indexStatus(this, status))
+			items.forEach((status) => indexStatus(this, status))
 			const ids = []
-			appendNew(ids, data)
+			appendNew(ids, items)
 			if (ids.length > 0) {
 				this.markFilled(identity)
 			}
@@ -1196,7 +1257,7 @@ export const useTimelineStore = defineStore('timeline', {
 			try {
 				const { data } = await axios.get(url, { params: query })
 
-				return Array.isArray(data) ? data : []
+				return Array.isArray(data) ? data : (Array.isArray(data?.items) ? data.items : [])
 			} catch (error) {
 				logger.debug('Could not fetch a list for a shelf', { type, params, error })
 
@@ -1436,23 +1497,43 @@ export const useTimelineStore = defineStore('timeline', {
 		 * offer to try again rather than call the post deleted.
 		 *
 		 * @param {string} id the status id
+		 * @param {boolean} [refresh] bypass an HTTP cache when refreshing visible counts
+		 * @param {boolean} [forceCounts] ask the origin even when the last count refresh was recent
 		 * @return {Promise<object|null>} the status, or null if it is not there
 		 */
-		async fetchStatus(id) {
+		async fetchStatus(id, refresh = false, forceCounts = false) {
 			try {
 				const url = generateUrl(`apps/social/api/v1/statuses/${id}`)
-				const response = await axios.get(url)
+				const get = (includeForceCounts = forceCounts) => refresh
+					? axios.get(url, { params: { _social_refresh: Date.now(), ...(includeForceCounts ? { force_counts: true } : {}) } })
+					: includeForceCounts
+						? axios.get(url, { params: { force_counts: true } })
+						: axios.get(url)
+				const response = await get()
 				this.addToStatuses(response.data)
 				// its counts are being asked for where it lives: read once more
 				// a little later, so the page shows them without a reload
-				if (response.headers?.['x-social-filling'] === '1') {
-					setTimeout(async () => {
+				if (response.headers?.['x-social-filling'] === '1' && !this.statusRefetching[id]) {
+					this.statusRefetching = { ...this.statusRefetching, [id]: true }
+					const refetch = (attempt) => setTimeout(async () => {
 						try {
-							this.addToStatuses((await axios.get(url)).data)
+							const refreshed = await get(false)
+							this.addToStatuses(refreshed.data)
+							if (attempt < MAX_STATUS_REFETCHES && refreshed.headers?.['x-social-filling'] === '1') {
+								refetch(attempt + 1)
+							} else {
+								const refetching = { ...this.statusRefetching }
+								delete refetching[id]
+								this.statusRefetching = refetching
+							}
 						} catch (error) {
+							const refetching = { ...this.statusRefetching }
+							delete refetching[id]
+							this.statusRefetching = refetching
 							logger.debug('The counts of a status were not read again', { error, id })
 						}
-					}, THREAD_REFETCH_MS)
+					}, Math.min(STATUS_REFETCH_MS * (2 ** (attempt - 1)), STATUS_REFETCH_MAX_MS))
+					refetch(1)
 				}
 
 				return response.data
@@ -1700,17 +1781,36 @@ export const useTimelineStore = defineStore('timeline', {
 			// different question.
 			const seeded = this.takeSeededPage(params)
 			if (seeded !== null) {
+				this.timelinePageFilling = false
+				this.profilePageFilling = false
+				this.timelinePageEmpty = seeded.length === 0
 				this.addToTimeline(seeded)
 
 				return seeded
 			}
 
+			const v4Timeline = usesV4RecommendationTimeline(this)
+			const identity = this.getTimelineIdentity
+			if (v4Timeline) {
+				const requestingNextPage = params.max_id !== undefined || params.offset !== undefined
+				if (requestingNextPage) {
+					const cursor = this.recommendationCursors[identity]
+					if (!cursor) {
+						this.timelinePageEmpty = true
+						return []
+					}
+					params.cursor = cursor
+					delete params.max_id
+					delete params.offset
+				} else if (params.cursor === undefined) {
+					params.cursor = ''
+				}
+			}
 			const url = timelineRequest(this, params)
 
 			// which list this page was asked for, so an answer that arrives after
 			// the reader has moved on is dropped instead of being committed under
 			// the new heading
-			const identity = this.getTimelineIdentity
 			const controller = startRequest(identity)
 			const request = axios.get(url, { params, signal: controller.signal })
 			// the sidebar's own requests wait for the first of these
@@ -1726,8 +1826,21 @@ export const useTimelineStore = defineStore('timeline', {
 				logger.debug('Dropped a page that belongs to a timeline no longer on screen', { identity })
 				return []
 			}
+			const data = response.data
+			const timelineData = v4Timeline && !Array.isArray(data)
+				? (Array.isArray(data?.items) ? data.items : [])
+				: data
+			if (v4Timeline && !Array.isArray(data)) {
+				this.recommendationCursors = { ...this.recommendationCursors, [identity]: data?.next_cursor ?? null }
+			}
+			this.timelinePageFilling = response.headers?.['x-social-filling'] === '1'
+				|| response.headers?.['x-social-thread-filling'] === '1'
+			this.profilePageFilling = response.headers?.['x-social-profile-filling'] === '1'
+			this.timelinePageEmpty = Array.isArray(timelineData)
+				? timelineData.length === 0
+				: this.type === 'single-post' && Array.isArray(timelineData?.descendants) && timelineData.descendants.length === 0
 
-			this.addToTimeline(response.data)
+			this.addToTimeline(timelineData)
 			if (this.type === 'single-post') {
 				this.hiddenByAuthor = Number(response.headers?.['x-social-hidden-replies'] ?? 0) || 0
 			}
@@ -1737,7 +1850,7 @@ export const useTimelineStore = defineStore('timeline', {
 				this.refetchThreadLater(url, params, identity)
 			}
 
-			return response.data
+			return timelineData
 		},
 
 		/**
@@ -1775,21 +1888,37 @@ export const useTimelineStore = defineStore('timeline', {
 		 * @param {string} url the context the page was read from
 		 * @param {object} params its query
 		 * @param {string} identity the timeline it belongs to
+		 * @param {number} attempt the retry number, starting at zero
 		 */
-		refetchThreadLater(url, params, identity) {
+		refetchThreadLater(url, params, identity, attempt = 0) {
+			const delay = this.profilePageFilling
+				? PROFILE_REFETCH_MS
+				: Math.min(THREAD_REFETCH_MS * (2 ** attempt), THREAD_REFETCH_MAX_MS)
 			setTimeout(async () => {
 				if (this.getTimelineIdentity !== identity) {
 					return
 				}
 				try {
-					const { data } = await axios.get(url, { params })
+					// Each poll must reach the server afresh. Reusing a timeline URL
+					// can let its ETag short-circuit the count refresh as a 304.
+					const response = await axios.get(url, { params: { ...params, _social_refresh: Date.now() } })
 					if (this.getTimelineIdentity === identity) {
-						this.addToTimeline(data)
+						this.timelinePageFilling = response.headers?.['x-social-filling'] === '1'
+							|| response.headers?.['x-social-thread-filling'] === '1'
+						this.profilePageFilling = response.headers?.['x-social-profile-filling'] === '1'
+						this.timelinePageEmpty = Array.isArray(response.data)
+							? response.data.length === 0
+							: this.type === 'single-post' && Array.isArray(response.data?.descendants) && response.data.descendants.length === 0
+						this.addToTimeline(response.data)
+						if ((response.headers?.['x-social-thread-filling'] === '1' || response.headers?.['x-social-filling'] === '1')
+							&& attempt + 1 < MAX_THREAD_REFETCHES) {
+							this.refetchThreadLater(url, params, identity, attempt + 1)
+						}
 					}
 				} catch (error) {
 					logger.debug('The rest of the conversation was not read again', { error })
 				}
-			}, THREAD_REFETCH_MS)
+			}, delay)
 		},
 	},
 })

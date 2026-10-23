@@ -57,6 +57,7 @@ class TimelineRevisionService {
 	 */
 	public const NOTIFICATIONS = 'notifications_revision';
 	public const CONVERSATIONS = 'conversations_revision';
+	public const NOTIFICATIONS_MERGED = 'notifications_merged_revision';
 
 	public function __construct(
 		private ActorsRequest $actorsRequest,

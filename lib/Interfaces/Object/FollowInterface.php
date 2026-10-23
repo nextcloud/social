@@ -291,7 +291,7 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 			// count moves: the Accept moved it up, so only an accepted row
 			// that is actually removed moves it down. The activity carries
 			// what the sender wrote, which is not where this is recorded.
-			$stored = $this->storedFollow($item);
+			$stored = $this->storedFollow($item, true);
 			if ($stored !== null) {
 				$this->followsRequest->delete($stored);
 				if ($stored->isAccepted()) {
@@ -309,7 +309,7 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 			// followed account's when it was accepted. The origin check
 			// vouches for the followed account the Reject names, so the
 			// stored follow has to be of that account, as an Accept's is.
-			$stored = $this->storedFollow($item, true);
+			$stored = $this->storedFollow($item);
 			if ($stored !== null) {
 				$this->followsRequest->delete($stored);
 				$this->accountService->bumpActorCount(
@@ -335,26 +335,41 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 	}
 
 	/**
-	 * The stored follow an Undo or a Reject names by its id, when it is
-	 * between the accounts the activity names; null when there is no such
-	 * row.
+	 * The stored follow an Undo or a Reject names, when it is between the
+	 * accounts the activity names. Misskey's composite Follow IDs may resolve
+	 * the stored row by its actor and object.
 	 *
-	 * @param bool $sameObject whether the followed account has to match too:
-	 *                         a Reject comes from that account's server
+	 * @param bool $allowCompositeId whether a composite Follow ID may resolve
+	 *                               the stored row by its actor and object
 	 */
-	private function storedFollow(Follow $follow, bool $sameObject = false): ?Follow {
+	private function storedFollow(Follow $follow, bool $allowCompositeId = false): ?Follow {
 		try {
 			$stored = $this->followsRequest->getById($follow->getId());
 		} catch (Exception $e) {
-			return null;
+			if (!$allowCompositeId || !$this->hasCompositeFollowId($follow->getId())) {
+				return null;
+			}
+
+			try {
+				$stored = $this->followsRequest->getByPersons($follow->getActorId(), $follow->getObjectId());
+			} catch (Exception $e) {
+				return null;
+			}
 		}
 
 		if ($stored->getActorId() !== $follow->getActorId()
-			|| ($sameObject && $stored->getObjectId() !== $follow->getObjectId())) {
+			|| $stored->getObjectId() !== $follow->getObjectId()) {
 			return null;
 		}
 
 		return $stored;
+	}
+
+	private function hasCompositeFollowId(string $id): bool {
+		$path = parse_url($id, PHP_URL_PATH);
+
+		return is_string($path)
+			&& preg_match('~/follows/[^/]+/[^/]+$~', $path) === 1;
 	}
 
 	/**

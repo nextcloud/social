@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 use OCA\Social\Atproto\Publisher\BlueskyBookmarks;
+use OCA\Social\Atproto\Publisher\BlueskyThreadMutes;
 use OCA\Social\Db\ActionsRequest;
 use OCA\Social\Db\ConversationsRequest;
 use OCA\Social\Exceptions\InvalidActionException;
@@ -67,6 +68,7 @@ class ActionService {
 		private ConversationsRequest $conversationsRequest,
 		private DislikeService $dislikeService,
 		private InterestService $interestService,
+		private IRecommendationSignalRecorder $recommendationSignalService,
 		private ?ContainerInterface $container = null,
 	) {
 	}
@@ -120,11 +122,16 @@ class ActionService {
 	 * conversation rather than a post.
 	 */
 	private function muteConversation(Person $actor, Stream $post, bool $muted): void {
+		$rootId = $this->conversationsRequest->rootOf($post->getId());
 		$this->conversationsRequest->setMuted(
 			$actor->getId(),
-			$this->conversationsRequest->rootOf($post->getId()),
+			$rootId,
 			$muted
 		);
+		$threadMutes = $this->container?->get(BlueskyThreadMutes::class);
+		if ($threadMutes instanceof BlueskyThreadMutes) {
+			$threadMutes->fromSocial($actor, $rootId, $muted);
+		}
 	}
 
 	/**
@@ -170,33 +177,57 @@ class ActionService {
 
 		$post = $this->streamService->getStreamByNid($nid);
 		$this->assertAllowedByAuthor($post, $action, $actor->getId());
+		$previousState = match ($action) {
+			self::FAVOURITE, self::UNFAVOURITE => $this->streamActionService->getActionBool($actor->getId(), $post->getId(), StreamAction::LIKED),
+			self::REBLOG, self::UNREBLOG => $this->streamActionService->getActionBool($actor->getId(), $post->getId(), StreamAction::BOOSTED),
+			self::BOOKMARK, self::UNBOOKMARK => $this->streamActionService->getActionBool($actor->getId(), $post->getId(), StreamAction::BOOKMARKED),
+			default => false,
+		};
 
 		switch ($action) {
 			case self::FAVOURITE:
 				$this->favourite($actor, $post->getId());
 				$this->interestService->recordAction($actor, $post, InterestService::ACTION_FAVOURITE);
+				if (!$previousState) {
+					$this->recommendationSignalService->recordAction($actor, $post, 'like');
+				}
 				break;
 
 			case self::UNFAVOURITE:
 				$this->favourite($actor, $post->getId(), false);
+				if ($previousState) {
+					$this->recommendationSignalService->recordAction($actor, $post, 'unlike');
+				}
 				break;
 
 			case self::REBLOG:
 				$this->reblog($actor, $post->getId());
 				$this->interestService->recordAction($actor, $post, InterestService::ACTION_BOOST);
+				if (!$previousState) {
+					$this->recommendationSignalService->recordAction($actor, $post, 'boost');
+				}
 				break;
 
 			case self::UNREBLOG:
 				$this->reblog($actor, $post->getId(), false);
+				if ($previousState) {
+					$this->recommendationSignalService->recordAction($actor, $post, 'unboost');
+				}
 				break;
 
 			case self::BOOKMARK:
 				$this->bookmark($actor, $post->getId());
 				$this->interestService->recordAction($actor, $post, InterestService::ACTION_BOOKMARK);
+				if (!$previousState) {
+					$this->recommendationSignalService->recordAction($actor, $post, 'save');
+				}
 				break;
 
 			case self::UNBOOKMARK:
 				$this->bookmark($actor, $post->getId(), false);
+				if ($previousState) {
+					$this->recommendationSignalService->recordAction($actor, $post, 'unsave');
+				}
 				break;
 
 			case self::DISLIKE:

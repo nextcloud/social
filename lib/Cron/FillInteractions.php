@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Cron;
 
 use OCA\Social\Service\Interaction\InteractionService;
+use OCA\Social\Service\RemoteFetchQueue;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\BackgroundJob\QueuedJob;
 
@@ -22,6 +23,7 @@ class FillInteractions extends QueuedJob {
 	public function __construct(
 		ITimeFactory $time,
 		private InteractionService $interactions,
+		private RemoteFetchQueue $queue,
 	) {
 		parent::__construct($time);
 	}
@@ -31,7 +33,11 @@ class FillInteractions extends QueuedJob {
 		$post = is_array($argument) ? (string)($argument['post'] ?? '') : '';
 		$type = is_array($argument) ? (string)($argument['type'] ?? '') : '';
 		if ($post !== '' && $type !== '') {
-			$this->interactions->fill($post, $type);
+			if ($this->interactions->fill($post, $type)) {
+				// A later collection page may have failed or remain; allow the next
+				// visible poll to queue another bounded continuation.
+				$this->queue->completeInteractionFill($post, $type);
+			}
 		}
 	}
 }

@@ -16,7 +16,10 @@
 		<!-- said once, on the pages where the reading it describes happens -->
 		<InterestsNotice v-if="showInterestsNotice" />
 
-		<Composer v-if="!settingsStore.getServerData.public && type !== 'notifications' && type !== 'single-post' && type !== 'direct' && type !== 'videos'" :offerShort="isHome && settingsStore.getServerData.sections?.stories !== false" />
+		<Composer
+			v-if="!settingsStore.getServerData.public && type !== 'notifications' && type !== 'single-post' && type !== 'direct' && type !== 'videos'"
+			compactOptions
+			:offerShort="isHome && settingsStore.getServerData.sections?.stories !== false" />
 
 		<!-- the three timelines that are the same place seen from three
 		     distances: switching between them is something a reader does while
@@ -26,6 +29,12 @@
 			:options="scopes"
 			:value="scope"
 			:label="t('social', 'Which posts to show')" />
+		<FeedScopeNotice
+			v-if="scopeDescription"
+			:key="`${accountStore.currentAccountHandle}:${scope}`"
+			:account="accountStore.currentAccountHandle"
+			:scope="scope"
+			:text="scopeDescription" />
 
 		<InterestsLearningBanner v-if="type === 'interests' && hasInterestsTab" />
 
@@ -169,6 +178,7 @@ import IconTagHeart from 'vue-material-design-icons/TagHeart.vue'
 import TimelineList from './../components/TimelineList.vue'
 import DirectMessages from './../components/DirectMessages.vue'
 import TimelineSwitcher from './../components/TimelineSwitcher.vue'
+import FeedScopeNotice from './../components/FeedScopeNotice.vue'
 import FirstPostCelebration from './../components/FirstPostCelebration.vue'
 import Announcements from './../components/Announcements.vue'
 import FirstRun from './../components/FirstRun.vue'
@@ -221,6 +231,7 @@ export default {
 		TimelineList,
 		DirectMessages,
 		TimelineSwitcher,
+		FeedScopeNotice,
 		IconBellCogOutline,
 		IconClose,
 		IconInboxOutline,
@@ -461,7 +472,20 @@ export default {
 		 * @return {boolean}
 		 */
 		hasInterestsTab() {
-			return !this.settingsStore.getServerData.public && hasInterestsFeed(this.settingsStore.getServerData.interests)
+			const interests = this.settingsStore.getServerData.interests
+			return !this.settingsStore.getServerData.public
+				&& (interests?.recommendationsEnabled === true || hasInterestsFeed(interests))
+		},
+
+		/** What the two personalized-reading choices contain. */
+		scopeDescription() {
+			if (this.scope === 'home') {
+				return t('social', 'My Feed shows posts from accounts you follow, in chronological order.')
+			}
+			if (this.scope === 'interests' && this.hasInterestsTab) {
+				return t('social', 'For You automatically ranks posts using your learned interests, post content, freshness, follows and discovery. It can include posts from beyond the accounts you follow.')
+			}
+			return ''
 		},
 
 		/**
@@ -1036,13 +1060,11 @@ export default {
 	color: var(--color-primary-element-light-text);
 }
 
-// the notification filter has more options than the timeline switcher does, so
-// its labels run out of room before that one's do
-@include layout.below(layout.$crowded) {
-	.notifications-filter :deep(.switcher__label) {
-		@include layout.visually-hidden;
-	}
-}
+// The notification filter has twice the options of the timeline switcher, and
+// no rule of its own any more: the switcher scrolls rather than hides its
+// labels, so the seven of them stay readable in the reading column and the
+// fades say there is more to the side. Only the phone width takes the labels
+// away, and the switcher decides that from its own width.
 
 #app-content {
 	position: relative;

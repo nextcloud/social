@@ -185,6 +185,7 @@ The tables are created by `lib/Migration/Version1000Date20221118000002.php` — 
 | `social_cache_actor` | Cached remote federated actors (inbox/outbox URLs, public keys, counts), the refresh bookkeeping `sync_attempt`/`sync_failures`, and `account_lower`, the handle lowercased and indexed (`social_ca_al`) for the account search and the lookup by handle |
 | `social_cache_doc` | Cached remote and local media attachments. `ai_source` (SMALLINT, default 0) is the machine-generation provenance the picture's metadata stated when it was stored — `1` IPTC's `trainedAlgorithmicMedia`, `2` its `compositeWithTrainedAlgorithmicMedia` — read by `ImageMetadataService::digitalSourceType()` *before* the metadata is stripped, because the stored bytes no longer say it; rows from before the column read as 0 |
 | `social_client` | OAuth 2.0 client registrations |
+| `social_device_auth` | hashed one-time OAuth device codes, short user codes, scope grants, polling interval and expiry; pruned with the OAuth client sweep and removed by the account cascade when the approved Nextcloud user is deleted |
 | `social_follow` | Follow relationships (actor → object, with accepted flag) |
 | `social_hashtag` | Hashtag trend data: a JSON `trend` blob per hashtag, plus one sortable integer column per window (`trend_1h` … `trend_10d`). A row is written with zero counts when a public post first carries the hashtag (`StreamTagsRequest::generateStreamTags()`), so a hashtag search finds it at once; the trends cron fills the counts |
 | `social_instance` | Known federated instances (version, metadata) |
@@ -231,6 +232,8 @@ The tables are created by `lib/Migration/Version1000Date20221118000002.php` — 
 | `social_followed_tag` | The hashtags an account follows: one row per (actor, lowercased tag), unique on the pair; `filled` is when the tag's posts were last read from beyond this server (`FollowedTagsFill`, Unix time, 0 for never), indexed with the tag (`Version1000Date20261009000710`) |
 | `social_interest` | For you: one row per (reader, lowercased tag), unique on the pair — the score reading earned it, when (`scored_at`, unix time, so decay is worked out on read), whether the reader added it (`manual`), the rank they pinned it to (`position`, null to float) and the score as the current week began (`score_week`, for the trend arrow) |
 | `social_interest_hide` | The posts a reader said "less like this" about, by `stream_nid`, unique on (reader, post); forgotten once older than the feed looks back |
+| `social_rec_signal`, `social_rec_event`, `social_rec_seen` | For You behavioural learning: owner-scoped fast/slow affinity aggregates, a seven-day event-idempotency ledger, and bounded hashed post/session exposure counts. Learning defaults off; consent generations reject late events. |
+| `social_rec_discovery` | Instance-wide hourly ActivityPub/ATProto discovery counters, last attempt/success and batch duration; seven-day retention, with no query terms, topic labels, reader IDs or post IDs. |
 | `social_collection` | Collections: an album an account curates out of its own posts, with its title, description and visibility |
 | `social_collection_item` | What is in a collection: one row per (collection, post), unique on the pair, ordered by `position` |
 | `social_place` | Places: one row per distinct place this instance has seen, deduplicated on (name, country). No geocoder — see the migration |
@@ -250,7 +253,7 @@ The tables are created by `lib/Migration/Version1000Date20221118000002.php` — 
 | `social_atproto_blocklist` | The administrator's Bluesky block list: a PDS host or a DID, with the reason. A blocked account is not resolved, read or heard from; a blocked host blocks every account whose PDS it is |
 | `social_atproto_labeler` | The Bluesky labelers each person subscribes to, by DID, with their choice per label value (`ignore`, `warn`, `hide`) as JSON; Bluesky's own moderation service is always applied and needs no row |
 | `social_atproto_app_password` | The app passwords a person made for Bluesky apps, by name, stored as password hashes only — the password is shown once — and whether each is `privileged`, which lets an app signed in with it reach the Bluesky direct messages. Good for this app's Bluesky surface and nothing else of Nextcloud |
-| `social_atproto_session` | The sessions Bluesky apps opened with those passwords, by the id of their refresh token, with the password that opened them: ending a session, or revoking its password, ends its tokens |
+| `social_atproto_session` | The sessions Bluesky apps opened with those passwords, by the id of their refresh token, with the password that opened them: refresh consumes the row atomically, and access checks that the password still exists, so ending a session or revoking its password ends its tokens |
 | `social_atproto_video` | A local post's video on its way through Bluesky's video service: the post and its video document, the state (`queued`, `processing`, `done`, `failed`), the service's job, the blob it stored here, the tries and the reason it failed. The post goes to Bluesky once the row has ended — naming the blob, or as a link — and ended rows are pruned after a week |
 | `social_atproto_oauth_request` | Bluesky sign-in (OAuth) requests a Bluesky app pushed: the app's `client_id`, how it authenticated, what it asked for, the DPoP key it asked with and its PKCE challenge; once the person agreed, who agreed and the hash of the code handed out, and once that code was exchanged, the session it started — so a second exchange ends that session. Kept a day past expiry, so a PKCE challenge is not taken twice |
 | `social_atproto_oauth_session` | The Bluesky apps signed in through OAuth: account, app, granted scopes, the DPoP key every token is bound to, the hash of the one refresh token that is good and of the one it replaced (presenting that one ends the session), and when it ends — two weeks for a public app, never for a confidential one |
@@ -270,6 +273,7 @@ The tables are created by `lib/Migration/Version1000Date20221118000002.php` — 
 | `social_account_note` | The private note one account keeps about another: one row per pair, never federated |
 | `social_mute_expiry` | When a mute runs out: one row per (muter, muted), and only for a mute that was given a duration |
 | `social_stream_rev` | The versions a status has been through: one row per version including the original, oldest first. `media` (TEXT, nullable) is the attachments of that version as a JSON list of client `MediaAttachment` entities, the shape `social_stream.attachments` stores — kept on the revision because `media_attributes` rewrites a description or focal point on the attachment itself; null on rows from before the column, which read as no attachments |
+| `social_stream_del` | A bounded cursor of public and direct-message deletions: status id, visibility, and for direct messages the original recipient actor hashes; public stream filters are kept only for public statuses, and clients receive ids only |
 | `social_featured_tag` | The hashtags an account pins to its profile: one row per (actor, lowercased tag), unique on the pair |
 | `social_announcement` | The instance's announcements: one row per notice, with the text as typed and the window it is served in (both bounds nullable) |
 | `social_announce_read` | Who has dismissed which announcement: one row per (account, announcement), unique on the pair |
@@ -280,6 +284,11 @@ The tables are created by `lib/Migration/Version1000Date20221118000002.php` — 
 | `social_ext_invite` | Invitation links for external users: the token as it is sent, who made it, how many registrations it admits (`max_uses`, 0 for any number), how many it has (`uses`) and when it expires (`expires`, unix seconds, 0 for never) |
 
 `Version1000Date20260927000010` adds the three tables of self-registered external users, `social_ext_user`, `social_ext_signup` and `social_ext_invite` — see [External users](#external-users).
+
+`SessionService::create()` resolves a Bluesky login by handle or DID directly. A
+Nextcloud email identifier may match several local accounts, so each matching
+account is checked against its own Bluesky identity and app-password hashes;
+an account without an identity does not prevent a later match from signing in.
 
 `Version1000Date20260611000001` only drops the abandoned `social_3_*` tables from an earlier prototype. `Version1000Date20260907000001` adds the timeline indexes and the missing primary keys, `Version1000Date20260907000002` adds `social_actor_relation`, `Version1000Date20260907000003` adds the `bookmarked` flag to `social_stream_act`, `Version1000Date20260908000001` widens `social_client.app_client_secret` for its hashed value, `Version1000Date20260908000002` adds the `locked` flag to `social_actor`, `Version1000Date20260908000003` adds `social_report` (moderation reports), `Version1000Date20260908000004` adds the `fields` column to `social_actor` (the profile metadata fields), `Version1000Date20260908000005` adds `social_stream_card` (link previews), `Version1000Date20260909000001` adds `social_moderation` (the silence/suspend decisions, indexed on `level`), `Version1000Date20260910000001` adds the indexes the hot paths were querying as if they existed (`social_cache_doc.id_prim` and `parent_id_prim`, `social_stream_act` by (actor, flag), `social_stream_tag` by tag, `social_action` by (object, type), both queues by `status`/`id`, `social_client.token`, `social_stream.creation`, `social_cache_actor` by (local, details_update) and `social_follow` by (object, actor)) and drops the redundant five-column `ipoha` unique index on `social_stream`, `Version1000Date20260910000002` adds the sortable `trend_*` counter columns to `social_hashtag` zeroed (the JSON `trend` column stays and remains what the API hands back), `Version1000Date20260910000003` fills those columns in from the JSON, `Version1000Date20260911000001` adds the `sensitive` flag to `social_stream`, and `Version1000Date20260911000004` adds `social_followed_tag` (the hashtags an account follows, unique on (actor, tag) — which is also the index the home timeline reads). `Version1000Date20260911000005` adds `social_list` and `social_list_member` — Mastodon's lists and their membership, the membership table unique on (list, account), which is both what makes adding an account twice a no-op and the index the list timeline joins `social_stream.attributed_to_prim` on. `Version1000Date20260911000006` adds `social_filter` and `social_filter_kw` — the keyword filters an account mutes posts with, indexed by owner and by filter, which are the two reads there are. `Version1000Date20260911000007` adds `social_convo_state`, unique on (account, thread root) — the read and dismissed markers behind `/api/v1/conversations`. The conversations themselves get no table: a conversation is a thread of `social_stream` rows derived from `in_reply_to` at read time, and its id is the nid of the thread root. `Version1000Date20260911000008` adds `social_domain_block`, `social_account_note` and `social_mute_expiry` — the per-account instance blocks, the private notes and the expiry of a timed mute, each unique on the pair it is keyed by, which is both what makes writing one twice a no-op and the index its read path probes. An endorsement is not among them: it is a row in `social_actor_relation` with type `endorse`, which is what that table already holds. `Version1000Date20260911000009` adds `social_stream_rev` (the revisions of an edited status, indexed on (status, id), which is the only read there is) and `Version1000Date20260911000010` adds `social_featured_tag` (the hashtags an account pins to its profile, unique on (actor, tag)). `Version1000Date20260911000011` adds `social_announcement` and `social_announce_read` — the announcements and their dismissals, the dismissal table unique on (account, announcement), which is both what makes dismissing twice a no-op and the index the client read probes. The announcements table gets no index beyond its key: every read of it is its whole active set, and it holds a handful of rows. `Version1000Date20260911000014` adds `social_scheduled` — the posts a client asked to have published later — with two indexes, one per read there is: `(actor_id_prim, scheduled_at)` for one account's list and the daily cap, and `(scheduled_at)` for the cron's "what is due across every account", which the first index cannot answer because its leading column is the account. `Version1000Date20260911000020` adds `forwarded` to `social_report`: whether a report was passed on to the instance that hosts the reported account, which the admin API used to answer as a hardcoded `false`. `Version1000Date20260912000001` adds the two indexes `Version1000Date20260910000001` left out: `social_actor.user_id`, which resolves the logged-in user's actor on every authenticated request and had no index at all, and the four trend windows of `social_hashtag` other than `trend_1d` (`trend_1h`, `trend_12h`, `trend_3d`, `trend_10d`), each of which `getTrending()` filters and orders on. `Version1000Date20260912000002` adds `social_actor.bot` — whether a local account is automated, which is what Mastodon's `bot` reports and what decides whether the actor document says `Service` or `Person`; it was accepted from clients and dropped. `Version1000Date20260912000003` adds `social_strike` — the history of moderation decisions, indexed on the account, which is the only read there is. `Version1000Date20260912000011` adds `social_convo_state.muted` — the thread an account has stopped hearing from, a column rather than a table because that row already records what one account has done with one thread. `Version1000Date20260912000010` adds `social_client_auth`, unique on (client, account) with an index on each of the two secrets it is looked up by — and carries the authorization already on each client row across, so a token in use today goes on working. `Version1000Date20260912000006` adds `social_access_block`, unique on (type, value) — one table for two lists, because what differs between Mastodon's two is a severity column and a count, and neither is worth a second table on an instance that holds tens of these rows. `Version1000Date20260912000005` adds `social_announce_react`, unique on (announcement, account, emoji) — both what makes reacting twice with the same emoji a no-op and the index its two reads use. `Version1000Date20260912000004` adds `social_emoji`, unique on the shortcode — which is both what makes re-adding one a replacement rather than a second row nothing can tell from the first, and the index every read of it uses. `Version1000Date20260912000008` adds `social_collection` and `social_collection_item` — the albums an account curates out of its own posts, the item table unique on (collection, post) so adding one twice is a no-op, with a second index on the post because deleting one has to find every collection holding it. `Version1000Date20260912000009` adds `social_story` and `social_story_view` — a picture that expires after a day and who has seen it, indexed on (account, expiry) for the reads and on expiry alone for the cron that sweeps them, the view table unique on (story, viewer). `Version1000Date20260912000012` adds `social_place` and `social_stream.place_id` — where a post was taken, deduplicated on (name, country) with the name hashed because a unique index on a TEXT column is not portable; no geocoder is involved anywhere, see the migration. `Version1000Date20260914000002` adds `social_list.group_id`, indexed — the Nextcloud group a list follows, which is what `GroupListService` reads when a group changes: every list bound to it, whoever owns it. `Version1000Date20260914000001` adds `social_req_queue.object_id_prim`, indexed — the md5 of the id of the object a queued delivery is about, which is what lets a post ask the queue where it got to; empty on rows queued before the column existed, which are at most a few days of retries. `Version1000Date20260914000005` adds `social_gif` — the shared pictures the composer offers, unique on the slug, with the bytes in appdata beside the custom emoji: it is the same shape of thing, a small curated set served to everybody that must not break because a file moved in somebody's Files. `Version1000Date20260914000004` adds `social_reaction` — who reacted to which post with which emoji — unique on (actor, post, emoji) and indexed on the post, which is the read it exists for. A table of its own rather than another `type` in `social_action`: a like and a boost are a fact about a pair, which is what that table's key says, while a reaction carries a third thing and one account may react to one post several times over. `Version1000Date20260915000001` adds `social_filter_st` — the individual posts a filter covers, beside the keywords it matches, which is the other half of Mastodon's v2 filters and the only part of that API this app did not serve. The post is named by its `nid`, the id a client sends, with an index on the filter (how a filter's entries are read and deleted) and one on the status (not unique: two filters of one account, and two accounts, may each cover the same post). `Version1000Date20260915000002` adds `social_import_post` — what an account has brought over from an export, unique on (account, original id). A post written by the importer is a *new local post*: its original id belongs to the server it was written on and cannot be kept, so without this row nothing would remember where it came from, a second run of the same archive would write every post again, and a reply — which an archive names by its parent's original id — would have nothing to hang off. Nothing cascades: a post the account later deletes leaves its row, because the row says "this was imported" and importing it again because it was deleted here would undo a decision the account made. `Version1000Date20260915000003` adds `source_id`, `source_id_prim` and `local` to `social_story`, unique on the hashed id. A story used to be local by definition — no ActivityPub identity, no recipients — so the row had no way of saying whose network it belonged to; it is published to followers as an `Add` now and arrives from peers the same way. The unique index is what makes a story delivered twice one row, which matters more here than elsewhere because a fan-out reaches an instance once per follower on it, and `local` is what decides which stories are published outward and which may be deleted through the API. Existing rows are local and have their id minted on first read rather than in a `postSchemaChange`: a story lives a day, so within a day of the migration the question has answered itself. `Version1000Date20260915000004` adds `social_post_hold` — the review queue. What it stores is the *request*, the same shape `social_scheduled` holds, and not a post: a held post that existed as a row in `social_stream` with a flag on it would be one forgotten predicate away from a timeline, a hashtag page, a profile or an outbox, and this app has shipped exactly that leak before. A post that is not in the table cannot be read out of it by code nobody has written yet. Unique on `digest`, the md5 of the account and the text: a client told its post was held will be pressed again by its user and the Pixelfed app retries a 422 by itself, so without it one post held once would be twenty identical rows for a moderator to work through. Indexed on (`actor_id_prim`, `id`) for the author's own list and the per-account cap; the queue itself is read in `id` order off the primary key, because it is drained by people. `Version1000Date20260915000005` adds `social_stream.archived` — a post its author has put away. Deleting was the only thing this app offered somebody who no longer wanted a post on their profile, which is a bad answer to a common question: a photograph from four years ago is not something to destroy because it has stopped belonging at the top of a profile. A column rather than a table because it is one fact about one post and every read that must not show one is a read of `social_stream`; no index, because almost every row is `false` and always will be, and the queries that filter it are already selected by their own timeline's index. The filter is **fail-closed**: `StreamRequestBuilder::hideArchived()` is applied by the two base selects every stream read is built from, and the two reads that should see an archived post — the author's own list, and a post fetched by its own address — ask for it. A read written later shows none until somebody decides it should, rather than leaking one until somebody notices. Nothing federates: an archived post is still on every server that received it, and taking it back from them is what `Delete` is for. `Version1000Date20260915000006` adds `social_moderation.force_sensitive` and `social_media_block`. The first is the step between doing nothing and silencing — an account asked to put a content warning on its pictures without being taken out of the timelines, which is Mastodon's own tier and what Pixelfed calls `cw` — applied in `StreamRequest::save()` because a local post, a post that arrived in the inbox and a post the importer restored are the same row and a rule that held for one of them would be a rule nobody could explain. The second is the one thing none of the account-level tools does: stop a **file** coming back. A hash of the bytes as they arrive, checked in `CacheDocumentService::saveFromTempToCache()` — the one place an upload and a fetched remote attachment both pass through — with the reason and the moderator beside it, and a count of how many times it has been turned away, because a blocklist with no evidence is one nobody dares remove anything from a year later. `Version1000Date20260915000007` adds `social_stream_view` — who has opened a post. An author could see three likes and had no way to know whether that was three out of five or three out of four hundred; a story has had a view count since it was written and a post had none. What is counted is deliberately narrow: **a post's own page, opened by a signed-in account that is not its author**. Not an impression in a timeline — a post scrolled past has not been read, counting it would make the number meaningless, and it would write a row for every post on every page of every timeline. Unique on (post, viewer), so the number is people rather than visits. It is never federated and is on the author's copy alone: a count that arrived from another server would be a number about that server's readers added to this one's, meaning neither. `Version1000Date20260916000001` adds `social_trend_review` — what a moderator has decided about something that is trending. Trending is counted and shown with nobody in the loop, so the first ugly hashtag to catch on did so on the Explore page of every account here and the only remedy was to wait for it to fall off; Mastodon has nine admin routes for this and the app had none. **Rejected is what is stored, and everything else trends.** The other arrangement Mastodon offers — nothing trends until it is approved — would empty the Explore page of every instance on upgrade and leave it empty until somebody found the new panel; approval is still recorded, because a moderator wants to see what they have already looked at, but it grants nothing that was not already so. One table for the three kinds rather than three: what differs is a word (a tag is named by its text, a link by its URL, a status by its id) and splitting them would be three identical schemas, three queries to keep in step and three things each trend read would have to know about. The filter is applied where a trend list is **read**, never where the counters are written — a rejected tag keeps being counted, so lifting the decision puts it back with the number it would have had, and a decision that could only be undone by waiting for counters to refill is one nobody would risk making. `Version1000Date20260916000004` adds `social_channel`, `social_actor.actor_type` and `social_cache_doc.size` — the three things a `Video` this app publishes needs before a PeerTube will take it. PeerTube has **no video without a channel**: its builder resolves one by looking for a `Group` in the video's `attributedTo` and throws *"Cannot find associated video channel"* when there is none, then fetches that `Group` and looks for a `Person` in *its* `attributedTo`. A Aloha Social account is a `Person` and nothing else, so every `Video` published from here was refused on arrival — silently, and in PeerTube's log rather than in ours. A channel is **an actor like any other** — key pair, inbox, outbox, followers, followable, moderatable — which is the same design `social_team` uses and the reason neither needed the actor machinery written twice; what is new is the type it is served as and who owns it. It is stored under a reserved `channel/<handle>` user id, which no Nextcloud user can have because a user id may not contain a slash. The owner is the **`Person` actor**, not the Nextcloud user, so a channel points at the same thing the wire does. One is made for an account the first time it posts a video and used unless the person picks another: nobody should have to learn what a channel is in order to post a video, and an account that never posts one never grows an actor it did not ask for. It is made when the **post is written**, never when it is serialised — a serialisation happens once per instance a post is delivered to, and making an actor there would be a write on a read path, forty times over. `actor_type` is how it is served as a `Group`. A local actor's type was derived from one flag (`bot`, which moves it between `Person` and `Service`) and there was nowhere to say anything else; `''` means "decide as before", which is every row written until now. `social_cache_doc.size` is how many bytes a stored file is. PeerTube's `isRemoteVideoUrlValid()` wants `size` as an integer on every video file link and drops a link without one, so a `Video` from here arrived with nothing to play; it is recorded when the file is stored rather than measured per serialisation, and the per-account video quota asks the same question. **A post that cannot make a valid `Video` stays a `Note`**: no poster (`icon` is mandatory), no duration, or no channel, and the post is published in the shape Mastodon and Pixelfed both read. Sending a `Video` that is going to be thrown away is strictly worse than sending the one that works. `Version1000Date20261004000002` adds `social_import` — the imports an account asked for, run in the background. Every import used to run inside the request that uploaded the file: each follow is a WebFinger lookup, an actor fetch and a delivery, so a few hundred of them ran into the web server's timeout, and the rate limit that protected the server from that meant a timed-out upload could not be tried again for an hour. A row is one upload (kept in appdata until the run has read it) or one server to pull from, with `total`/`done` written as the run goes and the outcome and a `report` at the end; indexed on (user, id), which is both the page's read and "is one of this kind already under way". `Version1000Date20261008000400` adds `social_stream` (`attributed_to_prim`, `nid`) — a page of one author's posts filters on the author and pages by nid, and with the author alone indexed the database read and sorted every post that author ever wrote before it could hand over twenty. `Version1000Date20261008000401` adds `social_search_term` — the words of each post, so a content search is an indexed equality instead of an `ILIKE '%term%'` no index can answer — and queues `Cron\SearchIndex` to add the posts already stored; the search keeps its bounded scan until that job has reached the newest post. `Version1000Date20261013100200` adds `social_stream_act` (`liked_nid`, `bookmarked_nid`) — when a like and a bookmark were set, as an id on the post nid's scale (`Nid::now()`, the millisecond), so that `/api/v1/favourites` and `/api/v1/bookmarks` are ordered and paged on the mark as Mastodon pages them rather than on the post — with an index per list, (`actor_id_prim`, flag, mark id), which serves the filter and the order as one descending range; the marks already stored are given the id of their post, which keeps them in the order they were listed in until then. `Version1000Date20261016100300` adds `social_actor_relation.activity_id_prim`, indexed — the md5 of the id of the `Block` a `blocked_by` row came from, which is what an `Undo` naming the block by its id alone is matched on; rows stored before it have none.
 
@@ -293,6 +302,10 @@ The tables are created by `lib/Migration/Version1000Date20221118000002.php` — 
 
 `Version1000Date20260925000020` adds `social_interest` and `social_interest_hide` — For you. A step of its own rather than a paragraph of the squash, because the squash is recorded as run on every instance that existed when it was made: a table added to it would reach fresh installs and nobody else. `SquashedSchemaTest` holds only the steps older than the squash to "move data or go into the squash". No index beyond the unique pairs: every read of `social_interest` is one reader's whole set — a few hundred rows at most, because `InterestService` forgets the faintest once there are more — and every read of `social_interest_hide` is one reader's recent hides or the daily purge by `creation`.
 
+`Version1000Date20261023000002` adds the three owner-scoped For You behavioural tables above. Their rows contain only compact scores, event UUIDs and hashed exposure keys; reset and account deletion clear them.
+
+`Version1000Date20261023000003` adds the hourly, instance-wide `social_rec_discovery` table. The administrator health view aggregates these counters by provider and time window; discovery terms and reader or post identifiers are never written.
+
 `Version1000Date20261005000001` adds `social_cache_doc.ai_source`, the provenance a cached picture stated about itself (see the schema table). A column rather than a flag inside `meta`: `meta` is a JSON blob nothing queries, and this one is read on every attachment of every status a client is handed.
 
 `Version1000Date20261016100400` adds `social_stream.root_prim`, indexed — the root of the thread a direct message belongs to, stored with it: its parent's stored root, else the topmost post a walk up reaches, else itself; replies that arrived before their parent are moved under its root when it comes. A chat is a chain of replies each to the one before, and the conversations walked it up a query a level on every read and every poll of their badge, and grouped a chat longer than the walk under wherever the walk stopped, so its conversation id moved with every message. Now the page reads the roots of its messages in one statement, and the thread of a conversation is read from its root however deep it is (`ConversationsRequest::getThread()`); a message without one — stored before the column, until `Cron\ThreadRoots` (queued here) reaches it — is walked as before. Posts that are not direct messages keep NULL: the muted-thread and hidden-reply checks walk them as they did.
@@ -300,6 +313,8 @@ The tables are created by `lib/Migration/Version1000Date20221118000002.php` — 
 `Version1000Date20261016103300` adds `social_video_views` and `social_video_seen` — the public view count of a video posted here, and the day's dedupe behind it (see the schema table and **Where somebody stopped watching**). Two tables because they keep different things for different lengths of time: the number for as long as the post exists, the viewers for the day they were counted on.
 
 `Version1000Date20261006000010` adds `social_stream_rev.media`, the attachments of each recorded version of a status (see the schema table).
+
+`Version1000Date20261021000001` adds `social_stream_del`, a cursor of the latest 10,000 status deletions. `Version1000Date20261021000002` adds visibility and the hashes of original recipients; `Version1000Date20261021000003` adds the hashed followers collection for unlisted and followers-only posts. The daemon can remove deleted direct messages only from direct streams belonging to original participants, and unlisted/followers-only deletion events only from home and list streams of original recipients or accepted followers of that exact collection, without retaining post content. Private deletion events carry no hashtags and never reach public or hashtag streams.
 
 Two of those deserve a warning.
 
@@ -335,7 +350,7 @@ The business logic lives in `lib/Service/`.
 
 ### Content & Timelines
 
-- **StreamService** — Core stream/timeline engine. Assigns ActivityPub ids, expands recipients (public/unlisted/followers/direct), resolves reply chains, detects stream types, deletes local items, and reads the timelines (home, local, global/federated, tag, account, liked, direct, notifications). Deleting a post takes what belongs to it with it: `StreamRequest::deleteRelatedTo()` removes the `social_stream_dest`, `social_stream_tag`, `social_stream_act` and `social_stream_card` rows, the `social_action` rows pointing at the post, and its cached attachment rows together with the files on disk. The cascade sits in `StreamRequest`, so every caller gets it rather than retention alone. `syncRemoteTimeline()` — a profile timeline asking the account's own server for its outbox — walks at most `SYNC_ITEM_LIMIT` (20) entries of the page it gets back, and puts every field of each through the same validation helpers the inbox path uses. It used to walk the whole page unbounded and store `url`, `content`, `summary` and the tags unchecked, from a public route, against a host the caller names
+- **StreamService** — Core stream/timeline engine. Assigns ActivityPub ids, expands recipients (public/unlisted/followers/direct), resolves reply chains, detects stream types, deletes local items, and reads the timelines (home, local, global/federated, tag, account, liked, direct, notifications). Deleting a post takes what belongs to it with it: `StreamRequest::deleteRelatedTo()` removes the `social_stream_dest`, `social_stream_tag`, `social_stream_act` and `social_stream_card` rows, the `social_action` rows pointing at the post, and its cached attachment rows together with the files on disk. The cascade sits in `StreamRequest`, so every caller gets it rather than retention alone. `syncRemoteTimelinePage()` processes at most 20 entries per queued request; `RemoteOutboxPageReader` owns fetching one ActivityPub page, resolving its `first` and `next` links, and restricting links to the actor's host and port. The durable per-account cursor lets a profile request another page only when its locally stored posts run short; a 15-minute refresh of recent posts leaves older-page progress alone. The imported post fields still use the inbox path's validation helpers. It used to read only the first page, leaving the rest of a remote profile's history unavailable
 - **PostService** — Creates posts (text, attachments, reply-to, mentions, hashtags, the content warning and the `sensitive` flag) and edits existing local posts, delegating federation to `ActivityService`. A visibility a client sent is translated once, in `Post::setType()`: Mastodon calls a followers-only post `private` and this app calls it `followers`, and a visibility the app does not recognise becomes `direct` rather than being addressed to `as:Public`. The content warning is stored as plain text on both paths (`strip_tags()`), because it is read as plain text everywhere it is shown — as the object's `summary`, as `spoiler_text`, and interpolated rather than rendered by this app's own frontend; entity-encoding it federated `Bob&#039;s finale` and baked the entities into the next edit. The body takes the opposite path: it is rendered by `LinkifyService` after the recipients and hashtags are resolved, so the links in the published HTML and the `tag` array come out of one parse
 - **PostReviewService** — First-post review and the spam rules: which posts a person should see before anybody else does, and what happens to one afterwards. Two switches, both on by default (`review_first_post`, `autospam`), and a very short list of rules — the first post of an account that has published nothing here, a wall of links in a short post, and mentions scattered by an account nobody follows and that follows nobody. No wordlist and no score: a queue that says "0.82" tells a moderator nothing they can act on. A **direct message is never held**, because putting private correspondence in front of a moderator who was not written to, for a machine's reason, is worse than the spam; neither is a post by an account a moderator has already decided about, which is being dealt with by that decision. What is held is the request — `StatusAssemblyService` turns it back into the `Post` an immediate one would have been, and approving publishes it dated now, since that is when it became a post. Refusing records a `delete_statuses` strike, so the author is told and the next moderator can see it happened
 - **StatusAssemblyService** — The post a stored request becomes, and the request a client's `Status` becomes. Shared by the scheduler and the review queue: a note built by one path and federated by another drifts, because the quote approval, the language fallback and the source snapshot all happen inside `PostService::createPost()`
@@ -356,6 +371,14 @@ The business logic lives in `lib/Service/`.
 - **NotificationDeliveryService** — *When* a Nextcloud user is told, as opposed to the policy's *whether*: the per-user `NotificationDelivery` setting (`instant`, or `digest` at one to four local times a day, with direct messages and mentions from followed accounts passing through on their own switches, and optional quiet hours in either mode), stored as one JSON user value. `NotificationService::emit()` asks it before raising the bell — after the policy and the conversation mute, which raise nothing at all; the stored notification row is written regardless, because it is the hold — the in-app list, `/api/v1/notifications` and the markers read it as before, and only the Nextcloud notification waits. `digestFor()` raises one `digest` notification with the unread rows since the last digest counted per kind (`StreamRequest::countNotificationsBySubType()`, past the notifications read marker, inside the window, muted conversations left out by the query and what the policy holds subtracted using `NotificationInboxService::held()`), adds `waiting` — how many senders are in the requests inbox, which `Notifier` reads out as a last line — and is never raised for requests alone, takes the older digest off the bell first, and moves the clock to the digest's cut. Switching a digest on starts the clock at that moment, so the first digest is not a dump of the backlog; switching it off raises what it was holding as one last digest. A flag user value (`notification_delivery_scheduled`) marks the users the job has to visit, because Nextcloud can find the users holding a given value but not the users holding any value for a key
 - **HashtagService** — Recomputes hashtag trends over 1h/12h/1d/3d/10d windows and searches hashtags
 - **InterestService / InterestScorer / InterestFeedService** — For you. `InterestScorer` is the arithmetic and nothing else — no database, no clock, every number handed to it: how long a post takes to read at an ordinary pace (1.2 s, 35 ms a character, 1.5 s a picture, at most 20 s), a look judged against the reader's own usual ratio of looking to reading time (twice it is +1, at it +0.3, less is nothing, a skip −0.2), a signal shared evenly among a post's hashtags (none past fifteen), a half-life decay worked out on read, and the list: pinned tags at the rank they were pinned to, everything else — manual and followed tags floored at the listing threshold, learned tags above it — filling the free ranks by score up to the cap. `InterestService` is whose interests they are: it reads the posts a signal names **as the viewer**, through the timelines' visibility filter (`StreamRequest::getVisibleByNids()`), so a client can neither teach a tag no post carried nor learn the hashtags of a post it may not read; it learns from a favourite, boost and bookmark in `ActionService` and a reply in `PostService`, so a Mastodon app's actions count too; it never throws from those hooks; each (post, kind) counts once a day through a distributed-cache key. No signal is stored — each is folded into its tags' scores as it arrives. `InterestFeedService` ranks: candidates are one query (`StreamRequest::interestCandidates()`) over `social_stream_tag` bounded by the nid of the window's start, the reader's tags, the viewer filter, silences, hides and languages; each is scored `relevance × 2^(−age/1 day)` with relevance the sum of the three best matching rank weights (`1/(1+0.15·rank)`) plus −0.5 per tag the reader turned away from; then spread — no author twice in any twenty, no hashtag more than eight, the hashtag limit giving way first — with every tenth slot a post carrying a tag that often travels with the reader's own. The ranking is kept an hour in the distributed cache, under a key that names its kind (`feed/{media}/{md5(viewer)}`), and paged by the last post's nid **Media rankings.** `page()`/`rank()` take a kind — `photos`, `videos`, or `media` for Mastodon's `only_media` — which `interestCandidates()` turns into the Photos and Videos timelines' own filters (`limitToMediaType('image')`, `limitToVideo()`, `limitToMedia()`, all on `media_kind`); such a ranking looks back `MEDIA_WINDOW_FACTOR` (2) times the window, and hides are kept that long too. Short of `POPULAR_FILL` (40) posts it is topped up from `TrendService::trendingStatuses()` in the same kind — the reader's own, hidden and already ranked posts left out — each with reason `popular`. In a `shorts` signal (or `reels`, what older bundles send) a dwell is watch time: `InterestScorer::classifyWatch()` weighs it against the video's running time (`expectedWatchMs()`, capped at 30 s) rather than `expectedDwellMs()`, and leaves the reading pace alone. `InterestService::pageState()` also says whether a reading pace has been written (`profile`), which is when the Shorts stack opens on For you.
+- **For You candidate discovery (F1)** — `RecommendationCandidateService` accepts only a known, enabled, non-sensitive topic the signed-in reader has explicitly marked `INTERESTED` or `PRIORITISE` (including an inherited soft preference). `StreamRequest::recommendationCandidatesByTerms()` reads from the existing stream: it uses `social_search_term` when its backfill is complete, otherwise a capped public scan. Search candidates are filtered in SQL through the same public-recipient, visibility, hidden-actor and duplicate rules as timelines, then hydrated again through viewer-aware reads. Own posts, age, configured languages and caller exclusions are applied before features are emitted. `RecommendationFeatureExtractor` uses bounded, local text and hashtag matching plus stored media/language facts; it intentionally omits sensitive topics and does not build a behavioural profile. An underfilled response can ask `RemoteFetchQueue::fillPosts()` for one ActivityPub hashtag fill and one Bluesky search, using its existing per-term throttle; the HTTP request never contacts either protocol. The additive `/api/v1/recommendations/candidates/{topicId}` route reports `underfilled` and source counts. This slice does not change either feed's ranking; the instance kill switch remains off by default.
+- **For You ranking baseline (F2)** — `RecommendationRanker` applies one finite, clipped and versioned score to a bounded union of candidates. The automatically learned hashtag relevance and recency from `InterestFeedService` are projected into the `automatic_interest` feature; content classification, freshness, follows, explicit feedback and separately consented behavioral signals contribute to that same score. Stored manual topic and balance preferences remain API-compatible but do not change the web rank. Readers do not need topic choices to start or keep the feed. Coefficients remain explicit hypotheses, not validated engagement weights. `RecommendationFreshness` adds local, deterministic content-aware decay shared by ActivityPub and ATProto posts. All candidates still pass public visibility, language, duplicate and hidden-actor checks. `RecommendationReRanker` applies relaxable author and topic concentration costs over a bounded look-ahead and deduplicates canonical keys. The timeline snapshots one final order for an hour; cursors are HMAC signed and bound to the viewer, mode, media kind, profile revision and reset generation. Each page rechecks current visibility and boundedly fills from later snapshot IDs when posts have become unavailable.
+- **For You recommendations explicit feedback (F3)** — `RecommendationFeedbackService` accepts only a post the signed-in viewer can currently read. Topic actions must match a non-sensitive label extracted from that post; author and format scopes are derived server-side. The separate feedback table stores owner-scoped, event-idempotent actions, caps active scopes at 50, and permits exact Undo for ten minutes. `HIDE_POST` filters both newly generated candidates and later pages of an existing snapshot; positive and negative topic/author/format feedback affect new rankings without moving posts already delivered. Reset and account deletion purge this state, and the endpoints require `write:statuses` with user rate limits.
+- **For You recommendations behavioural learning (F4)** — `RecommendationSignalService` accepts bounded, idempotent events only when the account's separate learning consent is `on`; pause and off both reject writes. Browser impressions require at least 750 ms of visible time, dwell is capped, video watch ratio is recorded separately from card visibility, and backgrounded tabs stop accumulating time. Likes, saves, follows, profile visits, media opens and reversals update owner-scoped fast/slow topic, author and format aggregates; replies count only as engagement and never as inferred stance. Generation checks invalidate late events after consent transitions and resets. Ranked sessions use learned scores only for consenting owners; explicit topic HIDE remains a hard control and chronological feeds are unchanged. The three recommendation tables contain no post text or raw actor identifiers; reset and account deletion clear their aggregates and event ledger.
+- **For You recommendations discovery health and operational limits (F5)** — `PostDiscoveryService` records bounded provider call, request, failure, 429, post-seen/stored and duration counters in hourly instance-wide buckets. ActivityPub requests are batched across the configured directory peers, use the shared host circuit breaker and `Retry-After`, and hydrate each origin post under a short per-request and total budget. All optional remote post-discovery paths reserve from one shared 120-request-per-hour ceiling before making network requests. Each request claims a unique expiring slot in `social_durable_cache`, so the cap remains shared across processes even when Nextcloud has only local APCu rather than a distributed cache. If the slot store is unavailable or the budget is exhausted, new remote discovery stops while local cached candidates and the legacy timeline remain available. The admin emergency pause is enforced by the shared discovery service and therefore also stops legacy hashtag fills and followed-tag refreshes. Administrators can also pause behavioral learning or force the legacy For You feed. The admin-only health endpoint reports provider state and coverage without query, topic, reader or post identifiers; hourly rows expire after seven days. A metrics-storage failure is logged and never fails discovery.
+- **For You recommendations offline evaluation (F6)** — `RecommendationOfflineEvaluator` compares legacy hashtag, chronological-following, topic-only, topic-plus-follow, H0 and H0-plus-rerank baselines using synthetic cross-protocol scenarios. It reports NDCG@20, candidate/source coverage, hard-control compliance, topic diversity, duplicate rate, local runtime and profile-cluster uncertainty. Run `composer run recommendations:evaluate`; see [For You offline evaluation](ForYouEvaluation.md). Fixture labels are explicitly single-author synthetic judgments and do not validate serving weights.
+- **For You controls and topic catalog** — `RecommendationTopicCatalog` is a content-classification vocabulary, not a required onboarding checklist. Deterministic post classification maps known narrower matches to their parents, and sensitive entries are excluded. The web presents one feed and one automatically learned profile; stored topic preferences and content-balance overrides remain readable by the API for compatibility but do not alter the web ranking. Learned hashtag interests already provide an automatic starting profile, while separately consented activity learning can add more signals.
+- **For You explanations in the timeline store** — the timeline response carries a viewer-specific explanation for each recommended post; a normal status refresh can omit that field. `indexStatus()` keeps the existing explanation when it indexes such a response, so count and reaction refreshes do not make the “why this post” label disappear.
 - **StreamActionService** — Writes the per-viewer flags in `social_stream_act`
 - **PinService** — Pinned posts: the own posts an account keeps at the top of its profile. A pin is a row in `social_action` (type `Pin`), so there is no schema change, and it is never federated as an activity of its own — remote servers read pins from the actor's `featured` collection. Only a public or unlisted post can be pinned (`pin()` refuses the rest with `InvalidActionException`), and pins are read back through the visibility filter like any other status, so a post that stopped being readable stops being served: both readers of this collection — the `featured` route and `?pinned=true` on the account statuses route — are public pages, and reading these unfiltered served a pinned followers-only post in full to the anonymous internet
 - **PostDecorationService** — What a client is shown on a post that is not part of the stored post: its link preview, its place, its reaction bar (with `me` for the reader) and the people named in its pictures. Every route that serves posts to a client goes through `decorate()` — the timelines and For you (`StreamService`), a single status and the statuses a status route answers with, a thread, a list, a place, a collection, memories, the trends and discover, a Bluesky feed, the photos somebody is in, a portfolio, the archive, the videos to continue and an annual report's top posts — so a post looks the same wherever it is opened. One query per kind for the whole list. It depends on nothing that depends on `StreamService` or `MediaTagService`, which both call it. `DELETE /api/v1/statuses/{nid}` alone answers an undressed status: a redraft takes the text and media.
@@ -367,7 +390,7 @@ The business logic lives in `lib/Service/`.
 
 ### Federation
 
-- **ActivityService** — Wraps items in Create/Update/Delete activities, LD-signs them, resolves target inboxes, and drives the delivery queue. `request()` sends the single highest-priority entry synchronously and kicks off an async request for the rest
+- **ActivityService** — Wraps items in Create/Update/Delete activities, LD-signs them, resolves target inboxes, and drives the delivery queue. A reply whose parent exists only on Bluesky keeps its native `inReplyTo` on the stored stream for ATProto, while the ActivityPub copy is standalone, links the Bluesky post, and drops the synthetic Bluesky actor and its delivery path. Create, Update and rebuilt held deliveries use the same adaptation. `request()` sends the single highest-priority entry synchronously and kicks off an async request for the rest
 - **ImportService** — Parses incoming ActivityPub JSON into typed model objects (`AP::getItemFromData()`) and dispatches to the matching handler in `lib/Interfaces/`
 - **SignatureService** — RSA-2048 key generation, HTTP Signature verification (checking `date` freshness, then the body against `Content-Length` if the sender sent one and against `Digest`/`Content-Digest`, before the signature itself) and RsaSignature2017 Linked Data signatures. The signing itself is delegated to `HttpSignatureService`. Fetching a signing key this instance does not already hold is bounded — `UNKNOWN_KEY_CONNECT_TIMEOUT` (5 s) for DNS, TCP and TLS within `UNKNOWN_KEY_TIMEOUT` (10 s) overall, what Mastodon allows a peer of its own — and a fetch that failed is remembered so a burst naming the same unknown key costs one fetch and not one each: 300 s (`KEY_FAILURE_TTL`) when the peer answered and the answer was not a usable actor, 30 s (`KEY_UNREACHABLE_TTL`) when it never answered, because that says the peer was having a bad minute rather than anything about the key
 - **HttpSignatureService** — The one place an outbound HTTP signature is produced. Both entry points take the URL the request will actually be sent to and the body it will actually carry, and answer with the headers to send: `(request-target)` is the path and query of that very URL and `host` its authority, so the signature and the request cannot drift apart. A delivery is signed by its own author over `(request-target) content-length date host digest`; an ActivityPub GET is signed over `(request-target) host date` by `signFetch()`, as the instance's own `Application` actor. Never as a person: the owner of a signing key is dereferenced by every peer that checks it, so a borrowed account would appear in every peer's logs as this instance's reader and a block or suspension of it anywhere would stop every signed fetch from here — and an instance whose users have no Aloha Social accounts yet would have nobody to borrow. A key that cannot sign raises rather than sending an empty signature, and an instance that cannot produce one at all fetches unsigned, which is what the request was until now
@@ -451,7 +474,7 @@ copy in app storage; the original stays where it was, untouched.
 - **ConfigService** — App/user configuration and the derived URLs (cloud URL, social URL, social address, max download size, self-signed toggle), plus ActivityPub id generation. The social URL is derived from the stored cloud URL (`derivedSocialUrl()`), never from the request that happens to find it empty. It also owns the two config-derived parts of every outbound request: `requestOptions()` (the timeout and connect timeout — reaching a peer gets `DEFAULT_CONNECT_TIMEOUT`, 4 seconds, unless a caller asks for its own, never more than the request's timeout, so a dead host fails in seconds rather than after the whole read timeout — whether the peer's certificate has to check out, whether local addresses may be reached) and `activityPubHeaders()` (the `Accept` a federation GET carries and the `Content-Type` a POST does). `withRequestTimeout()` bounds everything a call makes, overriding what the caller asked for
 - **CheckService** — Installation checks (is `/.well-known/webfinger` reachable) and repair of invalid follow and note rows
 - **IndexService** — Repairs missing `social_stream_dest` and `social_stream_tag` rows 500 streams per `Cron\Index` pass. It pages by ascending NID, hydrates each page in one query (`StreamRequest::getIndexStreams()`, falling back to a stream at a time when that fails), writes the cursor (`index_nid`) once per page and only past streams whose side indexes succeeded, and leaves existing rows in place so interrupted work resumes safely. It is a one-shot repair: a page that comes back short has reached the newest post — everything after it was indexed by its own save — so the pass sets `index_done` and from then on costs one config read. A failing row is logged and holds the cursor before it for up to `MAX_FAILURES` (5) passes (`index_failing` counts them), then is skipped with a warning so one bad row cannot stop the walk for good; the explicit `social:check:install --index` remains the administrator's full rebuild.
-- **ClientService** — OAuth 2.0 client registration, authorization and token issuing
+- **ClientService** — OAuth 2.0 client registration, authorization and token issuing; `DeviceAuthorizationService` implements RFC 8628 with hashed device codes, single-use account approval, polling backoff and expiry for devices without a keyboard
 - **DetailsService** — Computes a `StreamDetails` object describing which local viewers a stream reaches
 - **MiscService** — Logging helper and the running Nextcloud major version
 - **ReportService** — Moderation reports: stores what was filed locally over the client API or arrived from a remote instance as a `Flag`, and notifies the instance admins. An incoming `Flag` keeps at most 50 of the ids it names, and they are resolved against the actor cache only: nothing it names is fetched
@@ -467,9 +490,123 @@ copy in app storage; the original stays where it was, untouched.
 
 ---
 
+### Mastodon Web Push
+
+`VapidService` creates one stable instance key pair and seals the private key with `PrivateKeyCipher`; `PushSubscriptionService` keeps each access token, endpoint and browser key pair in an encrypted per-user config value, indexed by the token digest. `NotificationService::emit()` queues `Cron\MastodonPushNotification` only for a locally deliverable notification that passes the notification policy and muted-thread checks. The job rechecks the recipient, applies each subscription's alert switches and followed/follower policy, and sends a 140-character plain-text content warning or post excerpt (or the followed account's profile description when no status is attached). It encrypts with the negotiated `aes128gcm` or legacy `aesgcm` format and sends through `SafeWebPushClient`, which delegates to `CurlService`'s pinned public-address request path without redirects. Expired 404/410 endpoints are removed; transient failures retry per subscription, so a retry does not resend to endpoints that already accepted the notification. The payload contains the bearer token only inside Web Push encryption; queued arguments and logs contain no bearer, endpoint or push keys.
+
+### Mastodon WebSocket and SSE streaming
+
+`MastodonStreamingDaemon` (`occ social:mastodon:stream`) serves the `user`,
+`user:notification`, `direct`, `list`, `public`, `public:media`, `public:local`,
+`public:local:media`, `public:remote`, `public:remote:media`, `hashtag` and
+`hashtag:local` WebSocket streams, plus user, public, hashtag, direct and list
+SSE endpoints, on a separate long-running process. It requires a user-authorized token with
+`read` or `read:statuses` for public streams; user streams require `read` or
+both `read:statuses` and `read:notifications`; direct streams require `read`
+or `read:statuses`; list streams require `read:statuses` and owned lists. A
+WebSocket subscriber may keep up to 20 lists active at once; each has its own
+cursor and can be unsubscribed independently.
+Once per second it reads the
+same timelines used by the REST API, applies the viewer's filters, reply
+visibility and notification policy, and emits Mastodon's event payloads.
+Every five seconds it fingerprints each subscribed account's filters and
+emits `filters_changed` on that account's user streams when the set changes;
+the event carries no payload, as Mastodon specifies.
+It also compares the account's active instance announcements every five
+seconds and emits `announcement`, `announcement.reaction` and
+`announcement.delete` when a notice appears, its reaction counts change, or
+it expires or is removed. String event payloads such as deleted ids are sent
+as raw text rather than JSON-quoted strings.
+Accepting a notification request bumps a dedicated per-account revision, which
+causes subscribed user and notification-only streams to emit
+`notifications_merged` without confusing other timeline changes with accepted
+requests.
+For edits to public posts it reads the append-only status-revision cursor and
+emits one `status.update` event per changed post on matching public and
+hashtag subscriptions. Home and owned-list streams recheck membership in the
+viewer-scoped timeline before receiving an edit, so a private post only reaches
+readers whose timeline already includes it.
+The direct stream resolves an edited message to a conversation visible to
+that viewer and emits the current `conversation` entity; a dismissed or
+inaccessible conversation is not emitted.
+`WebSocketServer` keeps connection and output-buffer bounds for both
+transports. Status deletions are retained as ids, visibility, and public-stream
+matching metadata, bounded to the newest 10,000 events. Direct-message events
+also keep the hashed recipients from the deleted post's destination rows. The
+daemon emits Mastodon's `delete` event to matching public subscriptions and to
+the direct stream only for an original participant. Direct-message events
+carry no hashtag metadata and are never sent to user, list, public, or hashtag
+streams. Unlisted and followers-only deletions are limited to authorized home/list viewers; the daemon resolves current follow state against the exact cached followers collection saved with the event.
+The root Apache and Nginx examples proxy the streaming endpoints and health
+path to this daemon.
+
 ## ActivityPub Federation
 
-ActivityPub is the federation protocol this app speaks; it is also a Bluesky host (AT Protocol), with every local account a `did:plc` identity whose repository, firehose and XRPC surface live in `lib/Atproto/` — [Atproto-Compatibility.md](Atproto-Compatibility.md) is the specification, with "as built" notes per phase. Reading Bluesky (`lib/Atproto/Reader/`) goes through the ActivityPub import path: a Bluesky account is a cached actor with id `https://bsky.app/profile/<did>` and the bare handle as account (`BlueskyActorService`, `ActorMapper`), a post read off the public AppView by `FeedPoller` arrives as the `Create` of a `Note` from that actor (`PostMapper`, `FacetRenderer`, `PostStore` — `ImportService::parseIncomingRequest()` with origin `bsky.app`), a repost as the reposter's `Announce`, and what Bluesky did to a local account — follows, likes, reposts, replies, mentions, quotes — comes from the AppView's notifications asked for as that user (`NotificationPoller`, `AppViewClient::queryAs()` with a token `ServiceAuth` mints) and arrives as the `Follow`, `Like`, `Announce` or post it stands for. A local follow, like or boost of something that exists on Bluesky is a record in the local repository (`BlueskyGraphService`, `InteractionPublisher`, through the queued `AtprotoPublish`). `LocalRecordResolver` turns an `at://` reference to one of this instance's own records back into the local post or account.
+ActivityPub is the federation protocol this app speaks; it is also a Bluesky host (AT Protocol), with every local account a `did:plc` identity whose repository, firehose and XRPC surface live in `lib/Atproto/` — [Atproto-Compatibility.md](Atproto-Compatibility.md) is the specification, with "as built" notes per phase. Reading Bluesky (`lib/Atproto/Reader/`) goes through the ActivityPub import path: a Bluesky account is a cached actor with id `https://bsky.app/profile/<did>` and the bare handle as account (`BlueskyActorService`, `ActorMapper`), a post read off the public AppView by `FeedPoller` arrives as the `Create` of a `Note` from that actor (`PostMapper`, `FacetRenderer`, `PostStore` — `ImportService::parseIncomingRequest()` with origin `bsky.app`; image galleries, video playlists and external link cards are retained), a repost as the reposter's `Announce`, and what Bluesky did to a local account — follows, likes, reposts, replies, mentions, quotes — comes from the AppView's notifications asked for as that user (`NotificationPoller`, `AppViewClient::queryAs()` with a token `ServiceAuth` mints; on `BadJwtAudience` it retries with the legacy bare AppView DID for older deployments) and arrives as the `Follow`, `Like`, `Announce` or post it stands for. A Bluesky profile's author feed is fetched on demand through `BlueskyFeeds::authorPage()` before the ordinary account-status query, authenticated as the current reader when they have a linked Bluesky identity and public otherwise; one post beyond the requested page is fetched to cover posts already ingested by the firehose, and each opaque AppView cursor page is expanded once while local statuses are paged by `max_id`. An interactive profile request reads at most two cursor pages with a three-second timeout per page; posts beyond them are fetched as scrolling supplies the next `max_id`. AppView failures leave cached profile posts readable. Bluesky apps signed in here read through the same authenticated AppView, with `AppViewProxy` applying the same one-time audience fallback. A local follow, like or boost of something that exists on Bluesky is a record in the local repository (`BlueskyGraphService`, `InteractionPublisher`, through the queued `AtprotoPublish`). `LocalRecordResolver` turns an `at://` reference to one of this instance's own records back into the local post or account.
+
+Outbound Bluesky posts with up to four pictures keep the existing
+`app.bsky.embed.images` record. Posts with five to ten pictures use
+`app.bsky.embed.gallery`; each gallery item includes alt text and an aspect
+ratio, falling back to a square when image dimensions are unavailable. The
+20-item Lexicon ceiling is not treated as the authoring limit.
+
+The AT Protocol admin checks compare the public relay and AppView views with a sampled local DID and post. If a relay cannot find the PDS host, the diagnostic distinguishes a crawl that has not happened yet from a private/reserved endpoint that cannot be crawled from a public relay; the latter requires public DNS, HTTPS and an externally reachable web server before retrying.
+
+The public `com.atproto.server.describeServer` answer advertises the same
+handle suffix the instance issues (`.<handleHost>`) and the upload ceiling
+enforced by `ClientXrpc` (100,000,000 bytes, the video ceiling). Open registration stays disabled because local
+Bluesky identities are Nextcloud accounts; the app page is not advertised as
+a privacy policy.
+
+Signed-in PDS clients manage the same account-scoped records through
+`com.atproto.server.createAppPassword`, `listAppPasswords` and
+`revokeAppPassword`. The password secret is returned only at creation;
+listing exposes names and creation times without database ids. Creating a
+password that grants Bluesky chat access requires a session that already
+holds `transition:chat.bsky`.
+
+An app's `app.bsky.actor.profile` writes update the same local profile the
+Fediverse reads. `WriteService` validates a non-empty website before it
+changes any account fields or pictures, and normalizes pronouns with the
+profile lexicon's grapheme and byte limits before writing the shared field
+row. `RecordMapper` uses that same pronoun limit when publishing the local
+profile back to Bluesky.
+
+### Resuming Bluesky synchronization
+
+`Cron\AtprotoSync` runs once a minute and spends its 45-second budget on
+notifications before feeds and direct messages, so a slow feed cannot keep
+likes, reposts and replies to local posts waiting behind it. Notification
+cursors stay on that one-minute cadence even when an inbox is empty; the
+empty result is not evidence that the next event will arrive soon. The
+effective delay still depends on how often Nextcloud runs background jobs and
+how quickly the Bluesky AppView indexes an event. `FeedPoller` and
+`NotificationPoller` read at most one AppView page per due account and pass.
+A feed's first read walks pages to the end, so its cursor
+starts without a committed timestamp and advances only when the walk finishes;
+notification polling starts with a snapshot of its newest page. `Reader\PollCursor` keeps their committed timestamp separate
+from the AppView's opaque pagination cursor. While walking a backlog, the
+existing cursor column holds JSON with `since` (the previous committed
+timestamp), `newest` (the newest timestamp seen in this walk) and `page` (the
+next AppView cursor). Only reaching `since` or the end commits `newest` and
+returns the column to its legacy timestamp format. AppView timestamps are not
+unique: an event exactly at the committed timestamp is still read, and only
+a strictly older event ends the walk. If equal-time events span pages, the
+opaque page cursor carries the walk across them. Re-reading an event at the
+boundary is safe because imports are idempotent. No schema change is needed.
+Empty intermediate pages still continue, while malformed responses, repeated
+cursors and failed reads retain the existing checkpoint and use failure
+backoff. A pending walk stays on the ordinary two-minute interval even when
+its current page stores no new rows. The initial feed read is bounded to one
+page per pass and continues until the AppView has no older page.
+Pinned feed entries do not participate in chronological synchronization:
+`BlueskyPins` handles them separately, and an old pin must not end the walk.
+
+Custom-feed and list timelines (`BlueskyFeeds`) keep the AppView continuation
+for one hour, keyed by viewer, feed URI and the last visible post. They use
+`DurableCache`, including its database fallback on instances without a
+memcache, so subsequent web requests can read the next page. A cursor from
+another viewer or feed cannot be reused, and an expired cursor ends the list.
 
 The app is an ActivityPub **Server** that both produces and consumes ActivityPub messages.
 
@@ -621,7 +758,7 @@ An activity that is understood but has no handler is still answered 200 (see bel
 | `Accept` / `Reject` (QuoteRequest) | The answer to a request of ours: the approval is written onto the quoting post, or the quote is marked rejected |
 | `Move` | The moving actor's relationships are repointed to the target actor — its followers, the accounts it follows, and the recipient rows of posts addressed to it or its collections — but only after the target actor (refreshed from its server) lists the moving actor in its `alsoKnownAs`; a Move whose target does not acknowledge the actor is refused. What the old account did stays its own, as on Mastodon: its posts, likes, boosts, reactions and documents keep their author, so its server can still edit and delete them, and an actor `Delete` of it removes them. The usual migration has the new account follow and be followed before the Move arrives, so a repointed row can meet one already there: a follow between the two accounts is dropped; for a follower of both, the follow of the new account stays (it is the id that account's server knows) and is accepted if either was; a follow the new account already made stays as it is, pending included, because its server waits for the Accept only the followed account here sends; a post addressed to both keeps one recipient row. All of it, with the moving actor's cached document marked `movedTo` the target (`CacheActorsRequest::markMoved()`), is one transaction, so a Move that fails leaves nothing half done and a retried one finds nothing left to move. `movedTo` is what the old profile here shows the redirect from — written from the Move, as Mastodon does, not fetched: the old server keeps serving the pre-move document for minutes (Mastodon caches the rendering for three). Local followers of the old account are then followed over to the new one, unless they already follow it or asked to |
 
-**OAuth: one authorization per account.** `social_client` is the app registration — the name, the redirect URIs, the client id and secret — and nothing else. Everything about *who authorized it* is a row of `social_client_auth`: the code, the token, the scopes granted and the account they were granted to, unique on (client, account). Before that, the app row held one `auth_user_id` and one `token`, so an app registration belonged to exactly one person at a time and the second person to sign in with Elk or Phanpy — which register one app per instance — signed the first one out, silently. Re-authorizing replaces that account's row and nobody else's; revoking takes one authorization, where it used to take the app row's only token and sign out everybody; and the expiry sweep deletes authorizations rather than the whole `social_client` row, which used to take the app's registration with an idle token and make the client register again. A token stops working a year after it was idle (`TIME_TOKEN_TTL`, refreshed by use) and, however much it is used, `token_max_days` after it was granted (`ClientService::expiresAt()`; 365 by default) — use alone kept a token alive for ever. A code is spent in the same statement that writes the token, so two requests arriving together cannot both exchange it, and it is exchangeable only under the `redirect_uri` it was sent to (RFC 6749 §4.1.3), which `Version1000Date20261003000001` records on the row. Every read joins the app row, so the rest of the app still sees one `SocialClient` carrying both halves.
+**OAuth: one authorization per account.** `social_client` is the app registration — the name, the redirect URIs, the client id and secret — and nothing else. Everything about *who authorized it* is a row of `social_client_auth`: the code, the token, the scopes granted and the account they were granted to, unique on (client, account). Before that, the app row held one `auth_user_id` and one `token`, so an app registration belonged to exactly one person at a time and the second person to sign in with Elk or Phanpy — which register one app per instance — signed the first one out, silently. Re-authorizing replaces that account's row and nobody else's; revoking takes one authorization, where it used to take the app row's only token and sign out everybody; and the expiry sweep deletes authorizations rather than the whole `social_client` row, which used to take the app's registration with an idle token and make the client register again. A token stops working a year after it was idle (`TIME_TOKEN_TTL`, refreshed by use) and, however much it is used, `token_max_days` after it was granted (`ClientService::expiresAt()`; 365 by default) — use alone kept a token alive for ever. A code is spent in the same statement that writes the token, so two requests arriving together cannot both exchange it, and it is exchangeable only under the `redirect_uri` it was sent to (RFC 6749 §4.1.3), which `Version1000Date20261003000001` records on the row. Every read joins the app row, so the rest of the app still sees one `SocialClient` carrying both halves. A browser arriving from an OAuth app without a Nextcloud session is sent through Nextcloud's login page and returned to the same authorization URL, preserving the client's validated request before consent is shown.
 
 **Notifications that are not activities.** Six of the nine notification types are an activity somebody sent — a Like, an Announce, a Mention, an Update, a Follow, a follow request — and `Stream::NOTIFICATION_TYPES` maps each to its Mastodon name. The other four are events this instance raises itself, with no ActivityPub verb behind them, so the subtype is this app's own name for the event: `poll` (swept by `PollService::announceClosedPolls()` from the cron, because a poll closes by its end time passing and nothing happens at the moment it does), `status` (the bell on a profile — a `notify` row in `social_actor_relation`, written by `POST /accounts/{id}/follow` with `notify`, and raised for local subscribers only since a remote one is told by their own server), `moderation_warning` (raised beside the Nextcloud notification a strike already sends, because a Mastodon client cannot see that one) and `severed_relationships` (raised by `DomainPurgeService` for the local accounts a block cuts off, counted *before* the purge because afterwards there is nothing left to count).
 
@@ -666,7 +803,7 @@ behind it and is never refused there.
 
 **The timeline switcher.** `TimelineSwitcher.vue` sits above the posts on the three timelines that are the same place seen from three distances — the home timeline (`My Feed`), `timeline` (Local) and `federated` (Global) — and on no others: everywhere else it would be a switch between three places the reader is not. It routes rather than fetching, so `Timeline.vue` and the store go on being the single answer to "which timeline is this". The values are the route's own words rather than the labels, because `timeline` is what the store calls the local one and `federated` the global one, and a second vocabulary in a component that only routes would be one more place for the two to disagree; `home` is the route with no `type` at all, so it is pushed as the bare route rather than as `type: 'home'`, which names a timeline nothing serves. Local and Global have **left the sidebar**: they are scopes of the page the switcher sets rather than places of their own, and two entries that lead to the same list while saying it is somewhere else are two too many. The Home entry stays lit while either is being read — `isActive()` honours a `covers` list on a menu entry, which is the set of `type` params that entry owns — so the sidebar never shows nothing chosen.
 
-It is built from plain buttons rather than from `NcCheckboxRadioSwitch`, for the one thing that component cannot do: a single indicator that *travels* between the three. Three controls that light up tell you where you landed; one pill that slides tells you where you came from, which is what makes a switch feel like a switch. The cost is that the accessibility is hand-written rather than inherited, so it is written in full — a `radiogroup` of `radio` buttons, `aria-checked`, arrow keys in both axes that wrap at the ends, a roving tabindex so the control is one tab stop rather than three, and the focus following the selection the way it does in a radio group. The pill itself is `aria-hidden`: what it shows is already on the options. The track is 42px — 30 for an option, 3 of padding either side — which is a little under a Nextcloud button, because the control labels a timeline rather than competing with it. Every option is `flex: 1 1 0` so all three are as wide as the widest, which is what lets a pill of one third of the track land exactly on one of them whatever the labels translate to; below 500px the labels go and the icons stay. The states are written as `.switcher .switcher__option` rather than as one class because the server styles bare `button` elements and its `button:not(.button-vue, [class^="vs__"]):hover` is the more specific selector — left alone, Nextcloud's hover colour paints over the pill on the option you just chose. The movement — the slide, the overshoot, the kick the chosen icon gives, the turn the globe makes — is all inside `@media (prefers-reduced-motion: reduce)`, which switches every bit of it off.
+It is built from plain buttons rather than from `NcCheckboxRadioSwitch`, for the one thing that component cannot do: a single indicator that *travels* between the three. Three controls that light up tell you where you landed; one pill that slides tells you where you came from, which is what makes a switch feel like a switch. The cost is that the accessibility is hand-written rather than inherited, so it is written in full — a `radiogroup` of `radio` buttons, `aria-checked`, arrow keys in both axes that wrap at the ends, a roving tabindex so the control is one tab stop rather than three, and the focus following the selection the way it does in a radio group. The pill itself is `aria-hidden`: what it shows is already on the options. The track is 42px — 30 for an option, 3 of padding either side — which is a little under a Nextcloud button, because the control labels a timeline rather than competing with it. An option is as wide as its own words and does not shrink (`flex: 0 0 auto`); the track sits in a scroll container, so seven translated labels stay readable in a reading column and the edges fade where more options are off screen. The pill is measured off the option it sits under, and the chosen option is scrolled into view as it changes. The compact presentation is a container query on the control's own width, not the window: below 600px the labels go and the icons stay, so a phone gets it even when the window is wide and the column is not. The states are written as `.switcher .switcher__option` rather than as one class because the server styles bare `button` elements and its `button:not(.button-vue, [class^="vs__"]):hover` is the more specific selector — left alone, Nextcloud's hover colour paints over the pill on the option you just chose. The movement — the slide, the overshoot, the kick the chosen icon gives, the turn the globe makes — is all inside `@media (prefers-reduced-motion: reduce)`, which switches every bit of it off.
 
 **What a switch looks like.** Changing scope changes the posts and nothing else. The scopes are one page to `pageOrder.js` (`isSamePage()`), so the view transition that animates a move between sidebar entries is not run for them: sliding the whole column moved the switcher out from under the pointer that had just used it. Once a scope is on screen, `Timeline.vue` waits a moment and has the store fetch the first page of each other scope, one after another (`prefetchTimeline()`); those pages join the remembered lists — five of them, which covers the four scopes and wherever the reader came from — and a switch puts one on screen in the same render, without a request. A page fetched ahead is put back for three minutes; older, the switch asks the server as before, holding the list being left on screen dimmed while it does. Entries that replace a list already on screen appear in place rather than rising in, and the Shorts bar, the weekly recap and the memories are kept alive (`<KeepAlive>`) while the reader is on another scope, so coming back to My Feed does not draw them from nothing and push the posts down when each one's request answers; the Shorts bar is read again on the way back only when it is more than a minute old.
 
@@ -750,7 +887,7 @@ An activity whose type this app does not implement is logged at `notice` with it
 
 An incoming `Block` targeting a local user is remembered as a `blocked_by` relation and severs the follow relationship in both directions; `Undo{Block}` lifts it. A block between two accounts of this instance never arrives as an activity, so `RelationshipService::block()` writes the same `blocked_by` row for a local target itself and `unblock()` removes it. A `Follow` from an actor the target has blocked is answered with a `Reject`.
 
-A Bluesky account's block of a local one is a record in the blocker's repository that nothing delivers, so `Service\BlockedBy\BlockedByService` learns it through a `BlockedBySource` — today `Atproto\Reader\BlueskyBlockedBy`, which asks the AppView as the local account (`app.bsky.actor.getProfiles` → `viewer.blockedBy`) — and writes the same `blocked_by` row, so the readers of that row need nothing of their own. It asks before a reply, quote or follow (in the request), before a like, repost or new post's mentions go out (in `Cron\AtprotoPublish`), and for the one account a relationship is asked about; an answer is believed for five minutes (`DurableCache::setShared`, since the queued job and the web request share it). The reads already made as the person (custom feeds, post search, suggestions, starter packs) pass their answer to `BlueskyBlockedBy::learn()`, and `JetstreamEvents` records a watched account's `app.bsky.graph.block` of a local DID at once and asks again, through `BlockedByService::recheck()`, about the local accounts a blocker held when one of its block records is deleted. `BlockedByService::record()` writes only what changed and bumps the local account's timeline revision when it does. `assertMayReply()` (the post's author and, for a Bluesky post, its thread's first author) and `assertNotBlocked()` throw `BlockedByException`, an `InvalidActionException` the client API answers 403 with the reason; `PostService` checks a reply before the thread gate and the reply rule and a quote before the post gate, and `FollowService::followActor()` checks a new follow, whatever network the account is on.
+A Bluesky account's block of a local one is a record in the blocker's repository that nothing delivers, so `Service\BlockedBy\BlockedByService` learns it through a `BlockedBySource` — today `Atproto\Reader\BlueskyBlockedBy`, which asks the AppView as the local account (`app.bsky.actor.getProfiles` → `viewer.blockedBy`) — and writes the same `blocked_by` row, so the readers of that row need nothing of their own. It asks before a reply, quote or follow (in the request), before a like, repost or new post's mentions go out (in `Cron\AtprotoPublish`), and for the one account a relationship is asked about; an answer is believed for five minutes (`DurableCache::setShared`, since the queued job and the web request share it). Profile batches are isolated: a failed AppView batch is left unanswered while successful batches are retained, so the existing relation remains the fallback for unknown results. The reads already made as the person (custom feeds, post search, suggestions, starter packs) pass their answer to `BlueskyBlockedBy::learn()`, and `JetstreamEvents` records a watched account's `app.bsky.graph.block` of a local DID at once and asks again, through `BlockedByService::recheck()`, about the local accounts a blocker held when one of its block records is deleted. `BlockedByService::record()` writes only what changed and bumps the local account's timeline revision when it does. `assertMayReply()` (the post's author and, for a Bluesky post, its thread's first author) and `assertNotBlocked()` throw `BlockedByException`, an `InvalidActionException` the client API answers 403 with the reason; `PostService` checks a reply before the thread gate and the reply rule and a quote before the post gate, and `FollowService::followActor()` checks a new follow, whatever network the account is on.
 
 ### PeerTube and federated video
 
@@ -1097,6 +1234,9 @@ by the unfollow, whichever side it came from: a local `Undo` sent from here, or
 one that arrived in the inbox, in each case only when the follow it undoes had
 been accepted. The cron's walk is the safety net for what races through, not
 the thing that makes the number right.
+When an inbox `Undo` carries a composite Follow URI, the stored relationship is
+resolved by the exact actor and followed account pair; an unrelated Follow ID
+does not authorize deleting another relationship.
 
 **The cron walks rather than reads.** `Cron\Cache` refreshed *every* local
 account on every pass — the whole table in one PHP array, twelve minutes apart,
@@ -1719,18 +1859,45 @@ follows their author. `StreamService::getContextByNid()` asks
 `RemoteFetchQueue::fillThread()` for the conversation's first post and for
 the one opened, at most every ten minutes per post, for a post from another
 server or a public one of this server's (which other networks read too), and
-`Cron\FillThread` hands it to `ThreadService`. That asks every network the
-post is on (`ThreadSource`), with one budget of 150 replies between them:
+`Cron\FillThread` hands it to `ThreadService`. Opening the thread also reads
+the first page of replies inline from its network under a shared three-second
+network budget; the background fill continues paging and following replies
+deeper into the conversation, with one budget of 150 replies:
 
 - `ActivityPubThreadSource` reads the post's `replies` collection as its
   server described it, a few pages, fetches each reply this server does not
   hold from its own server (`StreamQueueService::fetchNow()`, held to the
   same host breaker as the queue), and the replies of those in turn, three
-  levels deep;
+  levels deep. The inline read is limited to 20 direct replies and passes its
+  remaining timeout to both collection and post fetches; additional pages and
+  replies stay on the existing background path. A failed collection or reply
+  fetch keeps any replies already stored, marks the visible read incomplete,
+  and lets the next context poll retry after five seconds instead of caching
+  the partial result as a successful read;
 - `Atproto\Reader\BlueskyThreadSource` asks the AppView for the thread
   (`getPostThread`) of a post that is on Bluesky — read from there, or
   written here and published — and stores each post as any Bluesky post is
   stored, parents first.
+
+Opening a conversation also asks this source inline with a three-second
+timeout, guarded by a per-post lock. Each returned root and continuation is
+checked against the requested AT-URI before it can be stored. A missing,
+unrecognized, or mismatched `thread` view is a failed read, so the queued fill
+remains available; an explicit `notFoundPost` or `blockedPost` is a valid
+empty result only when it names the requested URI. Bluesky caps the
+standard `getPostThread` reply depth at ten. On both inline and background
+reads, every returned post is checked against its `replyCount`; if a node has
+fewer visible direct replies than that count, the AppView's V2 thread view is
+tried with that node as the anchor, with the specced cursor-paged post search
+as fallback. This applies to nested comments as well as the opened post, and
+all inline fallback reads share the same three-second budget. Unfilled
+branches remain pending for the background fill. A successful read also
+queues a background fill when it reached the ten-level limit and a deeper
+branch remains; that fill follows such branches, each with its own bounded
+request, up to twenty continuation reads and the shared 150-new-reply budget.
+A timeout or missing branch does not discard replies already stored. Local
+posts still queue the background fill as well, since their Fediverse replies
+may not yet be known here.
 
 The page is never held up by another server: the answer says so with
 `X-Social-Thread-Filling`, and the web app asks once more a few seconds
@@ -1744,7 +1911,12 @@ ones from here and the ones from wherever the post lives, merged, with
 nothing to tell them apart. `InteractionService` asks each network the post
 is on (`InteractionSource`) in the background (`Cron\FillInteractions`,
 queued by `RemoteFetchQueue::fillInteractions()` at most every ten minutes
-per post and kind):
+per post and kind). Opening a reaction or quote list first asks supported
+sources inline with a three-second timeout and a per-post-and-kind lock, then
+returns fresh actor ids or stored quote posts and queues profile resolution
+for avatars not cached yet.
+The five-second shared freshness marker bounds duplicate work from concurrent
+or rapidly repeated requests; failures fall back to the background queue:
 
 - `ActivityPubInteractionSource` reads the post's `likes` and `shares`
   collections as its server describes them — Mastodon lists only the
@@ -1752,7 +1924,10 @@ per post and kind):
   cached here fetched (`RemoteFetchQueue::resolveActors()`);
 - `Atproto\Reader\BlueskyInteractionSource` asks the AppView
   (`getLikes`, `getRepostedBy`, `getQuotes`) for a post that is on Bluesky,
-  caches each account as it is found and stores each quoting post.
+  checks that the returned subject URI matches the post it asked about,
+  caches each account as it is found and stores each quoting post. A
+  mismatched or malformed answer is a failed read, so it cannot replace the
+  last complete reaction list and is retried through the background queue.
 
 Who reacted is kept an hour in the durable cache's table (`DurableCache::setShared()`, which the cron and the web server share even where APCu is the only memcache), not as actions: the
 counts on a post, and the notifications, stay what they were. Quoting
@@ -1792,8 +1967,11 @@ filled up with the listed accounts, and a page that reaches into them is
 continued by the `max_id` of its last account, which the service finds
 among the listed ones. A page asked for with `min_id` or `since` is the
 follows known here alone. The answers say `X-Social-Filling` while the
-read was just asked for; the web app's list asks for its first page once
-more six seconds later. An account of this server's own is unchanged.
+read is queued and its shared result cache has not been written yet; the web
+app polls the first page every two seconds for up to thirty seconds. Accounts
+named by an ActivityPub collection that are not cached or do not yet have a
+local account id are queued for resolution, and the page remains in the filling
+state until they can be shown. An account of this server's own is unchanged.
 
 ### Counts where a post lives
 
@@ -1806,13 +1984,20 @@ people look at are asked for again, one concept with a source per network
 
 - `ActivityPubCountSource` reads the post's document at its `id` and takes
   the `totalItems` of its `likes`, `shares` and `replies` collections
-  (`Stream::statedCount()`), twenty documents a round; an answer naming some
-  other document, or none — a post deleted at its source among them — leaves
-  what is stored;
+  (`Stream::statedCount()`), twenty documents a round. If an origin gives a
+  collection URL without an inline total, those collection URLs are fetched
+  together in a second round. Mastodon's `quoteCount` extension is retained as
+  the quote total. Requests to origins have a five-second timeout; an answer
+  naming some other document, or none — a post deleted at its source among
+  them — leaves what is stored. An answer with no usable counter is not
+  treated as fresh during an interactive read, so the background path can retry;
 - `Atproto\Reader\BlueskyCountSource` asks the AppView's `getPosts`, 25
   posts a call (`PostStore::postViews()`), for `likeCount`, `repostCount`,
-  `replyCount` and `quoteCount`; a post it no longer has is deleted as
-  `DeletionSweep` deletes it;
+  `replyCount` and `quoteCount`; a post is deleted as `DeletionSweep` deletes
+  it only when the AppView explicitly returns `notFound`. Every requested URI
+  must occur exactly once in the response; a missing, duplicate or malformed
+  entry leaves the whole batch untouched and keeps the deletion cursor in
+  place for another attempt. A blocked placeholder is kept;
 - `Atproto\Reader\BlueskyPublishedCountSource` does the same for a post of
   this server's own that is also a record on Bluesky (see **A local post's
   counts on Bluesky** below).
@@ -1821,8 +2006,16 @@ people look at are asked for again, one concept with a source per network
 (`StatusApiController::statusGet()`), a conversation
 (`StreamService::getContextByNid()`) and every timeline page a client reads
 (`StreamService::getTimeline()` in the local format, `visiblePosts()`, the
-list timeline) — and does no network I/O: a boost stands for the post it
-boosts, direct messages are skipped, and so is a local post unless a source
+list timeline) — and queues background reads. `seen()` keeps reporting a page as filling while any count remains due, even when the durable queue has already deduplicated that request. Timeline, profile and list responses carry `X-Social-Filling` during that period; the web app re-requests the page with a fresh URL so an ETag cannot turn the count refresh into a `304`, and stops polling when the worker stamps the new counts. Opening a post also attempts a
+per-post locked refresh with a three-second network budget; concurrent viewers
+reuse that attempt, and an unavailable or incomplete answer falls back to the
+background queue without marking unknown numbers fresh. A status response that
+reports `X-Social-Filling` is read again with bounded exponential backoff, at
+most ten times, so a background result that lands after the initial request is
+merged into the open post. Timeline pages use the same filling signal with bounded backoff and
+a cache-busting query value, so unchanged ETags cannot hide newly stored counts.
+A boost stands for the post it boosts, direct messages are skipped,
+and so is a local post unless a source
 supports it (one that goes to Bluesky, `Publisher::goesToBluesky()`), and a
 post is due when its `counts_at` is older than a quarter of an hour while the post
 is less than a day old, six hours after that. The due ones are handed to
@@ -1849,6 +2042,25 @@ up to fifty more of this server's own posts of the last seven days that have
 a Bluesky record (`StreamRequest::getPublishedStreamsDueForCounts()`, a join
 on `social_atproto_record`); an older one is asked about when somebody looks
 at it.
+
+Posts opened in their detail view have a faster path:
+`TimelineList` refreshes up to four visible non-direct posts on entry, scroll
+and every five seconds, rotating through the visible posts when there are more
+than four. This includes local posts mirrored to Bluesky; the backend chooses
+the source that supports each post. `TimelineSinglePost` also asks for the
+status again when opened, even if a copy is already in the timeline.
+`StatusApiController::statusGet()` asks the matching ActivityPub or Bluesky
+count source directly when `counts_at` is at least five seconds old, with a
+three-second network timeout and a per-post lock, then reads the updated row
+for the response. A failed or timed-out read leaves stored counts untouched
+and queues the normal background retry; the follow-up status read is
+read-only, so it cannot start another slow request. This keeps reader-facing
+counts independent of Nextcloud's cron cadence; posts outside the viewport
+still use the queued background path above. Bluesky thread reads use the same
+three-second timeout and per-post lock, and failed reads remain eligible for
+the background thread queue. When a response says counts or a conversation are
+still being filled, the client checks again after three seconds while the
+reader stays on the page.
 
 `CountWriter` stores an answer: the origin's total less what is counted here
 into `remote_likes`, `remote_boosts` and `remote_replies` — only those keys,
@@ -2009,6 +2221,38 @@ re-snapshots the stored source, as the quote policy does, and rewrites the
 threadgate in one commit (`Publisher::updateGates()`), which a quote-policy
 change now uses for the postgate too.
 
+### Bluesky custom feeds and lists
+
+`Atproto\Reader\BlueskyFeeds` reads `getFeed` and `getListFeed` as the
+viewer and filters posts they cannot see. An AppView page may contain only
+hidden posts and still include a continuation cursor, so an empty visible
+page does not itself end the timeline. The reader follows up to ten empty
+pages, keeping a separate short-lived retry cursor if that bound is reached;
+the next request resumes from that cursor and a repeated remote cursor is an
+error. Visible-page cursors remain keyed by viewer, feed and last visible
+post in `DurableCache`, with its database fallback when no memcache is
+configured.
+
+### Bookmarks, here and on Bluesky
+
+`Atproto\Publisher\BlueskyBookmarks` keeps a person's bookmarks in step with
+Bluesky apps signed in here. `getBookmarks` reads the local bookmark timeline
+and includes the posts that have a Bluesky record. Their AppView previews are
+fetched in groups of at most 25, including authenticated reads, while the
+response keeps the local bookmark order and pagination cursor. A failed group
+leaves its entries as `notFoundPost` placeholders and does not prevent the
+remaining groups from being read.
+
+`Atproto\Publisher\BlueskyThreadMutes` keeps local conversation state and
+Bluesky's private thread-notification preference in step. An accepted mute or
+unmute from a signed-in Bluesky app resolves its AT URI with
+`LocalRecordResolver::postId()`, mapping this instance's mirrored record back
+to the Social post id before updating the local conversation root.
+`ActionService` sends the same operation to Bluesky when a person changes the
+mute in Social; `PostRefs::strongRef()` finds the root's AT URI even when the
+stored post id is a local Social id. Posts remain visible while notifications
+are suppressed. An uncached root has no local thread state to update.
+
 ### Direct messages with Bluesky
 
 A conversation with somebody on Bluesky is a conversation in Messages like
@@ -2090,6 +2334,20 @@ also takes the items in the repository that name it and stand for no
 member here; a public list not on Bluesky yet is published by the
 maintenance pass (`BlueskyLists::publishMissing()`, a page of lists at a
 time, the place kept with `DurableCache::setShared()`).
+
+When `WriteService::apply()` receives only repository-native records, it
+validates and commits the batch through `RepositoryService::write()` once;
+list synchronization runs after that repository commit. Its optional
+`swapCommit` is checked against the locked head before the repository changes,
+and the response carries the commit produced by the batch. Batches that include
+Social actions still follow the action-specific paths, while `RepositoryService`
+stages their Bluesky records and exposes them to later actions in the same
+batch. One database transaction commits the database-backed Social changes,
+repository records, and firehose event; ActivityPub deliveries begin after
+commit. On failure, the database transaction and deferred delivery starts are
+rolled back. Profile and media files use Nextcloud storage and are outside that
+database rollback. A mixed batch checks `swapCommit` against the locked
+repository head before committing.
 
 ### Switching off Bluesky
 
@@ -2235,6 +2493,8 @@ None of those entries is self-contained. Vue, `@nextcloud/vue` and pinia used to
 `src/store/` holds six Pinia stores — `timeline`, `account`, `settings`, `errors`, `notifications` and `instance` — and `index.js` creates the Pinia every entry point installs. Components reach them through `mapStores`, or through a composable where the same few values are wanted together: `useServerData`, `useCurrentUser` and `useAccount` in `src/composables/` replaced the three mixins the app used to carry.
 
 Server-side state is not a store: it is passed through Nextcloud's initial state as `serverData` and read by `useServerData`.
+
+Reader preferences that shape the first feed are in that same initial state. `hideCounts` keeps counts consistent between the server response and optimistic actions; `hideRepliesInFeeds` filters replies out of the Home, public and hashtag feed cards while leaving them available in conversations. The `feed_preferences` API stores that choice per account, and the first server-provided Home page uses it before rendering so a refresh does not briefly show replies the reader chose to hide.
 
 The reader's own account travels the same way. `NavigationController::provideViewerAccount()` puts the cached actor — the one `GET /api/v1/global/account/info` answers with, in the same export format — into the initial state as `currentAccount`, and `App.vue` seeds the account store from it. The app used to ask for it in `beforeMount()`, which cost every load a second authenticated round trip before anything could render, for something the page request was already holding. A page rendered before the account exists provides nothing, and the app asks the old way.
 
@@ -2393,9 +2653,23 @@ anything attached the box becomes a caption field. A picture with no alt text is
 description is saved on leaving the field rather than only when the post goes
 out, so it survives a post that is never sent.
 
+The **New post** dialog keeps the text and all publishing controls in one
+popup. Attachment, content-warning, emoji, visibility and send controls stay
+in the main row; **More options** opens the less common post tools and
+publishing settings in labelled groups. The secondary controls have text
+labels as well as icons; scheduling and location share a group, followed by
+publishing settings, where language and reply policy sit beside each other.
+The **More options** toggle leads the toolbar in every composer, including
+inline composers on feeds, profiles, search, video pages and replies. The
+dialog title carries the author's avatar and a **New story** action beside
+the title when stories are available; the story action opens the 24-hour short
+composer. The composer's inline author row is hidden in the dialog. A restored
+draft opens the options when it contains a non-default secondary setting.
+
 **What a post says about itself.** Three controls in the same toolbar row as
-the visibility menu, each of them a field the client API has always taken and
-the composer never sent.
+the visibility menu in the inline composer, each of them a field the client API
+has always taken and the composer never sent. The New post dialog places these
+under **Publishing settings** in its expanded options.
 
 `LanguageSelect.vue` is an icon-sized `NcActions` wearing the current code,
 defaulting to the reader's Nextcloud language without its region
@@ -2456,7 +2730,9 @@ takes (`TimelineApiController::notifications()`). The choice is part of the stor
 `params`, so it is part of `getTimelineIdentity` — changing it refetches rather
 than hiding rows already on screen — and `rememberedFilter()`/`rememberFilter()`
 keep it in `localStorage` under `social.notificationsFilter`, inside a
-`try`/`catch` because reading it throws in a private window.
+`try`/`catch` because reading it throws in a private window. The seven labels do
+not fit the reading column, so the row scrolls at its natural widths rather
+than shrinking them or hiding them at a viewport breakpoint.
 
 *Grouping* is `groupNotifications()` in the same service: consecutive favourites
 or boosts of one status, and consecutive follows, become one card carrying
@@ -2575,6 +2851,14 @@ the system's button, canvas and highlight colours with a border, since a
 forced-colours mode takes the scrims away and would leave the words on bare
 video. `tests/js/onDarkPalette.test.js` pins both.
 
+The Shorts page uses the app's regular page header for its title, scope picker
+and primary **New short** action. The player frame reads a video's decoded
+dimensions after `loadedmetadata` and fits the largest frame with that aspect
+ratio into the space below the header. A 24-hour story picture supplies its
+natural dimensions. Resizing the page or changing a video's aspect ratio keeps
+the current slide aligned in the feed. Playback controls and post details
+remain over the video itself.
+
 **Videos with sound.** `src/composables/useSoundAutoplay.js` is shared by every
 player of Shorts, kept or 24-hour. It plays a video
 with sound; when `play()` is rejected with `NotAllowedError` it plays it muted
@@ -2629,6 +2913,13 @@ failed posts it again. A copy that will not upload holds the post back rather
 than sending the picture unfiltered. The first upload of a filtered picture is
 left on the server unattached.
 
+**Image metadata.** `ImageMetadataService` strips camera EXIF, GPS coordinates,
+XMP, IPTC, comments and timestamps from stored JPEG, PNG and WebP copies. It
+reads the declared IPTC `DigitalSourceType` first and stores only whether the
+image was marked as AI-generated or AI-composite; the client receives that as
+`ai_generated`. The viewer shows the supplied description, original dimensions
+and this retained AI label. It does not expose discarded camera metadata.
+
 **The games.** `src/utils/composerCommands.js` resolves `/dice [n]`, `/roll`,
 `/flip` and `/pick a, b` in `Composer::createPost()` before anything is sent, so
 the result is plain text in the post and cannot be re-rolled. A command is one
@@ -2653,6 +2944,10 @@ of the animation.
 
 `Composer.vue` carries a full `tributeOptions` config for `@` account and `#` hashtag completion. `tributejs` is a plain DOM library rather than a component: it is attached to the contenteditable in `mounted()` and detached in `unmounted()`, and it appends its menu to the body, which the unscoped `.tribute-container` rule at the end of the file styles. The account collection searches `/api/v1/global/accounts/search` and the hashtag collection `/api/v1/global/tags/search`, both debounced. The composer's HTML-to-text conversion inserts one newline at each block boundary, including before a block that follows an unwrapped text node; browser contenteditables commonly encode the first Enter in that mixed form, so missing the leading separator concatenates the first two lines in a new post. The shared `htmlToPlainText()` applies the same rule when editing/redrafting and when presenting portfolio captions. The emoji picker is a separate `NcEmojiPicker`; it is loaded on first use and portals to `#content`, outside the composer toolbar and reaction modal's clipping/stacking containers while retaining Nextcloud theme variables inherited from the app root. The reaction picker shares that portal so the popover does not participate in its centered flex panel's sizing or sit beneath its backdrop. Portfolio captions are reduced to plain text by `htmlToPlainText()` and use `white-space: pre-line` so paragraph boundaries remain visible without rendering untrusted HTML.
 
+The inline composer's close control remains available when its secondary
+controls are grouped under More options. Its avatar stays hidden in that
+layout; a dialog uses its own header and close control.
+
 **The Settings page, and what is on it.** `src/views/Settings.vue` describes
 every section once (`{ id, group, icon, component, title, lede }`) and sorts them
 into six groups: **Profile and privacy** (`#account`, `#featured-tags`,
@@ -2664,8 +2959,7 @@ kept, read as timelines at `/timeline/bluesky/<DID>/<feed|list>/<key>` —, `#se
 `#archive`, `#files-comments`), **Apps and account** (`#apps`, `#bluesky`
 where the server gives every account a Bluesky identity — `BlueskySettings.vue`,
 the handle, the DID, your own domain as the handle, the pause switch, the recovery phrase, the app
-passwords Bluesky apps sign in with and the apps signed in with Bluesky
-sign-in —, `#invites`, `#storage`,
+passwords Bluesky apps sign in with and the apps signed in through OAuth —, `#invites`, `#storage`,
 `#delete`, last because it cannot be undone) and **Help**
 (`#introduction`, `#shortcuts`). One group is drawn at a time. The rail lists the
 groups and, under the open one, its sections; on a narrow screen the groups are a
@@ -3002,15 +3296,18 @@ third state.
 **What else a post's own page says.** Four things that belong to a post being
 read rather than to a post being scrolled past.
 
-`PostReactedBy` puts the faces behind the two counts under the post, through
-`GET /api/v1/statuses/{nid}/reblogged_by` and `/favourited_by` — both of which
-the server has answered since the moderation tier and neither of which the web
-client called until now. Nothing is requested when a count is zero, which is
-most posts, so the page costs the two requests only when there is something to
-answer with; a refusal draws nothing, since the counts are still on the post and
-this row is only the elaboration. A dozen faces at most, with the count saying
-how many there are in all, and each row reloads on its own when its own count
-changes — the reader's own boost lands in the row it just changed.
+`PostReactedBy` puts the faces behind likes, boosts and quotes under the post,
+through `GET /api/v1/statuses/{nid}/reblogged_by`, `/favourited_by` and
+`/quotes`. ActivityPub collections and Bluesky's AppView supply actor ids or
+quoted posts; cached profiles become avatar-bearing account objects, and
+unresolved ActivityPub actors are queued for profile resolution.
+`X-Social-Filling` stays set while either the network list or those profile
+pictures are still being filled, so the visible row can reload after the
+background work. Retries stop after eight attempts if a remote profile never
+resolves. Nothing is requested when a count is zero, unless the reader hides
+counts, in which case the number cannot establish that the list is empty. A
+dozen faces at most, with the count saying how many there are in all, and each
+row reloads on its own when its own count changes.
 
 `PostDetails` is the fine print: the full date, the audience in the words the
 composer uses, the language named rather than coded (`Intl.DisplayNames`, the
@@ -3258,6 +3555,8 @@ Behind it: `only_media` is Mastodon's own parameter on `/api/v1/accounts/{id}/st
 
 **The profile page is for reading.** The Aloha Social section embedded in Nextcloud's `/u/{uid}` profile never mounts a post composer; new posts are written from the Aloha Social app. It shows the account's posts for any visitor, and adds **My Feed** only when the signed-in account owns the profile. **Local** and **Global** show the viewer's public Aloha Social timelines. The account banner is fetched from Aloha Social's account endpoint and shown only when it is a custom header rather than the avatar fallback. When Nextcloud's native profile header exists, the component teleports the decorative banner into that header, behind its avatar and name; the image stays at the top of the Aloha Social section as a fallback when the header is absent. The native header has a `top: -40px` offset; the teleport makes it positioned and activates that offset, so the Aloha Social banner explicitly resets `top` and `bottom` to align with the content and avoid a 40px coloured strip beneath it. Public local post links use the native `/u/{uid}` page with a status anchor; remote and non-public posts keep their Aloha Social or ActivityPub destination. The native Profile app remains responsible for its follower and post totals.
 
+**External post embeds.** Public local post pages advertise `/api/oembed` through a `Link` header. That endpoint returns a rich oEmbed document whose iframe targets `/@{username}/{token}/embed`; it answers only for local posts with `visibility=public`. The embed endpoint repeats that check independently and serves a small HTML document instead of the application shell; missing, remote, unlisted, followers-only and direct posts all return the same 404. It sanitizes the body, preserves content warnings in a collapsed disclosure, and shows author/avatar/date plus same-instance image, video and audio media, so embedding does not silently contact a third-party media host. Cross-origin framing is enabled on the embed response only, through its CSP `frame-ancestors`; the app shell and ordinary public post page retain Nextcloud's framing policy.
+
 **Federated media recovery.** A remote `Note` can have `source.attachment` while its stored `attachments` column is `[]`, for example when an earlier import could not persist a CDN image. The normal renderer only reads the latter, so the post text remains visible while every image disappears. `social:media:recover` walks remote rows with an empty attachment list by `nid` in pages of 50, decodes the original ActivityPub object, and feeds its attachments through the same `Stream::importAttachments()` and `DocumentInterface` path used by an incoming post. It reads `attachment` in either shape ActivityPub writes it, a list or a single object on its own. It writes only the recovered attachment list and its derived `media_kind`; a conditional update leaves a concurrent import intact, and the summary counts those separately (`already filled`) so a run that changed nothing can be told from one that failed. Documents without an ActivityPub id receive a generated id on each import, so `DocumentInterface::save()` first looks for the same URL under the same parent post and reuses that row's id, nid and stored copy. This avoids both duplicate downloads and a newly generated `/media/{uuid}` URL that has no cache row behind it. The command has a read-only `--dry-run` and an examination `--limit`. Existing posts with media, local posts, and originals without an attachment list are never changed. A media failure does not rewrite the post's text, recipients, or publication metadata, and another run can retry a post that remained empty.
 
 **Direct messages are one private chat per person.** `DirectMessages.vue` uses Nextcloud Vue controls and the full Aloha Social app-content width for a two-pane layout: the left column owns conversation search, compact all/unread filters and one conversation row per person; the right column owns the selected conversation, its scrollable message lane and a private-message field. The new-chat pane starts with deduplicated people from existing conversations and the signed-in account's following list, then searches cached and resolvable accounts by name or handle through `/api/v1/accounts/search`. This endpoint returns a plain array of Mastodon-compatible account objects; the older `/api/v1/global/accounts/search` returns the same entities wrapped in `result`. The search delay and request counters keep stale responses from overwriting a later query; an explicit error state distinguishes failed searches from no matches. Selecting somebody reuses that person's existing conversation where possible; the new-chat header and composer then use the same visual structure as a thread rather than a separate contact card. The composer has no audience selector. Each send sets direct visibility and adds the protocol-required recipient mention internally; the chat removes the leading recipient routing mention from message bubbles and inbox previews whether the server returns it as an h-card, a mention link, or plain text, and a preview also drops the reader's own leading handle — what a message from the other side opens with — while the bubble keeps it; later mentions remain in the message. Context-loaded messages receive saved link-preview cards through the same batched attachment service used by timelines, so previews render inside the chat without fetching arbitrary URLs in the browser. The native conversation action dismisses the thread from this viewer's inbox; it preserves the statuses and a later message makes the conversation reappear. Duplicate API threads for the same peer are collapsed in the inbox. Incoming and outgoing posts render as separate bubbles aligned to opposite sides, while consecutive messages from the same account are grouped without repeating the sender label. Opening a thread fetches its context and marks it read; sending a reply targets the latest message and stays private. At mobile width the view becomes a single pane whose Back button returns to the list.
@@ -3326,15 +3625,20 @@ with null for what its origin did not say. The channel is the status's
   once it has arrived), **From channels you follow** (the home scope with
   `only_video`, not on My Feed, which is the grid itself, and not without a
   session), and **Continue watching** (`GET /api/v1/videos/continue`, read
-  once per page view and only with a session). Under a chip there are no
-  shelves.
+  once per page view and only with a session). Continue watching says that it
+  is loading, that nothing is waiting yet, or that the list could not be read
+  and offers to ask again; only a shelf with videos draws a row of cards and
+  cuts the grid short. Under a chip there are no shelves. It is read on mount:
+  the Videos page and a single post are different route components, so coming
+  back through the router mounts the page again and asks again; a scope change
+  within the page keeps the list, which is the same list in every scope.
 - **Watch progress** is the server's (`WatchService`, one `social_watch` row
   per video and reader). `/api/v1/videos/continue` hands each status back
   with `watch_progress` (`WatchRequest::unfinishedProgress()`, the same query
   as before with the row's position, duration and time); every other list
   carries it as null. `services/videoProgress.js` keeps what that answer said
   by post, and `progressOf(status)` — `{position, duration, fraction,
-  updatedAt}` or null — is the one place a card asks for its red bar, so a
+  updatedAt}` or null — is the one place a card asks for its accent bar, so a
   player that reports positions with `POST /api/v1/statuses/{id}/watched`
   needs nothing more on this page.
 - **Hover preview.** After 600 ms of the pointer on a card, a muted, looping
@@ -3354,7 +3658,41 @@ is decided in one place for every player in the app,
 `services/videoSource.js`, which `MediaAttachment` uses too: the file; a remote
 HLS playlist, proxied, through hls.js (fetched lazily) everywhere but Safari;
 or a local video's ladder beside its file, which falls back to the file on a
-fatal error. Around that:
+fatal error.
+
+- **The controls are the player's own, not the element's.** The `<video>` has
+  no `controls` attribute. That is a decision (#2703), not an omission. A
+  native `<video controls>` was checked in Chromium, Firefox and WebKit (a
+  Playwright page playing the same local clip); it has the same handful of
+  controls in all three, and nothing else:
+
+  | | Native controls | `VideoPlayer.vue` |
+  |---|---|---|
+  | Play, seek, volume, full screen | yes | yes |
+  | Picture in picture | yes in Chromium and Firefox; WebKit has `webkitEnterFullscreen` instead | where the API exists, with the iPhone fallback |
+  | HLS | Safari's own; Chromium and Firefox need hls.js and have no menu for its levels | hls.js, or Safari's native playback |
+  | Quality levels | no API and no UI | hls.js levels, Auto first |
+  | Chapters | not representable | a list of moments to press |
+  | Subtitles | an engine menu over the element's `<track>`s only | `<track>`s plus the tracks hls.js finds in a playlist |
+  | Playback speed | engine-specific, not extensible | 0.5–2×, kept across videos |
+  | Resume and the mini-player | the app can seek the element; there is no place for the notice or the hand-off | yes |
+  | The app's keyboard shortcuts | the engine's own keys only | one documented set, with the player tests covering them |
+  | Accessible names and states | UA shadow DOM: empty to Playwright's accessibility snapshot in all three engines | labelled buttons and sliders, `aria-pressed` on what latches, a live region |
+
+  A hybrid — native controls where they are richer, this bar otherwise —
+  would give the same video a different set of controls in every engine and
+  two accessibility models to keep working, for the one part of the page that
+  has to behave the same everywhere. The app's bar is one focusable `region`
+  with labelled buttons and sliders, `aria-pressed` on what latches, a live
+  region for what a key or menu changed, a focus ring, and
+  `prefers-reduced-motion` respected; the player tests cover the keys and the
+  focus rules. In the headless WebKit build available here the element took
+  focus but did not start on Space, so that engine's native keyboard
+  behaviour is the platform's and not something this suite can pin. If
+  browsers ever give native controls a standard quality menu and a track list
+  that includes hls.js's, this decision is worth revisiting.
+
+Around that:
 
 - **Resume and progress.** It starts at `progressOf(status)` — the single
   status's `watch_progress`, or what the page already knew — unless that is
@@ -3363,10 +3701,12 @@ fatal error. Around that:
   on pause, at the end (the whole duration, which the server forgets) and on
   `pagehide` by `navigator.sendBeacon` (the route takes no CSRF token, which a
   beacon cannot carry). Only for somebody signed in, never for a live video.
-  Each report also goes into `videoProgress.js` (`rememberProgress()`), and
-  `progressOf()` takes the newer of that and what the server said, so every
-  card of the video on the page moves with it and a finished one loses its
-  bar.
+  A report goes into `videoProgress.js` (`rememberProgress()`) only once the
+  server answered that it stored it (`{"stored": bool}`); a failed write is
+  logged, the player says the place was not saved, and the next report tries
+  again. `progressOf()` takes the newer of that and what the server said, so
+  every card of the video on the page moves with it and a finished one loses
+  its bar. A beacon cannot answer, so it keeps the page's best effort.
 - **Views.** After `VIEW_AFTER` (5) seconds actually played — the deltas of
   `timeupdate`, a seek not counting — it sends `POST /api/v1/statuses/{id}/view`
   once per video it plays.
@@ -3402,6 +3742,20 @@ fatal error. Around that:
   volume, where it went on from). The controls fade while it plays untouched,
   never while it has the focus or a menu is open, and without the fade under
   `prefers-reduced-motion`.
+
+**A video's page reacts like a post.** Like and boost beside the channel use
+the timeline's own store actions (`postLike`/`postUnlike`,
+`postBoost`/`postUnBoost`), so an active state and a count are the same object
+the grid reads, including after a reload. The author's `interaction_policy` is
+checked before either is offered, and an action already taken can always be
+undone. **Dislike** is PeerTube's other counter and is offered only here, only
+on a video; the same control takes it back. A visitor with no session is
+offered none of the three. The counts beside the buttons are
+`favourites_count` and `reblogs_count`, left out for a reader who hides the
+numbers; the facts line keeps PeerTube's own like and dislike numbers. The
+undo reads `status.disliked`, which is `social_stream_act.disliked` — every
+stream query has to select that column, because a missing alias reads as
+`false` and makes an undo impossible.
 
 **The small player.** Leaving a video's page while it plays hands the video
 (`handOff()` in `services/miniPlayer.js`, the post and the position) to
@@ -3615,7 +3969,7 @@ Subscribe as usual:
 ```php
 $context->registerEventListener(PostPublishedEvent::class, MyListener::class);
 ```
-| User Events | `UserDeletedListener` | `Application::register()` (on `UserDeletedEvent`) | Deletes the Aloha Social account of a deleted Nextcloud user through `AccountService::deleteActor()`: the actor is tombstoned, what belongs to it is dropped and a `Delete` is federated. A user who never opened Aloha Social has nothing here and is skipped; a failure is logged rather than thrown, since the Nextcloud user is already gone |
+| User Events | `UserDeletedListener` | `Application::register()` (on `UserDeletedEvent`) | Deletes the Aloha Social account of a deleted Nextcloud user through `AccountService::deleteActor()`: the actor is tombstoned, app authorizations and approved device codes are revoked, what belongs to it is dropped and a `Delete` is federated. A user who never opened Aloha Social has nothing here and is skipped; a failure is logged rather than thrown, since the Nextcloud user is already gone |
 | Group Events | `GroupListListener` | `Application::register()` (on `UserAddedEvent`, `UserRemovedEvent`, `GroupDeletedEvent`, `GroupChangedEvent`) | Keeps the group lists in step with the groups; never fails the group operation, a failure is logged and the cron's reconcile settles it |
 | WebFinger / NodeInfo / host-meta | `WebfingerHandler` | `Application::register()` | ActivityPub discovery at the server root |
 | Contacts Menu | `ContactsMenuProvider` | `appinfo/info.xml` | "Follow %s on Aloha Social" entry linking to the actor page |
@@ -3624,7 +3978,7 @@ $context->registerEventListener(PostPublishedEvent::class, MyListener::class);
 | Background Jobs | `Cron\BlocklistSync` | `appinfo/info.xml` | Daily: re-reads the block lists an administrator follows (`BlocklistSubscriptionService::fetchEnabled()`); one app-setting read and nothing else while no source is on |
 | Background Jobs | `Cron\StarterPackSources` | `appinfo/info.xml` | Daily: reads the starter packs the `starter_pack_sources` app value names (`CollectionPackService::refresh()`) — the fediverse's collections, checking every member's `featureAuthorization`, and Bluesky's suggested starter packs while Bluesky is on — and stores them; a source that cannot be reached keeps what was read from it last time. One run at a time (`setAllowParallelRuns(false)`), reading for at most `MAX_DURATION` (300 seconds); what it did not get to keeps what was read last time |
 | Background Jobs | `Cron\ActorCleanup` | queued by `PersonInterface::delete()` | Finishes detaching a deleted account from the posts that addressed it, when there are more of them than one inbox request should rewrite. Not in `appinfo/info.xml`, for the same reason `Cron\DomainPurge` is not: it is meaningless without an argument. Re-queues itself while rows remain |
-| Background Jobs | `Cron\SyncRemoteTimeline` | queued by `RemoteFetchQueue::syncTimeline()` | Reads one remote account's outbox (`StreamService::syncRemoteTimeline()`) after its profile was opened, with the actor id as its argument; not in `appinfo/info.xml`, for the same reason as `Cron\DomainPurge`. The followed accounts are synced by `Cron\Cache` regardless |
+| Background Jobs | `Cron\SyncRemoteTimeline` | queued by `RemoteFetchQueue::syncTimeline()` or `fillTimeline()` | Reads one bounded page of a remote account's outbox after its profile was opened. The first page is refreshed at most every 15 minutes; later pages resume from the durable outbox cursor only when scrolling reaches the end of locally stored posts. A failed page leaves the cursor in place for retry. Not in `appinfo/info.xml`, for the same reason as `Cron\DomainPurge`. The followed accounts are synced by `Cron\Cache` regardless |
 | Background Jobs | `Cron\ResolveActor` | queued by `RemoteFetchQueue::resolveActors()` and `resolveAccounts()` | Fetches and caches one remote actor a page named and did not have, with the actor id (or, from `resolveAccounts()`, a `user@host` handle) as its argument; not in `appinfo/info.xml`, for the same reason as `Cron\DomainPurge`. A failure is logged and dropped: the next page that names the actor queues it again |
 | Background Jobs | `Cron\DomainPurge` | queued by `FediverseService::addAddress()` | Queued with a domain when one is added to the deny list, never registered in `appinfo/info.xml` — a job listed there is added once at install time with no argument, and this one is meaningless without a domain. Runs 10 batches of `DomainPurgeService` per pass and re-queues itself while anything of the domain is left |
 | Background Jobs | `Cron\SearchIndex` | queued by `Version1000Date20261008000401` | Adds the posts stored before `social_search_term` existed to it, 500 at a time in nid order for up to a minute per run, from the cursor in the `search_index_cursor` app setting; re-queues itself until a chunk comes back short, then sets `search_index_ready` and the search stops scanning. A chunk that fails twice at the same cursor (`search_index_failing`) is indexed one post at a time, and the post a chunk of one fails on is logged by nid, counted in `search_index_skipped` (shown by the "index repairs" setup check) and passed over, so no post holds the index back for good. Not in `appinfo/info.xml`: it is a one-off |
@@ -3636,6 +3990,7 @@ $context->registerEventListener(PostPublishedEvent::class, MyListener::class);
 | Background Jobs | `Cron\ScheduledPosts` | `appinfo/info.xml` | 5-minute interval: publishes the scheduled posts whose time has come, at most 50 per run. Shorter than the other two jobs on purpose — a post may be published up to one cron period late, and a period longer than the five minutes' notice the API demands would promise a precision the app cannot keep |
 | Background Jobs | `Cron\NotificationDigests` | `appinfo/info.xml` | 5-minute interval, for the same reason as `ScheduledPosts`: visits the users flagged by `NotificationDeliveryService` (at most 1000 per run, 240 seconds), and for each raises the digests that have fallen due since their last one — the digest times in digest mode, the end of the quiet window in either mode — with the due time as the cut rather than the moment the job ran, so a late job reports the window the user asked for and the next window starts where it ended. At most four per user per run; a user with no clock yet gets one started rather than a digest of everything since 1970 |
 | Background Jobs | `Cron\AtprotoMaintenance` | `appinfo/info.xml` | 5-minute interval, only while Bluesky is on: reconciles the last day's public posts with their Bluesky records (publishes what the listener missed, replaces an edit within the grace period, removes the record of a deleted post; the newest 100 posts and post records written here, and the next 100 of the rest of the day from where the last run stopped, the position in `social_durable_cache`), resends directory operations the PLC refused, prunes the firehose past its replay window, drops retired instance keys, asks the AppView about a page of the last week's stored Bluesky posts, deleting those it no longer has (`DeletionSweep`, cursor in `atproto_delete_cursor`), checks custom handles once a day (`CustomHandleService::recheck()`, dropping one that failed seven checks in a row), and picks up account moves whose job stopped (`StaleMoves`: a running move not written to for an hour, with no job queued and none holding its lock, is queued again once, then failed with `move-interrupted` — or, moving here at the follows or the posts, done) |
+| Background Jobs | `Cron\AtprotoHealthCheck` | `appinfo/info.xml` | 15-minute interval, only while Bluesky is on: refreshes cached checks of public OAuth protected-resource and authorization-server discovery (JSON origin, one authorization server, PAR, DPoP/ES256, grants, S256, scopes and client-auth methods), public PLC DID resolution, AppView profile and newest-post visibility, relay host status and one active local repo per relay, and the firehose reverse-proxy WebSocket handshake; reports missing external indexing as a warning because relays and AppViews converge asynchronously |
 | Background Jobs | `Cron\AtprotoSync` | `appinfo/info.xml` | 2-minute interval, only while Bluesky is on: reads the newest page of each due watch (`social_atproto_watch`) from the public AppView and stores what is new, then asks the AppView's notifications for each due local account (`social_atproto_notify_cursor`); both within the request ceiling, both backed off after empty reads |
 | Background Jobs | `Cron\AtprotoVideo` | `appinfo/info.xml` | 1-minute interval, only while Bluesky is on and a video service is set: sends up to three queued videos to Bluesky's video service in their accounts' names, asks after the jobs being made, and publishes each post whose video has ended — with the video, or as a link (`social_atproto_video`) |
 | Background Jobs | `Cron\FillFollowedTags` | `appinfo/info.xml` | 15-minute interval: reads the new posts with ten of the hashtags people here follow from every network (`FollowedTagsFill`), the ones read longest ago first — see **Hashtags and searches beyond this server** |

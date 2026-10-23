@@ -89,19 +89,29 @@ describe('the Bluesky card', () => {
 			checks: [
 				{ id: 'https', state: 'ok', detail: '' },
 				{ id: 'handle_host', state: 'warning', detail: 'No identity yet to resolve' },
-				{ id: 'firehose', state: 'error', detail: 'the web server must proxy the WebSocket to the daemon' },
+				{ id: 'firehose', state: 'warning', detail: 'cannot prove the WebSocket upgrade reaches the daemon' },
+				{ id: 'relay_repo', state: 'warning', detail: 'bsky.network has not synchronized alice.social.example yet' },
+				{ id: 'did_resolution', state: 'warning', detail: 'PLC has not resolved the identity' },
+				{ id: 'appview_profile', state: 'warning', detail: 'Profile is not indexed yet' },
+				{ id: 'appview_post', state: 'warning', detail: 'Post is not indexed yet' },
 				{ id: 'keys', state: 'error', detail: '3 keys cannot be opened with the current secret' },
 			],
 		}))
 
 		expect(checks(wrapper).map((row) => row.classes().find((c) => c.startsWith('bluesky__check--'))))
-			.toEqual(['bluesky__check--ok', 'bluesky__check--warning', 'bluesky__check--error', 'bluesky__check--error'])
+			.toEqual(['bluesky__check--ok', 'bluesky__check--warning', 'bluesky__check--warning', 'bluesky__check--warning', 'bluesky__check--warning', 'bluesky__check--warning', 'bluesky__check--warning', 'bluesky__check--error'])
 		expect(wrapper.text()).toContain('HTTPS')
 		expect(wrapper.text()).toContain('Handle hosts resolve')
 		expect(wrapper.text()).toContain('No identity yet to resolve')
+		expect(wrapper.text()).toContain('Relays carry a local repository')
+		expect(wrapper.text()).toContain('bsky.network has not synchronized alice.social.example yet')
+		expect(wrapper.text()).toContain('Public DID resolution')
+		expect(wrapper.text()).toContain('Bluesky can find a local profile')
+		expect(wrapper.text()).toContain('Bluesky can find a local post')
 		expect(wrapper.text()).toContain('Keys open with the instance secret')
 		expect(wrapper.text()).toContain('3 keys cannot be opened with the current secret')
-		expect(wrapper.text()).toContain('the web server must proxy the WebSocket to the daemon')
+		expect(wrapper.text()).toContain('Firehose upgrade route responds')
+		expect(wrapper.text()).toContain('cannot prove the WebSocket upgrade reaches the daemon')
 	})
 
 	it('says so when nothing has been checked yet', () => {
@@ -127,6 +137,19 @@ describe('the Bluesky card', () => {
 		expect(text).toContain('9001')
 		expect(text).toContain('3 days')
 		expect(text).toContain('Running as pid 4242 for 2 hours, serving 2 subscribers')
+	})
+
+	it('shows the last automatic relay crawl and its per-relay result', () => {
+		const text = mountCard(admin({ status: { relay_crawl: {
+			attempted_at: Math.floor(Date.now() / 1000) - 120,
+			accepted_at: Math.floor(Date.now() / 1000) - 60,
+			results: { 'https://bsky.network': 'ok', 'https://relay.example': 'refused (400): host is private' },
+		} } })).text()
+
+		expect(text).toContain('Automatic relay crawl')
+		expect(text).toContain('A relay accepted a request 1 minute ago; last attempted 2 minutes ago')
+		expect(text).toContain('https://bsky.network')
+		expect(text).toContain('host is private')
 	})
 
 	it('counts the identities their owners switched off apart', () => {

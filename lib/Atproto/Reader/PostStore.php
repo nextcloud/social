@@ -13,6 +13,8 @@ use OCA\Social\AP;
 use OCA\Social\Atproto\AppView\AppViewClient;
 use OCA\Social\Atproto\Moderation\Blocklist;
 use OCA\Social\Atproto\Moderation\LabelerService;
+use OCA\Social\Atproto\Move\PdsClient;
+use OCA\Social\Atproto\Protocol\Syntax;
 use OCA\Social\Atproto\Publisher\InteractionPublisher;
 use OCA\Social\Db\StreamCardsRequest;
 use OCA\Social\Db\StreamRequest;
@@ -20,6 +22,7 @@ use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Details;
 use OCA\Social\Model\StreamCard;
+use OCA\Social\Service\Counts\CountWriter;
 use OCA\Social\Service\ImportService;
 use OCA\Social\Service\SignatureService;
 use OCP\AppFramework\Utility\ITimeFactory;
@@ -47,6 +50,8 @@ class PostStore {
 		private ITimeFactory $time,
 		private LoggerInterface $logger,
 		private StreamCardsRequest $cards,
+		private CountWriter $countWriter,
+		private ?PdsClient $pds = null,
 	) {
 	}
 
@@ -56,9 +61,9 @@ class PostStore {
 	 * @param array $item an `app.bsky.feed.defs#feedViewPost`
 	 * @return int how many new rows that made
 	 */
-	public function storeFeedItem(array $item): int {
+	public function storeFeedItem(array $item, bool $fetchParent = true): int {
 		$post = is_array($item['post'] ?? null) ? $item['post'] : [];
-		$stored = $this->storePost($post) ? 1 : 0;
+		$stored = $this->storePost($post, $fetchParent) ? 1 : 0;
 		$announce = $this->mapper->announce($item);
 		if ($announce === null) {
 			return $stored;
@@ -87,11 +92,39 @@ class PostStore {
 	 */
 	public function storePost(array $post, bool $fetchParent = true): bool {
 		$create = $this->mapper->create($post);
-		if ($create === null || $this->isKnown($create['object']['id'])) {
+		if ($create === null) {
+			return false;
+		}
+		$id = (string)$create['object']['id'];
+		$known = $this->knownPost($id);
+		if ($known !== null) {
+			// Feed views already carry the latest AppView counters. Keep those
+			// current as the timeline is read, instead of waiting for a separate
+			// count refresh request or for somebody to open the thread.
+			$this->refreshKnownPostCountsFromView($post, $known);
+			// AppView can index the post before its PDS has exposed the full
+			// embed view. The first import then has the text and counters but no
+			// usable attachment URL. A later profile/thread/feed response carries
+			// the same record again; let that fill the missing media once the PDS
+			// endpoint is known, without rewriting the post or fetching on every
+			// subsequent read.
+			$this->refreshMissingAttachments($post, $id);
+
 			return false;
 		}
 		if (!$this->ensureActor(is_array($post['author'] ?? null) ? $post['author'] : [])) {
 			return false;
+		}
+		$recordEmbed = $post['record']['embed'] ?? null;
+		if (PostMapper::hasGenericBlobs($recordEmbed) && !PostMapper::isLoggedInOnly($post)) {
+			$did = (string)($post['author']['did'] ?? '');
+			$pds = $this->pdsOf($did);
+			if ($pds !== '') {
+				$create = $this->mapper->create($post, $pds);
+				if ($create === null) {
+					return false;
+				}
+			}
 		}
 		$parent = (string)($create['object']['inReplyTo'] ?? '');
 		if ($fetchParent && BlueskyIds::isPostId($parent) && !$this->isKnown($parent)) {
@@ -101,6 +134,131 @@ class PostStore {
 		}
 
 		return $this->process($create);
+	}
+
+	/**
+	 * Completes a previously imported Bluesky post whose embed was missing
+	 * when the AppView first indexed it. Only an empty attachment list is
+	 * eligible: a later partial view must never replace media already stored.
+	 */
+	private function refreshMissingAttachments(array $post, string $id): void {
+		$recordEmbed = $post['record']['embed'] ?? null;
+		if (!PostMapper::hasGenericBlobs($recordEmbed) || PostMapper::isLoggedInOnly($post)) {
+			return;
+		}
+
+		$did = (string)($post['author']['did'] ?? '');
+		if (!Syntax::isDid($did)) {
+			return;
+		}
+		try {
+			$stored = $this->streams->getStreamById($id);
+		} catch (StreamNotFoundException) {
+			return;
+		}
+		if ($stored->isLocal()
+			|| $stored->getAttributedTo() !== BlueskyIds::actorId($did)
+			|| $stored->getAttachments() !== []) {
+			return;
+		}
+
+		$pds = $this->pdsOf($did);
+		if ($pds === '') {
+			return;
+		}
+		$create = $this->mapper->create($post, $pds);
+		if ($create === null || !is_array($create['object']['attachment'] ?? null) || $create['object']['attachment'] === []) {
+			return;
+		}
+		$streamedBlobs = is_array($create['object']['_atproto']['streamed_blobs'] ?? null)
+			? $create['object']['_atproto']['streamed_blobs'] : [];
+		try {
+			$activity = AP::instance()->getItemFromData($create, atprotoStreamedBlobs: $streamedBlobs);
+			$object = $activity->getObject();
+			if (!$object instanceof Stream || $object->getAttachments() === []) {
+				return;
+			}
+			$attachments = (string)json_encode($object->getAttachments(), JSON_UNESCAPED_SLASHES);
+			$this->streams->setRecoveredRemoteAttachments($id, $attachments, $stored->getSubType());
+		} catch (Throwable $e) {
+			// Media enrichment must not turn a readable post into a failed feed or
+			// thread refresh; a later AppView response can try it again.
+			$this->logger->debug('Bluesky post media not enriched', ['id' => $id, 'exception' => $e]);
+		}
+	}
+
+	/** The PDS endpoint saved on this actor, resolving and caching it once if needed. */
+	private function pdsOf(string $did): string {
+		$actor = $this->actors->cached($did);
+		$details = $actor?->getDetails(Details::ATPROTO);
+		$pds = is_array($details) ? (string)($details['pds'] ?? '') : '';
+		if ($pds !== '' || $actor === null) {
+			return $pds;
+		}
+
+		$pds = $this->actors->pdsEndpoint($did);
+		if ($pds !== '') {
+			$actor->setDetailArray(Details::ATPROTO, array_merge(is_array($details) ? $details : [], ['pds' => $pds]));
+			try {
+				$this->actors->store($actor);
+			} catch (Throwable $e) {
+				$this->logger->debug('Bluesky PDS endpoint not cached on actor', ['exception' => $e, 'did' => $did]);
+			}
+		}
+
+		return $pds;
+	}
+
+	/**
+	 * A thread response is a fresh AppView view even when its post was already
+	 * imported from a feed. Refresh the remote counters in place instead of
+	 * treating the known row as if the view had nothing new to say.
+	 *
+	 * @param array $post an `app.bsky.feed.defs#postView`
+	 * @return bool whether the current view contained counts that were stored
+	 */
+	public function refreshKnownPostCountsFromView(array $post, ?Stream $known = null): bool {
+		$id = BlueskyIds::postIdOfUri((string)($post['uri'] ?? ''));
+		if ($id === '') {
+			return false;
+		}
+		$known ??= $this->knownPost($id);
+		if ($known === null || $known->getId() !== $id || $known->isLocal()) {
+			// Own posts use BlueskyPublishedCountSource: it subtracts only the
+			// local interactions which were actually published to Bluesky.
+			return false;
+		}
+
+		$likes = BlueskyCountSource::count($post, 'likeCount');
+		$reposts = BlueskyCountSource::count($post, 'repostCount');
+		$replies = BlueskyCountSource::count($post, 'replyCount');
+		$quotes = BlueskyCountSource::count($post, 'quoteCount');
+		$counts = array_filter([
+			'likes' => $likes,
+			'reposts' => $reposts,
+			'replies' => $replies,
+			'quotes' => $quotes,
+		], static fn (?int $count): bool => $count !== null);
+		if ($counts === []) {
+			return false;
+		}
+
+		return $this->countWriter->write(
+			$id,
+			$likes,
+			$reposts,
+			$replies,
+			[PostMapper::DETAIL => $counts],
+			$quotes,
+		);
+	}
+
+	private function knownPost(string $id): ?Stream {
+		try {
+			return $this->streams->getStreamById($id);
+		} catch (StreamNotFoundException) {
+			return null;
+		}
 	}
 
 	/**
@@ -129,20 +287,22 @@ class PostStore {
 	 * deleted here the way a remote `Delete` would.
 	 *
 	 * @param string[] $postIds stored ids, at most 25 (one `getPosts`)
-	 * @return int how many were deleted
+	 * @return int|null how many were deleted, or null when the AppView did not answer completely
 	 */
-	public function deleteGone(array $postIds): int {
-		return $this->postViews($postIds)['deleted'] ?? 0;
+	public function deleteGone(array $postIds): ?int {
+		return $this->postViews($postIds, confirmMissing: true)['deleted'] ?? null;
 	}
 
 	/**
-	 * The AppView's views of these stored Bluesky posts, by id, with the
-	 * ones it no longer has deleted as `deleteGone()` deletes them.
+	 * The AppView's views of these stored Bluesky posts, by id. A post is
+	 * deleted here only when the AppView explicitly marks it not found; an
+	 * incomplete response is not evidence that any post was deleted.
 	 *
 	 * @param string[] $postIds stored ids, at most 25 (one `getPosts`); others are ignored
-	 * @return array{posts: array<string, array>, deleted: int}|null null when the AppView did not answer
+	 * @param bool $confirmMissing ask the author's PDS about posts omitted from a complete AppView response; only for the background deletion sweep
+	 * @return array{posts: array<string, array>, deleted: int}|null null when the AppView or required PDS answer was incomplete
 	 */
-	public function postViews(array $postIds): ?array {
+	public function postViews(array $postIds, ?int $timeout = null, bool $confirmMissing = false): ?array {
 		$uris = [];
 		foreach (array_slice($postIds, 0, 25) as $id) {
 			$parsed = BlueskyIds::parsePostId($id);
@@ -154,7 +314,11 @@ class PostStore {
 			return ['posts' => [], 'deleted' => 0];
 		}
 		try {
-			$answer = $this->appView->query('app.bsky.feed.getPosts', ['uris' => array_values($uris)], ['atproto-accept-labelers' => $this->labelers->acceptHeader()]);
+			$params = ['uris' => array_values($uris)];
+			$headers = ['atproto-accept-labelers' => $this->labelers->acceptHeader()];
+			$answer = $timeout === null
+				? $this->appView->query('app.bsky.feed.getPosts', $params, $headers)
+				: $this->appView->query('app.bsky.feed.getPosts', $params, $headers, $timeout);
 		} catch (Throwable $e) {
 			// nothing is concluded from an AppView that did not answer
 			$this->logger->notice('Bluesky posts not checked', ['exception' => $e]);
@@ -164,23 +328,86 @@ class PostStore {
 		if (!is_array($answer['posts'] ?? null)) {
 			return null;
 		}
-		$present = [];
+		$requested = array_fill_keys(array_values($uris), true);
+		$views = [];
 		foreach ($answer['posts'] as $post) {
-			if (is_array($post) && is_string($post['uri'] ?? null)) {
-				$present[$post['uri']] = $post;
+			$uri = is_array($post) ? ($post['uri'] ?? null) : null;
+			if (!is_string($uri) || !isset($requested[$uri]) || isset($views[$uri])
+				|| (array_key_exists('notFound', $post) && $post['notFound'] !== true)) {
+				$this->logger->notice('Bluesky posts returned an invalid getPosts response');
+
+				return null;
 			}
+			$views[$uri] = $post;
 		}
 		$posts = [];
 		$deleted = 0;
 		foreach ($uris as $id => $uri) {
-			if (isset($present[$uri])) {
-				$posts[$id] = $present[$uri];
-			} elseif ($this->delete($id)) {
+			$view = $views[$uri] ?? null;
+			if (is_array($view) && ($view['notFound'] ?? false) === true) {
+				if ($this->delete($id)) {
+					$deleted++;
+				}
+				continue;
+			}
+			if (is_array($view)) {
+				$posts[$id] = $views[$uri];
+				continue;
+			}
+			if (!$confirmMissing) {
+				$this->logger->notice('Bluesky getPosts omitted a requested post', ['post' => $id]);
+
+				return null;
+			}
+
+			// getPosts omits unavailable records on some AppViews; the official
+			// response schema does not promise a notFound item. Confirm absence
+			// against the author's PDS before deleting a stored post. An
+			// unreachable PDS leaves the page retryable instead of guessing.
+			$parsed = BlueskyIds::parsePostId($id);
+			$exists = $parsed === null ? null : $this->postExistsAtPds($parsed);
+			if ($exists === null) {
+				$this->logger->notice('Bluesky post absence could not be confirmed at its PDS', ['post' => $id]);
+
+				return null;
+			}
+			if (!$exists && $this->delete($id)) {
 				$deleted++;
 			}
 		}
 
 		return ['posts' => $posts, 'deleted' => $deleted];
+	}
+
+	/** @param array{did: string, rkey: string} $post */
+	private function postExistsAtPds(array $post): ?bool {
+		if ($this->pds === null) {
+			return null;
+		}
+		$endpoint = $this->actors->pdsEndpoint($post['did']);
+		if ($endpoint === '') {
+			return null;
+		}
+		try {
+			$answer = $this->pds->call($this->pds->origin($endpoint), 'com.atproto.repo.getRecord', 'GET', [
+				'repo' => $post['did'],
+				'collection' => BlueskyIds::POST,
+				'rkey' => $post['rkey'],
+			]);
+		} catch (Throwable $e) {
+			$this->logger->notice('Bluesky post record not checked at its PDS', ['did' => $post['did'], 'exception' => $e]);
+
+			return null;
+		}
+
+		if ($answer['status'] >= 200 && $answer['status'] < 300 && is_array($answer['body']['value'] ?? null)) {
+			return true;
+		}
+		if (in_array($answer['status'], [400, 404], true) && ($answer['body']['error'] ?? '') === 'RecordNotFound') {
+			return false;
+		}
+
+		return null;
 	}
 
 	/**
@@ -278,13 +505,16 @@ class PostStore {
 	private function process(array $data): bool {
 		$details = $data['object']['_atproto'] ?? null;
 		$card = null;
+		$streamedBlobs = [];
 		if (is_array($details)) {
 			unset($data['object']['_atproto']);
 			$card = is_array($details['card'] ?? null) ? $details['card'] : null;
+			$streamedBlobs = is_array($details['streamed_blobs'] ?? null) ? $details['streamed_blobs'] : [];
 			unset($details['card']);
+			unset($details['streamed_blobs']);
 		}
 		try {
-			$activity = AP::instance()->getItemFromData($data);
+			$activity = AP::instance()->getItemFromData($data, atprotoStreamedBlobs: $streamedBlobs);
 			$activity->setOrigin(BlueskyIds::HOST, SignatureService::ORIGIN_REQUEST, $this->time->getTime());
 			if (is_array($details) && $activity->hasObject()) {
 				$object = $activity->getObject();

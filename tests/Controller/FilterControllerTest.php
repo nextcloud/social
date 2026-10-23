@@ -23,6 +23,7 @@ use OCA\Social\Service\AiContentService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CountsService;
+use OCA\Social\Service\FeedDisplayService;
 use OCA\Social\Service\TimelineRevisionService;
 use OCP\AppFramework\Http;
 use OCP\IRequest;
@@ -60,10 +61,13 @@ class FilterControllerTest extends TestCase {
 	private TimelineRevisionService|Stub $timelineRevisionService;
 	private AiContentService $aiContentService;
 	private CountsService $countsService;
+	private FeedDisplayService $feedDisplayService;
 	/** @var array<string, string> user id => the stored `show_counts` */
 	private array $showCounts = [];
 	/** @var array<string, bool> user id => the AI switch as stored */
 	private array $hidesAi = [];
+	/** @var array<string, bool> user id => hide replies */
+	private array $hidesReplies = [];
 	private IUserSession|Stub $userSession;
 
 	/** @var array<string, string> the request headers the controller will see */
@@ -137,6 +141,12 @@ class FilterControllerTest extends TestCase {
 				$this->showCounts[$userId] = $value;
 			});
 		$this->countsService = new CountsService($countsConfig);
+		$feedConfig = $this->createStub(ConfigService::class);
+		$feedConfig->method('getUserValue')->willReturnCallback(fn (string $key, string $userId = ''): string => ($this->hidesReplies[$userId] ?? false) ? '1' : '');
+		$feedConfig->method('setValueForUser')->willReturnCallback(function (string $userId, string $key, string $value): void {
+			$this->hidesReplies[$userId] = $value === '1';
+		});
+		$this->feedDisplayService = new FeedDisplayService($feedConfig);
 	}
 
 	private function stubStore(): void {
@@ -374,6 +384,7 @@ class FilterControllerTest extends TestCase {
 			$this->timelineRevisionService,
 			$this->aiContentService,
 			$this->countsService,
+			$this->feedDisplayService,
 		);
 	}
 
@@ -987,6 +998,27 @@ class FilterControllerTest extends TestCase {
 		foreach ([$this->controller()->counts(), $this->controller()->countsUpdate('false')] as $response) {
 			$this->assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
 		}
+	}
+
+	public function testRepliesAreShownAsCardsUntilTheReaderTurnsTheSwitchOn(): void {
+		$this->assertSame(Http::STATUS_OK, $this->controller()->feedPreferences()->getStatus());
+		$this->assertSame(['hide_replies' => false], $this->controller()->feedPreferences()->getData());
+
+		$response = $this->controller()->feedPreferencesUpdate('true');
+		$this->assertSame(['hide_replies' => true], $response->getData());
+		$this->assertTrue($this->hidesReplies['alice']);
+		$this->assertSame(['hide_replies' => true], $this->controller()->feedPreferences()->getData());
+	}
+
+	public function testReplyCardSwitchRequiresAnUnambiguousBooleanAndAViewer(): void {
+		foreach ([null, '', 'maybe', 2] as $raw) {
+			$this->assertSame(Http::STATUS_UNPROCESSABLE_ENTITY, $this->controller()->feedPreferencesUpdate($raw)->getStatus());
+		}
+		$this->assertSame([], $this->hidesReplies);
+
+		$this->csrf = false;
+		$this->assertSame(Http::STATUS_UNAUTHORIZED, $this->controller()->feedPreferences()->getStatus());
+		$this->assertSame(Http::STATUS_UNAUTHORIZED, $this->controller()->feedPreferencesUpdate(true)->getStatus());
 	}
 
 	// the switch for posts made with AI

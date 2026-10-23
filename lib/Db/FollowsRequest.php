@@ -729,6 +729,23 @@ class FollowsRequest extends FollowsRequestBuilder {
 		return $prims;
 	}
 
+	public function followsCollection(string $actorId, string $collectionPrim): bool {
+		$qb = $this->getQueryBuilder();
+		$qb->select('f.id_prim')
+			->from(self::TABLE_FOLLOWS, 'f')
+			->where($qb->expr()->eq('f.actor_id_prim', $qb->createNamedParameter($qb->prim($actorId))))
+			->andWhere($qb->expr()->eq('f.follow_id_prim', $qb->createNamedParameter($collectionPrim)))
+			->andWhere($qb->expr()->eq('f.accepted', $qb->createNamedParameter('1')))
+			->andWhere($qb->expr()->eq('f.type', $qb->createNamedParameter(Follow::TYPE)))
+			->setMaxResults(1);
+
+		$cursor = $qb->executeQuery();
+		$row = $cursor->fetch();
+		$cursor->closeCursor();
+
+		return $row !== false;
+	}
+
 	/**
 	 * How many followed collections a query will name one by one.
 	 *

@@ -6,7 +6,7 @@ SPDX-PackageSupplier = "Nextcloud <https://nextcloud.com/contact/>"
 SPDX-PackageDownloadLocation = "https://github.com/alohasocial/social"
 
 [[annotations]]
-path = ["package-lock.json", "package.json", "composer.json", "composer.lock", "jsconfig.json", "jsconfig.vue.json", ".tx/config", "tests/Interop/atproto/package.json"]
+path = ["package-lock.json", "package.json", "composer.json", "composer.lock", "jsconfig.json", "jsconfig.vue.json", ".tx/config", "tests/Interop/atproto/package.json", "tests/Interop/atproto/package-lock.json"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "none"
 SPDX-License-Identifier = "CC0-1.0"
@@ -101,6 +101,13 @@ SPDX-License-Identifier = "AGPL-3.0-or-later"
 path = "tests/perf/benchmark-baseline.json"
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 Nextcloud GmbH and Nextcloud contributors"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
+
+[[annotations]]
+# Synthetic, deterministic inputs for the recommendation evaluation harness.
+path = "tools/recommendations/fixtures/synthetic-v1.json"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Aloha Social contributors"
 SPDX-License-Identifier = "AGPL-3.0-or-later"
 
 # the schemas the migration history produced, which carry no comment syntax

@@ -70,7 +70,7 @@ const TimelineEntryStub = {
 	props: ['item', 'type', 'depth', 'unread', 'immediate'],
 	// carries the real component's class and tabindex, because the list finds
 	// entries by that class and sends focus to them
-	template: '<li class="timeline-entry timeline-entry-stub" tabindex="-1" :data-id="item.id" :data-depth="depth" :data-unread="unread ? \'yes\' : \'no\'" />',
+	template: '<li class="timeline-entry timeline-entry-stub" tabindex="-1" :data-id="item.id" :data-status-id="item.id" :data-depth="depth" :data-unread="unread ? \'yes\' : \'no\'" />',
 }
 const entryDepths = (wrapper) => wrapper.findAll('.timeline-entry-stub').map((entry) => [entry.attributes('data-id'), Number(entry.attributes('data-depth'))])
 
@@ -153,6 +153,38 @@ describe('TimelineList', () => {
 	afterEach(() => {
 		vi.useRealTimers()
 		vi.unstubAllGlobals()
+	})
+
+	it('refreshes visible remote counts on entry and throttles repeated checks', async () => {
+		const post = { ...status('bsky'), uri: 'at://did:plc:alice/app.bsky.feed.post/1' }
+		const { wrapper, store } = mountList({ timeline: [post] })
+		await flushPromises()
+		const entry = wrapper.find('.timeline-entry-stub').element
+		vi.spyOn(entry, 'getBoundingClientRect').mockReturnValue({ top: 10, bottom: 200 })
+		wrapper.vm.countRefreshLastAsked.clear()
+		const refresh = vi.spyOn(store, 'fetchStatus').mockResolvedValue(post)
+
+		wrapper.vm.refreshVisiblePostCounts()
+		wrapper.vm.refreshVisiblePostCounts()
+
+		expect(refresh).toHaveBeenCalledTimes(1)
+		expect(refresh).toHaveBeenCalledWith('bsky', true)
+		wrapper.unmount()
+	})
+
+	it('refreshes visible Fediverse counts too', async () => {
+		const post = { ...status('fediverse'), uri: 'https://remote.example/notes/1' }
+		const { wrapper, store } = mountList({ timeline: [post] })
+		await flushPromises()
+		const entry = wrapper.find('.timeline-entry-stub').element
+		vi.spyOn(entry, 'getBoundingClientRect').mockReturnValue({ top: 10, bottom: 200 })
+		wrapper.vm.countRefreshLastAsked.clear()
+		const refresh = vi.spyOn(store, 'fetchStatus').mockResolvedValue(post)
+
+		wrapper.vm.refreshVisiblePostCounts()
+
+		expect(refresh).toHaveBeenCalledWith('fediverse', true)
+		wrapper.unmount()
 	})
 
 	describe('the Videos page', () => {
@@ -1803,6 +1835,21 @@ describe('TimelineList', () => {
 			await nextTick()
 
 			expect(wrapper.find('.timeline-list--settling').exists()).toBe(false)
+		})
+
+		it('keeps paging enabled for an empty page while a remote profile refill is pending', async () => {
+			const { wrapper, store } = mountList({ timeline: [], responses: [[]] })
+			await flushPromises()
+			expect(wrapper.vm.allLoaded).toBe(true)
+
+			store.timelinePageEmpty = true
+			store.timelinePageFilling = true
+			await nextTick()
+			expect(wrapper.vm.allLoaded).toBe(false)
+
+			store.timelinePageFilling = false
+			await nextTick()
+			expect(wrapper.vm.allLoaded).toBe(true)
 		})
 
 		it('does not rewrite the shared empty-content entry for a public profile', async () => {

@@ -10,6 +10,8 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Controller;
 
 use OCA\Social\AP;
+use OCA\Social\Atproto\Reader\BlueskyFeeds;
+use OCA\Social\Atproto\Reader\BlueskyIds;
 use OCA\Social\Controller\ApiController;
 use OCA\Social\Controller\MastodonApiController;
 use OCA\Social\Db\CacheDocumentsRequest;
@@ -26,6 +28,7 @@ use OCA\Social\Exceptions\TranslationUnavailableException;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
@@ -60,6 +63,7 @@ use OCA\Social\Service\DeliveryService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\EmojiService;
 use OCA\Social\Service\FediverseService;
+use OCA\Social\Service\FeedDisplayService;
 use OCA\Social\Service\FileCommentsService;
 use OCA\Social\Service\FilterService;
 use OCA\Social\Service\FollowService;
@@ -87,6 +91,7 @@ use OCA\Social\Service\StreamService;
 use OCA\Social\Service\TeamService;
 use OCA\Social\Service\TimelineRevisionService;
 use OCA\Social\Service\TranslationService;
+use OCA\Social\Service\VapidService;
 use OCA\Social\Service\ViewCountService;
 use OCA\Social\Tests\Helper\ApiControllerRouter;
 use OCA\Social\Tests\Mock\TCacheActorServiceMock;
@@ -183,12 +188,15 @@ class ApiControllerTest extends TestCase {
 	private \OCA\Social\Service\NotificationDeliveryService|Stub $notificationDeliveryService;
 	private \OCA\Social\Service\AiContentService|Stub $aiContentService;
 	private \OCA\Social\Service\CountsService|Stub $countsService;
+	private FeedDisplayService|Stub $feedDisplayService;
 	private \OCA\Social\Service\RemoteFetchQueue|MockObject $remoteFetchQueue;
 	private \OCA\Social\Service\FollowList\FollowListService|MockObject $followLists;
+	private BlueskyFeeds|MockObject $blueskyFeeds;
 	private \OCA\Social\Service\Counts\CountService|MockObject $counts;
 	/** what the AI switch stub answers for the viewer */
 	private bool $hidesAi = false;
 	private bool $hidesCounts = true;
+	private bool $hidesRepliesInFeeds = false;
 	/** @var array<string, mixed> what the delivery service answers for the viewer */
 	private array $delivery = [];
 	private ViewCountService|Stub $viewCountService;
@@ -212,6 +220,7 @@ class ApiControllerTest extends TestCase {
 	private TimelineRevisionService|Stub $timelineRevisionService;
 	private IAppManager|Stub $appManager;
 	private FediverseService|Stub $fediverseService;
+	private VapidService|Stub $vapidService;
 
 	/** How this instance reads its access list, and what is on it. */
 	private string $accessType = 'all_but';
@@ -333,10 +342,15 @@ class ApiControllerTest extends TestCase {
 		$this->aiContentService = $this->createStub(\OCA\Social\Service\AiContentService::class);
 		$this->aiContentService->method('hides')->willReturnCallback(fn (string $userId): bool => $this->hidesAi);
 		$this->remoteFetchQueue = $this->createMock(\OCA\Social\Service\RemoteFetchQueue::class);
+		$this->blueskyFeeds = $this->createMock(BlueskyFeeds::class);
+		$this->vapidService = $this->createStub(VapidService::class);
+		$this->vapidService->method('publicKey')->willReturn('instance-vapid-key');
 		$this->followLists = $this->createMock(\OCA\Social\Service\FollowList\FollowListService::class);
 		$this->counts = $this->createMock(\OCA\Social\Service\Counts\CountService::class);
 		$this->countsService = $this->createStub(\OCA\Social\Service\CountsService::class);
 		$this->countsService->method('hides')->willReturnCallback(fn (string $userId): bool => $this->hidesCounts);
+		$this->feedDisplayService = $this->createStub(FeedDisplayService::class);
+		$this->feedDisplayService->method('hidesReplies')->willReturnCallback(fn (string $userId): bool => $this->hidesRepliesInFeeds);
 		$this->sensitiveMediaService = $this->createStub(\OCA\Social\Service\SensitiveMediaService::class);
 		// the three states PeerTube's NSFW policies map onto; `default` is
 		// what an instance that has not chosen does
@@ -468,13 +482,16 @@ class ApiControllerTest extends TestCase {
 			'notificationDeliveryService' => $this->notificationDeliveryService,
 			'aiContentService' => $this->aiContentService,
 			'countsService' => $this->countsService,
+			'feedDisplayService' => $this->feedDisplayService,
 			'remoteFetchQueue' => $this->remoteFetchQueue,
 			'followLists' => $this->followLists,
+			'blueskyFeeds' => $this->blueskyFeeds,
 			'viewCountService' => $this->viewCountService,
 			'teamService' => $this->teamService,
 			'emojiService' => $this->emojiService,
 			'appManager' => $this->appManager,
 			'fediverseService' => $this->fediverseService,
+			'vapidService' => $this->vapidService,
 			'placeService' => $this->placeService,
 			'deliveryService' => $this->deliveryService,
 			'reactionService' => $this->reactionService,
@@ -670,7 +687,7 @@ class ApiControllerTest extends TestCase {
 			[
 				'name' => 'Aloha Social',
 				'website' => 'https://github.com/alohasocial/social/',
-				'vapid_key' => '',
+				'vapid_key' => 'instance-vapid-key',
 			],
 			$response->getData()
 		);
@@ -698,7 +715,7 @@ class ApiControllerTest extends TestCase {
 				'website' => 'https://tusky.app',
 				'scopes' => ['read', 'write'],
 				'redirect_uris' => ['tusky://oauth'],
-				'vapid_key' => '',
+				'vapid_key' => 'instance-vapid-key',
 			],
 			$response->getData()
 		);
@@ -1429,6 +1446,35 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame(ACore::FORMAT_LOCAL, $probe->getFormat());
 	}
 
+	public function testHomeTimelineCanHideReplyCardsAndStillPagesFromTheUnfilteredPage(): void {
+		$this->loggedInAs();
+		$this->hidesRepliesInFeeds = true;
+		$this->requestUri('/api/v1/timelines/home?limit=2');
+		$reply = $this->createStub(Stream::class);
+		$reply->method('getNid')->willReturn(42);
+		$reply->method('getInReplyTo')->willReturn('https://cloud.example/apps/social/@alice/41');
+		$standalone = $this->createStub(Stream::class);
+		$standalone->method('getNid')->willReturn(41);
+		$standalone->method('getInReplyTo')->willReturn('');
+		$this->timelineRows = 2;
+		$this->captureTimelineOptions([$reply, $standalone]);
+
+		$response = $this->controller()->timelines('home', false, 2);
+
+		$this->assertSame([$standalone], $response->getData());
+		$this->assertStringContainsString('max_id=41>; rel="next"', $response->getHeaders()['Link'] ?? '');
+	}
+
+	public function testTimelineKeepsItsFillingHeaderWhileCountsArePending(): void {
+		$this->loggedInAs();
+		$this->captureTimelineOptions(['post']);
+		$this->streamService->method('lastTimelineCountsFilling')->willReturn(true);
+
+		$response = $this->controller()->timelines('home');
+
+		$this->assertSame('1', $response->getHeaders()['X-Social-Filling'] ?? null);
+	}
+
 	/** @return iterable<string, array{string}> */
 	public static function unsupportedTimelines(): iterable {
 		yield 'trending' => ['trending'];
@@ -1488,6 +1534,46 @@ class ApiControllerTest extends TestCase {
 
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
 		$this->assertSame('1', $response->getHeaders()['X-Social-Filling'] ?? null, 'the client reads it again a little later');
+	}
+
+	public function testOpeningAStatusCanForceACurrentCountRead(): void {
+		$this->userSession->method('getUser')->willReturn(null);
+		$item = $this->createMock(Stream::class);
+		$this->streamService->method('getStreamByNid')->willReturn($item);
+		$this->counts->expects($this->once())->method('refreshVisibleIfDue')->with($item, true)->willReturn(true);
+
+		$response = $this->controller()->statusGet(42, true, true);
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+	}
+
+	public function testACompletedLiveCountReadDoesNotAskTheClientToPollAgain(): void {
+		$this->userSession->method('getUser')->willReturn(null);
+		$item = $this->createMock(Stream::class);
+		$this->streamService->method('getStreamByNid')->willReturn($item);
+		$this->counts->expects($this->once())->method('refreshVisibleIfDue')->with($item, true)->willReturn(true);
+		$this->counts->expects($this->once())->method('visibleRefreshPending')->with($this->anything())->willReturn(false);
+		$this->counts->expects($this->never())->method('seen');
+
+		$response = $this->controller()->statusGet(42, true, true);
+
+		$this->assertArrayNotHasKey('X-Social-Filling', $response->getHeaders());
+	}
+
+	public function testABoostedPostPollsWhileTheOriginalPostRefreshIsPending(): void {
+		$this->userSession->method('getUser')->willReturn(null);
+		$original = $this->createMock(Stream::class);
+		$original->method('getId')->willReturn('original-post-id');
+		$item = $this->createMock(Stream::class);
+		$item->method('getType')->willReturn(Announce::TYPE);
+		$item->method('getObject')->willReturn($original);
+		$this->streamService->method('getStreamByNid')->willReturn($item);
+		$this->counts->expects($this->once())->method('refreshVisibleIfDue')->with($item, true)->willReturn(true);
+		$this->counts->expects($this->once())->method('visibleRefreshPending')->with('original-post-id')->willReturn(true);
+
+		$response = $this->controller()->statusGet(42, true, true);
+
+		$this->assertSame('1', $response->getHeaders()['X-Social-Filling'] ?? null);
 	}
 
 	public function testAStatusWhoseCountsAreCurrentSaysNothingIsOnItsWay(): void {
@@ -3512,9 +3598,48 @@ class ApiControllerTest extends TestCase {
 		$this->cacheActorService->method('getFromAccount')->with('bob@remote.example')->willReturn($actor);
 		$this->streamService->expects($this->never())->method('syncRemoteTimeline');
 		$this->remoteFetchQueue->expects($this->once())->method('syncTimeline')->with($actor);
+		$this->remoteFetchQueue->expects($this->once())->method('isTimelinePending')->with($actor->getId())->willReturn(true);
 		$this->captureTimelineOptions(['p']);
 
-		$this->assertSame(['p'], $this->controller()->accountStatuses('bob@remote.example')->getData());
+		$response = $this->controller()->accountStatuses('bob@remote.example');
+
+		$this->assertSame(['p'], $response->getData());
+		$this->assertSame('1', $response->getHeaders()['X-Social-Filling'] ?? null);
+		$this->assertSame('1', $response->getHeaders()['X-Social-Profile-Filling'] ?? null);
+	}
+
+	public function testBlueskyProfileStatusesFetchEveryPageThroughTheAuthorFeed(): void {
+		$actor = $this->createStub(Person::class);
+		$actor->method('getId')->willReturn(BlueskyIds::actorId('did:plc:z72i7hdynmk6r22z27h6tvur'));
+		$this->cacheActorService->method('getFromAccount')->willReturn($actor);
+		$this->remoteFetchQueue->expects($this->never())->method('syncTimeline');
+		$this->blueskyFeeds->expects($this->once())
+			->method('authorPage')
+			->with($actor, '123456', 15, null)
+			->willReturn(true);
+		$this->captureTimelineOptions(['post']);
+
+		$response = $this->controller()->accountStatuses('bob.bsky.social', 15, '123456');
+
+		$this->assertSame(['post'], $response->getData());
+		$this->assertSame('1', $response->getHeaders()['X-Social-Filling'] ?? null);
+		$this->assertSame('1', $response->getHeaders()['X-Social-Profile-Filling'] ?? null);
+	}
+
+	public function testBlueskyProfileMediaTabsKeepTheirFilterWhileLoadingAuthorPages(): void {
+		$actor = $this->createStub(Person::class);
+		$actor->method('getId')->willReturn(BlueskyIds::actorId('did:plc:z72i7hdynmk6r22z27h6tvur'));
+		$this->cacheActorService->method('getFromAccount')->willReturn($actor);
+		$this->blueskyFeeds->expects($this->once())
+			->method('authorPage')
+			->with($actor, '', 20, null);
+		$options = $this->captureTimelineOptions(['video']);
+
+		$response = $this->controller()->accountStatuses('bob.bsky.social', 20, 0, 0, 0, false, true, 'video');
+
+		$this->assertSame(['video'], $response->getData());
+		$this->assertTrue($options()->isOnlyMedia());
+		$this->assertSame('video', $options()->getMediaType());
 	}
 
 	/** Scrolling down a profile is reading what is stored, not a reason to sync again. */
@@ -3530,6 +3655,21 @@ class ApiControllerTest extends TestCase {
 		$this->controller()->accountStatuses('bob@remote.example', 20, 40);
 		$this->controller()->accountStatuses('bob@remote.example', 20, 0, 10);
 		$this->controller()->accountStatuses('bob@remote.example', 20, 0, 0, '20');
+	}
+
+	public function testAnExhaustedRemoteProfilePageQueuesItsNextOutboxPage(): void {
+		$this->loggedInAs();
+		$actor = $this->createStub(Person::class);
+		$actor->method('getId')->willReturn('https://remote.example/users/bob');
+		$this->cacheActorService->method('getFromAccount')->willReturn($actor);
+		$this->remoteFetchQueue->expects($this->once())->method('fillTimeline')->with($actor)->willReturn(true);
+		$this->captureTimelineOptions([]);
+
+		$response = $this->controller()->accountStatuses('bob@remote.example', 20, 40);
+
+		$this->assertSame([], $response->getData());
+		$this->assertSame('1', $response->getHeaders()['X-Social-Filling'] ?? null);
+		$this->assertSame('1', $response->getHeaders()['X-Social-Profile-Filling'] ?? null);
 	}
 
 	public function testAccountStatusesProbesTheAccountTimeline(): void {
@@ -5842,18 +5982,21 @@ class ApiControllerTest extends TestCase {
 
 		$data = $this->controller()->oembed($post->getId())->getData();
 
-		$this->assertSame('link', $data['type']);
+		$this->assertSame('rich', $data['type']);
 		$this->assertSame('alice', $data['author_name']);
 		$this->assertSame($post->getId(), $data['url']);
+		$this->assertStringContainsString($post->getId() . '/embed', $data['html']);
 	}
 
-	/** Not `rich`: there is no embed page here, and framing the whole app is not one. */
-	public function testOembedIsNeverRich(): void {
+	/** Rich embeds frame the dedicated public post page, never the full app shell. */
+	public function testOembedProvidesTheDedicatedRichEmbed(): void {
 		$this->streamService->method('getStreamById')->willReturn($this->publicPost());
 		$this->cacheActorService->method('getFromId')->willReturn(new Person());
 		$this->instanceService->method('getLocal')->willReturn(new Instance());
 
-		$this->assertArrayNotHasKey('html', $this->controller()->oembed('https://cloud.example/x')->getData());
+		$data = $this->controller()->oembed('https://cloud.example/x')->getData();
+		$this->assertSame('rich', $data['type']);
+		$this->assertStringContainsString('/embed', $data['html']);
 	}
 
 	public function testOembedRefusesAPostThatIsNotPublic(): void {

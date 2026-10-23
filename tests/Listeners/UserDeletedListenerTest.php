@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Listeners;
 
 use OCA\Social\Db\ActorsRequest;
+use OCA\Social\Db\RecommendationPreferenceRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Listeners\UserDeletedListener;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -35,6 +36,7 @@ class UserDeletedListenerTest extends TestCase {
 	private AccountService|MockObject $accountService;
 	private IConfig|MockObject $config;
 	private LoggerInterface|MockObject $logger;
+	private RecommendationPreferenceRequest|MockObject $recommendationPreferences;
 	private UserDeletedListener $listener;
 
 	protected function setUp(): void {
@@ -42,9 +44,10 @@ class UserDeletedListenerTest extends TestCase {
 		$this->accountService = $this->createMock(AccountService::class);
 		$this->config = $this->createMock(IConfig::class);
 		$this->logger = $this->createMock(LoggerInterface::class);
+		$this->recommendationPreferences = $this->createMock(RecommendationPreferenceRequest::class);
 
 		$this->listener = new UserDeletedListener(
-			$this->actorsRequest, $this->accountService, $this->config, $this->logger
+			$this->actorsRequest, $this->accountService, $this->config, $this->logger, $this->recommendationPreferences
 		);
 	}
 
@@ -64,6 +67,7 @@ class UserDeletedListenerTest extends TestCase {
 	}
 
 	public function testDeletingAUserDeletesTheirSocialAccount(): void {
+		$this->recommendationPreferences->expects($this->once())->method('purge')->with('alice');
 		$this->actorsRequest->method('getFromUserId')->with('alice')
 			->willReturn($this->actor('alice'));
 
@@ -75,6 +79,7 @@ class UserDeletedListenerTest extends TestCase {
 	}
 
 	public function testTheActorsOwnHandleIsUsedRatherThanTheUserId(): void {
+		$this->recommendationPreferences->expects($this->once())->method('purge')->with('user-42');
 		// the two are not always the same, and deleteActor() takes the handle
 		$this->actorsRequest->method('getFromUserId')->with('user-42')
 			->willReturn($this->actor('alice'));
@@ -85,6 +90,7 @@ class UserDeletedListenerTest extends TestCase {
 	}
 
 	public function testAUserWhoNeverOpenedSocialIsNotAProblem(): void {
+		$this->recommendationPreferences->expects($this->once())->method('purge')->with('bob');
 		$this->actorsRequest->method('getFromUserId')
 			->willThrowException(new ActorDoesNotExistException());
 
@@ -95,6 +101,7 @@ class UserDeletedListenerTest extends TestCase {
 	}
 
 	public function testAccountDeletionAlsoPurgesTheSignupAcknowledgementRecord(): void {
+		$this->recommendationPreferences->expects($this->once())->method('purge')->with('alice');
 		$this->actorsRequest->method('getFromUserId')->willThrowException(new ActorDoesNotExistException());
 		$deleted = [];
 		$this->config->expects($this->exactly(3))->method('deleteUserValue')->willReturnCallback(

@@ -261,7 +261,7 @@ class CurlService {
 	 * @throws SocialAppConfigException
 	 * @throws UnauthorizedFediverseException
 	 */
-	public function retrieveObject(string $id, bool $acceptActivityJson = true): array {
+	public function retrieveObject(string $id, bool $acceptActivityJson = true, ?int $timeout = null): array {
 		$this->logger->debug('retrieveObject id=' . $id);
 
 		$parsed = parse_url($id);
@@ -278,9 +278,11 @@ class CurlService {
 		$status = 0;
 		$contentType = '';
 		try {
-			$result = $this->retrieveJson(
-				'get', $id, ['headers' => $headers + $signature], $status, $contentType
-			);
+			$options = ['headers' => $headers + $signature];
+			if ($timeout !== null) {
+				$options['timeout'] = max(1, $timeout);
+			}
+			$result = $this->retrieveJson('get', $id, $options, $status, $contentType);
 		} catch (RequestContentException $e) {
 			if ($signature === [] || !$this->refusedTheSignature($e->getCode())) {
 				throw $e;
@@ -295,7 +297,11 @@ class CurlService {
 				'id' => $id, 'status' => $e->getCode(),
 			]);
 
-			$result = $this->retrieveJson('get', $id, ['headers' => $headers], $status, $contentType);
+			$options = ['headers' => $headers];
+			if ($timeout !== null) {
+				$options['timeout'] = max(1, $timeout);
+			}
+			$result = $this->retrieveJson('get', $id, $options, $status, $contentType);
 		}
 
 		$result['_host'] = $parsed['host'];
@@ -462,12 +468,14 @@ class CurlService {
 	 * @param array<string, array<string, mixed>> $perUrl options for one URL, merged over the shared ones
 	 * @param ?array<string, int> $statuses set to url => the HTTP status of its answer, for the URLs that were answered
 	 * @param list<string>|null $failed set to the URLs that got no answer
+	 * @param ?array<string, int> $retryAfters set to url => the requested wait in seconds, for answered URLs
 	 *
 	 * @return array<string, array<string, mixed>|null> url => the document, or null
 	 */
-	public function retrieveJsonMany(array $urls, array $options = [], array $perUrl = [], ?array &$statuses = null, ?array &$failed = null): array {
+	public function retrieveJsonMany(array $urls, array $options = [], array $perUrl = [], ?array &$statuses = null, ?array &$failed = null, ?array &$retryAfters = null): array {
 		$statuses = [];
 		$failed = [];
+		$retryAfters = [];
 		$urls = array_values(array_unique(array_filter($urls)));
 		if ($urls === []) {
 			return [];
@@ -501,6 +509,7 @@ class CurlService {
 				$response = $this->settledResponse($promise->wait());
 				if ($response !== null) {
 					$statuses[$url] = $response->getStatusCode();
+					$retryAfters[$url] = self::retryAfter($response);
 				}
 				if ($response === null || in_array($response->getStatusCode(), [408, 429], true) || $response->getStatusCode() >= 500) {
 					$failed[] = $url;
@@ -970,6 +979,49 @@ class CurlService {
 
 	public function userAgent(): string {
 		return self::USER_AGENT . ' ' . $this->configService->getAppValue('installed_version');
+	}
+
+	/**
+	 * Verifies a WebSocket upgrade without reading from the open event stream.
+	 * The normal address guard and pinned DNS result still apply to the endpoint.
+	 */
+	public function doWebSocketHandshake(string $url, int &$statusCode): bool {
+		$nonce = base64_encode(random_bytes(16));
+		$clientOptions = $this->clientOptions('get', [
+			'timeout' => 5,
+			'json_headers' => false,
+			'headers' => [
+				'Connection' => 'Upgrade',
+				'Upgrade' => 'websocket',
+				'Sec-WebSocket-Version' => '13',
+				'Sec-WebSocket-Key' => $nonce,
+			],
+			'max_redirects' => 0,
+			'federation' => false,
+		]);
+		$clientOptions['allow_redirects'] = false;
+		$clientOptions['curl'][CURLOPT_HTTP_VERSION] = CURL_HTTP_VERSION_1_1;
+		$client = $this->clientService->newClient();
+		$clientOptions = $this->pinReachable($url, $clientOptions, '', false);
+		$clientOptions['curl'][CURLOPT_HTTP_VERSION] = CURL_HTTP_VERSION_1_1;
+
+		try {
+			$response = $client->request('get', $url, $clientOptions);
+		} catch (Exception $e) {
+			throw new RequestNetworkException($e->getMessage() . ' - ' . $url, $e->getCode());
+		}
+
+		$statusCode = $response->getStatusCode();
+		$accept = base64_encode(sha1($nonce . '258EAFA5-E914-47DA-95CA-C5AB0DC85B11', true));
+		$body = $response->getBody();
+		if (is_resource($body)) {
+			fclose($body);
+		}
+
+		return $statusCode === 101
+			&& strtolower($response->getHeader('Upgrade')) === 'websocket'
+			&& preg_match('/(?:^|,)\s*upgrade\s*(?:,|$)/i', $response->getHeader('Connection')) === 1
+			&& hash_equals($accept, $response->getHeader('Sec-WebSocket-Accept'));
 	}
 
 	/**

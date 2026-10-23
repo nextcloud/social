@@ -111,6 +111,7 @@
 			v-if="interest !== null && interest.tag !== null"
 			class="interest-reason"
 			:to="{ name: 'tags', params: { tag: interest.tag } }"
+			:title="interest.label"
 			:aria-label="interest.label">
 			<Pound :size="16" />
 			<span class="interest-reason__text">{{ interest.text }}</span>
@@ -118,10 +119,13 @@
 		<!-- a post no hashtag brought: there is no tag to go to -->
 		<span
 			v-else-if="interest !== null"
-			class="interest-reason interest-reason--popular"
+			class="interest-reason"
+			:class="['topic', 'exploration'].includes(interest.reason) ? 'interest-reason--topic' : 'interest-reason--popular'"
 			role="note"
+			:title="interest.label"
 			:aria-label="interest.label">
-			<TrendingUp :size="16" />
+			<Pound v-if="['topic', 'exploration'].includes(interest.reason)" :size="16" />
+			<TrendingUp v-else :size="16" />
 			<span class="interest-reason__text">{{ interest.text }}</span>
 		</span>
 		<UserEntry v-if="isNotification && notificationIsAboutAnAccount" :displayFollowButton="false" :item="item.account" />
@@ -417,7 +421,7 @@ export default {
 		 * Why For you shows this post, from the `interest` the feed puts
 		 * on each of its posts; every other timeline sends null.
 		 *
-		 * @return {{tag: string|null, text: string, label: string}|null}
+		 * @return {{tag: string|null, reason?: string, text: string, label: string}|null}
 		 */
 		interest() {
 			if (this.isNotification) {
@@ -835,7 +839,8 @@ export default {
 	}
 
 	// words, not a link: nothing to answer a pointer with
-	&--popular:hover {
+	&--popular:hover,
+	&--topic:hover {
 		color: var(--color-text-maxcontrast);
 	}
 
@@ -906,6 +911,13 @@ export default {
  * leaves for it. Same number as `PHONE_WIDTH` in services/phone.js.
  */
 @include layout.below(layout.$phone) {
+	// Nested replies otherwise lose too much of the narrow card to indentation.
+	// Keep the elbow visible while reserving room for post content and actions.
+	.timeline-entry--reply {
+		margin-inline-start: calc(var(--thread-depth, 1) * 12px);
+		padding-inline-start: 10px;
+	}
+
 	// a notification has no face in that corner (its faces are in the
 	// summary), and a direct message draws neither face nor header
 	.timeline-entry:not(.notification, .timeline-entry--direct) .wrapper {

@@ -66,8 +66,12 @@ class BlueskyBlockedBy implements BlockedBySource {
 		$key = $this->identities->signingKey($identity);
 		$answers = [];
 		foreach (array_chunk(array_values(array_filter($actorIds, $this->supports(...))), self::BATCH) as $chunk) {
-			$answer = $this->appView->queryAs($identity->did, $key, self::PROFILES, ['actors' => array_map(BlueskyIds::didOf(...), $chunk)]);
-			$answers += array_intersect_key(self::blockedByIn($answer, $identity->did), array_flip($chunk));
+			try {
+				$answer = $this->appView->queryAs($identity->did, $key, self::PROFILES, ['actors' => array_map(BlueskyIds::didOf(...), $chunk)]);
+				$answers += array_intersect_key(self::blockedByIn($answer, $identity->did), array_flip($chunk));
+			} catch (Throwable $e) {
+				$this->logger->info('Could not check a batch of Bluesky blocks', ['actor' => $localId, 'exception' => $e]);
+			}
 		}
 
 		return $answers;

@@ -149,7 +149,7 @@ import { mapStores } from 'pinia'
 import { useAccountStore } from '../store/account.js'
 import { useNotificationsStore } from '../store/notifications.js'
 import { isRanked, useTimelineStore } from '../store/timeline.js'
-import { isTracking } from '../services/interests.js'
+import { fetchRecommendationPreferences, isTracking } from '../services/interests.js'
 import { contextFor, createInterestTracker } from '../services/interestTracker.js'
 import { useCurrentUser } from '../composables/useCurrentUser.js'
 import { useServerData } from '../composables/useServerData.js'
@@ -316,6 +316,8 @@ export default {
 			 * @type {ReturnType<typeof import('../services/interestTracker.js').createInterestTracker>|null}
 			 */
 			tracker: null,
+			/** @type {Map<HTMLVideoElement, {status: object, lastTime: number, watchedSeconds: number}>|null} Active playback measurements. */
+			videoPlayback: null,
 			/**
 			 * The posts of the list being left, kept on screen while the next
 			 * one loads so a switch does not blink through a skeleton.
@@ -344,6 +346,9 @@ export default {
 			infoHidden: false,
 			state: [],
 			intervalId: -1,
+			countRefreshIntervalId: -1,
+			countRefreshLastAsked: new Map(),
+			countRefreshOffset: 0,
 			pollEvery: 30000,
 			/** how long the poll is waiting after failures, 0 while the server answers */
 			pollWait: 0,
@@ -546,13 +551,16 @@ export default {
 		 * @return {string|null}
 		 */
 		interestContext() {
-			if (this.serverData.public || !isTracking(this.serverData.interests)) {
+			if (this.serverData.public) {
 				return null
 			}
 
 			// the thread's two lists are given whatever type the route
 			// carries, which on a post's page is none
-			return contextFor(this.$route?.name === 'single-post' ? 'single-post' : this.type)
+			const context = contextFor(this.$route?.name === 'single-post' ? 'single-post' : this.type)
+			const v4Context = ['interests', 'photos', 'videos', 'shorts', 'reels'].includes(context)
+			const tracksV4 = v4Context && this.serverData.interests?.recommendationsEnabled === true
+			return isTracking(this.serverData.interests) || tracksV4 ? context : null
 		},
 
 		/**
@@ -577,6 +585,16 @@ export default {
 		/** @return {string} which list the store is holding */
 		timelineIdentity() {
 			return this.timelineStore.getTimelineIdentity
+		},
+
+		/** @return {boolean} whether the current remote page can still grow */
+		timelinePageFilling() {
+			return this.timelineStore.timelinePageFilling
+		},
+
+		/** @return {boolean} whether the last timeline page was empty */
+		timelinePageEmpty() {
+			return this.timelineStore.timelinePageEmpty
 		},
 
 		/** @return {boolean} nothing to show, and nothing went wrong */
@@ -918,6 +936,23 @@ export default {
 			this.startTracking()
 		},
 
+		// A Bluesky profile can have an empty intermediate page while the
+		// server continues past hidden or unavailable records. Keep the end
+		// sentinel active until the background refill confirms the end.
+		timelinePageFilling(filling) {
+			if (filling) {
+				this.allLoaded = false
+			} else if (this.timelinePageEmpty && !this.loading) {
+				this.allLoaded = true
+			}
+		},
+
+		timelinePageEmpty(empty) {
+			if (empty && !this.timelinePageFilling && !this.loading) {
+				this.allLoaded = true
+			}
+		},
+
 		// turning learning off, or on, from the notice above the list
 		interestContext() {
 			this.startTracking()
@@ -961,6 +996,7 @@ export default {
 		entries: {
 			handler() {
 				this.syncTracked()
+				this.refreshVisiblePostCounts()
 			},
 
 			flush: 'post',
@@ -1006,6 +1042,12 @@ export default {
 		eventBus.on(NOTIFICATIONS_READ, this.onMarkedAllRead)
 
 		this.loadFirstPage()
+		// Counts on remote posts can change after their first render. Refresh
+		// only what is on screen, for either protocol, and let the server's
+		// per-post freshness window cap requests to the origin.
+		this.refreshVisiblePostCounts()
+		this.countRefreshIntervalId = window.setInterval(() => this.refreshVisiblePostCounts(), 5000)
+		document.addEventListener('scroll', this.refreshVisiblePostCounts, { capture: true, passive: true })
 		// with notify_push the server tells us about new entries; polling
 		// remains as a slow safety net. Without it, poll every 30 seconds.
 		const hasPush = onTimelinePush(this.onPushed)
@@ -1032,6 +1074,8 @@ export default {
 		eventBus.off('shortcut:previous', this.focusPrevious)
 		eventBus.off(NOTIFICATIONS_READ, this.onMarkedAllRead)
 		clearInterval(this.intervalId)
+		clearInterval(this.countRefreshIntervalId)
+		document.removeEventListener('scroll', this.refreshVisiblePostCounts, true)
 		this.unwatchComposer()
 		if (this.observer) {
 			this.observer.disconnect()
@@ -1212,19 +1256,40 @@ export default {
 			if (context === null || !this.$el) {
 				return
 			}
+			this.videoPlayback = new Map()
 
 			this.tracker = createInterestTracker({
 				context,
+				allowUntagged: this.serverData.interests?.recommendationsEnabled === true
+					&& ['interests', 'photos', 'videos', 'shorts', 'reels'].includes(context),
 				isOwn: (status) => {
 					const me = this.accountStore.currentAccount?.acct
 					return me !== undefined && status.account?.acct === me
 				},
 			})
+			if (['interests', 'photos', 'videos', 'shorts', 'reels'].includes(context)
+				&& this.serverData.interests?.recommendationsEnabled === true) {
+				const tracker = this.tracker
+				fetchRecommendationPreferences().then((preferences) => {
+					if (this.tracker !== tracker) {
+						return
+					}
+					if (preferences.learning_mode === 'on' && Number.isInteger(preferences.generation)) {
+						tracker.setLearningGeneration(preferences.generation)
+					} else if (!isTracking(this.serverData.interests)) {
+						this.stopTracking()
+					}
+				}).catch((error) => logger.debug('Could not read For You learning settings', { error }))
+			}
 			// delegated, so a page of new posts needs nothing added. Capture,
 			// because `play` does not bubble and a picture's own click handler
 			// may stop the event before it would get here
 			this.$el.addEventListener('click', this.onTrackedClick, true)
 			this.$el.addEventListener('play', this.onTrackedPlay, true)
+			this.$el.addEventListener('timeupdate', this.onTrackedVideoProgress, true)
+			this.$el.addEventListener('pause', this.onTrackedVideoProgress, true)
+			this.$el.addEventListener('ended', this.onTrackedVideoProgress, true)
+			document.addEventListener('visibilitychange', this.onTrackedVisibility)
 			this.$nextTick(() => this.syncTracked())
 		},
 
@@ -1234,10 +1299,17 @@ export default {
 				return
 			}
 
+			this.flushVideoWatches()
 			this.tracker.destroy()
 			this.tracker = null
+			this.videoPlayback?.clear()
+			this.videoPlayback = null
 			this.$el?.removeEventListener('click', this.onTrackedClick, true)
 			this.$el?.removeEventListener('play', this.onTrackedPlay, true)
+			this.$el?.removeEventListener('timeupdate', this.onTrackedVideoProgress, true)
+			this.$el?.removeEventListener('pause', this.onTrackedVideoProgress, true)
+			this.$el?.removeEventListener('ended', this.onTrackedVideoProgress, true)
+			document.removeEventListener('visibilitychange', this.onTrackedVisibility)
 		},
 
 		/** Hands the tracker the entries on the page, each with its post. */
@@ -1254,6 +1326,45 @@ export default {
 				.map((element) => [element, this.timelineStore.getStatus(element.dataset.statusId)])
 				.filter(([, status]) => status !== undefined)
 			this.tracker.sync(pairs)
+		},
+
+		/** Refresh counts for visible remote posts without waiting for cron. */
+		refreshVisiblePostCounts() {
+			if (document.visibilityState !== 'visible' || this.display !== 'list' || this.showParents || !this.$el) {
+				return
+			}
+
+			const now = Date.now()
+			const visible = []
+			for (const element of this.$el.querySelectorAll('[data-status-id]')) {
+				const bounds = element.getBoundingClientRect()
+				if (bounds.bottom <= 0 || bounds.top >= window.innerHeight) {
+					continue
+				}
+				const indexed = this.timelineStore.getStatus(element.dataset.statusId)
+				const status = indexed?.reblog ?? indexed
+				if (status?.id && status.visibility !== 'direct'
+					&& now - (this.countRefreshLastAsked.get(status.id) ?? 0) >= 5000) {
+					visible.push(String(status.id))
+				}
+			}
+
+			// Keep simultaneous origin requests bounded and rotate through the
+			// visible cards, so the same first four do not starve the rest.
+			const ids = [...new Set(visible)]
+			const start = ids.length === 0 ? 0 : this.countRefreshOffset % ids.length
+			const selected = ids.length <= 4
+				? ids
+				: [...ids.slice(start), ...ids.slice(0, start)].slice(0, 4)
+			this.countRefreshOffset = ids.length > 4 ? (start + selected.length) % ids.length : 0
+			for (const id of selected) {
+				this.countRefreshLastAsked.set(id, now)
+				// Status counts are refreshed at the origin by this request. Bypass
+				// any cached status response so the updated counters reach the card.
+				this.timelineStore.fetchStatus(id, true).catch((error) => {
+					logger.debug('Visible post counts were not refreshed', { error, id })
+				})
+			}
 		},
 
 		/**
@@ -1298,8 +1409,75 @@ export default {
 		/** @param {Event} event a video or audio starting */
 		onTrackedPlay(event) {
 			const status = this.trackedStatusOf(event)
-			if (status !== undefined) {
+			const media = event.target
+			if (status !== undefined && media instanceof HTMLMediaElement) {
 				this.tracker?.record(status, 'media')
+				if (media instanceof HTMLVideoElement && this.videoPlayback && !this.videoPlayback.has(media)) {
+					this.videoPlayback.set(media, { status, lastTime: media.currentTime, watchedSeconds: 0 })
+				}
+			}
+		},
+
+		/**
+		 * Accumulates forward playback time and reports at end or page exit.
+		 *
+		 * @param {Event} event the media event
+		 */
+		onTrackedVideoProgress(event) {
+			const media = event.target
+			if (!(media instanceof HTMLVideoElement) || !this.videoPlayback?.has(media)) {
+				return
+			}
+			const playback = this.videoPlayback.get(media)
+			const currentTime = Number(media.currentTime)
+			const delta = currentTime - playback.lastTime
+			if (!media.seeking && Number.isFinite(delta) && delta > 0 && delta <= 2) {
+				playback.watchedSeconds += delta
+			}
+			playback.lastTime = currentTime
+			if (event.type === 'timeupdate') {
+				return
+			}
+			if (event.type === 'ended') {
+				this.reportVideoWatch(media, playback)
+				this.videoPlayback.delete(media)
+			}
+		},
+
+		/** Finishes partial playback before a backgrounded page stops running. */
+		onTrackedVisibility() {
+			if (document.visibilityState !== 'hidden' || !this.videoPlayback) {
+				return
+			}
+			this.flushVideoWatches()
+		},
+
+		flushVideoWatches() {
+			if (!this.videoPlayback) {
+				return
+			}
+			for (const [media, playback] of this.videoPlayback) {
+				if (!media.paused && !media.seeking) {
+					const delta = Number(media.currentTime) - playback.lastTime
+					if (Number.isFinite(delta) && delta > 0 && delta <= 2) {
+						playback.watchedSeconds += delta
+					}
+				}
+				this.reportVideoWatch(media, playback)
+			}
+			this.videoPlayback.clear()
+		},
+
+		/**
+		 * Sends only the aggregate fraction, never a playback timeline.
+		 *
+		 * @param {HTMLVideoElement} media the video element
+		 * @param {{status: object, lastTime: number, watchedSeconds: number}} playback accumulated playback state
+		 */
+		reportVideoWatch(media, playback) {
+			const duration = Number(media.duration)
+			if (Number.isFinite(duration) && duration > 0 && playback.watchedSeconds > 0) {
+				this.tracker?.recordVideoWatchRatio(playback.status, playback.watchedSeconds / duration)
 			}
 		},
 
@@ -1527,7 +1705,9 @@ export default {
 				// page of one, and its `.length` is undefined — so `=== 0` was
 				// never true and the sentinel kept asking for a next page that
 				// does not exist
-				this.allLoaded = Array.isArray(response) ? response.length === 0 : true
+				this.allLoaded = Array.isArray(response)
+					? response.length === 0 && !this.timelinePageFilling
+					: !this.timelinePageFilling
 			} catch (error) {
 				if (generation !== this.generation) {
 					return

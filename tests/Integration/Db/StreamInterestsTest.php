@@ -10,9 +10,11 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Integration\Db;
 
 use OCA\Social\Db\CacheActorsRequest;
+use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\Client\MediaAttachment;
 use OCP\Server;
@@ -26,10 +28,15 @@ class StreamInterestsTest extends TestCase {
 	private const BASE = 'https://cloud.example.org/stream-interests';
 	private const VIEWER = self::BASE . '/users/viewer';
 	private const AUTHOR = 'https://remote.example/stream-interests/users/author';
-	private const NOTES = ['jazz', 'jazz-german', 'climbing', 'own', 'private', 'jazz-photo', 'jazz-video', 'jazz-both'];
+	private const SOCIAL_ACTOR = self::BASE . '/users/graph';
+	private const SOCIAL_AUTHOR = 'https://remote.example/stream-interests/users/graph-author';
+	private const PENDING_ACTOR = self::BASE . '/users/pending-graph';
+	private const PENDING_AUTHOR = 'https://remote.example/stream-interests/users/pending-author';
+	private const NOTES = ['jazz', 'jazz-german', 'climbing', 'own', 'private', 'jazz-photo', 'jazz-video', 'jazz-both', 'social-public', 'social-private', 'social-pending'];
 
 	private StreamRequest $streamRequest;
 	private CacheActorsRequest $cacheActorsRequest;
+	private FollowsRequest $followsRequest;
 	/** @var array<string, Note> */
 	private array $notes = [];
 
@@ -37,6 +44,7 @@ class StreamInterestsTest extends TestCase {
 		parent::setUp();
 		$this->streamRequest = Server::get(StreamRequest::class);
 		$this->cacheActorsRequest = Server::get(CacheActorsRequest::class);
+		$this->followsRequest = Server::get(FollowsRequest::class);
 		$this->cleanup();
 	}
 
@@ -46,10 +54,13 @@ class StreamInterestsTest extends TestCase {
 	}
 
 	private function cleanup(): void {
+		foreach ([self::VIEWER, self::SOCIAL_ACTOR, self::SOCIAL_AUTHOR, self::PENDING_ACTOR, self::PENDING_AUTHOR] as $actorId) {
+			$this->followsRequest->deleteRelatedId($actorId);
+		}
 		foreach (self::NOTES as $suffix) {
 			$this->streamRequest->deleteById(self::BASE . '/notes/' . $suffix, Note::TYPE);
 		}
-		foreach ([self::VIEWER, self::AUTHOR] as $id) {
+		foreach ([self::VIEWER, self::AUTHOR, self::SOCIAL_ACTOR, self::SOCIAL_AUTHOR, self::PENDING_ACTOR, self::PENDING_AUTHOR] as $id) {
 			$this->cacheActorsRequest->deleteCacheById($id);
 		}
 		$this->notes = [];
@@ -168,5 +179,45 @@ class StreamInterestsTest extends TestCase {
 		$this->assertArrayHasKey($nids['jazz'], $visible);
 		$this->assertArrayNotHasKey($nids['private'], $visible);
 		$this->assertSame([], $this->streamRequest->getVisibleByNids(['x']));
+	}
+
+	public function testSocialGraphRecallRequiresTwoAcceptedEdgesAndReturnsOnlyPublicViewerVisiblePosts(): void {
+		$viewer = $this->seed();
+		$this->person(self::SOCIAL_ACTOR, 'si-graph', false);
+		$this->person(self::SOCIAL_AUTHOR, 'si-graph-author', false);
+		$this->person(self::PENDING_ACTOR, 'si-pending-graph', false);
+		$this->person(self::PENDING_AUTHOR, 'si-pending-author', false);
+		$this->followsRequest->save((new Follow())
+			->setId(self::BASE . '/follows/viewer-graph')
+			->setActorId(self::VIEWER)
+			->setObjectId(self::SOCIAL_ACTOR)
+			->setAccepted(true));
+		$this->followsRequest->save((new Follow())
+			->setId(self::BASE . '/follows/graph-author')
+			->setActorId(self::SOCIAL_ACTOR)
+			->setObjectId(self::SOCIAL_AUTHOR)
+			->setAccepted(true));
+		$this->followsRequest->save((new Follow())
+			->setId(self::BASE . '/follows/viewer-pending')
+			->setActorId(self::VIEWER)
+			->setObjectId(self::PENDING_ACTOR)
+			->setAccepted(false));
+		$this->followsRequest->save((new Follow())
+			->setId(self::BASE . '/follows/pending-author')
+			->setActorId(self::PENDING_ACTOR)
+			->setObjectId(self::PENDING_AUTHOR)
+			->setAccepted(true));
+		$this->note('social-public', [], author: self::SOCIAL_AUTHOR);
+		$this->note('social-private', [], author: self::SOCIAL_AUTHOR, public: false);
+		$this->note('social-pending', [], author: self::PENDING_AUTHOR);
+
+		$byNid = [];
+		foreach ($this->notes as $suffix => $note) {
+			$byNid[(string)$note->getNid()] = $suffix;
+		}
+		$posts = $this->streamRequest->recommendationSocialGraphCandidates('0', 100);
+		$suffixes = array_values(array_filter(array_map(static fn (string $nid): ?string => $byNid[$nid] ?? null, array_keys($posts))));
+
+		$this->assertSame(['social-public'], $suffixes);
 	}
 }

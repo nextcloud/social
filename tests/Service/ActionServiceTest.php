@@ -17,6 +17,7 @@ use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\StreamAction;
 use OCA\Social\Service\ActionService;
 use OCA\Social\Service\BoostService;
+use OCA\Social\Service\IRecommendationSignalRecorder;
 use OCA\Social\Service\LikeService;
 use OCA\Social\Service\PinService;
 use OCA\Social\Service\StreamActionService;
@@ -49,6 +50,7 @@ class ActionServiceTest extends TestCase {
 
 	private \OCA\Social\Service\DislikeService|\PHPUnit\Framework\MockObject\MockObject $dislikeService;
 	private \OCA\Social\Service\InterestService|\PHPUnit\Framework\Stub\Stub $interestService;
+	private IRecommendationSignalRecorder|MockObject $recommendationSignalService;
 
 	protected function setUp(): void {
 		$this->streamService = $this->createMock(StreamService::class);
@@ -69,6 +71,7 @@ class ActionServiceTest extends TestCase {
 
 		$this->dislikeService = $this->createMock(\OCA\Social\Service\DislikeService::class);
 		$this->interestService = $this->createStub(\OCA\Social\Service\InterestService::class);
+		$this->recommendationSignalService = $this->createMock(IRecommendationSignalRecorder::class);
 
 		$this->service = new ActionService(
 			$this->streamService,
@@ -80,6 +83,7 @@ class ActionServiceTest extends TestCase {
 			$this->conversationsRequest,
 			$this->dislikeService,
 			$this->interestService,
+			$this->recommendationSignalService,
 		);
 
 		$this->actor = new Person();
@@ -103,16 +107,21 @@ class ActionServiceTest extends TestCase {
 			->with($this->identicalTo($this->actor), self::POST_ID);
 		$this->likeService->expects($this->never())->method('delete');
 		$this->boostService->expects($this->never())->method('create');
+		$this->recommendationSignalService->expects($this->once())->method('recordAction')
+			->with($this->identicalTo($this->actor), $this->identicalTo($this->post), 'like');
 
 		$this->assertNull($this->service->action($this->actor, 42, 'favourite'));
 	}
 
 	public function testUnfavouriteDeletesTheLike(): void {
 		$this->streamService->method('getStreamByNid')->willReturn($this->post);
+		$this->streamActionService->method('getActionBool')->willReturn(true);
 		$this->likeService->expects($this->once())
 			->method('delete')
 			->with($this->identicalTo($this->actor), self::POST_ID);
 		$this->likeService->expects($this->never())->method('create');
+		$this->recommendationSignalService->expects($this->once())->method('recordAction')
+			->with($this->identicalTo($this->actor), $this->identicalTo($this->post), 'unlike');
 
 		$this->assertNull($this->service->action($this->actor, 42, 'unfavourite'));
 	}
@@ -178,7 +187,7 @@ class ActionServiceTest extends TestCase {
 		});
 		$container = $this->createMock(\Psr\Container\ContainerInterface::class);
 		$container->method('get')->willReturn($bookmarks);
-		$service = new ActionService($this->streamService, $this->boostService, $this->likeService, $this->streamActionService, $this->pinService, $this->actionsRequest, $this->conversationsRequest, $this->dislikeService, $this->interestService, $container);
+		$service = new ActionService($this->streamService, $this->boostService, $this->likeService, $this->streamActionService, $this->pinService, $this->actionsRequest, $this->conversationsRequest, $this->dislikeService, $this->interestService, $this->recommendationSignalService, $container);
 
 		$service->action($this->actor, 42, 'bookmark');
 		$service->action($this->actor, 42, 'unbookmark');
@@ -223,6 +232,35 @@ class ActionServiceTest extends TestCase {
 		$this->service->action($this->actor, 42, 'mute');
 
 		$this->assertSame($this->post->getId(), $this->mutes[0]['rootId']);
+	}
+
+	#[DataProvider('blueskyThreadRoots')]
+	public function testThreadMuteActionsArePassedToTheBlueskyBridge(string $postId): void {
+		$this->post->setId($postId);
+		$this->streamService->method('getStreamByNid')->willReturn($this->post);
+		$this->threadRoot = $postId;
+		$sentMutes = [];
+		$threadMutes = $this->createMock(\OCA\Social\Atproto\Publisher\BlueskyThreadMutes::class);
+		$threadMutes->expects($this->exactly(2))->method('fromSocial')->willReturnCallback(function (Person $actor, string $rootId, bool $muted) use ($postId, &$sentMutes): void {
+			$this->assertSame($this->actor, $actor);
+			$this->assertSame($postId, $rootId);
+			$sentMutes[] = $muted;
+		});
+		$container = $this->createMock(\Psr\Container\ContainerInterface::class);
+		$container->method('get')->willReturn($threadMutes);
+		$service = new ActionService($this->streamService, $this->boostService, $this->likeService, $this->streamActionService, $this->pinService, $this->actionsRequest, $this->conversationsRequest, $this->dislikeService, $this->interestService, $this->recommendationSignalService, $container);
+
+		$service->action($this->actor, 42, 'mute');
+		$service->action($this->actor, 42, 'unmute');
+		$this->assertSame([true, false], $sentMutes);
+	}
+
+	/** @return array<string, array{string}> */
+	public static function blueskyThreadRoots(): array {
+		return [
+			'Bluesky post' => ['https://bsky.app/profile/did:plc:ewvi7nxzyoun6zhxrhs64oiz/post/3k'],
+			'local post mirrored to Bluesky' => ['https://social.example/@alice/status/42'],
+		];
 	}
 
 	public function testPinAndUnpinAreHandedToThePinService(): void {

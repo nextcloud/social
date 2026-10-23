@@ -499,7 +499,7 @@ class StatusApiController extends MastodonApiController {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/statuses/{nid}')]
-	public function statusGet(int|string $nid): DataResponse {
+	public function statusGet(int|string $nid, bool $refresh_counts = true, bool $force_counts = false): DataResponse {
 		try {
 			$this->initViewer(false);
 
@@ -508,6 +508,12 @@ class StatusApiController extends MastodonApiController {
 			// viewer may not see is no status of theirs, as on Mastodon
 			if ($item->getType() === Announce::TYPE && !($item->getObject() instanceof Stream)) {
 				throw new StreamNotFoundException();
+			}
+			// Refresh the post from its origin when opened; the background count
+			// queue is deliberately much slower than an interactive read.
+			$refreshed = $refresh_counts && $this->counts->refreshVisibleIfDue($item, $force_counts);
+			if ($refreshed) {
+				$item = $this->streamService->getStreamByNid(\OCA\Social\Tools\Nid::fromStorage($nid));
 			}
 			$item = $this->served($item);
 			// opening a post's own page is the one thing this app counts as
@@ -520,7 +526,12 @@ class StatusApiController extends MastodonApiController {
 			// asked in the background; a client that knows the header asks
 			// for the post again a little later
 			$response = new DataResponse($item, Http::STATUS_OK);
-			if ($this->counts->seen([$item])) {
+			$queued = $refresh_counts && !$refreshed && $this->counts->seen([$item]);
+			$countedPost = $item->getType() === Announce::TYPE && $item->getObject() instanceof Stream
+				? $item->getObject()
+				: $item;
+			$refreshPending = $refreshed && $this->counts->visibleRefreshPending($countedPost->getId());
+			if ($refreshPending || $queued) {
 				$response->addHeader('X-Social-Filling', '1');
 			}
 
@@ -876,9 +887,9 @@ class StatusApiController extends MastodonApiController {
 		try {
 			$this->initViewer(true);
 			$post = $this->streamService->getStreamByNid($nid);
-			$this->watchService->remember($post, $this->viewer, $position, $duration);
+			$stored = $this->watchService->remember($post, $this->viewer, $position, $duration);
 
-			return new DataResponse([], Http::STATUS_OK);
+			return new DataResponse(['stored' => $stored], Http::STATUS_OK);
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}

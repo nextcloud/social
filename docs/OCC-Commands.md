@@ -504,6 +504,25 @@ seconds before. The poller keeps running beside it, so the listener being down
 costs latency and nothing else. Run it under systemd beside the firehose daemon
 (see [Admin.md](Admin.md#bluesky)).
 
+### `social:mastodon:stream`
+
+Serve Mastodon's authenticated user and public WebSocket and SSE streams.
+
+```
+php occ social:mastodon:stream [--bind ADDRESS:PORT] [--max-seconds SECONDS]
+```
+
+| Option | Value | Description |
+|--------|-------|-------------|
+| `--bind` | string (127.0.0.1:8788) | Where to listen; the shipped root proxy rules send `/api/v1/streaming`, `/api/v1/streaming/user`, `/api/v1/streaming/user/notification`, `/api/v1/streaming/direct`, `/api/v1/streaming/list`, `/api/v1/streaming/public`, `/api/v1/streaming/public/local`, `/api/v1/streaming/public/remote`, `/api/v1/streaming/hashtag`, `/api/v1/streaming/hashtag/local` and `/api/v1/streaming/health` here |
+| `--max-seconds` | int (0) | Stop after this long, so a supervisor can restart it; `0` runs until stopped |
+
+The daemon requires a user access token with `read` or both `read:statuses` and
+`read:notifications` for user streams. Direct and list streams require
+`read:statuses`; a list stream also requires a list owned by that account. It
+polls the same filtered timelines used by the REST API once per second. Run it under a process supervisor; the
+streaming health path returns `OK` while the process is accepting requests.
+
 ### `social:atproto:identities`
 
 Give every local account its Bluesky identity now, rather than on first need.
@@ -618,8 +637,13 @@ php occ social:atproto:crawl
 ```
 
 Sends `com.atproto.sync.requestCrawl` to every relay in `atproto_relays`. A relay
-keeps the subscription from then on; this is for the first time, and for after
-the daemon was down longer than the replay window.
+keeps the subscription from then on. Maintenance also requests the initial crawl
+after Bluesky is enabled and requests a new crawl after the firehose has been
+unreachable longer than its 72-hour replay window. If a relay accepted the
+request but an active repository or profile is still missing from relay/AppView
+checks after an hour, maintenance retries at most every six hours. Failed
+initial requests retry after 15 minutes. Use this command when an administrator
+wants to request a crawl immediately.
 
 ### `social:atproto:rotate-key`
 
@@ -1624,7 +1648,7 @@ the last four are queued on demand instead:
 | Block lists | `OCA\Social\Cron\BlocklistSync` | Daily. Re-reads the block lists an administrator follows and applies what they say; does nothing while no source is on. |
 | External registrations | `OCA\Social\Cron\ExternalSignups` | Hourly. Forgets registrations of external users whose email was not confirmed within a day, and invitations that expired or were used up. A registration waiting for an administrator is kept until somebody decides on it. |
 | Bluesky sync | `OCA\Social\Cron\AtprotoSync` | Every 2 minutes, only while Bluesky is on. Reads the feeds of the Bluesky authors somebody here follows — the newest page of each due watch from the public AppView, what is new stored, the next read soon after a page with posts and doubling up to six hours after empty ones — then the AppView's notifications of each due local account, asked for as that account; both passes stop at the instance's request ceiling (`atproto_sync_ceiling`). |
-| Bluesky maintenance | `OCA\Social\Cron\AtprotoMaintenance` | Every 5 minutes, only while Bluesky is on. Reconciles the last day's public posts with their Bluesky records — a post the listener missed is published, an edit within the grace period replaced, a deleted post's record removed; each run looks at the newest 100 and the next 100 of the rest of the day, so a busy day is covered over a few runs — resends directory operations the PLC refused, prunes the firehose past its replay window, drops retired instance keys, checks a page of 25 Bluesky posts read here in the last week against the AppView, deleting the ones it no longer has, checks custom handles once a day (dropping one that failed a week in a row), and picks up account moves whose job stopped (queued again once after an hour without progress, then failed with `move-interrupted`). |
+| Bluesky maintenance | `OCA\Social\Cron\AtprotoMaintenance` | Every 5 minutes, only while Bluesky is on. Requests the initial relay crawl and recrawls after a firehose outage exceeds the 72-hour replay window. It also retries every six hours when relay/AppView checks still cannot find an active repository after an hour; failed initial requests retry after 15 minutes. Reconciles the last day's public posts with their Bluesky records — a post the listener missed is published, an edit within the grace period replaced, a deleted post's record removed; each run looks at the newest 100 and the next 100 of the rest of the day, so a busy day is covered over a few runs — resends directory operations the PLC refused, prunes the firehose past its replay window, drops retired instance keys, checks a page of 25 Bluesky posts read here in the last week against the AppView, deleting the ones it no longer has, checks custom handles once a day (dropping one that failed a week in a row), and picks up account moves whose job stopped (queued again once after an hour without progress, then failed with `move-interrupted`). |
 | Bluesky video | `OCA\Social\Cron\AtprotoVideo` | Every minute, only while Bluesky is on and `atproto_video_service` is set. Sends up to three queued videos of posts published here to Bluesky's video service, asks after the jobs it is making, and publishes each post whose video has ended: with the video when the service stored it here, otherwise as text and a link to the post here. |
 | Domain purge | `OCA\Social\Cron\DomainPurge` | Queued with a domain when one is added to the deny list — not registered in `appinfo/info.xml`, because a job listed there is added once at install time with no argument. Does 10 batches of 50 accounts per run and re-queues itself while anything of the domain is left. |
 | External promotion | `OCA\Social\Cron\ExternalPromoted` | Queued with a user id when an external user is promoted to a local one — not in `appinfo/info.xml`, for the same reason as the domain purge. Writes the user's system address book card, which external users do not have, in a request that sees them on their new backend. |

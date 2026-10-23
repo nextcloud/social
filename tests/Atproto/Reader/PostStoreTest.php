@@ -13,6 +13,7 @@ use OCA\Social\AP;
 use OCA\Social\Atproto\AppView\AppViewClient;
 use OCA\Social\Atproto\Moderation\Blocklist;
 use OCA\Social\Atproto\Moderation\LabelerService;
+use OCA\Social\Atproto\Move\PdsClient;
 use OCA\Social\Atproto\Publisher\InteractionPublisher;
 use OCA\Social\Atproto\Reader\ActorMapper;
 use OCA\Social\Atproto\Reader\BlueskyActorService;
@@ -33,8 +34,10 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\Client\MediaAttachment;
 use OCA\Social\Model\Details;
 use OCA\Social\Model\StreamCard;
+use OCA\Social\Service\Counts\CountWriter;
 use OCA\Social\Service\ImportService;
 use OCP\AppFramework\Utility\ITimeFactory;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
@@ -60,14 +63,22 @@ class PostStoreTest extends TestCase {
 	private InteractionPublisher $interactions;
 	/** @var string[] ids the stream already has */
 	private array $known = [];
+	/** @var string[] known posts owned by this instance */
+	private array $local = [];
 	/** @var ACore[] what reached the import path */
 	private array $imported = [];
+	/** @var list<string> trusted blob URLs passed into ActivityPub parsing */
+	private array $atprotoStreamedBlobs = [];
 	/** @var StreamCardsRequest&\PHPUnit\Framework\MockObject\MockObject */
 	private StreamCardsRequest $cards;
+	/** @var CountWriter&MockObject */
+	private CountWriter $countWriter;
+	/** @var PdsClient&MockObject */
+	private PdsClient $pds;
 
 	protected function setUp(): void {
 		$ap = $this->createMock(AP::class);
-		$ap->method('getItemFromData')->willReturnCallback(static function (array $data): ACore {
+		$ap->method('getItemFromData')->willReturnCallback(function (array $data, ?ACore $parent = null, int $level = 0, array $atprotoStreamedBlobs = []): ACore {
 			$item = match ($data['type']) {
 				'Create' => new Create(),
 				'Announce' => new Announce(),
@@ -79,7 +90,25 @@ class PostStoreTest extends TestCase {
 			if (is_array($data['object'] ?? null)) {
 				$note = new Note();
 				$note->setUrlCloud('https://social.test');
-				$note->import($data['object']);
+				if ($data['type'] === 'Create') {
+					$this->atprotoStreamedBlobs = $atprotoStreamedBlobs;
+				}
+				$objectData = $data['object'];
+				$streamedAttachment = is_array($objectData['attachment'][0] ?? null) ? $objectData['attachment'][0] : [];
+				// The real parser's streamed-blob handling is covered by StreamTest;
+				// this mock records the allowlist passed by PostStore.
+				if ($atprotoStreamedBlobs !== []) {
+					$objectData['attachment'] = [];
+				}
+				$note->import($objectData);
+				if ($data['type'] === 'Create' && $atprotoStreamedBlobs !== []) {
+					$note->setAttachments([(new MediaAttachment())
+						->setId('123')
+						->setType('unknown')
+						->setMediaType((string)($streamedAttachment['mediaType'] ?? 'application/pdf'))
+						->setUrl('https://social.test/media/stream/123')
+						->setDescription((string)($streamedAttachment['name'] ?? 'meeting-notes.pdf'))]);
+				}
 				$item->setObject($note);
 			}
 
@@ -95,7 +124,17 @@ class PostStoreTest extends TestCase {
 			}
 		});
 		$this->streams = $this->createMock(StreamRequest::class);
-		$this->streams->method('getStreamById')->willReturnCallback(fn (string $id): Stream => in_array($id, $this->known, true) ? new Note() : throw new StreamNotFoundException());
+		$this->streams->method('getStreamById')->willReturnCallback(function (string $id): Stream {
+			if (!in_array($id, $this->known, true)) {
+				throw new StreamNotFoundException();
+			}
+			$note = (new Note())->setId($id)->setAttributedTo('https://bsky.app/profile/' . self::DID);
+			if (in_array($id, $this->local, true)) {
+				$note->setLocal(true);
+			}
+
+			return $note;
+		});
 		$this->streams->method('getAnnounceBy')->willThrowException(new StreamNotFoundException());
 		$this->actors = $this->createMock(BlueskyActorService::class);
 		$time = $this->createMock(ITimeFactory::class);
@@ -103,7 +142,10 @@ class PostStoreTest extends TestCase {
 		$this->appView = $this->createMock(AppViewClient::class);
 		$this->interactions = $this->createMock(InteractionPublisher::class);
 		$this->cards = $this->createMock(StreamCardsRequest::class);
-		$this->store = new PostStore(new PostMapper($this->resolver()), $this->appView, $this->interactions, new ActorMapper(), $this->actors, $this->createMock(Blocklist::class), $this->createMock(LabelerService::class), $this->import, $this->streams, $time, new NullLogger(), $this->cards);
+		$this->countWriter = $this->createMock(CountWriter::class);
+		$this->pds = $this->createMock(PdsClient::class);
+		$this->pds->method('origin')->willReturnArgument(0);
+		$this->store = new PostStore(new PostMapper($this->resolver()), $this->appView, $this->interactions, new ActorMapper(), $this->actors, $this->createMock(Blocklist::class), $this->createMock(LabelerService::class), $this->import, $this->streams, $time, new NullLogger(), $this->cards, $this->countWriter, $this->pds);
 	}
 
 	protected function tearDown(): void {
@@ -156,7 +198,7 @@ class PostStoreTest extends TestCase {
 		$streams = $this->createMock(StreamRequest::class);
 		$streams->method('getStreamById')->willReturn($root);
 		$streams->expects($this->once())->method('updateDetails')->with($root, Details::HIDDEN_REPLIES);
-		$store = new PostStore(new PostMapper($this->resolver()), $this->appView, $this->interactions, new ActorMapper(), $this->actors, $this->createMock(Blocklist::class), $this->createMock(LabelerService::class), $this->import, $streams, $this->createMock(ITimeFactory::class), new NullLogger(), $this->cards);
+		$store = new PostStore(new PostMapper($this->resolver()), $this->appView, $this->interactions, new ActorMapper(), $this->actors, $this->createMock(Blocklist::class), $this->createMock(LabelerService::class), $this->import, $streams, $this->createMock(ITimeFactory::class), new NullLogger(), $this->cards, $this->createMock(CountWriter::class));
 		$gate = ['uri' => 'at://x', 'record' => ['post' => 'at://' . self::DID . '/app.bsky.feed.post/3kroot', 'hiddenReplies' => ['at://' . self::OTHER . '/app.bsky.feed.post/3kr', 'not a uri']]];
 
 		$store->rememberHiddenReplies($gate);
@@ -185,6 +227,200 @@ class PostStoreTest extends TestCase {
 		$this->known[] = 'https://bsky.app/profile/' . self::DID . '/post/3kznmn7xqxl22';
 		$this->assertSame(0, $this->store->storeFeedItem(['post' => $this->postView()]));
 		$this->assertSame([], $this->imported);
+	}
+
+	public function testKnownBlueskyFeedPostsRefreshTheirCountsFromTheCurrentAppViewPage(): void {
+		$id = 'https://bsky.app/profile/' . self::DID . '/post/3kznmn7xqxl22';
+		$this->known[] = $id;
+		$this->countWriter->expects($this->once())->method('write')->with(
+			$id,
+			3,
+			1,
+			0,
+			[PostMapper::DETAIL => ['likes' => 3, 'reposts' => 1, 'replies' => 0, 'quotes' => 0]],
+			0,
+		)->willReturn(true);
+
+		$this->assertSame(0, $this->store->storeFeedItem(['post' => $this->postView()]));
+		$this->assertSame([], $this->imported, 'refreshing live counts does not re-import the post');
+	}
+
+	public function testOwnBlueskyPostsKeepTheirPublishedCountAccounting(): void {
+		$id = 'https://bsky.app/profile/' . self::DID . '/post/3kznmn7xqxl22';
+		$this->known[] = $id;
+		$this->local[] = $id;
+		$this->countWriter->expects($this->never())->method('write');
+
+		$this->assertSame(0, $this->store->storeFeedItem(['post' => $this->postView()]));
+	}
+
+	public function testMapperProducedBlobAllowlistIsPassedBeforeActivityPubImport(): void {
+		$actor = $this->person(self::DID);
+		$actor->setDetailArray(Details::ATPROTO, ['pds' => 'https://pds.example']);
+		$this->actors->method('cached')->willReturn($actor);
+		$cid = \OCA\Social\Atproto\Protocol\Cid::forRaw('a file in a third-party embed')->toString();
+		$view = $this->postView();
+		$view['embed'] = ['$type' => 'org.example.embed.files#view'];
+		$view['record']['embed'] = [
+			'$type' => 'org.example.embed.files',
+			'files' => [[
+				'name' => 'meeting-notes.pdf',
+				'blob' => ['$type' => 'blob', 'ref' => ['$link' => $cid], 'mimeType' => 'application/pdf'],
+			]],
+		];
+
+		$this->assertTrue($this->store->storePost($view));
+		$this->assertSame([
+			'https://pds.example/xrpc/com.atproto.sync.getBlob?did=' . rawurlencode(self::DID) . '&cid=' . $cid,
+		], $this->atprotoStreamedBlobs);
+	}
+
+	public function testLaterAppViewViewFillsAttachmentsMissingOnTheFirstImport(): void {
+		$id = 'https://bsky.app/profile/' . self::DID . '/post/3kznmn7xqxl22';
+		$this->known[] = $id;
+		$actor = $this->person(self::DID);
+		$this->actors->method('cached')->willReturn($actor);
+		$this->actors->expects($this->once())->method('pdsEndpoint')->with(self::DID)->willReturn('https://pds.example');
+		$this->actors->expects($this->once())->method('store')->with($actor);
+		$this->streams->expects($this->once())->method('setRecoveredRemoteAttachments')->with(
+			$id,
+			$this->callback(static function (string $attachments): bool {
+				$decoded = json_decode($attachments, true);
+
+				return ($decoded[0]['description'] ?? '') === 'meeting-notes.pdf'
+					&& ($decoded[0]['media_type'] ?? '') === 'application/pdf';
+			}),
+			'',
+		);
+		$view = $this->postView();
+		$cid = \OCA\Social\Atproto\Protocol\Cid::forRaw('a file in a late AppView embed')->toString();
+		$view['embed'] = ['$type' => 'org.example.embed.files#view'];
+		$view['record']['embed'] = [
+			'$type' => 'org.example.embed.files',
+			'files' => [['name' => 'meeting-notes.pdf', 'blob' => ['$type' => 'blob', 'ref' => ['$link' => $cid], 'mimeType' => 'application/pdf']]],
+		];
+
+		$this->assertFalse($this->store->storePost($view), 'enrichment does not count as a second imported post');
+		$this->assertSame([], $this->imported, 'the post is not re-created or its text overwritten');
+	}
+
+	public function testLaterAppViewViewRecoversAThirdPartyFileInsideRecordWithMedia(): void {
+		$id = 'https://bsky.app/profile/' . self::DID . '/post/3kznmn7xqxl22';
+		$this->known[] = $id;
+		$actor = $this->person(self::DID);
+		$this->actors->method('cached')->willReturn($actor);
+		$this->actors->expects($this->once())->method('pdsEndpoint')->with(self::DID)->willReturn('https://pds.example');
+		$this->actors->expects($this->once())->method('store')->with($actor);
+		$this->streams->expects($this->once())->method('setRecoveredRemoteAttachments')->with(
+			$id,
+			$this->callback(static function (string $attachments): bool {
+				$decoded = json_decode($attachments, true);
+
+				return ($decoded[0]['description'] ?? '') === 'notes.pdf'
+					&& ($decoded[0]['media_type'] ?? '') === 'application/pdf';
+			}),
+			'',
+		);
+		$view = $this->postView();
+		$cid = \OCA\Social\Atproto\Protocol\Cid::forRaw('a nested file in a late recordWithMedia embed')->toString();
+		$view['embed'] = [
+			'$type' => 'app.bsky.embed.recordWithMedia#view',
+			'record' => [],
+			'media' => ['$type' => 'org.example.embed.file#view'],
+		];
+		$view['record']['embed'] = [
+			'$type' => 'app.bsky.embed.recordWithMedia',
+			'record' => [],
+			'media' => [
+				'$type' => 'org.example.embed.file',
+				'file' => ['name' => 'notes.pdf', 'blob' => ['$type' => 'blob', 'ref' => ['$link' => $cid], 'mimeType' => 'application/pdf']],
+			],
+		];
+
+		$this->assertFalse($this->store->storePost($view), 'nested media enrichment does not create a duplicate post');
+		$this->assertSame([], $this->imported, 'the existing post is not re-created');
+	}
+
+	public function testLaterAppViewViewRecoversAnUnsupportedCdnImageAsAFile(): void {
+		$id = 'https://bsky.app/profile/' . self::DID . '/post/3kznmn7xqxl22';
+		$this->known[] = $id;
+		$actor = $this->person(self::DID);
+		$this->actors->method('cached')->willReturn($actor);
+		$this->actors->expects($this->once())->method('pdsEndpoint')->with(self::DID)->willReturn('https://pds.example');
+		$this->actors->expects($this->once())->method('store')->with($actor);
+		$this->streams->expects($this->once())->method('setRecoveredRemoteAttachments')->with(
+			$id,
+			$this->callback(static function (string $attachments): bool {
+				$decoded = json_decode($attachments, true);
+
+				return ($decoded[0]['description'] ?? '') === 'portrait.avif'
+					&& ($decoded[0]['media_type'] ?? '') === 'image/avif';
+			}),
+			'',
+		);
+		$view = $this->postView();
+		$cid = \OCA\Social\Atproto\Protocol\Cid::forRaw('a late AVIF image in a custom embed')->toString();
+		$view['embed'] = ['$type' => 'org.example.embed.file#view'];
+		$view['record']['embed'] = [
+			'$type' => 'org.example.embed.file',
+			'file' => ['name' => 'portrait.avif', 'blob' => ['$type' => 'blob', 'ref' => ['$link' => $cid], 'mimeType' => 'image/avif']],
+		];
+
+		$this->assertFalse($this->store->storePost($view), 'attachment recovery does not create a duplicate post');
+		$this->assertSame([], $this->imported, 'the cached post is not re-created');
+	}
+
+	public function testKnownStandardImagePostRecoversAnUnsupportedImageFromItsPds(): void {
+		$id = 'https://bsky.app/profile/' . self::DID . '/post/3kznmn7xqxl22';
+		$this->known[] = $id;
+		$actor = $this->person(self::DID);
+		$this->actors->method('cached')->willReturn($actor);
+		$this->actors->expects($this->once())->method('pdsEndpoint')->with(self::DID)->willReturn('https://pds.example');
+		$this->actors->expects($this->once())->method('store')->with($actor);
+		$this->streams->expects($this->once())->method('setRecoveredRemoteAttachments')->with(
+			$id,
+			$this->callback(static function (string $attachments): bool {
+				$decoded = json_decode($attachments, true);
+
+				return ($decoded[0]['description'] ?? '') === 'Original camera photo.heic'
+					&& ($decoded[0]['media_type'] ?? '') === 'image/heic';
+			}),
+			'',
+		);
+
+		$view = $this->postView();
+		$view['embed'] = ['$type' => 'app.bsky.embed.images#view', 'images' => []];
+		$view['record']['embed'] = [
+			'$type' => 'app.bsky.embed.images',
+			'images' => [[
+				'image' => ['$type' => 'blob', 'ref' => ['$link' => \OCA\Social\Atproto\Protocol\Cid::forRaw('a late standard HEIC image')->toString()], 'mimeType' => 'image/heic'],
+				'alt' => 'Original camera photo',
+			]],
+		];
+
+		$this->assertFalse($this->store->storePost($view), 'media recovery does not create a duplicate post');
+		$this->assertSame([], $this->imported, 'the cached post is not re-created');
+	}
+
+	public function testAThreadViewRefreshesCountsOnAnAlreadyKnownPost(): void {
+		$id = 'https://bsky.app/profile/' . self::DID . '/post/3kznmn7xqxl22';
+		$this->known[] = $id;
+		$view = $this->postView();
+		$view['likeCount'] = 18;
+		$view['repostCount'] = 7;
+		$view['replyCount'] = 5;
+		$view['quoteCount'] = 2;
+		$this->countWriter->expects($this->once())->method('write')->with(
+			$id,
+			18,
+			7,
+			5,
+			[PostMapper::DETAIL => ['likes' => 18, 'reposts' => 7, 'replies' => 5, 'quotes' => 2]],
+			2,
+		)->willReturn(true);
+
+		$this->assertTrue($this->store->refreshKnownPostCountsFromView($view));
+		$this->assertSame([], $this->imported, 'a fresh view updates the row without importing a duplicate post');
 	}
 
 	public function testADirectMessageGoesThroughTheSameDoorOnce(): void {
@@ -246,15 +482,42 @@ class PostStoreTest extends TestCase {
 		$this->assertSame('https://bsky.app/profile/' . self::DID . '/post/3kreply', $this->imported[1]->getObject()->getId());
 	}
 
-	public function testPostsTheAppViewNoLongerHasAreDeletedAndTheirRecordsWithThem(): void {
+	public function testAProfileFeedStoresRepliesWithoutFetchingParentsInline(): void {
+		$this->actors->method('cached')->willReturnCallback(fn (string $did): ?Person => $this->person($did));
+		$reply = $this->postView();
+		$reply['uri'] = 'at://' . self::DID . '/app.bsky.feed.post/3kreply';
+		$reply['record']['reply'] = [
+			'root' => ['uri' => 'at://' . self::OTHER . '/app.bsky.feed.post/3kroot', 'cid' => 'bafyroot'],
+			'parent' => ['uri' => 'at://' . self::OTHER . '/app.bsky.feed.post/3kparent', 'cid' => 'bafyparent'],
+		];
+		$this->appView->expects($this->never())->method('query');
+
+		$this->assertSame(1, $this->store->storeFeedItem(['post' => $reply], false));
+		$this->assertCount(1, $this->imported, 'only the feed post is needed before opening the conversation');
+	}
+
+	public function testAnOmittedPostDoesNotProveThatTheAppViewDeletedIt(): void {
 		$kept = 'https://bsky.app/profile/' . self::DID . '/post/3kkept';
 		$gone = 'https://bsky.app/profile/' . self::DID . '/post/3kgone';
 		$this->known = [$kept, $gone];
 		$this->appView->expects($this->once())->method('query')->with('app.bsky.feed.getPosts', ['uris' => ['at://' . self::DID . '/app.bsky.feed.post/3kkept', 'at://' . self::DID . '/app.bsky.feed.post/3kgone']])
 			->willReturn(['posts' => [['uri' => 'at://' . self::DID . '/app.bsky.feed.post/3kkept']]]);
-		$this->interactions->expects($this->once())->method('removeAllOf')->with($gone);
+		$this->interactions->expects($this->never())->method('removeAllOf');
 
-		$this->assertSame(1, $this->store->deleteGone([$kept, $gone, 'https://mastodon.test/x']));
+		$this->assertNull($this->store->postViews([$kept, $gone, 'https://mastodon.test/x']));
+		$this->assertSame([], $this->imported);
+	}
+
+	public function testNotFoundPostViewsAreDeletedButBlockedViewsAreKept(): void {
+		$gone = 'https://bsky.app/profile/' . self::DID . '/post/3kgone';
+		$blocked = 'https://bsky.app/profile/' . self::DID . '/post/3kblocked';
+		$this->known = [$gone, $blocked];
+		$this->appView->expects($this->once())->method('query')->willReturn(['posts' => [
+			['uri' => 'at://' . self::DID . '/app.bsky.feed.post/3kgone', 'notFound' => true],
+			['uri' => 'at://' . self::DID . '/app.bsky.feed.post/3kblocked', 'blocked' => true],
+		]]);
+
+		$this->assertSame(['posts' => [$blocked => ['uri' => 'at://' . self::DID . '/app.bsky.feed.post/3kblocked', 'blocked' => true]], 'deleted' => 1], $this->store->postViews([$gone, $blocked]));
 		$this->assertCount(1, $this->imported);
 		$this->assertSame($gone, $this->imported[0]->getObjectId());
 	}
@@ -264,10 +527,58 @@ class PostStoreTest extends TestCase {
 		$gone = 'https://bsky.app/profile/' . self::DID . '/post/3kgone';
 		$this->known = [$kept, $gone];
 		$view = ['uri' => 'at://' . self::DID . '/app.bsky.feed.post/3kkept', 'likeCount' => 4];
-		$this->appView->method('query')->willReturn(['posts' => [$view]]);
+		$this->appView->method('query')->willReturn(['posts' => [$view, ['uri' => 'at://' . self::DID . '/app.bsky.feed.post/3kgone', 'notFound' => true]]]);
 
 		$this->assertSame(['posts' => [$kept => $view], 'deleted' => 1], $this->store->postViews([$kept, $gone]));
 		$this->assertSame($gone, $this->imported[0]->getObjectId(), 'the one it no longer has is deleted');
+	}
+
+	public function testAnAppViewOmissionIsNotDeletedWhileThePdsStillHasThePost(): void {
+		$id = 'https://bsky.app/profile/' . self::DID . '/post/3kpresent';
+		$this->known = [$id];
+		$this->actors->method('pdsEndpoint')->willReturn('https://pds.example');
+		$this->pds->expects($this->once())->method('call')->willReturn(['status' => 200, 'body' => ['value' => ['text' => 'still here']]]);
+		$this->appView->method('query')->willReturn(['posts' => []]);
+		$this->interactions->expects($this->never())->method('removeAllOf');
+
+		$this->assertSame(0, $this->store->deleteGone([$id]));
+		$this->assertSame([], $this->imported);
+	}
+
+	public function testDeleteSweepRemovesAnAppViewOmissionOnlyWhenThePdsConfirmsItIsGone(): void {
+		$id = 'https://bsky.app/profile/' . self::DID . '/post/3kgone';
+		$this->known = [$id];
+		$this->actors->method('pdsEndpoint')->willReturn('https://pds.example');
+		$this->pds->expects($this->once())->method('call')->with('https://pds.example', 'com.atproto.repo.getRecord', 'GET', [
+			'repo' => self::DID,
+			'collection' => 'app.bsky.feed.post',
+			'rkey' => '3kgone',
+		])->willReturn(['status' => 404, 'body' => ['error' => 'RecordNotFound']]);
+		$this->appView->method('query')->willReturn(['posts' => []]);
+
+		$this->assertSame(1, $this->store->deleteGone([$id]));
+		$this->assertSame($id, $this->imported[0]->getObjectId());
+	}
+
+	public function testDeleteSweepAcceptsRecordNotFoundFromPdsAsBadRequest(): void {
+		$id = 'https://bsky.app/profile/' . self::DID . '/post/3kgone';
+		$this->known = [$id];
+		$this->actors->method('pdsEndpoint')->willReturn('https://pds.example');
+		$this->pds->expects($this->once())->method('call')->willReturn(['status' => 400, 'body' => ['error' => 'RecordNotFound']]);
+		$this->appView->method('query')->willReturn(['posts' => []]);
+
+		$this->assertSame(1, $this->store->deleteGone([$id]));
+		$this->assertSame($id, $this->imported[0]->getObjectId());
+	}
+
+	public function testAnInteractiveCountReadDoesNotWaitForThePdsWhenAppViewOmitsAPost(): void {
+		$id = 'https://bsky.app/profile/' . self::DID . '/post/3kdelayed';
+		$this->known = [$id];
+		$this->pds->expects($this->never())->method('call');
+		$this->appView->method('query')->willReturn(['posts' => []]);
+
+		$this->assertNull($this->store->postViews([$id]));
+		$this->assertSame([], $this->imported);
 	}
 
 	public function testNoViewsAreConcludedFromAnAppViewThatDidNotAnswer(): void {
@@ -280,7 +591,7 @@ class PostStoreTest extends TestCase {
 	public function testNothingIsConcludedFromAnAppViewThatDidNotAnswer(): void {
 		$this->known = ['https://bsky.app/profile/' . self::DID . '/post/3k'];
 		$this->appView->method('query')->willThrowException(new AtprotoException('down'));
-		$this->assertSame(0, $this->store->deleteGone($this->known));
+		$this->assertNull($this->store->deleteGone($this->known));
 		$this->appView = $this->createMock(AppViewClient::class);
 		$this->assertSame([], $this->imported);
 	}

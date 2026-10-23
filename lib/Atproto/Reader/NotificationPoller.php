@@ -28,6 +28,7 @@ use OCA\Social\Service\SignatureService;
 use OCP\AppFramework\Utility\ITimeFactory;
 use Psr\Log\LoggerInterface;
 use Throwable;
+use UnexpectedValueException;
 
 /**
  * What Bluesky did to local accounts (§10). A PDS is not told when somebody
@@ -40,8 +41,8 @@ use Throwable;
  * import path makes the notification, the count and the follower row.
  */
 class NotificationPoller {
-	public const INTERVAL = 120;
-	/** an account nobody on Bluesky interacts with is asked twice a day */
+	public const INTERVAL = 60;
+	/** upper bound for retrying an account after repeated AppView failures */
 	public const MAX_BACKOFF = 12 * 3600;
 	public const BATCH = 50;
 	public const PAGE = 50;
@@ -89,7 +90,7 @@ class NotificationPoller {
 	}
 
 	/**
-	 * One local account: the newest notifications since the last read.
+	 * One local account: one page towards its last committed timestamp.
 	 *
 	 * @return int how many were handled
 	 */
@@ -102,7 +103,27 @@ class NotificationPoller {
 
 				return 0;
 			}
-			$answer = $this->appView->queryAs($identity->did, $this->identities->signingKey($identity), self::METHOD, ['limit' => self::PAGE]);
+			$checkpoint = new PollCursor($cursor->cursor);
+			$answer = $this->appView->queryAs($identity->did, $this->identities->signingKey($identity), self::METHOD, ['limit' => self::PAGE] + $checkpoint->parameters());
+			if (!is_array($answer['notifications'] ?? null)) {
+				throw new UnexpectedValueException('Bluesky notifications have no notifications array');
+			}
+			$handled = 0;
+			$newest = $checkpoint->newest;
+			$reached = false;
+			foreach ($answer['notifications'] as $notification) {
+				if (!is_array($notification)) {
+					continue;
+				}
+				$seen = (string)($notification['indexedAt'] ?? '');
+				if ($checkpoint->since !== '' && $seen !== '' && $seen < $checkpoint->since) {
+					$reached = true;
+					break;
+				}
+				$newest = max($newest, $seen);
+				$handled += $this->handle($identity, $notification) ? 1 : 0;
+			}
+			$next = $checkpoint->after($newest, $answer['cursor'] ?? '', $reached);
 		} catch (AppViewNotFoundException $e) {
 			$this->cursors->failed($cursor->did, $e->getMessage(), $now + self::MAX_BACKOFF, self::TABLE);
 
@@ -114,22 +135,7 @@ class NotificationPoller {
 			return 0;
 		}
 
-		$handled = 0;
-		$newest = $cursor->cursor;
-		foreach (is_array($answer['notifications'] ?? null) ? $answer['notifications'] : [] as $notification) {
-			if (!is_array($notification)) {
-				continue;
-			}
-			$seen = (string)($notification['indexedAt'] ?? '');
-			if ($cursor->cursor !== '' && $seen !== '' && $seen <= $cursor->cursor) {
-				break;
-			}
-			if ($seen > $newest) {
-				$newest = $seen;
-			}
-			$handled += $this->handle($identity, $notification) ? 1 : 0;
-		}
-		$this->cursors->synced($cursor->did, $newest, $now, $now + $this->nextInterval($cursor, $handled > 0), self::TABLE);
+		$this->cursors->synced($cursor->did, $next, $now, $now + self::INTERVAL, self::TABLE);
 
 		return $handled;
 	}
@@ -282,11 +288,4 @@ class NotificationPoller {
 		return true;
 	}
 
-	private function nextInterval(Watch $cursor, bool $hadAny): int {
-		if ($hadAny || $cursor->lastSync === 0) {
-			return self::INTERVAL;
-		}
-
-		return min(self::MAX_BACKOFF, max(self::INTERVAL, $cursor->nextSync - $cursor->lastSync) * 2);
-	}
 }

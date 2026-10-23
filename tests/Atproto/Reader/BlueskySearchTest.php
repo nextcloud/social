@@ -73,7 +73,7 @@ class BlueskySearchTest extends TestCase {
 	}
 
 	public function testTheTypeaheadAnswersUnstoredAccounts(): void {
-		$this->appView->expects($this->once())->method('query')->with('app.bsky.actor.searchActorsTypeahead', ['q' => 'alice.b', 'limit' => 8])->willReturn(['actors' => [
+		$this->appView->expects($this->once())->method('query')->with('app.bsky.actor.searchActorsTypeahead', ['q' => 'alice.b', 'limit' => 8], [], AppViewClient::INTERACTIVE_TIMEOUT)->willReturn(['actors' => [
 			['did' => 'did:plc:ewvi7nxzyoun6zhxrhs64oiz', 'handle' => 'alice.bsky.social', 'displayName' => 'Alice', 'avatar' => 'https://cdn.bsky.app/a@jpeg'],
 			['did' => 'did:plc:z72i7hdynmk6r22z27h6tvur', 'handle' => 'alice.blue'],
 			['did' => '', 'handle' => 'nobody'],

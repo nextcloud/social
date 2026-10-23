@@ -33,6 +33,7 @@ use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Model\Details;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Service\Counts\CountService;
+use OCA\Social\Service\Thread\ThreadService;
 use OCA\Social\Tools\Exceptions\DateTimeException;
 use OCA\Social\Tools\Exceptions\MalformedArrayException;
 use OCA\Social\Tools\Exceptions\RequestContentException;
@@ -54,6 +55,14 @@ class StreamService {
 
 	/** How many rows the last `getTimeline()` read; see `lastTimelineRowCount()`. */
 	private int $lastTimelineRows = 0;
+
+	/** Whether posts on the last page still have a remote count refresh due. */
+	private bool $lastTimelineCountsFilling = false;
+
+	/** Whether posts read through `visiblePosts()` still have counts due. */
+	private bool $visiblePostsCountsFilling = false;
+
+	private RemoteOutboxPageReader $remoteOutboxPageReader;
 
 	/** How far up a thread one context request walks; Mastodon's cap. */
 	private const ANCESTOR_LIMIT = 40;
@@ -84,7 +93,10 @@ class StreamService {
 		private ChannelService $channelService,
 		private ?RemoteFetchQueue $remoteFetchQueue = null,
 		private ?CountService $countService = null,
+		private ?ThreadService $threadService = null,
+		?RemoteOutboxPageReader $remoteOutboxPageReader = null,
 	) {
+		$this->remoteOutboxPageReader = $remoteOutboxPageReader ?? new RemoteOutboxPageReader($curlService, $logger);
 	}
 
 	/**
@@ -630,6 +642,10 @@ class StreamService {
 		return $this->streamRequest->getStreamById($id, $asViewer, $format);
 	}
 
+	public function getStreamByIdPrim(string $idPrim, bool $asViewer = false): Stream {
+		return $this->streamRequest->getStreamByIdPrim($idPrim, $asViewer);
+	}
+
 	/**
 	 * @param int|string $nid
 	 *
@@ -659,11 +675,36 @@ class StreamService {
 
 		// the rest of the conversation, from wherever it lives, read in the
 		// background: from its first post, and from this one when that is
-		// deeper than one read goes
+		// deeper than one read goes. The Fediverse's first reply page is also
+		// read inline under a short timeout, like Bluesky's thread view.
 		$root = ($ancestors === []) ? $post : end($ancestors);
-		$filling = $this->remoteFetchQueue?->fillThread($root) ?? false;
-		if ($root !== $post) {
-			$filling = ($this->remoteFetchQueue?->fillThread($post) ?? false) || $filling;
+		$this->threadService?->fillActivityPub($root);
+		$blueskyResult = $this->threadService?->fillBluesky($root, $this->viewer);
+		$blueskyRead = $blueskyResult === true;
+		$blueskyPending = $this->threadService !== null && $blueskyResult === null;
+		// A cached successful visible read may still have a deeper reply fill
+		// running. Keep telling the client to poll until that job writes its
+		// replies; ThreadService's short freshness cache no longer carries its
+		// per-request deep-reply flag.
+		$blueskyFillPending = $blueskyRead && !$root->isLocal()
+			? ($this->remoteFetchQueue?->isThreadFillPending($root->getId()) ?? false)
+			: false;
+		// Bluesky is read inline so the usual replies are visible immediately.
+		// Queue a background fill on successful reads only when getPostThread
+		// reached its ten-level limit and left a deeper branch to continue.
+		$filling = $blueskyPending;
+		if (!$blueskyPending && (!$blueskyRead || $root->isLocal() || $blueskyFillPending || ($this->threadService?->hasPendingBlueskyReplies() ?? false))) {
+			$filling = $blueskyFillPending
+				|| ($this->remoteFetchQueue?->fillThread($root) ?? false)
+				|| ($this->remoteFetchQueue?->isThreadFillPending($root->getId()) ?? false);
+		}
+		// An inline read already in progress will save the replies, but this
+		// request queried the database before those writes finish. Tell the
+		// client to ask for the context again rather than treating it as complete.
+		if (!$blueskyPending && $root !== $post && (!$blueskyRead || $post->isLocal())) {
+			$filling = ($this->remoteFetchQueue?->fillThread($post) ?? false)
+				|| ($this->remoteFetchQueue?->isThreadFillPending($post->getId()) ?? false)
+				|| $filling;
 		}
 
 		// the replies the thread's author hid: left out, or marked when the
@@ -739,13 +780,14 @@ class StreamService {
 	public function getTimeline(ProbeOptions $options): array {
 		$rows = $this->streamRequest->getTimeline($options);
 		$this->lastTimelineRows = count($rows);
+		$this->lastTimelineCountsFilling = false;
 		$posts = $this->withoutRepeatsOfPostsAlreadyInThePage($rows, $options);
 		if ($options->getFormat() === ACore::FORMAT_LOCAL) {
 			// one query each for the whole page, and only for pages a client
 			// reads -- none of them is part of the wire object
 			$this->postDecorationService->decorate($posts, $this->viewerId());
 			// what the remote posts on the page count now, asked in the background
-			$this->countService?->seen($posts);
+			$this->lastTimelineCountsFilling = $this->countService?->seen($posts) ?? false;
 		}
 
 		return $posts;
@@ -785,9 +827,14 @@ class StreamService {
 		$posts = $this->streamRequest->getVisibleByNids($nids);
 		$list = array_values($posts);
 		$this->postDecorationService->decorate($list, $this->viewerId());
-		$this->countService?->seen($list);
+		$this->visiblePostsCountsFilling = $this->countService?->seen($list) ?? false;
 
 		return $posts;
+	}
+
+	/** Whether posts from the last `visiblePosts()` read have counts still due. */
+	public function visiblePostsCountsFilling(): bool {
+		return $this->visiblePostsCountsFilling;
 	}
 
 	/** The reader's actor id, or '' for an anonymous read. */
@@ -860,6 +907,11 @@ class StreamService {
 	 */
 	public function lastTimelineRowCount(): int {
 		return $this->lastTimelineRows;
+	}
+
+	/** Whether the last timeline page has count refreshes still due. */
+	public function lastTimelineCountsFilling(): bool {
+		return $this->lastTimelineCountsFilling;
 	}
 
 	/**
@@ -987,41 +1039,32 @@ class StreamService {
 	 * @param Person $actor
 	 */
 	public function syncRemoteTimeline(Person $actor): int {
-		if ($actor->isLocal()) {
-			return 0;
+		return $this->syncRemoteTimelinePage($actor)['synced'];
+	}
+
+	/**
+	 * Read one bounded page of a remote outbox and return its continuation.
+	 *
+	 * @return array{synced: int, next: array{url: string, offset: int}|null, success: bool}
+	 */
+	public function syncRemoteTimelinePage(Person $actor, string $pageUrl = '', int $offset = 0): array {
+		$result = ['synced' => 0, 'next' => null, 'success' => false];
+		$page = $this->remoteOutboxPageReader->read($actor, $pageUrl);
+		if (!$page['success']) {
+			return $result;
 		}
 
+		$result['success'] = true;
 		$synced = 0;
+		$items = $page['items'];
+		$pageUrl = $page['pageUrl'];
 		try {
-			$outboxUrl = $actor->getOutbox();
-			if (empty($outboxUrl)) {
-				$this->logger->info('[syncRemoteTimeline] No outbox URL for actor', ['actor' => $actor->getId()]);
-				return 0;
-			}
-
-			$this->logger->debug('[syncRemoteTimeline] Fetching outbox', ['url' => $outboxUrl, 'actor' => $actor->getId()]);
-			$outboxData = $this->curlService->retrieveObject($outboxUrl);
-
-			// Follow 'first' to get the first page
-			$pageData = $outboxData;
-			if (isset($outboxData['first'])) {
-				if (is_array($outboxData['first'])) {
-					$pageData = $outboxData['first'];
-				} elseif (is_string($outboxData['first'])) {
-					$this->logger->debug('[syncRemoteTimeline] Following first page', ['url' => $outboxData['first']]);
-					$pageData = $this->curlService->retrieveObject($outboxData['first']);
-				}
-			}
-
-			$items = $pageData['orderedItems'] ?? $pageData['items'] ?? [];
-			if (!is_array($items)) {
-				$this->logger->debug('[syncRemoteTimeline] No items in page', ['actor' => $actor->getId()]);
-				return 0;
-			}
 
 			$this->logger->info('[syncRemoteTimeline] Processing items', ['actor' => $actor->getId(), 'count' => count($items)]);
 
-			foreach (array_slice($items, 0, self::SYNC_ITEM_LIMIT) as $itemData) {
+			$offset = max(0, $offset);
+			$batch = array_slice($items, $offset, self::SYNC_ITEM_LIMIT);
+			foreach ($batch as $itemData) {
 				try {
 					// An OrderedCollection may list bare ids as well as objects,
 					// and everything below reads the entry as an array.
@@ -1163,8 +1206,15 @@ class StreamService {
 					]);
 				}
 			}
+
+			$nextOffset = $offset + count($batch);
+			if ($nextOffset < count($items)) {
+				$result['next'] = ['url' => $pageUrl, 'offset' => $nextOffset];
+			} elseif ($page['nextUrl'] !== '') {
+				$result['next'] = ['url' => $page['nextUrl'], 'offset' => 0];
+			}
 		} catch (Exception $e) {
-			$this->logger->warning('[syncRemoteTimeline] Failed to fetch outbox', [
+			$this->logger->warning('[syncRemoteTimeline] Failed to process outbox page', [
 				'actor' => $actor->getId(),
 				'error' => $e->getMessage()
 			]);
@@ -1174,7 +1224,9 @@ class StreamService {
 			$this->logger->info('[syncRemoteTimeline] Sync complete', ['actor' => $actor->getId(), 'synced' => $synced]);
 		}
 
-		return $synced;
+		$result['synced'] = $synced;
+
+		return $result;
 	}
 
 	/**

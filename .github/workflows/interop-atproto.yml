@@ -243,7 +243,7 @@ jobs:
           SOCIAL_URL: https://nextcloud.test
           NETWORK_FILE: /tmp/atproto-network.json
         run: |
-          npm install --no-audit --no-fund --no-package-lock
+          npm ci --no-audit --no-fund
           nohup node network.mjs > /tmp/network.log 2>&1 &
           for attempt in $(seq 1 60); do
             if [ -f "$NETWORK_FILE" ]; then

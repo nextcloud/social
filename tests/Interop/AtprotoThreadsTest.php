@@ -106,8 +106,10 @@ class AtprotoThreadsTest extends TestCase {
 
 		// the author deletes it on Bluesky; the check notices
 		$this->network->deletePost($bobs['uri']);
-		$gone = $this->network->await(function () use ($status): ?bool {
-			Server::get(ConfigService::class)->setAppValue(ConfigService::ATPROTO_DELETE_CURSOR, '0');
+		$stream = Server::get(StreamRequest::class)->getStreamByNid((string)$status['id'], false);
+		$deleteCursor = (string)((int)$stream->getNid() - 1);
+		$gone = $this->network->await(function () use ($status, $deleteCursor): ?bool {
+			Server::get(ConfigService::class)->setAppValue(ConfigService::ATPROTO_DELETE_CURSOR, $deleteCursor);
 			Server::get(DeletionSweep::class)->run();
 
 			return $this->alice->status((string)$status['id']) === null ? true : null;

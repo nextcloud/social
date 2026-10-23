@@ -4,6 +4,26 @@
 -->
 # Changelog
 
+## Unreleased
+
+- Add a reproducible synthetic offline evaluation harness for For You ranking baselines, coverage, safety constraints, diversity, and runtime.
+
+### Fixes
+
+- **recommendations:** Batch Fediverse tag-provider requests, honour the shared host circuit breaker and `Retry-After`, and cap individual post hydration plus the total discovery pass.
+### Features
+
+- **recommendations:** Remove required For You setup and combine automatically learned hashtag relevance, content signals, follows, freshness, optional topic preferences and consented activity signals in one shared ranking path.
+- **recommendations:** Recall topic-matching posts already read from a person’s saved Bluesky custom feeds, using a short-lived local cache and no synchronous AppView request.
+- **recommendations:** Add a capped local public-trend candidate source to ranked For You discovery. Trend candidates still pass viewer visibility, language, moderation and explicit topic-match checks, and trend popularity does not grant a ranking bonus.
+- **recommendations:** Recall a bounded set of public topic matches from the reader's second-degree follow graph, using only accepted local follow edges and rechecking post visibility before ranking.
+- **recommendations:** Add an administrator-only ActivityPub/ATProto discovery health panel with seven-day hourly coverage, failure, rate-limit and latency summaries. The aggregates contain no search terms, topics, reader identities or post identifiers.
+- **recommendations:** Add account-local behavioural learning for For You, with explicit off/on/paused consent, generation-safe resets, bounded fast/slow topic, author and format affinities, idempotent events, impressions and video-watch ratios. Learning defaults off and never infers topic or stance from reply text.
+- **recommendations:** Use consented signals and accepted-follow relationships in new ranked sessions; apply bounded exposure-aware novelty and preserve an explanation for constrained exploration placements. Existing chronological feeds and delivered snapshot order remain stable.
+
+- **recommendations:** Add the versioned topic catalog, owner-scoped optional preference APIs, revision conflict handling, reset/export and an administrator emergency switch. Topic setup is no longer required by the web feed.
+- **recommendations:** Add bounded, ACL-filtered candidate discovery from indexed or capped recent posts, deterministic topic/media/language features, and throttled background ActivityPub/Bluesky coverage fills for the shared ranker.
+
 ## 0.26.239 (2026-10-13)
 
 ### Features

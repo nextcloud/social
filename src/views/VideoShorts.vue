@@ -3,10 +3,43 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<div class="shorts" role="region" :aria-label="t('social', 'Videos, one at a time')">
+	<div
+		ref="page"
+		class="shorts"
+		role="region"
+		:aria-label="t('social', 'Videos, one at a time')">
+		<header ref="header" class="shorts__header">
+			<h1 class="shorts__heading">
+				{{ t('social', 'Shorts') }}
+			</h1>
+			<div class="shorts__header-actions">
+				<nav class="shorts__scopes" :aria-label="t('social', 'Whose videos')">
+					<router-link
+						v-for="option in scopes"
+						:key="option.value"
+						class="shorts__scope"
+						:class="{ 'shorts__scope--current': option.value === watching }"
+						:aria-current="option.value === watching ? 'page' : undefined"
+						:to="{ name: 'shorts', query: { scope: option.value } }">
+						{{ option.label }}
+					</router-link>
+				</nav>
+				<NcButton
+					class="shorts__create"
+					variant="primary"
+					:aria-label="t('social', 'New short')"
+					@click="startShort">
+					<template #icon>
+						<IconPlus :size="20" />
+					</template>
+					{{ t('social', 'New short') }}
+				</NcButton>
+			</div>
+		</header>
 		<div
 			ref="track"
 			class="shorts__track"
+			:style="trackStyle"
 			tabindex="0"
 			@keydown="onKey"
 			@scroll.passive="onScroll">
@@ -29,7 +62,8 @@
 					<img
 						class="short__poster short__picture"
 						:src="entry.video.url"
-						:alt="entry.video.description || entry.text">
+						:alt="entry.video.description || entry.text"
+						@load="onPosterMetadata($event, index)">
 				</button>
 				<p v-else-if="entry.day && !entry.isVideo" class="short__gone">
 					{{ t('social', 'The picture of this short is gone.') }}
@@ -148,6 +182,7 @@
 				playsinline
 				:loop="!current.day"
 				preload="auto"
+				@loadedmetadata="onVideoMetadata"
 				@timeupdate="shortSignals.progress(current.status, $event.target)"
 				@ended="onEnded"
 				@click="onVideoTap(playing, $event)" />
@@ -173,37 +208,10 @@
 				<p class="shorts__rule">
 					{{ t('social', 'A short is a video of up to three minutes, upright or square.') }}
 				</p>
-				<NcButton :to="{ name: 'timeline', params: { type: 'videos' } }">
-					{{ t('social', 'Back to Videos') }}
-				</NcButton>
 			</div>
 		</div>
 
-		<!-- a new short: its own dialog, made for a video -->
-		<button
-			type="button"
-			class="shorts__create"
-			:title="t('social', 'New short')"
-			:aria-label="t('social', 'New short')"
-			@click="startShort">
-			<IconPlus :size="24" />
-		</button>
 		<ShortComposerDialog v-model:open="composing" @posted="onPosted" />
-
-		<!-- whose videos: the three circles the Videos page is read at. Shorts
-		     is its own entry in the sidebar, so this page is where the choice
-		     is made rather than something carried over from the grid -->
-		<nav class="shorts__scopes" :aria-label="t('social', 'Whose videos')">
-			<router-link
-				v-for="option in scopes"
-				:key="option.value"
-				class="shorts__scope"
-				:class="{ 'shorts__scope--current': option.value === watching }"
-				:aria-current="option.value === watching ? 'page' : undefined"
-				:to="{ name: 'shorts', query: { scope: option.value } }">
-				{{ option.label }}
-			</router-link>
-		</nav>
 	</div>
 </template>
 
@@ -397,6 +405,15 @@ export default {
 				},
 			}),
 
+			/** available area below the page header, in CSS pixels */
+			availableWidth: 0,
+			availableHeight: 0,
+			/** the current video's aspect ratio, refined by loaded metadata */
+			videoAspectRatio: 9 / 16,
+			/** watches the page and header as their size changes */
+			layoutObserver: null,
+			resizeHandler: null,
+
 			HEART_PATH,
 		}
 	},
@@ -522,6 +539,25 @@ export default {
 		current() {
 			return this.shorts[this.playing]
 		},
+
+		/** @return {string} the current media key */
+		currentKey() {
+			return this.current?.key ?? ''
+		},
+
+		/** @return {Record<string, string>} the largest frame that fits the page */
+		trackStyle() {
+			const width = this.availableWidth || 440
+			const height = this.availableHeight || 780
+			const ratio = this.videoAspectRatio || 9 / 16
+			const frameWidth = Math.min(width, height * ratio)
+			const frameHeight = frameWidth / ratio
+
+			return {
+				'--short-track-width': `${frameWidth}px`,
+				'--short-track-height': `${frameHeight}px`,
+			}
+		},
 	},
 
 	watch: {
@@ -552,6 +588,12 @@ export default {
 				this.jumpToStart()
 			}
 		},
+
+		currentKey() {
+			const ratio = this.mediaAspectRatio(this.current?.video)
+			this.videoAspectRatio = ratio || 9 / 16
+			this.$nextTick(this.alignCurrentSlide)
+		},
 	},
 
 	mounted() {
@@ -562,6 +604,19 @@ export default {
 		// the viewport for most of a scroll, and whichever was observed last
 		// would win. A slide is the one being watched when most of it is there.
 		this.observer = new IntersectionObserver(this.onVisible, { threshold: 0.6 })
+		this.measureTrackBounds()
+		if (typeof ResizeObserver === 'function') {
+			this.layoutObserver = new ResizeObserver(this.measureTrackBounds)
+			if (this.$refs.page) {
+				this.layoutObserver.observe(this.$refs.page)
+			}
+			if (this.$refs.header) {
+				this.layoutObserver.observe(this.$refs.header)
+			}
+		} else {
+			this.resizeHandler = this.measureTrackBounds
+			window.addEventListener('resize', this.resizeHandler)
+		}
 		const track = /** @type {HTMLElement|undefined} */ (this.$refs.track)
 		track?.focus?.()
 	},
@@ -570,6 +625,10 @@ export default {
 		this.shortSignals.leave()
 		window.clearTimeout(this.tapTimer)
 		this.observer?.disconnect()
+		this.layoutObserver?.disconnect()
+		if (this.resizeHandler) {
+			window.removeEventListener('resize', this.resizeHandler)
+		}
 		this.player()?.pause?.()
 	},
 
@@ -588,6 +647,56 @@ export default {
 
 	methods: {
 		t,
+
+		/** Measures the space the video frame can use after its header. */
+		measureTrackBounds() {
+			const page = /** @type {HTMLElement|undefined} */ (this.$refs.page)
+			const header = /** @type {HTMLElement|undefined} */ (this.$refs.header)
+			if (!page) {
+				return
+			}
+			this.availableWidth = page.clientWidth
+			this.availableHeight = Math.max(0, page.clientHeight - (header?.offsetHeight ?? 0) - 8)
+		},
+
+		/** @param {object|undefined} media the media object from the timeline */
+		mediaAspectRatio(media) {
+			const dimensions = media?.original ?? media?.small ?? media
+			const width = Number(dimensions?.width)
+			const height = Number(dimensions?.height)
+			const ratio = width > 0 && height > 0 ? width / height : 0
+
+			return ratio >= 0.2 && ratio <= 5 ? ratio : 0
+		},
+
+		/** Keeps the visible slide aligned after its frame changes size. */
+		alignCurrentSlide() {
+			const track = /** @type {HTMLElement|undefined} */ (this.$refs.track)
+			if (track) {
+				track.scrollTop = this.playing * track.clientHeight
+			}
+		},
+
+		/** @param {Event} event metadata event from the current video */
+		onVideoMetadata(event) {
+			const video = /** @type {HTMLVideoElement} */ (event.target)
+			if (video.videoWidth > 0 && video.videoHeight > 0) {
+				this.videoAspectRatio = video.videoWidth / video.videoHeight
+				this.$nextTick(this.alignCurrentSlide)
+			}
+		},
+
+		/**
+		 * @param {Event} event a story image after it has loaded
+		 * @param {number} index the slide the image belongs to
+		 */
+		onPosterMetadata(event, index) {
+			const image = /** @type {HTMLImageElement} */ (event.target)
+			if (index === this.playing && image.naturalWidth > 0 && image.naturalHeight > 0) {
+				this.videoAspectRatio = image.naturalWidth / image.naturalHeight
+				this.$nextTick(this.alignCurrentSlide)
+			}
+		},
 
 		/** Points the store at the shorts of this scope and fetches the first page. */
 		open() {
@@ -1171,25 +1280,55 @@ export default {
 <style scoped lang="scss">
 .shorts {
 	position: relative;
-	/* the app's own content area, not the window: the navigation stays where
-	   it is and the stack fills what is left of the page.
-	   Measured off the viewport rather than given `100%`, because nothing in
-	   the chain above this has a height for a percentage to be of — so the
-	   stack was as tall as one slide's contents and sat in the top half of a
-	   white page. Both of the server's own offsets are taken off, or the
-	   stack overhangs its column by the eight pixels of the one that was
-	   missed and the column scrolls behind the slides. */
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
 	block-size: calc(
 		100vh - var(--header-height, 50px) - var(--body-container-margin, 8px)
 	);
 	inline-size: 100%;
-	background: var(--social-on-dark-ground);
+	min-block-size: 0;
+	background: var(--color-main-background);
+	color: var(--color-main-text);
+
+	&__header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		flex-wrap: wrap;
+		gap: 8px 16px;
+		padding: 8px 16px 0;
+	}
+
+	&__heading {
+		margin: 0;
+		color: var(--color-text-lighter);
+		font-size: 20px;
+		font-weight: 700;
+	}
+
+	&__header-actions {
+		display: flex;
+		align-items: center;
+		justify-content: flex-end;
+		flex-wrap: wrap;
+		gap: 8px 12px;
+		margin-inline-start: auto;
+	}
 
 	&__track {
-		/* the player is placed against the track, a slide's height per slide */
 		position: relative;
-		block-size: 100%;
+		flex: 0 0 auto;
+		inline-size: min(100%, var(--short-track-width, 440px));
+		block-size: min(100%, var(--short-track-height, 780px));
+		max-inline-size: 100%;
+		max-block-size: 100%;
+		min-block-size: 0;
+		margin: auto;
 		overflow-y: auto;
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-large, 12px);
+		background: var(--social-on-dark-ground);
 		scroll-snap-type: y mandatory;
 		/* the one gesture this page has, and it must not also pull the page
 		   behind it down to refresh */
@@ -1218,62 +1357,47 @@ export default {
 		opacity: 0.8;
 	}
 
-	/* top right, over the video, where every short-video app keeps it */
-	/* above the column of per-video buttons, for the whole stack */
-	&__create {
-		position: absolute;
-		z-index: 3;
-		inset-block-end: 132px;
-		inset-inline-end: 16px;
+	/* Choose which videos fill the player. */
+	&__scopes {
 		display: flex;
-		align-items: center;
-		justify-content: center;
-		inline-size: 40px;
-		block-size: 40px;
-		padding: 0;
-		border: 2px solid var(--social-on-dark-text);
-		border-radius: 12px;
-		background: linear-gradient(135deg, var(--social-on-dark-accent), var(--social-on-dark-accent-blue));
-		color: var(--social-on-dark-text);
-		cursor: pointer;
-		transition: transform .15s ease;
+		gap: 4px;
+		padding: 3px;
+		border-radius: var(--border-radius-pill, 999px);
+		background: var(--color-background-dark);
+	}
+
+	&__videos-link {
+		color: var(--color-primary-element);
+		font-size: 13px;
+		font-weight: 600;
+		text-decoration: none;
 
 		&:hover {
-			transform: scale(1.08);
+			text-decoration: underline;
 		}
 
 		&:focus-visible {
-			outline: 2px solid var(--social-on-dark-text);
-			outline-offset: 2px;
+			outline: 2px solid var(--color-primary-element);
+			outline-offset: 3px;
 		}
 	}
 
-	&__scopes {
-		position: absolute;
-		inset-block-start: 12px;
-		inset-inline-end: 12px;
-		display: flex;
-		gap: 2px;
-		padding: 3px;
-		border-radius: var(--border-radius-pill, 999px);
-		background: var(--social-on-dark-scrim);
-	}
-
 	&__scope {
-		padding: 4px 12px;
+		padding: 5px 10px;
 		border-radius: var(--border-radius-pill, 999px);
-		color: var(--social-on-dark-text-soft);
+		color: var(--color-text-lighter);
 		font-size: 13px;
 		font-weight: 600;
 		text-decoration: none;
 
 		&--current {
-			background: var(--social-on-dark-text);
-			color: var(--social-on-dark-ground);
+			background: var(--color-main-background);
+			color: var(--color-main-text);
+			box-shadow: var(--social-elevation-resting);
 		}
 
 		&:focus-visible {
-			outline: 2px solid var(--social-on-dark-text);
+			outline: 2px solid var(--color-primary-element);
 			outline-offset: 2px;
 		}
 	}
@@ -1535,10 +1659,6 @@ export default {
 		animation: none;
 	}
 
-	.shorts__create {
-		transition: none;
-	}
-
 	.short__heart {
 		animation: none;
 		display: none;
@@ -1579,6 +1699,28 @@ export default {
 		border-block-start: 1px solid CanvasText;
 		background: Canvas;
 		color: CanvasText;
+	}
+}
+
+@media (max-width: 600px) {
+	.shorts__header {
+		align-items: flex-start;
+		padding-inline: 12px;
+	}
+
+	.shorts__header-actions {
+		justify-content: flex-start;
+		gap: 8px;
+		margin-inline-start: 0;
+	}
+
+	.shorts__track {
+		border-radius: var(--border-radius-large, 12px) var(--border-radius-large, 12px) 0 0;
+	}
+
+	.shorts__scope {
+		padding-inline: 8px;
+		font-size: 12px;
 	}
 }
 </style>

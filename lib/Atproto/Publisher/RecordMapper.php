@@ -39,7 +39,7 @@ use Throwable;
  * This is the one place that decides what leaves for Bluesky: a public
  * post's text with facets, cut to fit and linked back when it does not;
  * a "Content warning: …" line and a `!warn` self-label for a content
- * warning; a poll as its question and options; the first four pictures as
+ * warning; a poll as its question and options; up to ten pictures as
  * blobs, the words added for these in the post's language; a reply to or
  * quote of a post that is on Bluesky — a published local post or a
  * Bluesky post read here — as a reply or record embed there, any other as
@@ -131,6 +131,11 @@ class RecordMapper {
 			$image = ['image' => $picture['blob']->toRecordValue(), 'alt' => $document->getDescription()];
 			if ($picture['width'] > 0 && $picture['height'] > 0) {
 				$image['aspectRatio'] = ['width' => $picture['width'], 'height' => $picture['height']];
+			} elseif (count($pictures) > PictureService::MAX_PER_IMAGES_EMBED) {
+				// Gallery items require an aspect ratio. Keep an unknown-size
+				// image readable with a neutral square ratio instead of emitting
+				// an invalid record or silently dropping it.
+				$image['aspectRatio'] = ['width' => 1, 'height' => 1];
 			}
 			$images[] = $image;
 		}
@@ -289,7 +294,7 @@ class RecordMapper {
 		// the profile rows Bluesky has a place for (`Person`)
 		$pronouns = $actor->getPronouns();
 		if ($pronouns !== '') {
-			$record['pronouns'] = self::clip($pronouns, 20, 200);
+			$record['pronouns'] = self::clipPronouns($pronouns);
 		}
 		$website = $actor->getWebsite();
 		if ($website !== '') {
@@ -322,7 +327,22 @@ class RecordMapper {
 	 * @param array{uri: string, cid: string}|null $quoted
 	 */
 	private function embed(Stream $post, Identity $identity, Person $author, array $images, ?array $quoted, ?array $video = null): ?array {
-		$pictures = $video ?? ($images === [] ? null : ['$type' => 'app.bsky.embed.images', 'images' => $images]);
+		$pictures = $video;
+		if ($pictures === null && $images !== []) {
+			if (count($images) > PictureService::MAX_PER_IMAGES_EMBED) {
+				$pictures = ['$type' => 'app.bsky.embed.gallery', 'items' => array_map(
+					static fn (array $image): array => [
+						'$type' => 'app.bsky.embed.gallery#image',
+						'image' => $image['image'],
+						'alt' => $image['alt'],
+						'aspectRatio' => $image['aspectRatio'] ?? ['width' => 1, 'height' => 1],
+					],
+					$images,
+				)];
+			} else {
+				$pictures = ['$type' => 'app.bsky.embed.images', 'images' => $images];
+			}
+		}
 		if ($quoted !== null) {
 			$record = ['$type' => 'app.bsky.embed.record', 'record' => $quoted];
 
@@ -550,6 +570,11 @@ class RecordMapper {
 		$name = trim($actor->getName());
 
 		return $name === '' ? '' : self::clip($name, 64, 640);
+	}
+
+	/** The pronouns the profile lexicon accepts. */
+	public static function clipPronouns(string $pronouns): string {
+		return self::clip($pronouns, 20, 200);
 	}
 
 	/** at most $graphemes characters and $bytes bytes, which the profile lexicon asks */

@@ -365,13 +365,19 @@ class StreamTest extends TestCase {
 	 */
 	public function testAHydratedPostServesItsAttachmentsAsDocuments(): void {
 		$stream = new Stream();
-		$stream->setId('https://cloud.example/apps/social/@alice/1');
-		$attachment = (new MediaAttachment())->import([
-			'id' => '7', 'type' => 'image', 'media_type' => 'image/png',
-			'url' => 'https://cloud.example/apps/social/media/abc', 'preview_url' => null, 'remote_url' => null,
-			'meta' => ['original' => ['width' => 640, 'height' => 480]], 'description' => 'a cat', 'blurhash' => 'LEHV6n',
+		$stream->importFromDatabase([
+			'id' => 'https://cloud.example/apps/social/@alice/1',
+			'type' => 'Note',
+			'published_time' => '2024-05-01 12:00:00',
+			'content' => 'look at this cat',
+			'visibility' => 'public',
+			'attachments' => json_encode([[
+				'id' => '7', 'type' => 'image', 'media_type' => 'image/png',
+				'url' => 'https://cloud.example/apps/social/media/abc', 'preview_url' => null, 'remote_url' => null,
+				'meta' => ['original' => ['width' => 640, 'height' => 480]], 'description' => 'a cat', 'blurhash' => 'LEHV6n',
+			]], JSON_THROW_ON_ERROR),
 		]);
-		$stream->setAttachments([$attachment]);
+		$attachment = $stream->getAttachments()[0];
 		$this->assertSame(ACore::FORMAT_LOCAL, $attachment->getExportFormat(), 'hydrated in the local format, as importFromDatabase() leaves it');
 
 		$stream->setExportFormat(ACore::FORMAT_ACTIVITYPUB);
@@ -433,6 +439,50 @@ class StreamTest extends TestCase {
 		]);
 
 		$this->assertCount(4, $stream->getAttachments());
+	}
+
+	public function testMapperAllowlistedAtprotoBlobsAreSavedAsStreamedDocuments(): void {
+		$this->installActivityPub(mocked: [DocumentInterface::class]);
+		$url = 'https://pds.example/xrpc/com.atproto.sync.getBlob?did=did%3Aplc%3Aalice&cid=bafkrei';
+		$this->apInterface(DocumentInterface::class)
+			->expects($this->once())
+			->method('save')
+			->with($this->callback(static function (Document $document): bool {
+				return $document->isStreamed() && $document->getDescription() === 'report.pdf';
+			}));
+
+		$stream = (new Stream())->setAtprotoStreamedBlobs([$url]);
+		$stream->import([
+			'id' => 'https://bsky.app/profile/did:plc:alice/post/one',
+			'type' => 'Note',
+			'attachment' => [[
+				'type' => 'Document', 'mediaType' => 'application/pdf', 'url' => $url, 'name' => 'report.pdf',
+			]],
+		]);
+
+		$this->assertCount(1, $stream->getAttachments());
+	}
+
+	public function testTrustedAtprotoBlobAllowlistIsAppliedBeforeTheNoteImportsAttachments(): void {
+		$this->installActivityPub(mocked: [DocumentInterface::class]);
+		$url = 'https://pds.example/xrpc/com.atproto.sync.getBlob?did=did%3Aplc%3Aalice&cid=bafkrei';
+		$this->apInterface(DocumentInterface::class)
+			->expects($this->once())
+			->method('save')
+			->with($this->callback(static function (Document $document): bool {
+				return $document->isStreamed() && $document->getDescription() === 'report.pdf';
+			}));
+
+		$note = AP::instance()->getItemFromData([
+			'id' => 'https://bsky.app/profile/did:plc:alice/post/one',
+			'type' => 'Note',
+			'attachment' => [[
+				'type' => 'Document', 'mediaType' => 'application/pdf', 'url' => $url, 'name' => 'report.pdf',
+			]],
+		], atprotoStreamedBlobs: [$url]);
+
+		$this->assertInstanceOf(Note::class, $note);
+		$this->assertCount(1, $note->getAttachments());
 	}
 
 	public function testConvertPublishedIgnoresUnparsableDates(): void {

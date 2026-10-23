@@ -143,6 +143,21 @@ function blurhashSize(small) {
 	}
 }
 
+/**
+ * A storage key can locate a file without naming it for a reader.
+ *
+ * @param {string} name a possible filename
+ * @return {boolean}
+ */
+function isOpaqueFileName(name) {
+	const stem = name.replace(/\.[^.]+$/, '')
+
+	return /^\d+$/.test(stem)
+		|| /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(stem)
+		|| /^baf[a-z2-7]{20,}$/i.test(stem)
+		|| /^[a-z0-9_-]{40,}$/i.test(stem)
+}
+
 export default {
 	name: 'MediaAttachment',
 	components: {
@@ -274,18 +289,88 @@ export default {
 		 */
 		fileName() {
 			const description = (this.attachment?.description || '').trim()
-			if (description !== '') {
+			if (description !== '' && !isOpaqueFileName(description)) {
 				return description
 			}
 			const path = (this.attachment?.url || this.attachment?.remote_url || '').split('?')[0]
-			return decodeURIComponent(path.split('/').pop() || '') || t('social', 'File')
+			const tail = path.split('/').pop() || ''
+			let name = tail
+			try {
+				name = decodeURIComponent(tail)
+			} catch {
+				// A malformed escape is not a reason to break the attachment card.
+			}
+			if (name !== '' && !isOpaqueFileName(name)) {
+				return name
+			}
+
+			// Older remote posts may have stored only a local numeric media id
+			// where newer imports keep the source filename. The MIME type still
+			// lets the card say what the download contains.
+			const mediaType = String(this.attachment?.media_type || '').toLowerCase()
+			const [major] = mediaType.split('/', 2)
+			const category = ({
+				application: t('social', 'document'),
+				audio: t('social', 'audio file'),
+				image: t('social', 'image file'),
+				text: t('social', 'text file'),
+				video: t('social', 'video file'),
+			})[major] || t('social', 'file')
+			const kind = this.fileKind
+
+			return kind ? t('social', '{kind} {category}', { kind, category }) : category
 		},
 
-		/** @return {string} the extension, upper-cased, as a kind label; '' when there is none */
+		/** @return {string} a useful file kind, from its extension or media type */
 		fileKind() {
+			// Streamed Bluesky files use opaque routes without an extension. Their
+			// validated name is carried in `description`, so check it first.
+			const description = String(this.attachment?.description || '').trim()
 			const path = (this.attachment?.url || this.attachment?.remote_url || '').split('?')[0]
-			const match = /\.([a-z0-9]{1,8})$/i.exec(path)
-			return match ? match[1].toUpperCase() : ''
+			const match = /\.([a-z0-9]{1,8})$/i.exec(description) || /\.([a-z0-9]{1,8})$/i.exec(path)
+			if (match) {
+				return match[1].toUpperCase()
+			}
+			const mediaType = String(this.attachment?.media_type || '').toLowerCase()
+			const knownKinds = {
+				'application/epub+zip': 'EPUB',
+				'application/gzip': 'GZIP',
+				'application/msword': 'DOC',
+				'application/pdf': 'PDF',
+				'application/vnd.ms-excel': 'XLS',
+				'application/vnd.ms-powerpoint': 'PPT',
+				'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'PPTX',
+				'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'XLSX',
+				'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'DOCX',
+				'application/vnd.oasis.opendocument.presentation': 'ODP',
+				'application/vnd.oasis.opendocument.spreadsheet': 'ODS',
+				'application/vnd.oasis.opendocument.text': 'ODT',
+				'application/x-zip-compressed': 'ZIP',
+				'application/zip': 'ZIP',
+				'audio/aac': 'AAC',
+				'audio/flac': 'FLAC',
+				'audio/mp4': 'M4A',
+				'audio/mpeg': 'MP3',
+				'audio/ogg': 'OGG',
+				'audio/opus': 'OPUS',
+				'audio/wav': 'WAV',
+				'image/avif': 'AVIF',
+				'image/gif': 'GIF',
+				'image/heic': 'HEIC',
+				'image/heif': 'HEIF',
+				'image/jpeg': 'JPEG',
+				'image/jpg': 'JPEG',
+				'image/png': 'PNG',
+				'image/webp': 'WEBP',
+				'video/mp4': 'MP4',
+				'video/quicktime': 'MOV',
+				'video/webm': 'WEBM',
+				'text/csv': 'CSV',
+				'text/markdown': 'MD',
+				'text/plain': 'TXT',
+			}
+
+			return knownKinds[mediaType] || ''
 		},
 
 		/**

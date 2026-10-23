@@ -30,6 +30,7 @@ class RefreshCounts extends QueuedJob {
 	#[\Override]
 	protected function run($argument): void {
 		$posts = is_array($argument) ? ($argument['posts'] ?? null) : null;
+		$force = is_array($argument) && ($argument['force'] ?? false) === true;
 		$ids = [];
 		foreach (is_array($posts) ? $posts : [] as $id) {
 			if (is_string($id) && $id !== '') {
@@ -37,7 +38,7 @@ class RefreshCounts extends QueuedJob {
 			}
 		}
 		if ($ids !== []) {
-			$this->counts->refresh($ids);
+			$this->counts->refresh($ids, $force);
 		}
 	}
 }

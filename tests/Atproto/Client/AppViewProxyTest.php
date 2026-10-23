@@ -62,7 +62,7 @@ class AppViewProxyTest extends TestCase {
 			[$header, $payload, $signature] = explode('.', substr($options['headers']['Authorization'], 7));
 			$claims = json_decode(Encoding::base64UrlDecode($payload), true);
 			$this->assertSame(self::DID, $claims['iss']);
-			$this->assertSame('did:web:api.bsky.app', $claims['aud']);
+			$this->assertSame('did:web:api.bsky.app#bsky_appview', $claims['aud']);
 			$this->assertSame('app.bsky.feed.getTimeline', $claims['lxm']);
 			$this->assertTrue($this->userKey->publicKey()->verify($header . '.' . $payload, Encoding::base64UrlDecode($signature)));
 			$this->assertSame('did:plc:labeler', $options['headers']['atproto-accept-labelers']);
@@ -94,10 +94,54 @@ class AppViewProxyTest extends TestCase {
 		$this->assertStringContainsString('Profile not found', $answer->bytes);
 	}
 
+	public function testTheOfficialAppViewServiceReferenceIsPreservedInTheSignedAudience(): void {
+		$this->curl->expects($this->once())->method('doRequest')->with('get', 'https://api.bsky.app/xrpc/app.bsky.actor.getProfile?actor=alice.test', $this->callback(function (array $options): bool {
+			$claims = json_decode(Encoding::base64UrlDecode(explode('.', substr($options['headers']['Authorization'], 7))[1]), true);
+			$this->assertSame('did:web:api.bsky.app#bsky_appview', $claims['aud']);
+
+			return true;
+		}))->willReturnCallback(static function (string $method, string $url, array $options, &$contentType, &$status): string {
+			$status = 200;
+			$contentType = 'application/json';
+
+			return '{"did":"did:plc:alice","posts":[]}';
+		});
+
+		$answer = $this->proxy->forward($this->session, 'app.bsky.actor.getProfile', 'get', 'actor=alice.test', '', ['atproto-proxy' => 'did:web:api.bsky.app#bsky_appview']);
+		$this->assertSame(200, $answer->status);
+		$this->assertStringContainsString('did:plc:alice', $answer->bytes);
+	}
+
+	public function testAppViewRejectingTheServiceFragmentIsRetriedWithItsBareDid(): void {
+		$audiences = [];
+		$this->curl->expects($this->exactly(2))->method('doRequest')->willReturnCallback(static function (string $method, string $url, array $options, &$contentType, &$status) use (&$audiences): string {
+			$payload = explode('.', substr($options['headers']['Authorization'], 7))[1];
+			$claims = json_decode(Encoding::base64UrlDecode($payload), true);
+			$audiences[] = $claims['aud'];
+			$contentType = 'application/json';
+
+			if (count($audiences) === 1) {
+				$status = 401;
+
+				return '{"error":"BadJwtAudience","message":"jwt audience does not match service did"}';
+			}
+
+			$status = 200;
+
+			return '{"feed":[]}';
+		});
+
+		$answer = $this->proxy->forward($this->session, 'app.bsky.feed.getTimeline', 'get', 'limit=5', '', []);
+
+		$this->assertSame(['did:web:api.bsky.app#bsky_appview', 'did:web:api.bsky.app'], $audiences);
+		$this->assertSame(200, $answer->status);
+		$this->assertSame('{"feed":[]}', $answer->bytes);
+	}
+
 	public function testDirectMessagesGoToTheChatServiceSignedForIt(): void {
 		$this->curl->expects($this->once())->method('doRequest')->with('post', 'https://api.bsky.chat/xrpc/chat.bsky.convo.sendMessage', $this->callback(function (array $options): bool {
 			$claims = json_decode(Encoding::base64UrlDecode(explode('.', substr($options['headers']['Authorization'], 7))[1]), true);
-			$this->assertSame(['did:web:api.bsky.chat', 'chat.bsky.convo.sendMessage'], [$claims['aud'], $claims['lxm']]);
+			$this->assertSame(['did:web:api.bsky.chat#bsky_chat', 'chat.bsky.convo.sendMessage'], [$claims['aud'], $claims['lxm']]);
 			$this->assertSame('{"convoId":"c1"}', $options['body']);
 
 			return true;
@@ -180,5 +224,45 @@ class AppViewProxyTest extends TestCase {
 
 		$this->assertSame([$feeds], json_decode($stored, true), 'the words are not kept beside the filters');
 		$this->assertSame(['preferences' => [$feeds, $fromFilters]], $preferences->get($this->session));
+	}
+
+	public function testReplacingPreferencesWithoutMutedWordsClearsTheLocalProjection(): void {
+		$config = $this->createMock(IConfig::class);
+		$words = $this->createMock(\OCA\Social\Atproto\Client\MutedWords::class);
+		$words->expects($this->once())->method('apply')->with(
+			$this->anything(),
+			['$type' => \OCA\Social\Atproto\Client\MutedWords::PREF, 'items' => []]
+		);
+		$preferences = new Preferences($config, $words, $this->createMock(\OCA\Social\Service\AccountService::class));
+
+		$preferences->put($this->session, ['preferences' => [
+			['$type' => 'app.bsky.actor.defs#savedFeedsPrefV2', 'items' => []],
+		]]);
+	}
+
+	public function testMalformedMutedWordsAreRejectedBeforePreferencesOrFiltersChange(): void {
+		$config = $this->createMock(IConfig::class);
+		$config->expects($this->never())->method('setUserValue');
+		$words = $this->createMock(\OCA\Social\Atproto\Client\MutedWords::class);
+		$words->expects($this->never())->method('apply');
+		$preferences = new Preferences($config, $words, $this->createMock(\OCA\Social\Service\AccountService::class));
+		$malformed = [
+			['value' => ['unexpected'], 'targets' => ['content']],
+			['value' => 'spoilers', 'targets' => [['unexpected']]],
+			['value' => 'spoilers', 'targets' => ['unknown']],
+			['value' => 'spoilers', 'targets' => ['content'], 'expiresAt' => ['unexpected']],
+			['value' => 'spoilers', 'targets' => ['content'], 'actorTarget' => 'friends'],
+		];
+
+		foreach ($malformed as $item) {
+			try {
+				$preferences->put($this->session, ['preferences' => [
+					['$type' => \OCA\Social\Atproto\Client\MutedWords::PREF, 'items' => [$item]],
+				]]);
+				$this->fail('accepted malformed muted word ' . json_encode($item));
+			} catch (XrpcException $e) {
+				$this->assertSame('InvalidRequest', $e->error);
+			}
+		}
 	}
 }

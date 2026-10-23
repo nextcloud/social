@@ -56,6 +56,7 @@ class CoreRequestBuilder {
 	public const TABLE_MUTE_EXPIRY = 'social_mute_expiry';
 	public const TABLE_FEATURED_TAGS = 'social_featured_tag';
 	public const TABLE_STATUS_REVISIONS = 'social_stream_rev';
+	public const TABLE_STATUS_DELETIONS = 'social_stream_del';
 	public const TABLE_LISTS = 'social_list';
 	public const TABLE_LIST_MEMBERS = 'social_list_member';
 	public const TABLE_COLLECTIONS = 'social_collection';
@@ -71,6 +72,7 @@ class CoreRequestBuilder {
 	public const TABLE_SEARCH_TERMS = 'social_search_term';
 	public const TABLE_HOST_BREAKER = 'social_host_breaker';
 	public const TABLE_POST_HOLD = 'social_post_hold';
+	public const TABLE_RECOMMENDATION_DISCOVERY = 'social_rec_discovery';
 	public const TABLE_SCHEDULED = 'social_scheduled';
 	public const TABLE_PLACES = 'social_place';
 	public const TABLE_STARTER_PACKS = 'social_starter_pack';
@@ -91,6 +93,7 @@ class CoreRequestBuilder {
 	public const TABLE_RENDITIONS = 'social_video_rendition';
 	public const TABLE_VIDEO_VIEWS = 'social_video_views';
 	public const TABLE_VIDEO_SEEN = 'social_video_seen';
+	public const TABLE_DEVICE_AUTH = 'social_device_auth';
 	public const TABLE_STREAM = 'social_stream';
 	public const TABLE_STREAM_ACTIONS = 'social_stream_act';
 	public const TABLE_STREAM_VIEWS = 'social_stream_view';
@@ -505,6 +508,10 @@ class CoreRequestBuilder {
 			'viewer_hash',
 			'day'
 		],
+		self::TABLE_DEVICE_AUTH => [
+			'id', 'device_hash', 'user_code', 'client_id', 'scopes', 'status',
+			'user_id', 'poll_interval', 'last_poll', 'expires', 'created'
+		],
 		self::TABLE_RENDITIONS => [
 			'id',
 			'doc_nid',
@@ -608,6 +615,16 @@ class CoreRequestBuilder {
 			'published',
 			'media',
 			'creation'
+		],
+		self::TABLE_STATUS_DELETIONS => [
+			'id',
+			'status_nid',
+			'hashtags',
+			'local',
+			'media',
+			'visibility',
+			'recipients',
+			'audience_prim'
 		],
 		self::TABLE_FEATURED_TAGS => [
 			'id',
@@ -764,6 +781,19 @@ class CoreRequestBuilder {
 			'strikes',
 			'open_until',
 			'last_failure'
+		],
+		self::TABLE_RECOMMENDATION_DISCOVERY => [
+			'provider',
+			'hour_bucket',
+			'calls',
+			'requests',
+			'failed_requests',
+			'rate_limited',
+			'posts_seen',
+			'posts_stored',
+			'duration_ms',
+			'last_attempt',
+			'last_success'
 		],
 		self::TABLE_STREAM => [
 			'nid',
@@ -1380,6 +1410,7 @@ class CoreRequestBuilder {
 			->selectAlias('sa.boosted', 'streamaction_boosted')
 			->selectAlias('sa.replied', 'streamaction_replied')
 			->selectAlias('sa.bookmarked', 'streamaction_bookmarked')
+			->selectAlias('sa.disliked', 'streamaction_disliked')
 			->selectAlias('sa.liked_nid', 'streamaction_liked_nid')
 			->selectAlias('sa.bookmarked_nid', 'streamaction_bookmarked_nid')
 			->selectAlias('sa.values', 'streamaction_values');

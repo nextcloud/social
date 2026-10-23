@@ -27,5 +27,5 @@ interface CountSource {
 	 * @param list<Stream> $posts posts this source supports
 	 * @return int how many were answered
 	 */
-	public function refresh(array $posts): int;
+	public function refresh(array $posts, ?int $timeout = null): int;
 }

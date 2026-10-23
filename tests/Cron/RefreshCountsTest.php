@@ -31,7 +31,7 @@ class RefreshCountsTest extends TestCase {
 
 	public function testThePostsTheJobNamesAreAskedAbout(): void {
 		$this->counts->expects($this->once())->method('refresh')
-			->with(['https://remote.example/notes/1', 'https://bsky.app/profile/did:plc:a/post/1'])
+			->with(['https://remote.example/notes/1', 'https://bsky.app/profile/did:plc:a/post/1'], false)
 			->willReturn(['asked' => 2, 'answered' => 2]);
 
 		$this->runJob(['posts' => ['https://remote.example/notes/1', '', 7, 'https://bsky.app/profile/did:plc:a/post/1']]);
@@ -43,5 +43,13 @@ class RefreshCountsTest extends TestCase {
 		$this->runJob(null);
 		$this->runJob(['posts' => 'https://remote.example/notes/1']);
 		$this->runJob(['posts' => []]);
+	}
+
+	public function testForcedRetryPassesTheForceFlagThroughToTheCountService(): void {
+		$this->counts->expects($this->once())->method('refresh')
+			->with(['at://did:plc:author/app.bsky.feed.post/1'], true)
+			->willReturn(['asked' => 1, 'answered' => 1]);
+
+		$this->runJob(['posts' => ['at://did:plc:author/app.bsky.feed.post/1'], 'force' => true]);
 	}
 }

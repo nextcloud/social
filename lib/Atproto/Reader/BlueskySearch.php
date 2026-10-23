@@ -134,7 +134,7 @@ class BlueskySearch {
 			return $cached;
 		}
 		try {
-			$answer = $this->appView->query('app.bsky.actor.searchActorsTypeahead', ['q' => $query, 'limit' => $limit]);
+			$answer = $this->appView->query('app.bsky.actor.searchActorsTypeahead', ['q' => $query, 'limit' => $limit], timeout: AppViewClient::INTERACTIVE_TIMEOUT);
 		} catch (Throwable $e) {
 			$this->logger->notice('Bluesky typeahead not answered', ['exception' => $e]);
 

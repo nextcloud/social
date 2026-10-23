@@ -1217,7 +1217,11 @@ appears with a butterfly badge next to its name, its profile page is
 follow requests). Their posts then come into your home feed within minutes,
 badged but otherwise ordinary: like, boost, reply and quote them as you would
 any post — a like or boost reaches Bluesky, a reply lands in their thread
-there, and a quote shows their post inside yours. A post they delete on
+there, and a quote shows their post inside yours. Pictures and standard video
+embeds use the usual gallery and player. Audio is playable in the post; files
+from supported third-party Bluesky embeds appear as named downloads. Such files
+are streamed from the public PDS when opened, rather than fetched while the
+feed loads. A post they delete on
 Bluesky disappears here too, once the server's regular check reaches it. If you limit who may quote a post
 of yours (followers only, or nobody), nobody on Bluesky can quote it —
 Bluesky has no "followers only". *Open on Bluesky* in the post menu leads to the post on bsky.app. When
@@ -1236,7 +1240,8 @@ service* passes the report on — sent by this server, not in your name.
 with this account. In *Settings → Apps and account → Bluesky* make an
 **app password** and copy it — it is shown once. In the app, choose to sign in with
 a different hosting provider, give this server's address, then your Bluesky
-handle and the app password. What you post, like or follow there happens
+handle and the app password. This is not your Nextcloud password; never enter
+that in a Bluesky client. What you post, like or follow there happens
 here too, as if you had done it in Aloha Social; blocks stay here and cannot
 be made from the app. Revoking the app password signs the app out.
 

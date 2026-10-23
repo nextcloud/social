@@ -171,7 +171,7 @@ class RecordMapperTest extends TestCase {
 		$pictures->setLanguage('de');
 		$this->withPictures($pictures, 6);
 
-		$this->assertSame("Sechs Bilder\n\n+2 weitere Bilder\n\n" . self::POST_ID, $this->mapper->post($pictures, $this->identity, $this->author)['record']['text']);
+		$this->assertSame('Sechs Bilder', $this->mapper->post($pictures, $this->identity, $this->author)['record']['text']);
 	}
 
 	/**
@@ -220,16 +220,50 @@ class RecordMapperTest extends TestCase {
 		$this->lexicon->validateRecord($record);
 	}
 
-	public function testUpToFourPicturesGoAndTheRestAreCounted(): void {
-		$post = $this->post('<p>Six pictures</p>');
-		$this->withPictures($post, 6);
+	public function testUpToTenPicturesUseGallery(): void {
+		$post = $this->post('<p>Ten pictures</p>');
+		$this->withPictures($post, 10);
 
 		$record = $this->mapper->post($post, $this->identity, $this->author)['record'];
 
+		$this->assertSame('app.bsky.embed.gallery', $record['embed']['$type']);
+		$this->assertCount(10, $record['embed']['items']);
+		$this->assertSame('picture 1', $record['embed']['items'][0]['alt']);
+		$this->assertSame(['width' => 40, 'height' => 30], $record['embed']['items'][0]['aspectRatio']);
+		$this->assertSame('Ten pictures', $record['text']);
+		$this->lexicon->validateRecord($record);
+	}
+
+	public function testPicturesOverTheAuthoringLimitAreCountedAndOmitted(): void {
+		$post = $this->post('<p>Eleven pictures</p>');
+		$this->withPictures($post, 11);
+
+		$record = $this->mapper->post($post, $this->identity, $this->author)['record'];
+
+		$this->assertSame('app.bsky.embed.gallery', $record['embed']['$type']);
+		$this->assertCount(10, $record['embed']['items']);
+		$this->assertStringContainsString('+1 more picture', $record['text']);
+		$this->lexicon->validateRecord($record);
+	}
+
+	public function testGalleryPicturesWithoutDimensionsGetASquareAspectRatio(): void {
+		$post = $this->post('<p>Five pictures</p>');
+		$this->withPictures($post, 5, 0, 0);
+
+		$record = $this->mapper->post($post, $this->identity, $this->author)['record'];
+
+		$this->assertSame(['width' => 1, 'height' => 1], $record['embed']['items'][0]['aspectRatio']);
+		$this->lexicon->validateRecord($record);
+	}
+
+	public function testFourPicturesKeepTheImagesEmbed(): void {
+		$post = $this->post('<p>Four pictures</p>');
+		$this->withPictures($post, 4);
+
+		$record = $this->mapper->post($post, $this->identity, $this->author)['record'];
+
+		$this->assertSame('app.bsky.embed.images', $record['embed']['$type']);
 		$this->assertCount(4, $record['embed']['images']);
-		$this->assertSame('picture 1', $record['embed']['images'][0]['alt']);
-		$this->assertSame(['width' => 40, 'height' => 30], $record['embed']['images'][0]['aspectRatio']);
-		$this->assertSame("Six pictures\n\n+2 more pictures\n\n" . self::POST_ID, $record['text']);
 		$this->lexicon->validateRecord($record);
 	}
 
@@ -664,7 +698,7 @@ class RecordMapperTest extends TestCase {
 	/**
 	 * Gives a post of alice's this many pictures, each a blob when asked.
 	 */
-	private function withPictures(Note $post, int $count): void {
+	private function withPictures(Note $post, int $count, int $width = 40, int $height = 30): void {
 		$documents = [];
 		$attachments = [];
 		for ($i = 1; $i <= $count; $i++) {
@@ -681,8 +715,8 @@ class RecordMapperTest extends TestCase {
 		$post->setAttachments($attachments);
 		$this->documents->method('getMediaFromArray')
 			->with(array_map('strval', range(1, $count)), 'alice')->willReturn($documents);
-		$this->pictures->method('blobFor')->willReturnCallback(function (Identity $identity, Person $owner, Document $document): array {
-			return ['blob' => new BlobRef(self::DID, Cid::forRaw($document->getId()), $document->getId(), 'image/jpeg', 100), 'width' => 40, 'height' => 30];
+		$this->pictures->method('blobFor')->willReturnCallback(function (Identity $identity, Person $owner, Document $document) use ($width, $height): array {
+			return ['blob' => new BlobRef(self::DID, Cid::forRaw($document->getId()), $document->getId(), 'image/jpeg', 100), 'width' => $width, 'height' => $height];
 		});
 	}
 

@@ -42,6 +42,22 @@ class StatusRevisionsRequestBuilder extends CoreRequestBuilder {
 		return $qb;
 	}
 
+	protected function getStatusRevisionsSelectCursorSql(): SocialQueryBuilder {
+		$qb = $this->getQueryBuilder();
+		$qb->select('sr.id', 'sr.stream_id_prim')
+			->from(self::TABLE_STATUS_REVISIONS, 'sr');
+
+		return $qb;
+	}
+
+	protected function getStatusRevisionsMaxIdSql(): SocialQueryBuilder {
+		$qb = $this->getQueryBuilder();
+		$qb->selectAlias($qb->createFunction('COALESCE(MAX(sr.id), 0)'), 'max_id')
+			->from(self::TABLE_STATUS_REVISIONS, 'sr');
+
+		return $qb;
+	}
+
 	protected function getStatusRevisionsDeleteSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
 		$qb->delete(self::TABLE_STATUS_REVISIONS);

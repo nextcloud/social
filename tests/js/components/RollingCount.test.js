@@ -42,6 +42,14 @@ describe('RollingCount', () => {
 		expect(wrapper.find('.rolling-count__value--current').text()).toBe('7')
 	})
 
+	it('keeps full counts readable and compact counts accessible', () => {
+		const wrapper = mount(RollingCount, { props: { count: 12500 } })
+
+		expect(wrapper.find('.rolling-count__value--current').text()).not.toBe('12500')
+		expect(wrapper.find('.rolling-count').attributes('aria-label')).toBe('12,500')
+		expect(wrapper.find('.rolling-count').attributes('title')).toBe('12,500')
+	})
+
 	it('rolls up when the number grows and down when it shrinks', async () => {
 		const wrapper = mount(RollingCount, { props: { count: 1 } })
 

@@ -49,7 +49,7 @@
 					"format": "websocket-url"
 				}
 			},
-			"description": "Deliberate deviation: no streaming server, so `urls` is an empty object (docs/Mastodon-Compatibility.md, Tier 2 item 10)."
+			"description": "`streaming_api` advertises this instance's streaming host; clients may poll when its optional streaming daemon is unavailable (docs/Mastodon-Compatibility.md, Tier 2 item 10)."
 		},
 		"stats": {
 			"type": "object",

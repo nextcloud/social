@@ -8,7 +8,7 @@
 
 		<!-- your own profile is a page you post from, the way the home
 		     timeline is. Somebody else's is a page you read -->
-		<Composer v-if="isOwnProfile" />
+		<Composer v-if="isOwnProfile" compactOptions />
 
 		<router-view v-if="accountLoaded && accountInfo" name="details" />
 		<!-- a follow link from another server, for an account this one does
@@ -54,6 +54,7 @@ import { useTimelineStore } from '../store/timeline.js'
 import { useAccount } from '../composables/useAccount.js'
 import { useServerData } from '../composables/useServerData.js'
 import { isBlueskyHandle } from '../utils/accountLocality.js'
+import { recordRecommendationProfileVisit } from '../services/interests.js'
 
 const Composer = defineAsyncComponent(() => import(/* webpackChunkName: "composer" */'../components/Composer/Composer.vue'))
 
@@ -84,6 +85,7 @@ export default {
 			/** the account the server found for `serverData.resolve`, once asked */
 			resolvedAccount: '',
 			lookingUp: false,
+			profileVisitFor: '',
 		}
 	},
 
@@ -180,6 +182,15 @@ export default {
 			this.lookupFinished = true
 			if (response) {
 				this.uid = response.acct
+				const profileId = this.accountInfo?.uri || this.accountInfo?.url || response.uri || response.url
+				const visitedHandle = this.accountInfo?.acct || response.acct
+				const isOwnAccount = Boolean(this.currentAccount?.acct && visitedHandle === this.currentAccount.acct)
+				if (!this.serverData.public && !isOwnAccount
+					&& this.serverData.interests?.recommendationsEnabled === true
+					&& typeof profileId === 'string' && profileId !== this.profileVisitFor) {
+					this.profileVisitFor = profileId
+					recordRecommendationProfileVisit(profileId).catch((error) => logger.debug('Could not record a For You profile visit', { error }))
+				}
 				const infoId = this.accountInfo?.nid || this.accountInfo?.id
 				if (infoId && !this.serverData.public) {
 					await this.accountStore.fetchAccountRelationshipInfo([infoId])

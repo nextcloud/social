@@ -18,11 +18,13 @@ use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\Client\MediaAttachment;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\StreamService;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\DataDisplayResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\AppFramework\Http\Template\PublicTemplateResponse;
 use OCP\AppFramework\Http\TemplateResponse;
@@ -71,6 +73,7 @@ class SocialPubControllerTest extends TestCase {
 		// PublicTemplateResponse registers the public page menu with the
 		// server's own initial state on construction
 		\OC::$server->register(IInitialStateService::class, $this->createStub(IInitialStateService::class));
+		\OC::$server->register(IRequest::class, $this->createStub(IRequest::class));
 	}
 
 	protected function tearDown(): void {
@@ -133,6 +136,61 @@ class SocialPubControllerTest extends TestCase {
 		$this->streamService->method('getStreamById')->with(self::SOCIAL_URL . '@alice/' . $token, true)->willReturn($stream);
 
 		return $stream;
+	}
+
+	public function testPublicEmbedReturnsAnEmbeddableMinimalPostPage(): void {
+		$post = $this->createStub(Stream::class);
+		$post->method('isLocal')->willReturn(true);
+		$post->method('getVisibility')->willReturn(Stream::TYPE_PUBLIC);
+		$post->method('getAttributedTo')->willReturn('https://cloud.example/apps/social/@alice');
+		$post->method('getId')->willReturn(self::SOCIAL_URL . '@alice/abc');
+		$post->method('getPublishedTime')->willReturn(1_781_100_000);
+		$post->method('getContent')->willReturn('<script>alert(1)</script><p>Hello</p>');
+		$post->method('isSensitive')->willReturn(true);
+		$post->method('getSpoilerText')->willReturn('Viewer warning');
+		$localMedia = $this->createStub(MediaAttachment::class);
+		$localMedia->method('getUrl')->willReturn('https://cloud.example/apps/social/media/photo.jpg');
+		$localMedia->method('getType')->willReturn('image');
+		$localMedia->method('getDescription')->willReturn('<cover>');
+		$remoteMedia = $this->createStub(MediaAttachment::class);
+		$remoteMedia->method('getUrl')->willReturn('https://tracker.example/pixel.gif');
+		$remoteMedia->method('getType')->willReturn('image');
+		$post->method('getAttachments')->willReturn([$localMedia, $remoteMedia]);
+		$this->streamService->method('getStreamById')->with(self::SOCIAL_URL . '@alice/abc')->willReturn($post);
+		$author = $this->createStub(Person::class);
+		$author->method('getDisplayName')->willReturn('Alice');
+		$author->method('getId')->willReturn('https://cloud.example/apps/social/@alice');
+		$author->method('getPreferredUsername')->willReturn('alice');
+		$author->method('getAvatar')->willReturn('https://cloud.example/apps/social/avatar/alice.png');
+		$this->cacheActorService->method('getFromId')->willReturn($author);
+
+		$response = $this->controller(null)->embedPost('alice', 'abc');
+
+		self::assertInstanceOf(DataDisplayResponse::class, $response);
+		self::assertSame(Http::STATUS_OK, $response->getStatus());
+		self::assertStringContainsString('<p>Hello</p>', $response->getData());
+		self::assertStringContainsString('<details><summary>Viewer warning</summary>', $response->getData());
+		self::assertStringNotContainsString('<script>', $response->getData());
+		self::assertStringContainsString('@alice', $response->getData());
+		self::assertStringContainsString('avatar/alice.png', $response->getData());
+		self::assertStringContainsString('datetime="', $response->getData());
+		self::assertStringContainsString('prefers-color-scheme:dark', $response->getData());
+		self::assertStringContainsString('src="https://cloud.example/apps/social/media/photo.jpg" alt="&lt;cover&gt;"', $response->getData());
+		self::assertStringNotContainsString('tracker.example', $response->getData());
+		self::assertStringContainsString('Open post', $response->getData());
+		\OC::$server->register(IRequest::class, $this->createStub(IRequest::class));
+		self::assertSame('no-store', $response->getHeaders()['Cache-Control']);
+		self::assertSame('ALLOWALL', $response->getHeaders()['X-Frame-Options']);
+		self::assertStringContainsString('*', $response->getContentSecurityPolicy()->buildPolicy());
+	}
+
+	public function testPublicEmbedHidesNonPublicPostsAsNotFound(): void {
+		$post = $this->createStub(Stream::class);
+		$post->method('isLocal')->willReturn(true);
+		$post->method('getVisibility')->willReturn(Stream::TYPE_UNLISTED);
+		$this->streamService->method('getStreamById')->willReturn($post);
+
+		self::assertSame(Http::STATUS_NOT_FOUND, $this->controller(null)->embedPost('alice', 'abc')->getStatus());
 	}
 
 	private function assertNotFoundGuestPage(Response $response, string $title): void {
@@ -300,6 +358,8 @@ class SocialPubControllerTest extends TestCase {
 		$this->anonymous();
 		$this->streamService->expects($this->never())->method('setViewer');
 		$post = $this->knownPost();
+		$post->method('isLocal')->willReturn(true);
+		$post->method('getVisibility')->willReturn(Stream::TYPE_PUBLIC);
 		$post->expects($this->once())->method('setCompleteDetails')->with(true);
 		// the app reads a status the way the client API serves one; the
 		// ActivityPub shape has no `account` and its `id` is an address
@@ -313,6 +373,8 @@ class SocialPubControllerTest extends TestCase {
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
 		$this->assertSame($post, $this->states['item']);
 		$this->assertSame(['public' => true, 'firstrun' => false, 'setup' => false], $this->states['serverData']);
+		$this->assertStringContainsString('rel="alternate"', $response->getHeaders()['Link']);
+		$this->assertStringContainsString('/api/oembed?url=', $response->getHeaders()['Link']);
 	}
 
 	public function testThePostIsReadAsItsViewer(): void {

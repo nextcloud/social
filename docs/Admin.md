@@ -202,7 +202,7 @@ They map three things onto the app:
 | `/oauth/…` | registering the app, the consent screen, the token |
 | `/.well-known/host-meta` | some clients ask for it before anything else |
 | `/.well-known/oauth-authorization-server` | RFC 8414 discovery; a Mastodon 4.3 client asks for it before it registers anything, and reads a 404 as "not a server I can sign in to" |
-| `/.well-known/oauth-protected-resource` | Bluesky apps signing in with Bluesky sign-in (OAuth) ask it which authorization server the accounts here use; with Bluesky on, `/.well-known/oauth-authorization-server` then describes both kinds of sign-in |
+| `/.well-known/oauth-protected-resource` | OAuth-capable Bluesky clients ask which authorization server accounts here use; the authorization-server document describes AT Protocol OAuth alongside the separate Mastodon OAuth API |
 
 **Use an internal rewrite, not a redirect.** Nextcloud routes on the address
 the request arrived at, so a plain internal rewrite to `/index.php/apps/social`
@@ -599,6 +599,20 @@ the age of the instance rotation key; and the reading side — how many Bluesky
 authors are followed, how many accounts' notifications are asked for, and how
 far behind the slowest of each is. `atproto_sync_ceiling` (default 200) caps
 the AppView requests one sync pass makes.
+
+The readiness checks also fetch the public OAuth protected-resource and
+authorization-server documents from the configured PDS origin. They require
+HTTP 200 JSON responses without redirects, one matching authorization server,
+and the AT Protocol OAuth requirements: PAR, DPoP with ES256, authorization
+code and refresh grants, S256, the `atproto` scope, public and confidential
+client authentication, and the shared authorization and token endpoints. A
+failed check means the public root rewrite is incomplete or the OAuth metadata
+is not suitable for Bluesky sign-in.
+
+The relay checks distinguish host discovery from repository visibility: each
+configured relay is asked both whether it has crawled the PDS host and whether
+it has synchronized one active local DID. The latter catches a relay that
+knows the host but has not yet indexed the sampled account.
 
 **Bluesky figures.** Beside the card, under Federation, a read-only section
 shows how Bluesky is doing here: the accounts with a Bluesky identity and how
@@ -1082,6 +1096,9 @@ the moderation routes accept.
 | `client_api_scheme` | *(unset)* | Whether that probe's answer carried addresses in the scheme it was asked over: `0` once a proxy that drops the scheme has been seen (every absolute URL says `http` on an `https` site), which the same setup check reports. |
 | `dest_nid_filled` | `0` | Set to `1` by `Version1000Date20260917000001` once every recipient row carries the post's numeric id, which is what lets the home timeline use its fast page query; a flag, because asking the table for a row with a zero nid is a full scan of the largest table the app has. Bookkeeping, not a setting. |
 | `atproto_firehose_status` | *(empty)* | The firehose daemon's last report (`occ social:atproto:serve`), as JSON: whether it runs, its pid, when it started and last reported, the head sequence number and how many relays are subscribed. The Bluesky card and the setup check read it; a daemon that has not reported for a minute is shown as stopped. |
+| `atproto_crawl_accepted` | `0` | Unix time of the latest relay crawl request accepted for this PDS. Bookkeeping used by the automatic retry schedule; do not edit it by hand. |
+| `atproto_crawl_attempted` | `0` | Unix time of the latest automatic relay crawl attempt, including attempts no relay accepted. Bookkeeping used to avoid requesting crawls too often; do not edit it by hand. |
+| `atproto_crawl_results` | `[]` | JSON result of the latest automatic relay crawl request, keyed by relay, or an error when the request failed. Shown in the Bluesky status diagnostics; do not edit it by hand. |
 | `atproto_delete_cursor` | `0` | Where the Bluesky deletion sweep got to: the newest post id it has checked against the AppView in its pass over the last week's Bluesky posts, 25 at a time; `0` again when it reaches the end and starts over. Bookkeeping, not a setting. |
 | `atproto_detach_cursor` | `0` | The same for the sweep over the last month's local quotes of Bluesky posts, which marks a quote the quoted author detached as revoked here too. |
 | `stream_archived_filled` | `0` | Set to `1` by `Version1000Date20261013100500` once every post carries a value in `social_stream.archived`. Until then every list of posts also admits a post whose column is still empty, an `OR` the database plans badly. |
@@ -1111,6 +1128,10 @@ settings page, which validates the ranges given here; every one can be set with
 | `video_ladder` | `0` | Whether each stored MP4 is **also** written at a ladder of smaller sizes, as HLS, so a player can pick the one that fits the connection. A different question from `video_transcode`, which is about a video being playable at all elsewhere; this is about it being watchable on a phone on a train. Off by default, because it is several ffmpeg encodes per video on this server. Each rung is one file — `-hls_flags single_file` writes the rendition as a fragmented MP4 and the playlist addresses its segments as byte ranges — so a forty-minute video is three files rather than a thousand, which is also the shape PeerTube publishes. The original is kept and is what a player without HLS falls back to. Needs ffmpeg **and** ffprobe. One video every half-hour, or `occ social:media:ladder` to work through a backlog now. Built from `video/mp4` only: a `.mov` goes through the transcoder first. |
 | `video_ladder_heights` | `360,720,1080` | Which heights, comma-separated, 144–2160. Heights at or above a video's own are skipped rather than upscaled, and the video's own height is always a rung, so the best rung is never worse than the file beside it. A list with nothing usable in it is refused by the admin card rather than silently replaced with the default. Only consulted when `video_ladder` is on. |
 | `search_window_days` | `365` | How far back a content search scans while it cannot use its word index: before `Cron\SearchIndex` has indexed the posts stored before the upgrade (until `search_index_ready` is `1`), for a query that is only the beginning of a word, and for one made only of the English and German function words the index leaves out (`the`, `and`, `der`, `und` …). Such a search is a range rather than one indexed word, and unbounded it reads every post the instance has ever stored; a year covers what anybody is looking for. `0` searches everything, which an instance small enough can afford to say. A search for whole words reads the index and is not bounded by this. |
+| `rec_v4_enabled` | `0` | Whether ranked For You recommendations and topic preferences are available. Off by default; the administrator can change it in Social settings. |
+| `rec_remote_discovery_paused` | `0` | Stops recommendation-driven remote Fediverse and Bluesky discovery requests while preserving already cached candidates. |
+| `rec_learning_paused` | `0` | Stops instance-wide recommendation behavior learning, including signals from accounts that opted in. |
+| `rec_force_legacy_feed` | `0` | Temporarily serves the established hashtag-interest feed instead of the ranked For You feed. |
 | `local_actor_cursor` | `''` | Bookkeeping, not a setting: where the cron's local-account refresh walk got to. It used to read every local account into memory on every pass; it pages now, and this is what makes the next pass carry on rather than start again. |
 | `profile_link_cursor` | `''` | Bookkeeping, not a setting: where the cron's walk over the local accounts whose profile fields carry a link got to, so the next pass checks the next ones. |
 | `video_quota` | `0` | How many megabytes of video **one account** may keep here; `0` is no quota, which is what every instance has in effect today. A different question from `max_video_size`, which is a ceiling on one file: that is about a single request, this about a year of them. Off by default because an instance that has been running without a quota and acquires one on upgrade would start refusing uploads from exactly the accounts that use it most. Checked once, where an upload is written, against the size recorded on each stored file — so a video uploaded before this app recorded sizes counts as nothing until the daily usage job has been past it, which fills the column in as it walks. The **ladders this server builds do not count against it**: they are made because an administrator asked for them, are several times the size of the upload, and would turn a quota somebody was told about into one several times smaller. They are counted in what an administrator is shown, because they are real disk. Who is holding what is under **Administration → Aloha Social → Storage**. |
@@ -1436,3 +1457,6 @@ of this costs on the hardware in front of you.
   past.
 - **The audit log**, if `admin_audit` is enabled: every moderation decision,
   with the moderator who took it.
+# Ranked For You recommendations switch
+
+Administration → Social → For you includes an independent **Ranked For You recommendations** switch. It is off by default and is separate from the legacy hashtag For You setting below it. Enabling it exposes the topic catalog and owner-only explicit preference APIs; it does not enable any discovery, ranked timeline, behavioral learning, analytics or experiments. Turn it off to immediately disable those APIs. The additive preference tables remain in place for reversible rollback.

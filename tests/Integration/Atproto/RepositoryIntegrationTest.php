@@ -13,6 +13,7 @@ use OCA\Social\Atproto\Crypto\Curve;
 use OCA\Social\Atproto\Crypto\PrivateKey;
 use OCA\Social\Atproto\Firehose\EventService;
 use OCA\Social\Atproto\Model\Event;
+use OCA\Social\Atproto\Model\Identity;
 use OCA\Social\Atproto\Protocol\Car;
 use OCA\Social\Atproto\Repository\RepositoryService;
 use OCA\Social\Atproto\Repository\RepoWrite;
@@ -95,6 +96,32 @@ class RepositoryIntegrationTest extends TestCase {
 		$this->assertSame(1, $this->repositories->getHead(self::DID)?->recordCount);
 		$this->assertSame([], $this->repositories->verify(self::DID, $this->key->publicKey()));
 		$this->assertCount(1, $this->repoRequest->getBlockCids(self::DID, AtprotoRepoRequest::BLOCK_COMMIT));
+	}
+
+	public function testHealthProbeSelectsTheNewestPostOnlyFromAnActiveIdentity(): void {
+		$this->identityRequest->create(self::ACTOR, self::DID, 'atproto-integration.nextcloud.test', 'sealed', 'did:key:zQ3sh', '', Identity::STATE_PENDING);
+		$this->repositories->write(self::DID, $this->key, [
+			RepoWrite::create('app.bsky.feed.post', ['$type' => 'app.bsky.feed.post', 'text' => 'older health probe', 'createdAt' => '2026-10-08T10:00:00.000Z'], self::ACTOR . '/health-older', '3khealthprobe1'),
+			RepoWrite::create('app.bsky.feed.post', ['$type' => 'app.bsky.feed.post', 'text' => 'newer health probe', 'createdAt' => '2026-10-08T10:01:00.000Z'], self::ACTOR . '/health-newer', '3khealthprobe2'),
+		]);
+
+		$this->assertNull($this->repoRequest->latestActivePost(), 'a pending DID is not a public account');
+		$this->assertNull($this->identityRequest->firstActive(), 'the health probe skips pending identities');
+		$this->identityRequest->setState(self::DID, 'active');
+
+		$this->assertSame(self::DID, $this->identityRequest->firstActive()?->did);
+		$this->assertSame(self::DID, $this->identityRequest->latestActive()?->did);
+		$this->assertSame('at://' . self::DID . '/app.bsky.feed.post/3khealthprobe2', $this->repoRequest->latestActivePost()?->uri());
+	}
+
+	public function testHealthProbeSelectsTheNewestActiveIdentity(): void {
+		$olderDid = 'did:plc:ewvi7nxzyoun6zhxrhs64oiz';
+		$newerDid = 'did:plc:zv2c4g5p6q7r8s9t0u1v2w3x';
+		$this->identityRequest->create('https://social.test/users/older', $olderDid, 'older.social.test', 'sealed', 'did:key:zQ3sh', '', Identity::STATE_ACTIVE);
+		$this->identityRequest->create('https://social.test/users/newer', $newerDid, 'newer.social.test', 'sealed', 'did:key:zQ3sh', '', Identity::STATE_ACTIVE);
+
+		$this->assertSame($olderDid, $this->identityRequest->firstActive()?->did);
+		$this->assertSame($newerDid, $this->identityRequest->latestActive()?->did);
 	}
 
 	/**
@@ -202,6 +229,24 @@ class RepositoryIntegrationTest extends TestCase {
 		$this->assertNull($clients->getSession('integration-alice'));
 		$this->assertNotNull($clients->getSession('integration-bob'));
 		$clients->removeSession('integration-bob');
+	}
+
+	public function testAppPasswordOwnershipAndRefreshTokenConsumptionAreAtomic(): void {
+		$clients = Server::get(AtprotoClientRequest::class);
+		$suffix = bin2hex(random_bytes(8));
+		$userId = 'atproto-integration-' . $suffix;
+		$sessionId = 'integration-refresh-' . $suffix;
+		$passwordId = $clients->addAppPassword($userId, 'integration refresh ' . $suffix, password_hash('secret', PASSWORD_DEFAULT));
+		try {
+			$this->assertTrue($clients->hasAppPassword($userId, $passwordId));
+			$this->assertFalse($clients->hasAppPassword('atproto-integration-bob', $passwordId));
+			$clients->addSession($sessionId, $userId, self::DID, $passwordId, time() + 3600);
+			$this->assertTrue($clients->removeSession($sessionId), 'the first refresh consumes the session');
+			$this->assertFalse($clients->removeSession($sessionId), 'a concurrent or replayed refresh cannot consume it twice');
+		} finally {
+			$clients->removeSession($sessionId);
+			$clients->removeAppPassword($userId, $passwordId);
+		}
 	}
 
 	public function testBlobsAreListedByCid(): void {

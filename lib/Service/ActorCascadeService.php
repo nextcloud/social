@@ -19,6 +19,7 @@ use OCA\Social\Db\CacheDocumentsRequest;
 use OCA\Social\Db\ChannelsRequest;
 use OCA\Social\Db\CollectionsRequest;
 use OCA\Social\Db\ConversationsRequest;
+use OCA\Social\Db\DeviceAuthorizationRequest;
 use OCA\Social\Db\DomainBlocksRequest;
 use OCA\Social\Db\FeaturedTagsRequest;
 use OCA\Social\Db\FileCommentsRequest;
@@ -35,6 +36,7 @@ use OCA\Social\Db\PortfoliosRequest;
 use OCA\Social\Db\PostHoldsRequest;
 use OCA\Social\Db\QuoteGrantRequest;
 use OCA\Social\Db\ReactionsRequest;
+use OCA\Social\Db\RecommendationPreferenceRequest;
 use OCA\Social\Db\ReportsRequest;
 use OCA\Social\Db\RequestQueueRequest;
 use OCA\Social\Db\ScheduledStatusesRequest;
@@ -88,6 +90,7 @@ class ActorCascadeService {
 		private ConversationsRequest $conversationsRequest,
 		private FeaturedTagsRequest $featuredTagsRequest,
 		private InterestsRequest $interestsRequest,
+		private RecommendationPreferenceRequest $recommendationPreferences,
 		private AnnouncementsRequest $announcementsRequest,
 		private ScheduledStatusesRequest $scheduledStatusesRequest,
 		private CollectionsRequest $collectionsRequest,
@@ -102,6 +105,7 @@ class ActorCascadeService {
 		private TeamsRequest $teamsRequest,
 		private FileCommentsRequest $fileCommentsRequest,
 		private ImportsRequest $importsRequest,
+		private DeviceAuthorizationRequest $deviceAuthorizations,
 		private ChannelsRequest $channelsRequest,
 		private WatchRequest $watchRequest,
 		private RequestQueueRequest $requestQueueRequest,
@@ -173,6 +177,11 @@ class ActorCascadeService {
 			'featuredTags' => fn () => $this->featuredTagsRequest->deleteRelatedId($actorId),
 			// what For you learned about it, and the posts it hid there
 			'interests' => fn () => $this->interestsRequest->deleteRelatedId($actorId),
+			'recommendationPreferences' => function () use ($reversible, $userId): void {
+				if (!$reversible && $userId !== '') {
+					$this->recommendationPreferences->purge($userId);
+				}
+			},
 			'announcements' => fn () => $this->announcementsRequest->deleteRelatedId($actorId),
 			// the posts it had asked to have published later, which are the one
 			// thing here that would otherwise go *out* under an account nothing
@@ -212,6 +221,11 @@ class ActorCascadeService {
 			// the memory of what it brought over from another server, which
 			// names posts that go with it
 			'imported' => fn () => $this->importedPostsRequest->deleteByActor($actorId),
+			'deviceAuthorizations' => function () use ($userId): void {
+				if ($userId !== '') {
+					$this->deviceAuthorizations->deleteByUser($userId);
+				}
+			},
 			// and anything of its own still waiting for a moderator: nobody is
 			// going to approve the unpublished posts of an account that is not
 			// there, and leaving them would leave a queue of decisions that

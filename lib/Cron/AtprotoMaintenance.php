@@ -19,6 +19,7 @@ use OCA\Social\Atproto\Publisher\Publisher;
 use OCA\Social\Atproto\Reader\DeletionSweep;
 use OCA\Social\Atproto\Reader\DetachedQuoteSweep;
 use OCA\Social\Atproto\Service\AtprotoConfig;
+use OCA\Social\Atproto\Service\RelayCrawlScheduler;
 use OCA\Social\Db\AtprotoClientRequest;
 use OCA\Social\Db\AtprotoOAuthRequest;
 use OCP\AppFramework\Utility\ITimeFactory;
@@ -51,6 +52,7 @@ class AtprotoMaintenance extends TimedJob {
 		private StaleMoves $staleMoves,
 		private LoggerInterface $logger,
 		private ?BlueskyLists $lists = null,
+		private ?RelayCrawlScheduler $relayCrawl = null,
 	) {
 		parent::__construct($time);
 		$this->setInterval(self::INTERVAL);
@@ -62,6 +64,7 @@ class AtprotoMaintenance extends TimedJob {
 			return;
 		}
 		foreach ([
+			'relay crawl and firehose recovery' => fn (): int => $this->runRelayCrawl(),
 			'reconcile' => fn (): int => $this->publisher->reconcile(),
 			'repair' => fn (): int => $this->identities->repair(),
 			'prune events' => fn (): int => $this->events->prune(),
@@ -80,5 +83,11 @@ class AtprotoMaintenance extends TimedJob {
 				$this->logger->warning('Bluesky maintenance step failed: ' . $step, ['exception' => $e]);
 			}
 		}
+	}
+
+	private function runRelayCrawl(): int {
+		$this->relayCrawl?->run();
+
+		return 0;
 	}
 }

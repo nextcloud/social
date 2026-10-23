@@ -21,6 +21,7 @@ use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\Discovery\PostDiscoveryService;
+use OCA\Social\Service\FeedDisplayService;
 use OCA\Social\Service\FilterService;
 use OCA\Social\Service\FollowService;
 use OCA\Social\Service\MarkerService;
@@ -64,6 +65,7 @@ class TimelineApiController extends MastodonApiController {
 		private MarkerService $markerService,
 		private StreamRequest $streamRequest,
 		private FilterService $filterService,
+		private FeedDisplayService $feedDisplayService,
 		private NotificationPolicyService $notificationPolicyService,
 		private WatchService $watchService,
 		private PostDecorationService $postDecorationService,
@@ -174,6 +176,11 @@ class TimelineApiController extends MastodonApiController {
 				->setOnlyNews($only_news);
 
 			$posts = $this->streamService->getTimeline($options);
+			$pagePosts = $posts;
+			if ($this->feedDisplayService->hidesReplies($this->viewer?->getUserId() ?? '')
+				&& in_array(strtolower($timeline), [ProbeOptions::HOME, ProbeOptions::PUBLIC], true)) {
+				$pagePosts = array_values(array_filter($posts, static fn ($post): bool => $post->getInReplyTo() === ''));
+			}
 			$this->logger->debug('[' . static::class . '] Timeline retrieved', [
 				'timeline' => $timeline,
 				'postsCount' => count($posts)
@@ -181,12 +188,17 @@ class TimelineApiController extends MastodonApiController {
 
 			// the unfiltered page is what says whether a further page exists: a
 			// page shortened by a `hide` filter says nothing about what is older
-			return $this->tagged($this->paged(
-				$this->filterService->apply($posts, $this->filterContext($timeline), $this->viewer),
+			$response = $this->paged(
+				$this->filterService->apply($pagePosts, $this->filterContext($timeline), $this->viewer),
 				$options->getLimit(),
 				$posts,
 				$this->streamService->lastTimelineRowCount()
-			));
+			);
+			if ($this->streamService->lastTimelineCountsFilling()) {
+				$response->addHeader('X-Social-Filling', '1');
+			}
+
+			return $this->tagged($response);
 		} catch (Throwable $e) {
 			$this->logger->error('[' . static::class . '] Timeline request failed', [
 				'timeline' => $timeline,
@@ -234,15 +246,22 @@ class TimelineApiController extends MastodonApiController {
 				->setArgument($hashtag);
 
 			$posts = $this->streamService->getTimeline($options);
+			$pagePosts = $posts;
+			if ($this->feedDisplayService->hidesReplies($this->viewer->getUserId())) {
+				$pagePosts = array_values(array_filter($posts, static fn ($post): bool => $post->getInReplyTo() === ''));
+			}
 
 			$response = $this->paged(
-				$this->filterService->apply($posts, Filter::CONTEXT_PUBLIC, $this->viewer),
+				$this->filterService->apply($pagePosts, Filter::CONTEXT_PUBLIC, $this->viewer),
 				$options->getLimit(),
 				$posts
 			);
 			// the hashtag's posts beyond this server, read in the background:
 			// the next look at the timeline has them
 			if (!$local && (string)$max_id === '0' && $this->remoteFetchQueue->fillPosts(PostDiscoveryService::TAG, $hashtag)) {
+				$response->addHeader('X-Social-Filling', '1');
+			}
+			if ($this->streamService->lastTimelineCountsFilling()) {
 				$response->addHeader('X-Social-Filling', '1');
 			}
 

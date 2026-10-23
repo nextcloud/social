@@ -13,6 +13,10 @@
 		<!-- a list that could not be fetched is not a list with nobody in it,
 		     and saying "No followers yet" for a server error tells the reader
 		     something about this account that is not true -->
+		<div v-else-if="filling && users.length === 0" class="loading-indicator" role="status">
+			<NcLoadingIcon :size="24" />
+			<span>{{ t('social', 'Loading the list from this account’s network…') }}</span>
+		</div>
 		<div v-else-if="failed && users.length === 0" class="followers-error" role="alert">
 			<p class="followers-error__message">
 				{{ isFollowers
@@ -53,8 +57,10 @@ import { useAccountStore } from '../store/account.js'
 import { useServerData } from '../composables/useServerData.js'
 import { isBlueskyAccount } from '../utils/accountLocality.js'
 
-/** How long after the first look the accounts from where the account lives are asked for again. */
-export const REFILL_MS = 6000
+/** How long to wait before checking a queued network list again. */
+export const REFILL_MS = 2000
+/** Stop polling after 30 seconds if the remote network never answers. */
+export const MAX_REFILLS = 15
 
 export default {
 	name: 'ProfileFollowers',
@@ -77,6 +83,7 @@ export default {
 		return {
 			observer: null,
 			refill: null,
+			refillAttempts: 0,
 		}
 	},
 
@@ -221,19 +228,35 @@ export default {
 		 */
 		async fetchData() {
 			clearTimeout(this.refill)
+			this.refillAttempts = 0
 			const account = this.profileAccount
 			if (!account) {
 				return
 			}
 			const followers = this.isFollowers
 			await this.fetchFirstPage(account, followers)
-			if (this.filling && account === this.profileAccount && followers === this.isFollowers) {
-				this.refill = setTimeout(() => {
-					if (account === this.profileAccount && followers === this.isFollowers) {
-						this.fetchFirstPage(account, followers)
-					}
-				}, REFILL_MS)
+			this.scheduleRefill(account, followers)
+		},
+
+		/**
+		 * Keep checking while the server says the remote list is being filled.
+		 *
+		 * @param {string} account whose list is being read
+		 * @param {boolean} followers whether to fetch followers or following
+		 */
+		scheduleRefill(account, followers) {
+			if (!this.filling || this.refillAttempts >= MAX_REFILLS
+				|| account !== this.profileAccount || followers !== this.isFollowers) {
+				return
 			}
+			this.refill = setTimeout(async () => {
+				if (account !== this.profileAccount || followers !== this.isFollowers) {
+					return
+				}
+				this.refillAttempts++
+				await this.fetchFirstPage(account, followers)
+				this.scheduleRefill(account, followers)
+			}, REFILL_MS)
 		},
 
 		/**

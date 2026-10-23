@@ -519,6 +519,7 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 			->selectAlias('sa.boosted', 'streamaction_boosted')
 			->selectAlias('sa.replied', 'streamaction_replied')
 			->selectAlias('sa.bookmarked', 'streamaction_bookmarked')
+			->selectAlias('sa.disliked', 'streamaction_disliked')
 			->selectAlias('sa.liked_nid', 'streamaction_liked_nid')
 			->selectAlias('sa.bookmarked_nid', 'streamaction_bookmarked_nid')
 			->selectAlias('sa.values', 'streamaction_values');
@@ -542,6 +543,7 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 			->selectAlias($alias . '.boosted', 'streamaction_boosted')
 			->selectAlias($alias . '.replied', 'streamaction_replied')
 			->selectAlias($alias . '.bookmarked', 'streamaction_bookmarked')
+			->selectAlias($alias . '.disliked', 'streamaction_disliked')
 			->selectAlias($alias . '.liked_nid', 'streamaction_liked_nid')
 			->selectAlias($alias . '.bookmarked_nid', 'streamaction_bookmarked_nid')
 			->selectAlias($alias . '.values', 'streamaction_values');

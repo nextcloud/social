@@ -10,13 +10,16 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Integration\Api;
 
 use OCA\Social\Controller\AdminApiController;
+use OCA\Social\Controller\RecommendationsController;
 use OCA\Social\Db\CollectionsRequest;
 use OCA\Social\Db\ListsRequest;
 use OCA\Social\Db\PlacesRequest;
+use OCA\Social\Db\RecommendationPreferenceRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\Client\Collection;
 use OCA\Social\Model\Client\MastodonList;
 use OCA\Social\Model\Client\Place;
+use OCA\Social\Service\ConfigService;
 use OCA\Social\Tests\Integration\QueryCounter;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
@@ -74,6 +77,7 @@ class LimitClampTest extends ReaderTestCase {
 
 	private int $listId = 0;
 	private ?Collection $collection = null;
+	private ?string $recommendationsEnabledBefore = null;
 
 	protected function tearDown(): void {
 		if ($this->listId > 0) {
@@ -85,6 +89,11 @@ class LimitClampTest extends ReaderTestCase {
 		if ($this->collection !== null) {
 			Server::get(CollectionsRequest::class)->delete($this->collection);
 			$this->collection = null;
+		}
+		if ($this->recommendationsEnabledBefore !== null) {
+			Server::get(RecommendationPreferenceRequest::class)->purge($this->viewer()->getUserId());
+			Server::get(ConfigService::class)->setAppValue(ConfigService::REC_V4_ENABLED, $this->recommendationsEnabledBefore);
+			$this->recommendationsEnabledBefore = null;
 		}
 		$admin = Server::get(IGroupManager::class)->get('admin');
 		if ($admin !== null && $admin->inGroup($this->user())) {
@@ -148,6 +157,14 @@ class LimitClampTest extends ReaderTestCase {
 		}
 		if ($class === AdminApiController::class) {
 			Server::get(IGroupManager::class)->get('admin')?->addUser($this->user());
+		}
+		if ($class === RecommendationsController::class) {
+			$config = Server::get(ConfigService::class);
+			$this->recommendationsEnabledBefore ??= (string)$config->getAppValue(ConfigService::REC_V4_ENABLED);
+			$config->setAppValue(ConfigService::REC_V4_ENABLED, '1');
+			$request = Server::get(RecommendationPreferenceRequest::class);
+			$state = $request->get($this->viewer()->getUserId());
+			$request->replace($this->viewer()->getUserId(), $state['revision'], [['topic_id' => 'tech.apple', 'mode' => 'INTERESTED']]);
 		}
 		$arguments = $this->argumentsFor($class, $method);
 
@@ -223,7 +240,7 @@ class LimitClampTest extends ReaderTestCase {
 	private function argumentsFor(string $class, string $method): array {
 		$viewer = $this->viewer();
 		$author = $this->remoteActor('limits');
-		$post = $this->post($author, 'a post tagged #perf');
+		$post = $this->post($author, 'Apple announces a new iPhone #perf');
 
 		$values = [
 			'account' => (string)$viewer->getNid(),
@@ -231,6 +248,7 @@ class LimitClampTest extends ReaderTestCase {
 			'hashtag' => 'perf',
 			'nid' => (string)Server::get(StreamRequest::class)->getStreamById($post->getId())->getNid(),
 			'q' => 'perf',
+			'topicId' => 'tech.apple',
 			'timeline' => 'home',
 			'url' => 'https://news.example/an-article',
 		];

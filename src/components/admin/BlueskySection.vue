@@ -224,6 +224,16 @@
 					{{ daemonLabel }}
 				</dd>
 			</div>
+			<div class="bluesky__number-cell bluesky__number-cell--wide">
+				<dt>{{ t('social', 'Automatic relay crawl') }}</dt>
+				<dd>{{ relayCrawlLabel }}</dd>
+				<ul v-if="Object.keys(relayCrawl.results).length > 0" class="bluesky__crawl-results">
+					<li v-for="(result, relay) in relayCrawl.results" :key="relay" :class="{ 'bluesky__crawl-result--refused': result !== 'ok' }">
+						<span class="bluesky__crawl-relay">{{ relay }}</span>
+						<span>{{ result === 'ok' ? t('social', 'accepted') : result }}</span>
+					</li>
+				</ul>
+			</div>
 		</dl>
 
 		<!-- the other direction: what this server reads from Bluesky for the
@@ -281,7 +291,7 @@ import { duration } from '../../utils/duration.js'
 /**
  * @typedef {object} BlueskyAdmin what `AtprotoStatusService::current()` answers
  * @property {{enabled: boolean, relays: string[], plc_directory: string, appview: string, jetstream: string, chat: string, sync_ceiling: number, trusted_clients: string[]}} settings - what is set, in the app values' names
- * @property {{handle_host: string, pds_endpoint: string, service_did: string, identities: number, identities_off?: number, repositories: number, events_in_window: number, head_seq: number, rotation_key_age: number, daemon: {running: boolean, pid: number, started: number, seen: number, head: number, subscribers: number}|null, listener?: {running: boolean, connected: boolean, started: number, seen: number, last_event: number, cursor: number, accounts: number}|null, reading?: {watches: number, lag: number, accounts: number, lag_notifications: number}, blocks?: BlueskyBlock[]}} status - the facts and the numbers; the key age in days, the daemon's times in seconds since the epoch, the reading lags in seconds
+ * @property {{handle_host: string, pds_endpoint: string, service_did: string, identities: number, identities_off?: number, repositories: number, events_in_window: number, head_seq: number, rotation_key_age: number, daemon: {running: boolean, pid: number, started: number, seen: number, head: number, subscribers: number}|null, relay_crawl?: {attempted_at: number, accepted_at: number, results: Record<string, string>}, listener?: {running: boolean, connected: boolean, started: number, seen: number, last_event: number, cursor: number, accounts: number}|null, reading?: {watches: number, lag: number, accounts: number, lag_notifications: number}, blocks?: BlueskyBlock[]}} status - the facts and the numbers; times are seconds since the epoch
  * @property {Array<{id: string, state: 'ok'|'warning'|'error', detail: string}>} checks - the requirements of §14.1, empty while nothing has been checked
  */
 
@@ -430,6 +440,27 @@ export default {
 			return this.current.status.daemon?.running === true
 		},
 
+		/** @return {{attempted_at: number, accepted_at: number, results: Record<string, string>}} */
+		relayCrawl() {
+			return this.current.status.relay_crawl ?? { attempted_at: 0, accepted_at: 0, results: {} }
+		},
+
+		/** @return {string} what happened the last time maintenance asked relays to crawl */
+		relayCrawlLabel() {
+			const crawl = this.relayCrawl
+			if (crawl.attempted_at <= 0) {
+				return t('social', 'Not requested yet')
+			}
+			const attemptedAgo = this.duration(Math.max(0, Math.floor(Date.now() / 1000) - crawl.attempted_at))
+			if (crawl.accepted_at > 0) {
+				const acceptedAgo = this.duration(Math.max(0, Math.floor(Date.now() / 1000) - crawl.accepted_at))
+
+				return t('social', 'A relay accepted a request {ago} ago; last attempted {attemptedAgo} ago', { ago: acceptedAgo, attemptedAgo })
+			}
+
+			return t('social', 'Last attempted {ago}; no relay has accepted it yet', { ago: attemptedAgo })
+		},
+
 		/** @return {{running: boolean, connected: boolean, started: number, seen: number, last_event: number, cursor: number, accounts: number}|null} */
 		listener() {
 			return this.current.status.listener ?? null
@@ -498,9 +529,17 @@ export default {
 				case 'daemon':
 					return t('social', 'Firehose daemon')
 				case 'firehose':
-					return t('social', 'Firehose proxied')
+					return t('social', 'Firehose upgrade route responds')
 				case 'relay_host':
 					return t('social', 'Relays carry this server')
+				case 'relay_repo':
+					return t('social', 'Relays carry a local repository')
+				case 'did_resolution':
+					return t('social', 'Public DID resolution')
+				case 'appview_profile':
+					return t('social', 'Bluesky can find a local profile')
+				case 'appview_post':
+					return t('social', 'Bluesky can find a local post')
 				case 'keys':
 					return t('social', 'Keys open with the instance secret')
 				default:

@@ -22,6 +22,7 @@ use OCA\Social\Service\MediaUsageService;
 use OCA\Social\Service\ModerationService;
 use OCA\Social\Service\NotificationPolicyService;
 use OCA\Social\Service\PostReviewService;
+use OCA\Social\Service\RecommendationPreferenceService;
 use OCA\Social\Service\ReportService;
 use OCA\Social\Service\SectionsService;
 use OCA\Social\Service\SensitiveMediaService;
@@ -86,6 +87,7 @@ class AdminSettings implements IDelegatedSettings {
 		private ExternalAdminState $externalAdminState,
 		private NotificationPolicyService $notificationPolicyService,
 		private AtprotoStatusService $atprotoStatus,
+		private RecommendationPreferenceService $recommendationPreferences,
 	) {
 	}
 
@@ -129,7 +131,7 @@ class AdminSettings implements IDelegatedSettings {
 			// working PDS, for the administrator proper
 			'bluesky' => $this->isAdministrator() ? $this->atprotoStatus->current() : null,
 			// For you, for the same administrator proper
-			'interests' => $this->isAdministrator() ? $this->interestService->adminSettings() : null,
+			'interests' => $this->isAdministrator() ? $this->interestAdminSettings() : null,
 			'accessType' => $this->fediverseService->getAccessType(),
 			'accessList' => $this->fediverseService->getListedAddresses(),
 			'retentionDays' => (int)$this->configService->getAppValue(ConfigService::SOCIAL_RETENTION_DAYS),
@@ -194,6 +196,17 @@ class AdminSettings implements IDelegatedSettings {
 		return [
 			'day' => $this->streamRequest->localActivitySince($now - 86400),
 			'week' => $this->streamRequest->localActivitySince($now - 7 * 86400),
+		];
+	}
+
+	/** @return array<string, mixed> */
+	private function interestAdminSettings(): array {
+		$recommendations = $this->recommendationPreferences->adminSettings();
+		return $this->interestService->adminSettings() + [
+			'recommendationsEnabled' => $recommendations['enabled'] ?? false,
+			'remoteDiscoveryPaused' => $recommendations['remoteDiscoveryPaused'] ?? false,
+			'learningPaused' => $recommendations['learningPaused'] ?? false,
+			'forceLegacyFeed' => $recommendations['forceLegacyFeed'] ?? false,
 		];
 	}
 

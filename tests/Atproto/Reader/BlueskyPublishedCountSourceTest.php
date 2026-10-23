@@ -144,6 +144,14 @@ class BlueskyPublishedCountSourceTest extends TestCase {
 		$this->assertSame(1, $this->source()->refresh([$this->note(self::id('1'))]));
 	}
 
+	public function testAnInteractiveReadWithNoCountFieldsLeavesThePostDueForBackgroundRetry(): void {
+		$this->answer([self::uri(self::id('1')) => []]);
+		$this->writer->expects($this->never())->method('writeBeyond');
+		$this->writer->expects($this->never())->method('stamp');
+
+		$this->assertSame(0, $this->source()->refresh([$this->note(self::id('1'))], 3));
+	}
+
 	/**
 	 * Every like and repost the AppView counts came in by notification or is a
 	 * local account's own record: the post's counts are what they were.

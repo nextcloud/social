@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Service\FollowList;
 
 use OCA\Social\Atproto\Reader\BlueskyFollowListSource;
+use OCA\Social\Atproto\Reader\BlueskyIds;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -64,10 +65,27 @@ class FollowListService {
 	public function page(Person $account, string $direction, ProbeOptions $options): array {
 		$filling = $this->queue->fillFollowList($account, $direction);
 		$listed = $this->durableCache->getShared(self::CACHE, self::key($account->getId(), $direction));
+		// Keep the pending state while the background job is working.
+		if ($listed === null && !$filling) {
+			$filling = $this->queue->followListPending($account, $direction);
+		}
 		if (is_array($listed) && ($listed['hidden'] ?? false) === true) {
 			return ['accounts' => [], 'next' => '', 'filling' => $filling];
 		}
 		$ids = is_array($listed) && is_array($listed['ids'] ?? null) ? array_values(array_filter($listed['ids'], 'is_string')) : [];
+		if ($ids !== []) {
+			$cached = $this->cacheActors->getCachedFromIds($ids);
+			$unresolved = array_values(array_filter($ids, static function (string $id) use ($cached): bool {
+				$person = $cached[$id] ?? null;
+
+				return !BlueskyIds::isActorId($id)
+					&& (!$person instanceof Person || Nid::compare($person->getNid(), 0) <= 0);
+			}));
+			if ($unresolved !== []) {
+				$this->queue->resolveActors($unresolved);
+				$filling = true;
+			}
+		}
 		$network = $this->listed($account, $direction, $ids);
 		$limit = $options->getLimit();
 

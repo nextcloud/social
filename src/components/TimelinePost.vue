@@ -320,6 +320,9 @@
 						:translated="translation !== null"
 						:archiving="archiving"
 						:interests="serverData.interests"
+						:timelineType="type"
+						:recommendationFeedbackEnabled="canUseRecommendationFeedback"
+						:feedbackContext="recommendationContext"
 						@update:open="onMenuToggle"
 						@quote="quote"
 						@edit="editPost"
@@ -338,6 +341,7 @@
 						@collect="showCollectionDialog = true"
 						@pin="togglePin"
 						@lessLikeThis="lessLikeThis"
+						@recommendationFeedback="applyRecommendationFeedback"
 						@mute="showMuteDialog = true"
 						@block="showBlockDialog = true"
 						@report="showReportDialog = true" />
@@ -345,19 +349,6 @@
 						<!-- the same three controls on every post, so nothing moves
 						     from one post to the next: one that cannot be used
 						     here is there, disabled, and says why -->
-						<div class="post-action-group" :title="refusedBecause.reply || undefined">
-							<NcButton
-								:title="refusedBecause.reply || t('social', 'Reply')"
-								:aria-label="t('social', 'Reply')"
-								:disabled="!canReply"
-								variant="tertiary"
-								@click="reply">
-								<template #icon>
-									<Reply :size="20" />
-								</template>
-							</NcButton>
-							<RollingCount v-if="!hidesCounts" :count="item.replies_count || 0" />
-						</div>
 						<div
 							class="post-action-group"
 							:class="{ 'post-action-group--refused': refused === 'boost' }"
@@ -426,6 +417,22 @@
 							:title="n('social', '%n account here opened this post', '%n accounts here opened this post', item.view_count)">
 							<IconEyeOutline :size="20" />
 							<RollingCount :count="item.view_count" />
+						</div>
+						<!-- Replies finish the row at its outside edge. In a thread,
+						     this keeps the comment glyph and its count aligned across
+						     nesting levels instead of stepping left with each reply. -->
+						<div class="post-action-group post-action-group--reply" :title="refusedBecause.reply || undefined">
+							<NcButton
+								:title="refusedBecause.reply || t('social', 'Reply')"
+								:aria-label="t('social', 'Reply')"
+								:disabled="!canReply"
+								variant="tertiary"
+								@click="reply">
+								<template #icon>
+									<Reply :size="20" />
+								</template>
+							</NcButton>
+							<RollingCount v-if="!hidesCounts" :count="item.replies_count || 0" />
 						</div>
 					</div>
 				</div>
@@ -531,7 +538,7 @@ import IconEyeOutline from 'vue-material-design-icons/EyeOutline.vue'
 import MapMarkerOutline from 'vue-material-design-icons/MapMarkerOutline.vue'
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
-import { showError, showSuccess } from '../services/toast.js'
+import { showError, showSuccess, showUndo } from '../services/toast.js'
 import Repeat from 'vue-material-design-icons/Repeat.vue'
 import Reply from 'vue-material-design-icons/Reply.vue'
 import Heart from 'vue-material-design-icons/Heart.vue'
@@ -545,6 +552,7 @@ import { localProfileUrl } from '../utils/accountProfileLink.js'
 import { isBlueskyAccount, isLocalAccount } from '../utils/accountLocality.js'
 import { allowedByAuthor, isShareable } from '../utils/interactionPolicy.js'
 import { lessLikeThisFromPost } from '../services/interestFeedback.js'
+import { fetchRecommendationContext, recordRecommendationFeedback, undoRecommendationFeedback } from '../services/recommendationFeedback.js'
 import MessageContent from './MessageContent.js'
 import Poll from './Poll.vue'
 import QuotedPost from './QuotedPost.vue'
@@ -704,6 +712,8 @@ export default {
 			/** whether the provider is working on it right now */
 			translating: false,
 			showDeliveryDialog: false,
+			recommendationContext: null,
+			recommendationContextLoading: false,
 			reportComment: '',
 			/** whether a report about a Bluesky account also goes to Bluesky's moderation service */
 			reportForward: true,
@@ -716,6 +726,14 @@ export default {
 	},
 
 	computed: {
+		/** @return {boolean} whether the recommendation feedback controls can be used on this For You post */
+		canUseRecommendationFeedback() {
+			return this.type === 'interests'
+				&& this.serverData?.public !== true
+				&& this.serverData?.interests?.recommendationsEnabled === true
+				&& !!this.item.nid
+		},
+
 		/** @return {boolean} whether the reader has the like, boost and follower numbers hidden */
 		hidesCounts() {
 			return this.serverData.hideCounts === true
@@ -1519,6 +1537,60 @@ export default {
 			this.menuOpen = open
 			if (open) {
 				this.menuOpener = focusedElement()
+				this.loadRecommendationContext()
+			}
+		},
+
+		async loadRecommendationContext() {
+			if (!this.canUseRecommendationFeedback || this.recommendationContext !== null || this.recommendationContextLoading) {
+				return
+			}
+			this.recommendationContextLoading = true
+			try {
+				this.recommendationContext = await fetchRecommendationContext(this.item.nid)
+			} catch (error) {
+				logger.warn('Could not load recommendation feedback context', { error })
+			} finally {
+				this.recommendationContextLoading = false
+			}
+		},
+
+		async applyRecommendationFeedback(kind, topicId = '') {
+			if (!this.canUseRecommendationFeedback || !this.item.nid) {
+				return
+			}
+			try {
+				const result = await recordRecommendationFeedback(this.item.nid, kind, topicId)
+				const store = this.timelineStore
+				const identity = store.getTimelineIdentity
+				const entryId = store.timeline.find((id) => id === this.item.id || store.statuses[id]?.reblog?.id === this.item.id)
+				const entry = entryId === undefined ? null : (store.statuses[entryId] ?? null)
+				const index = entryId === undefined ? -1 : store.timeline.indexOf(entryId)
+				if (kind === 'HIDE_POST' && entry !== null && this.type === 'interests') {
+					store.removeStatus(entry, false)
+					store.forgetRemoval(entry)
+				}
+
+				const restore = () => {
+					if (kind === 'HIDE_POST' && entry !== null && this.type === 'interests' && store.getTimelineIdentity === identity) {
+						store.restoreStatus(entry, index)
+					}
+				}
+				const message = kind === 'HIDE_POST'
+					? t('social', 'Post hidden from For You')
+					: t('social', 'Your feedback was saved for future recommendations')
+				showUndo(message, async () => {
+					try {
+						await undoRecommendationFeedback(result.feedback_id)
+						restore()
+					} catch (error) {
+						logger.error('Could not undo recommendation feedback', { error })
+						showError(t('social', 'Could not undo this recommendation feedback'))
+					}
+				})
+			} catch (error) {
+				logger.error('Could not save recommendation feedback', { error })
+				showError(t('social', 'Could not save your recommendation feedback'))
 			}
 		},
 
@@ -2247,9 +2319,19 @@ export default {
 
 	.post-actions__groups {
 		display: flex;
+		flex: 1 1 auto;
+		flex-wrap: wrap;
 		align-items: center;
-		gap: 2px;
+		justify-content: flex-end;
+		gap: 4px;
 		min-inline-size: 0;
+
+		// Reply entries indent from the start while keeping this same outside
+		// edge. The entry's auto width already accounts for that indent, so a
+		// negative end margin would push the icon and count past the edge.
+		.post-action-group--reply {
+			margin-inline-start: auto;
+		}
 	}
 
 	/* it had a top margin from when it was a row of its own */
@@ -2270,21 +2352,22 @@ export default {
 
 		.post-action-group {
 			display: inline-flex;
+			flex: 0 0 auto;
 			align-items: center;
-			gap: 4px;
+			gap: 3px;
 
 			/* against its own glyph, across the button's padding, so it
 			   reads as that glyph's number and not the next one's */
 			.post-action-count {
-				margin-inline-start: -8px;
+				margin-inline-start: -4px;
 				text-align: start;
 			}
 		}
 
 		.post-action-count {
-			font-size: 12px;
-			color: var(--color-text-lighter);
-			min-width: 16px;
+			font-size: 11px;
+			font-weight: 600;
+			color: var(--color-main-text);
 			text-align: center;
 		}
 

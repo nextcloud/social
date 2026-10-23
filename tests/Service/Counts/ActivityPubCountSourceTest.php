@@ -40,7 +40,7 @@ class ActivityPubCountSourceTest extends TestCase {
 	public function testTheStatedTotalsAreWrittenAndAnAnswerAboutSomethingElseOnlyStamped(): void {
 		$curl = $this->createMock(CurlService::class);
 		$curl->expects($this->once())->method('retrieveObjectsMany')
-			->with(['https://remote.example/notes/1', 'https://remote.example/notes/2', 'https://remote.example/notes/3'])
+			->with(['https://remote.example/notes/1', 'https://remote.example/notes/2', 'https://remote.example/notes/3'], ['timeout' => 5])
 			->willReturn([
 				'https://remote.example/notes/1' => [
 					'id' => 'https://remote.example/notes/1',
@@ -65,6 +65,119 @@ class ActivityPubCountSourceTest extends TestCase {
 
 		$this->assertSame(1, $answered);
 		$this->assertSame(['https://remote.example/notes/2', 'https://remote.example/notes/3'], $stamped);
+	}
+
+	public function testCollectionUrlsAreFetchedTogetherAndMastodonQuoteCountIsKept(): void {
+		$postId = 'https://remote.example/notes/1';
+		$likes = $postId . '/likes';
+		$replies = $postId . '/replies';
+		$curl = $this->createMock(CurlService::class);
+		$curl->expects($this->exactly(2))->method('retrieveObjectsMany')
+			->willReturnCallback(static function (array $ids, array $options = [], ?array &$statuses = null) use ($postId, $likes, $replies): array {
+				self::assertSame(['timeout' => 5], $options);
+				if ($ids === [$postId]) {
+					return [$postId => [
+						'id' => $postId,
+						'likes' => $likes,
+						'shares' => ['totalItems' => 4],
+						'replies' => ['id' => $replies],
+						'quoteCount' => 2,
+					]];
+				}
+
+				self::assertSame([$likes, $replies], $ids);
+
+				return [
+					$likes => ['id' => $likes, 'totalItems' => 10],
+					$replies => ['id' => $replies, 'totalItems' => 3],
+				];
+			});
+		$writer = $this->createMock(CountWriter::class);
+		$writer->expects($this->once())->method('write')
+			->willReturnCallback(static function (string $id, ?int $likesCount, ?int $boostsCount, ?int $repliesCount, array $merge = [], ?int $quotesCount = null) use ($postId): bool {
+				self::assertSame($postId, $id);
+				self::assertSame([10, 4, 3, 2], [$likesCount, $boostsCount, $repliesCount, $quotesCount]);
+
+				return true;
+			});
+
+		$this->assertSame(1, (new ActivityPubCountSource($curl, $writer))->refresh([$this->note($postId)]));
+	}
+
+	public function testTotalsOnFirstCollectionPagesAreFetchedTogether(): void {
+		$postId = 'https://remote.example/notes/first-page-counts';
+		$likes = $postId . '/likes';
+		$replies = $postId . '/replies';
+		$likePage = $likes . '?page=1';
+		$replyPage = $replies . '?page=1';
+		$curl = $this->createMock(CurlService::class);
+		$curl->expects($this->exactly(3))->method('retrieveObjectsMany')
+			->willReturnCallback(static function (array $ids, array $options = [], ?array &$statuses = null) use ($postId, $likes, $replies, $likePage, $replyPage): array {
+				self::assertSame(['timeout' => 5], $options);
+				if ($ids === [$postId]) {
+					return [$postId => [
+						'id' => $postId,
+						'likes' => $likes,
+						'shares' => ['totalItems' => 4],
+						'replies' => ['id' => $replies],
+					]];
+				}
+				if ($ids === [$likes, $replies]) {
+					return [
+						$likes => ['id' => $likes, 'first' => ['id' => $likePage]],
+						$replies => ['id' => $replies, 'first' => ['id' => $replyPage, 'totalItems' => 6]],
+					];
+				}
+
+				self::assertSame([$likePage], $ids, 'only the collection whose root omitted its total needs another request');
+
+				return [$likePage => ['id' => $likePage, 'totalItems' => 9]];
+			});
+		$writer = $this->createMock(CountWriter::class);
+		$writer->expects($this->once())->method('write')
+			->willReturnCallback(static function (string $id, ?int $likesCount, ?int $boostsCount, ?int $repliesCount, array $merge = [], ?int $quotesCount = null) use ($postId): bool {
+				self::assertSame($postId, $id);
+				self::assertSame([9, 4, 6, null], [$likesCount, $boostsCount, $repliesCount, $quotesCount]);
+
+				return true;
+			});
+
+		$this->assertSame(1, (new ActivityPubCountSource($curl, $writer))->refresh([$this->note($postId)]));
+	}
+
+	public function testAnInteractiveReadWithNoUsableCountsLeavesThePostDueForBackgroundRetry(): void {
+		$postId = 'https://remote.example/notes/1';
+		$likes = $postId . '/likes';
+		$curl = $this->createMock(CurlService::class);
+		$curl->expects($this->exactly(2))->method('retrieveObjectsMany')
+			->willReturnOnConsecutiveCalls(
+				[$postId => ['id' => $postId, 'likes' => $likes]],
+				[],
+			);
+		$writer = $this->createMock(CountWriter::class);
+		$writer->expects($this->never())->method('write');
+		$writer->expects($this->never())->method('stamp');
+
+		$this->assertSame(0, (new ActivityPubCountSource($curl, $writer))->refresh([$this->note($postId)], 3));
+	}
+
+	public function testAnInteractiveReadDoesNotStartAnotherRoundWhenItsTimeBudgetIsSpent(): void {
+		$postId = 'https://remote.example/notes/1';
+		$likes = $postId . '/likes';
+		$curl = $this->createMock(CurlService::class);
+		$curl->expects($this->once())->method('retrieveObjectsMany')
+			->with([$postId], ['timeout' => 1])
+			->willReturn([$postId => [
+				'id' => $postId,
+				'likes' => $likes,
+				'shares' => ['totalItems' => 2],
+			]]);
+		$writer = $this->createMock(CountWriter::class);
+		$writer->expects($this->once())->method('write')
+			->with($postId, null, 2, null, [], null)
+			->willReturn(true);
+
+		$this->assertSame(1, (new ActivityPubCountSource($curl, $writer))->refresh([$this->note($postId)], 1));
 	}
 
 	/**

@@ -765,8 +765,9 @@ else's.
 
 These are absent from the code today, not merely rough edges:
 
-- **No streaming API and no push subscriptions.** Third-party clients poll. (The web
-  client does get live timelines when
+- **No Mastodon push subscriptions.** Third-party clients can use authenticated
+  Mastodon user, public and hashtag streams over WebSocket, and user, public and
+  hashtag streams over SSE; list and direct streams are not implemented. (The web client gets live timelines when
   [notify_push](https://github.com/nextcloud/notify_push) is installed — that is a
   Nextcloud channel, not a Mastodon one.)
 

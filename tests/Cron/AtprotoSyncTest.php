@@ -53,24 +53,32 @@ class AtprotoSyncTest extends TestCase {
 
 	public function testEachStepIsGivenTheSameDeadlineWellInsideTheInterval(): void {
 		$deadline = self::NOW + AtprotoSync::MAX_DURATION;
-		$this->feeds->expects($this->once())->method('poll')->with(FeedPoller::BATCH, $deadline)->willReturn(['watches' => 0, 'stored' => 0, 'requests' => 0]);
-		$this->notifications->expects($this->once())->method('poll')->with(NotificationPoller::BATCH, $deadline)->willReturn(['accounts' => 0, 'handled' => 0, 'requests' => 0]);
+		$order = [];
+		$this->notifications->expects($this->once())->method('poll')->with(NotificationPoller::BATCH, $deadline)->willReturnCallback(static function () use (&$order): array {
+			$order[] = 'notifications';
+			return ['accounts' => 0, 'handled' => 0, 'requests' => 0];
+		});
+		$this->feeds->expects($this->once())->method('poll')->with(FeedPoller::BATCH, $deadline)->willReturnCallback(static function () use (&$order): array {
+			$order[] = 'feeds';
+			return ['watches' => 0, 'stored' => 0, 'requests' => 0];
+		});
 		$this->chat->expects($this->once())->method('poll')->with(ChatPoller::BATCH, $deadline)->willReturn(['accounts' => 0, 'handled' => 0]);
 		$this->logger->expects($this->never())->method('warning');
 
 		$this->runJob();
 
-		$this->assertLessThan(2 * 60, AtprotoSync::MAX_DURATION, 'two passes cannot meet');
+		$this->assertSame(['notifications', 'feeds'], $order);
+		$this->assertLessThan(60, AtprotoSync::MAX_DURATION, 'two passes cannot meet');
 	}
 
 	/** A slow AppView ends the pass at the budget; what is still due is read on the next one. */
 	public function testAStepThatSpendsTheBudgetLeavesTheRestToTheNextRun(): void {
-		$this->feeds->expects($this->once())->method('poll')->willReturnCallback(function (): array {
+		$this->notifications->expects($this->once())->method('poll')->willReturnCallback(function (): array {
 			$this->now += AtprotoSync::MAX_DURATION;
 
-			return ['watches' => 1, 'stored' => 0, 'requests' => 1];
+			return ['accounts' => 1, 'handled' => 0, 'requests' => 1];
 		});
-		$this->notifications->expects($this->never())->method('poll');
+		$this->feeds->expects($this->never())->method('poll');
 		$this->chat->expects($this->never())->method('poll');
 		$this->logger->expects($this->exactly(2))->method('warning')->with($this->stringContains('out of time'));
 

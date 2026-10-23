@@ -189,8 +189,8 @@ describe('the compressed size of what a page downloads', () => {
 		['social-social.js', 105 * KB],
 		// 175 KB, loaded when a video is played
 		['social-hls.js', 193 * KB],
-		// 90 KB, the administration page
-		['social-adminSettings.js', 100 * KB],
+		// 100 KB, the administration page; keep 1 KB for compression drift
+		['social-adminSettings.js', 101 * KB],
 		// 74 KB, the personal settings page
 		['social-settings.js', 82 * KB],
 		// 130 KB, loaded when the composer's emoji button is pressed

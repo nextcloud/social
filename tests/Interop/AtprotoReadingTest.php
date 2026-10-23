@@ -60,32 +60,48 @@ class AtprotoReadingTest extends TestCase {
 		$this->assertTrue($account['bluesky']['native']);
 
 		// bob posts; the poller reads the AppView's feed into alice's home
-		$words = 'Read from Bluesky ' . bin2hex(random_bytes(4));
-		$post = $this->network->postText($words . ' #interop');
+		$words = [
+			'Read from Bluesky one ' . bin2hex(random_bytes(4)),
+			'Read from Bluesky two ' . bin2hex(random_bytes(4)),
+			'Read from Bluesky three ' . bin2hex(random_bytes(4)),
+		];
+		$posts = array_map(fn (string $word): array => $this->network->postText($word . ' #interop'), $words);
+		$this->assertNotNull($this->network->await(function () use ($bobDid, $words): ?bool {
+			$texts = array_map(static fn (array $item): string => (string)($item['post']['record']['text'] ?? ''), $this->network->authorFeed($bobDid));
+
+			return count(array_intersect(array_map(static fn (string $word): string => $word . ' #interop', $words), $texts)) === count($words) ? true : null;
+		}), 'all posts are indexed before the author feed is polled');
 		$watch = Server::get(AtprotoWatchRequest::class)->getByDid($bobDid);
 		$this->assertNotNull($watch, 'the follow made a watch');
 		$home = $this->network->await(function () use ($words, $bobDid): ?array {
 			// the watch directly rather than the pass: an empty first read
 			// backs it off past this wait
 			Server::get(FeedPoller::class)->pollWatch(Server::get(AtprotoWatchRequest::class)->getByDid($bobDid));
+			$found = [];
 			foreach ($this->alice->get('/api/v1/timelines/home', ['limit' => '40']) as $status) {
-				if (is_array($status) && str_contains((string)($status['content'] ?? ''), $words)) {
-					return $status;
+				if (!is_array($status)) {
+					continue;
+				}
+				foreach ($words as $word) {
+					if (str_contains((string)($status['content'] ?? ''), $word)) {
+						$found[$word] = $status;
+					}
 				}
 			}
 
-			return null;
+			return count($found) === count($words) ? $found : null;
 		});
-		$this->assertNotNull($home, 'the post reached the home timeline');
-		$this->assertSame('https://bsky.app/profile/' . $bobDid . '/post/' . basename($post['uri']), $home['uri']);
-		$this->assertSame('https://bsky.app/profile/' . $bobHandle . '/post/' . basename($post['uri']), $home['url']);
-		$this->assertSame($bobHandle, $home['account']['acct']);
-		$this->assertStringContainsString('class="mention hashtag"', (string)$home['content'], 'the hashtag facet is a tag link');
+		$this->assertNotNull($home, 'all posts reached the home timeline, not only the newest one');
+		$latest = $home[$words[2]];
+		$this->assertSame('https://bsky.app/profile/' . $bobDid . '/post/' . basename($posts[2]['uri']), $latest['uri']);
+		$this->assertSame('https://bsky.app/profile/' . $bobHandle . '/post/' . basename($posts[2]['uri']), $latest['url']);
+		$this->assertSame($bobHandle, $latest['account']['acct']);
+		$this->assertStringContainsString('class="mention hashtag"', (string)$latest['content'], 'the hashtag facet is a tag link');
 
 		// alice likes it: a record in her repository, counted by the AppView
-		$this->alice->favourite((string)$home['id']);
+		$this->alice->favourite((string)$latest['id']);
 		$this->runQueuedJobs();
-		$likers = $this->network->await(fn () => in_array($identity->did, $this->network->likers($post['uri']), true) ? [$identity->did] : null);
+		$likers = $this->network->await(fn () => in_array($identity->did, $this->network->likers($posts[2]['uri']), true) ? [$identity->did] : null);
 		$this->assertNotNull($likers, 'the like reached the AppView');
 
 		// bob likes and answers alice's post; the notifications poll brings
@@ -128,6 +144,71 @@ class AtprotoReadingTest extends TestCase {
 		$this->assertNotEmpty(array_filter($descendants, static fn (string $c): bool => str_contains($c, $replyWords)), 'the reply is under her post');
 	}
 
+	public function testAnUnfollowedBlueskyProfileCanBeScrolledAcrossAuthorFeedPages(): void {
+		$bobDid = $this->network->createUser('profile' . bin2hex(random_bytes(3)));
+		$bobHandle = $this->network->userHandle();
+		$words = [
+			'Profile history one ' . bin2hex(random_bytes(4)),
+			'Profile history two ' . bin2hex(random_bytes(4)),
+			'Profile history three ' . bin2hex(random_bytes(4)),
+		];
+		foreach ($words as $word) {
+			$this->network->postText($word);
+		}
+
+		$this->assertNotNull($this->network->await(function () use ($bobDid, $words): ?bool {
+			$texts = array_map(static fn (array $item): string => (string)($item['post']['record']['text'] ?? ''), $this->network->authorFeed($bobDid));
+
+			return count(array_intersect($words, $texts)) === count($words) ? true : null;
+		}), 'all profile posts are indexed before the author-feed pages are read');
+
+		$bobId = $this->network->await(fn (): ?string => $this->tryResolve($bobHandle));
+		$this->assertNotNull($bobId, 'the profile resolves without following it');
+		$this->assertFalse($this->alice->relationship($bobId)['following']);
+
+		$path = '/api/v1/accounts/' . rawurlencode($bobId) . '/statuses';
+		$firstPage = $this->alice->get($path, ['limit' => '2']);
+		$this->assertCount(2, $firstPage, 'the first profile page contains two posts');
+		$lastId = (string)($firstPage[1]['id'] ?? '');
+		$this->assertNotSame('', $lastId, 'the first page supplies the local max_id cursor');
+
+		$secondPage = $this->alice->get($path, ['limit' => '2', 'max_id' => $lastId]);
+		$statuses = array_merge($firstPage, $secondPage);
+		$texts = array_map(static fn (array $status): string => strip_tags((string)($status['content'] ?? '')), $statuses);
+		$uniqueIds = array_unique(array_column($statuses, 'id'));
+
+		$this->assertCount(3, $uniqueIds, 'scrolling loads a third post instead of repeating the first page; first ids: '
+			. implode(',', array_column($firstPage, 'id')) . '; after: '
+			. implode(',', array_column($secondPage, 'id')) . '; texts: '
+			. json_encode($texts, JSON_UNESCAPED_SLASHES));
+		foreach ($words as $word) {
+			$this->assertNotEmpty(array_filter($texts, static fn (string $text): bool => str_contains($text, $word)), 'profile history includes: ' . $word);
+		}
+	}
+
+	public function testABlueskyProfileFeedUsesTheLinkedViewersAuthenticatedAppView(): void {
+		$this->network->createUser('authprofile' . bin2hex(random_bytes(3)));
+		$handle = $this->network->userHandle();
+		$words = 'Authenticated profile read ' . bin2hex(random_bytes(4));
+		$this->network->postText($words);
+		$this->assertNotNull(Server::get(IdentityService::class)->forActor($this->alice->actor), 'the reader has a linked Bluesky identity');
+
+		$this->assertNotNull($this->network->await(function () use ($words): ?bool {
+			foreach ($this->network->authorFeed($this->network->userDid()) as $item) {
+				if (str_contains((string)($item['post']['record']['text'] ?? ''), $words)) {
+					return true;
+				}
+			}
+
+			return null;
+		}), 'the post is indexed before the profile read');
+		$actorId = $this->network->await(fn (): ?string => $this->tryResolve($handle));
+		$this->assertNotNull($actorId, 'the author resolves without a follow');
+
+		$statuses = $this->alice->get('/api/v1/accounts/' . rawurlencode($actorId) . '/statuses', ['limit' => '5']);
+		$this->assertNotEmpty(array_filter($statuses, static fn (array $status): bool => str_contains(strip_tags((string)($status['content'] ?? '')), $words)), 'the authenticated profile request shows the indexed post');
+	}
+
 	private function tryResolve(string $handle): ?string {
 		try {
 			return $this->alice->resolve($handle);
@@ -140,7 +221,27 @@ class AtprotoReadingTest extends TestCase {
 	private function runQueuedJobs(): void {
 		$jobs = Server::get(IJobList::class);
 		foreach ($jobs->getJobsIterator(AtprotoPublish::class, 50, 0) as $job) {
-			$job->start($jobs);
+			for ($attempt = 0; ; $attempt++) {
+				try {
+					$job->start($jobs);
+					break;
+				} catch (\Throwable $e) {
+					if (!self::isSqliteLock($e) || $attempt >= 3) {
+						throw $e;
+					}
+					usleep(50_000 * ($attempt + 1));
+				}
+			}
 		}
+	}
+
+	private static function isSqliteLock(\Throwable $exception): bool {
+		for ($error = $exception; $error !== null; $error = $error->getPrevious()) {
+			if (str_contains(strtolower($error->getMessage()), 'database is locked')) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 }
