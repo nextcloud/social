@@ -1967,8 +1967,11 @@ filled up with the listed accounts, and a page that reaches into them is
 continued by the `max_id` of its last account, which the service finds
 among the listed ones. A page asked for with `min_id` or `since` is the
 follows known here alone. The answers say `X-Social-Filling` while the
-read was just asked for; the web app's list asks for its first page once
-more six seconds later. An account of this server's own is unchanged.
+read is queued and its shared result cache has not been written yet; the web
+app polls the first page every two seconds for up to thirty seconds. Accounts
+named by an ActivityPub collection that are not cached or do not yet have a
+local account id are queued for resolution, and the page remains in the filling
+state until they can be shown. An account of this server's own is unchanged.
 
 ### Counts where a post lives
 

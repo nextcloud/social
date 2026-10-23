@@ -362,6 +362,16 @@ class RemoteFetchQueue {
 		return true;
 	}
 
+	/** Whether a queued follow-list read has not produced its cache yet. */
+	public function followListPending(Person $account, string $direction): bool {
+		$key = md5($direction . "\0" . $account->getId());
+		try {
+			return $this->durableCache->get(self::FOLLOW_LISTS_FILLED, $key) !== null;
+		} catch (Throwable $e) {
+			return false;
+		}
+	}
+
 	/**
 	 * Queues a read of the posts with a hashtag, or matching a search, beyond
 	 * this server (`Cron\FillPosts`), at most once per `POSTS_INTERVAL` per
