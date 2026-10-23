@@ -105,7 +105,8 @@ class RecommendationCandidateService {
 				$candidates[] = $candidate;
 			}
 		}
-		$ranked = $this->reRanker->page($this->ranker->rank($candidates), 100, $mode === 'PRIORITISE' ? [$topicId] : [], bin2hex(random_bytes(16)), $state['content_balance']);
+		$contentBalance = $state['content_balance'] ?? 'balanced';
+		$ranked = $this->reRanker->page($this->ranker->rank($candidates), 100, $mode === 'PRIORITISE' ? [$topicId] : [], bin2hex(random_bytes(16)), $contentBalance);
 		$explorationNids = array_values(array_map(
 			static fn (array $candidate): string => (string)$candidate['nid'],
 			array_filter($ranked, static fn (array $candidate): bool => ($candidate['_exploration_slot'] ?? false) === true)
