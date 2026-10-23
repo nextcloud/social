@@ -68,6 +68,13 @@ final class InMemoryDurableCacheRequest extends DurableCacheRequest {
 	}
 
 	#[\Override]
+	public function deleteExpired(string $key, int $now): void {
+		if (($this->rows[$key]['expires'] ?? PHP_INT_MAX) <= $now) {
+			unset($this->rows[$key]);
+		}
+	}
+
+	#[\Override]
 	public function purge(int $now): int {
 		$before = count($this->rows);
 		$this->rows = array_filter($this->rows, static fn (array $row): bool => $row['expires'] > $now);

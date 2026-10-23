@@ -39,6 +39,7 @@ use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Post;
 use OCA\Social\Model\Report;
+use OCA\Social\Model\StreamAction;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\AvatarService;
@@ -47,6 +48,7 @@ use OCA\Social\Service\BoostService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\FollowService;
+use OCA\Social\Service\IRecommendationSignalRecorder;
 use OCA\Social\Service\LikeService;
 use OCA\Social\Service\ModerationService;
 use OCA\Social\Service\PeerTubeService;
@@ -54,6 +56,7 @@ use OCA\Social\Service\PostReviewService;
 use OCA\Social\Service\PostService;
 use OCA\Social\Service\RelationshipService;
 use OCA\Social\Service\ReportService;
+use OCA\Social\Service\StreamActionService;
 use OCA\Social\Service\StreamService;
 use OCP\IURLGenerator;
 use Psr\Log\LoggerInterface;
@@ -120,6 +123,8 @@ class WriteService {
 		private ChatDeclaration $declaration,
 		private BlueskyListImport $listImport,
 		private ActivityService $activities,
+		private StreamActionService $streamActions,
+		private IRecommendationSignalRecorder $recommendationSignals,
 	) {
 	}
 
@@ -628,8 +633,13 @@ class WriteService {
 	private function like(Person $actor, array $record): StoredRecord {
 		$postId = $this->knownPost((string)($record['subject']['uri'] ?? ''));
 		try {
+			$post = $this->streams->getStreamById($postId);
+			$wasLiked = $this->streamActions->getActionBool($actor->getId(), $postId, StreamAction::LIKED);
 			$like = $this->likes->create($actor, $postId);
-			$this->interactions->like($actor, $this->streams->getStreamById($postId), $like->getId());
+			$this->interactions->like($actor, $post, $like->getId());
+			if (!$wasLiked) {
+				$this->recommendationSignals->recordAction($actor, $post, 'like');
+			}
 		} catch (Throwable $e) {
 			throw XrpcException::invalidRequest('Could not like: ' . $e->getMessage());
 		}
@@ -643,8 +653,13 @@ class WriteService {
 	private function repost(Person $actor, array $record): StoredRecord {
 		$postId = $this->knownPost((string)($record['subject']['uri'] ?? ''));
 		try {
+			$post = $this->streams->getStreamById($postId);
+			$wasBoosted = $this->streamActions->getActionBool($actor->getId(), $postId, StreamAction::BOOSTED);
 			$announce = $this->boosts->create($actor, $postId);
-			$this->interactions->repost($actor, $this->streams->getStreamById($postId), $announce->getId());
+			$this->interactions->repost($actor, $post, $announce->getId());
+			if (!$wasBoosted) {
+				$this->recommendationSignals->recordAction($actor, $post, 'boost');
+			}
 		} catch (Throwable $e) {
 			throw XrpcException::invalidRequest('Could not repost: ' . $e->getMessage());
 		}
@@ -695,7 +710,14 @@ class WriteService {
 		$postId = $this->knownPost((string)($record->value()['subject']['uri'] ?? ''), false);
 		if ($postId !== '') {
 			try {
+				$post = $this->streams->getStreamById($postId);
+				$wasActive = $this->streamActions->getActionBool(
+					$actor->getId(), $postId, $like ? StreamAction::LIKED : StreamAction::BOOSTED
+				);
 				$like ? $this->likes->delete($actor, $postId) : $this->boosts->delete($actor, $postId);
+				if ($wasActive) {
+					$this->recommendationSignals->recordAction($actor, $post, $like ? 'unlike' : 'unboost');
+				}
 			} catch (Throwable $e) {
 				$this->logger->notice('Undo from a Bluesky app failed', ['exception' => $e]);
 			}

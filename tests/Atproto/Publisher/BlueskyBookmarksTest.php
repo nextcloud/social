@@ -23,6 +23,7 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\StreamAction;
 use OCA\Social\Service\AccountService;
+use OCA\Social\Service\IRecommendationSignalRecorder;
 use OCA\Social\Service\StreamActionService;
 use OCA\Social\Service\StreamService;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
@@ -45,6 +46,8 @@ class BlueskyBookmarksTest extends TestCase {
 	private array $references = [];
 	private array $views = [];
 	private array $reads = [];
+	private IRecommendationSignalRecorder $recommendationSignals;
+	private bool $currentlyBookmarked = false;
 	private bool $active = true;
 	private string $failedUri = '';
 
@@ -73,8 +76,12 @@ class BlueskyBookmarksTest extends TestCase {
 		$store = $this->createMock(PostStore::class);
 		$store->method('isKnown')->willReturn(true);
 		$streamActions = $this->createMock(StreamActionService::class);
+		$streamActions->method('getActionBool')->willReturnCallback(function (): bool {
+			return $this->currentlyBookmarked;
+		});
 		$streamActions->method('setActionBool')->willReturnCallback(function (string $actor, string $post, string $key, bool $on): void {
 			$this->set[] = [$post, $key, $on];
+			$this->currentlyBookmarked = $on;
 			// what the action service does on any bookmark: tell Bluesky
 			$this->bookmarks->bookmarked((new Person())->setId($actor), $post, $on);
 		});
@@ -82,7 +89,9 @@ class BlueskyBookmarksTest extends TestCase {
 		$streams->method('getTimeline')->willReturnCallback(fn (): array => $this->timeline);
 		$accounts = $this->createMock(AccountService::class);
 		$accounts->method('getActorFromUserId')->willReturn((new Person())->setId('https://social.test/@alice'));
-		$this->bookmarks = new BlueskyBookmarks($appView, $identities, $refs, $local, $store, $streamActions, $streams, $accounts, new NullLogger());
+		$streams->method('getStreamById')->willReturn(new Note());
+		$this->recommendationSignals = $this->createMock(IRecommendationSignalRecorder::class);
+		$this->bookmarks = new BlueskyBookmarks($appView, $identities, $refs, $local, $store, $streamActions, $streams, $accounts, $this->recommendationSignals, new NullLogger());
 	}
 
 	public function testABookmarkHereOfAPostOnBlueskyIsToldToTheAppView(): void {
@@ -102,6 +111,30 @@ class BlueskyBookmarksTest extends TestCase {
 
 		$this->assertSame([[self::BLUESKY_POST, StreamAction::BOOKMARKED, true]], $this->set);
 		$this->assertSame([], $this->told);
+	}
+
+	public function testAnAppsBookmarkAndRemovalUpdateConsentedLearningOncePerTransition(): void {
+		$session = new ClientSession('alice', $this->identity, 'jti');
+		$viewer = (new Person())->setId('https://social.test/@alice');
+		$actions = [];
+		$this->recommendationSignals->expects($this->exactly(2))->method('recordAction')->willReturnCallback(
+			function (Person $actor, Note $status, string $action) use ($viewer, &$actions): void {
+				$this->assertSame($viewer->getId(), $actor->getId());
+				$this->assertInstanceOf(Note::class, $status);
+				$actions[] = $action;
+			}
+		);
+
+		$this->bookmarks->fromApp($session, BlueskyBookmarks::CREATE, ['uri' => self::URI, 'cid' => 'bafy']);
+		$this->bookmarks->fromApp($session, BlueskyBookmarks::CREATE, ['uri' => self::URI, 'cid' => 'bafy']);
+		$this->bookmarks->fromApp($session, BlueskyBookmarks::DELETE, ['uri' => self::URI]);
+
+		$this->assertSame([
+			[self::BLUESKY_POST, StreamAction::BOOKMARKED, true],
+			[self::BLUESKY_POST, StreamAction::BOOKMARKED, true],
+			[self::BLUESKY_POST, StreamAction::BOOKMARKED, false],
+		], $this->set);
+		$this->assertSame(['save', 'unsave'], $actions);
 	}
 
 	public function testTheAppsListIsTheBookmarksHereThatAreOnBluesky(): void {

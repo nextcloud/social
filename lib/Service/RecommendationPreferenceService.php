@@ -15,6 +15,7 @@ use OCA\Social\Db\RecommendationPreferenceRequest;
 /** Validates and owns the explicit, per-account topic controls. */
 class RecommendationPreferenceService {
 	public const MODES = ['HIDE', 'LESS', 'NEUTRAL', 'INTERESTED', 'PRIORITISE'];
+	public const CONTENT_BALANCES = ['balanced', 'following', 'discovery'];
 	public const MAX_TOPICS = 150;
 
 	public function __construct(
@@ -34,34 +35,108 @@ class RecommendationPreferenceService {
 		return $this->isEnabled();
 	}
 
+	/** Whether For You may request new posts from remote discovery providers. */
+	public function remoteDiscoveryPaused(): bool {
+		return $this->configService->getAppValueBool(ConfigService::REC_REMOTE_DISCOVERY_PAUSED);
+	}
+
+	/** Global emergency stop for consented behavioural learning. */
+	public function learningPaused(): bool {
+		return $this->configService->getAppValueBool(ConfigService::REC_LEARNING_PAUSED);
+	}
+
+	/** Whether the web For You page must use the established interest feed. */
+	public function forceLegacyFeed(): bool {
+		return $this->configService->getAppValueBool(ConfigService::REC_FORCE_LEGACY_FEED);
+	}
+
+	/** @return array{enabled: bool, remoteDiscoveryPaused: bool, learningPaused: bool, forceLegacyFeed: bool} */
+	public function adminSettings(): array {
+		return [
+			'enabled' => $this->isEnabled(),
+			'remoteDiscoveryPaused' => $this->remoteDiscoveryPaused(),
+			'learningPaused' => $this->learningPaused(),
+			'forceLegacyFeed' => $this->forceLegacyFeed(),
+		];
+	}
+
+	/** Update only supplied operational switches and return their effective state. */
+	public function saveAdminSettings(?bool $enabled, ?bool $remoteDiscoveryPaused, ?bool $learningPaused, ?bool $forceLegacyFeed): array {
+		if ($enabled !== null) {
+			$this->setEnabled($enabled);
+		}
+		foreach ([
+			ConfigService::REC_REMOTE_DISCOVERY_PAUSED => $remoteDiscoveryPaused,
+			ConfigService::REC_LEARNING_PAUSED => $learningPaused,
+			ConfigService::REC_FORCE_LEGACY_FEED => $forceLegacyFeed,
+		] as $key => $value) {
+			if ($value !== null) {
+				$this->configService->setAppValue($key, $value ? '1' : '0');
+			}
+		}
+		return $this->adminSettings();
+	}
+
 	/** @return list<array{id: string, parentId: ?string, labels: array{en: string, de: string}, aliases: list<string>, policyTags: list<string>, languageHints: list<string>, version: int, enabled: bool}> */
 	public function catalog(): array {
 		return $this->catalog->all();
 	}
 
-	/** @return array{revision: int, generation: int, topics: list<array{topic_id: string, mode: string}>, effective_topics?: array<string, string|null>} */
+	/** @return array{revision: int, generation: int, learning_mode: string, learning: bool, content_balance: string, onboarding_step: int, onboarding_complete: bool, topics: list<array{topic_id: string, mode: string}>, effective_topics?: array<string, string|null>} */
 	public function get(string $actorKey): array {
 		$state = $this->request->get($actorKey);
+		$state['learning'] = $state['learning_mode'] === 'on';
 		$state['effective_topics'] = $this->effectiveTopics($state['topics']);
 		return $state;
 	}
 
-	/** @param list<mixed> $topics
-	 * @return array{revision: int, generation: int, topics: list<array{topic_id: string, mode: string}>, effective_topics: array<string, string|null>}|null
-	 */
-	public function replace(string $actorKey, int $revision, array $topics): ?array {
-		$state = $this->request->replace($actorKey, $revision, $this->validate($topics));
+	/** Change the separate, default-off consent for behavioural learning. */
+	public function setLearningMode(string $actorKey, int $revision, string $mode): ?array {
+		if (!$this->isEnabled()) {
+			throw new InvalidArgumentException('Recommendations are disabled');
+		}
+		$state = $this->request->setLearningMode($actorKey, $revision, $mode);
 		return $state === null ? null : $this->withEffectiveTopics($state);
 	}
 
-	/** @return array{revision: int, generation: int, topics: list<array{topic_id: string, mode: string}>, effective_topics: array<string, string|null>}|null */
+	/** @param list<mixed> $topics
+	 * @return array{revision: int, generation: int, learning_mode: string, learning: bool, content_balance: string, onboarding_step: int, onboarding_complete: bool, topics: list<array{topic_id: string, mode: string}>, effective_topics: array<string, string|null>}|null
+	 */
+	public function replace(string $actorKey, int $revision, array $topics, ?string $contentBalance = null, ?int $onboardingStep = null, ?bool $onboardingComplete = null): ?array {
+		if ($contentBalance !== null && !in_array($contentBalance, self::CONTENT_BALANCES, true)) {
+			throw new InvalidArgumentException('Unknown content balance');
+		}
+		if ($onboardingStep !== null && ($onboardingStep < 0 || $onboardingStep > 5)) {
+			throw new InvalidArgumentException('Onboarding step must be between 0 and 5');
+		}
+		if ($onboardingComplete === true && $onboardingStep !== 5) {
+			throw new InvalidArgumentException('Completing onboarding requires the review step');
+		}
+		if ($onboardingStep === 5 && $onboardingComplete !== true) {
+			throw new InvalidArgumentException('The review step must be marked complete');
+		}
+
+		$state = $this->request->replace($actorKey, $revision, $this->validate($topics), $contentBalance, $onboardingStep, $onboardingComplete);
+		return $state === null ? null : $this->withEffectiveTopics($state);
+	}
+
+	/** @return array{revision: int, generation: int, learning_mode: string, learning: bool, content_balance: string, onboarding_step: int, onboarding_complete: bool, topics: list<array{topic_id: string, mode: string}>, effective_topics: array<string, string|null>}|null */
 	public function reset(string $actorKey, int $revision): ?array {
 		$state = $this->request->reset($actorKey, $revision);
 		return $state === null ? null : $this->withEffectiveTopics($state);
 	}
 
-	/** @param array{revision: int, generation: int, topics: list<array{topic_id: string, mode: string}>} $state */
+	/** Clear only implicit signals and increment their reset generation.
+	 * @return array{revision: int, generation: int, learning_mode: string, learning: bool, content_balance: string, onboarding_step: int, onboarding_complete: bool, topics: list<array{topic_id: string, mode: string}>, effective_topics: array<string, string|null>}|null
+	 */
+	public function resetLearning(string $actorKey, int $revision): ?array {
+		$state = $this->request->resetLearning($actorKey, $revision);
+		return $state === null ? null : $this->withEffectiveTopics($state);
+	}
+
+	/** @param array{revision: int, generation: int, learning_mode: string, content_balance: string, onboarding_step: int, onboarding_complete: bool, topics: list<array{topic_id: string, mode: string}>} $state */
 	private function withEffectiveTopics(array $state): array {
+		$state['learning'] = $state['learning_mode'] === 'on';
 		$state['effective_topics'] = $this->effectiveTopics($state['topics']);
 		return $state;
 	}

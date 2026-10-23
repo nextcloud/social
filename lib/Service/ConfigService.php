@@ -164,8 +164,14 @@ class ConfigService {
 	 */
 	public const SOCIAL_PUBLISH_BLOCKS = 'publish_blocks';
 
-	/** Independent, instance-wide kill switch for the For You v4 rollout. */
+	/** Independent, instance-wide kill switch for ranked For You recommendations. */
 	public const REC_V4_ENABLED = 'rec_v4_enabled';
+	/** Pause only the For You background requests to remote discovery providers. */
+	public const REC_REMOTE_DISCOVERY_PAUSED = 'rec_remote_discovery_paused';
+	/** Stop For You behavioural learning regardless of individual consent. */
+	public const REC_LEARNING_PAUSED = 'rec_learning_paused';
+	/** Serve the established hashtag-interest feed in place of the ranked web feed. */
+	public const REC_FORCE_LEGACY_FEED = 'rec_force_legacy_feed';
 
 	/**
 	 * How far the closed-poll sweep has got, as a timestamp.

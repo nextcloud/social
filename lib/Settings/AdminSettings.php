@@ -131,9 +131,7 @@ class AdminSettings implements IDelegatedSettings {
 			// working PDS, for the administrator proper
 			'bluesky' => $this->isAdministrator() ? $this->atprotoStatus->current() : null,
 			// For you, for the same administrator proper
-			'interests' => $this->isAdministrator()
-				? $this->interestService->adminSettings() + ['recommendationsEnabled' => $this->recommendationPreferences->isEnabled()]
-				: null,
+			'interests' => $this->isAdministrator() ? $this->interestAdminSettings() : null,
 			'accessType' => $this->fediverseService->getAccessType(),
 			'accessList' => $this->fediverseService->getListedAddresses(),
 			'retentionDays' => (int)$this->configService->getAppValue(ConfigService::SOCIAL_RETENTION_DAYS),
@@ -198,6 +196,17 @@ class AdminSettings implements IDelegatedSettings {
 		return [
 			'day' => $this->streamRequest->localActivitySince($now - 86400),
 			'week' => $this->streamRequest->localActivitySince($now - 7 * 86400),
+		];
+	}
+
+	/** @return array<string, mixed> */
+	private function interestAdminSettings(): array {
+		$recommendations = $this->recommendationPreferences->adminSettings();
+		return $this->interestService->adminSettings() + [
+			'recommendationsEnabled' => $recommendations['enabled'] ?? false,
+			'remoteDiscoveryPaused' => $recommendations['remoteDiscoveryPaused'] ?? false,
+			'learningPaused' => $recommendations['learningPaused'] ?? false,
+			'forceLegacyFeed' => $recommendations['forceLegacyFeed'] ?? false,
 		];
 	}
 

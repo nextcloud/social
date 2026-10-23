@@ -149,7 +149,7 @@ import { mapStores } from 'pinia'
 import { useAccountStore } from '../store/account.js'
 import { useNotificationsStore } from '../store/notifications.js'
 import { isRanked, useTimelineStore } from '../store/timeline.js'
-import { isTracking } from '../services/interests.js'
+import { fetchRecommendationPreferences, isTracking } from '../services/interests.js'
 import { contextFor, createInterestTracker } from '../services/interestTracker.js'
 import { useCurrentUser } from '../composables/useCurrentUser.js'
 import { useServerData } from '../composables/useServerData.js'
@@ -316,6 +316,8 @@ export default {
 			 * @type {ReturnType<typeof import('../services/interestTracker.js').createInterestTracker>|null}
 			 */
 			tracker: null,
+			/** @type {Map<HTMLVideoElement, {status: object, lastTime: number, watchedSeconds: number}>|null} Active playback measurements. */
+			videoPlayback: null,
 			/**
 			 * The posts of the list being left, kept on screen while the next
 			 * one loads so a switch does not blink through a skeleton.
@@ -549,13 +551,16 @@ export default {
 		 * @return {string|null}
 		 */
 		interestContext() {
-			if (this.serverData.public || !isTracking(this.serverData.interests)) {
+			if (this.serverData.public) {
 				return null
 			}
 
 			// the thread's two lists are given whatever type the route
 			// carries, which on a post's page is none
-			return contextFor(this.$route?.name === 'single-post' ? 'single-post' : this.type)
+			const context = contextFor(this.$route?.name === 'single-post' ? 'single-post' : this.type)
+			const v4Context = ['interests', 'photos', 'videos', 'shorts', 'reels'].includes(context)
+			const tracksV4 = v4Context && this.serverData.interests?.recommendationsEnabled === true
+			return isTracking(this.serverData.interests) || tracksV4 ? context : null
 		},
 
 		/**
@@ -1251,19 +1256,40 @@ export default {
 			if (context === null || !this.$el) {
 				return
 			}
+			this.videoPlayback = new Map()
 
 			this.tracker = createInterestTracker({
 				context,
+				allowUntagged: this.serverData.interests?.recommendationsEnabled === true
+					&& ['interests', 'photos', 'videos', 'shorts', 'reels'].includes(context),
 				isOwn: (status) => {
 					const me = this.accountStore.currentAccount?.acct
 					return me !== undefined && status.account?.acct === me
 				},
 			})
+			if (['interests', 'photos', 'videos', 'shorts', 'reels'].includes(context)
+				&& this.serverData.interests?.recommendationsEnabled === true) {
+				const tracker = this.tracker
+				fetchRecommendationPreferences().then((preferences) => {
+					if (this.tracker !== tracker) {
+						return
+					}
+					if (preferences.learning_mode === 'on' && Number.isInteger(preferences.generation)) {
+						tracker.setLearningGeneration(preferences.generation)
+					} else if (!isTracking(this.serverData.interests)) {
+						this.stopTracking()
+					}
+				}).catch((error) => logger.debug('Could not read For You learning settings', { error }))
+			}
 			// delegated, so a page of new posts needs nothing added. Capture,
 			// because `play` does not bubble and a picture's own click handler
 			// may stop the event before it would get here
 			this.$el.addEventListener('click', this.onTrackedClick, true)
 			this.$el.addEventListener('play', this.onTrackedPlay, true)
+			this.$el.addEventListener('timeupdate', this.onTrackedVideoProgress, true)
+			this.$el.addEventListener('pause', this.onTrackedVideoProgress, true)
+			this.$el.addEventListener('ended', this.onTrackedVideoProgress, true)
+			document.addEventListener('visibilitychange', this.onTrackedVisibility)
 			this.$nextTick(() => this.syncTracked())
 		},
 
@@ -1273,10 +1299,17 @@ export default {
 				return
 			}
 
+			this.flushVideoWatches()
 			this.tracker.destroy()
 			this.tracker = null
+			this.videoPlayback?.clear()
+			this.videoPlayback = null
 			this.$el?.removeEventListener('click', this.onTrackedClick, true)
 			this.$el?.removeEventListener('play', this.onTrackedPlay, true)
+			this.$el?.removeEventListener('timeupdate', this.onTrackedVideoProgress, true)
+			this.$el?.removeEventListener('pause', this.onTrackedVideoProgress, true)
+			this.$el?.removeEventListener('ended', this.onTrackedVideoProgress, true)
+			document.removeEventListener('visibilitychange', this.onTrackedVisibility)
 		},
 
 		/** Hands the tracker the entries on the page, each with its post. */
@@ -1376,8 +1409,75 @@ export default {
 		/** @param {Event} event a video or audio starting */
 		onTrackedPlay(event) {
 			const status = this.trackedStatusOf(event)
-			if (status !== undefined) {
+			const media = event.target
+			if (status !== undefined && media instanceof HTMLMediaElement) {
 				this.tracker?.record(status, 'media')
+				if (media instanceof HTMLVideoElement && this.videoPlayback && !this.videoPlayback.has(media)) {
+					this.videoPlayback.set(media, { status, lastTime: media.currentTime, watchedSeconds: 0 })
+				}
+			}
+		},
+
+		/**
+		 * Accumulates forward playback time and reports at end or page exit.
+		 *
+		 * @param {Event} event the media event
+		 */
+		onTrackedVideoProgress(event) {
+			const media = event.target
+			if (!(media instanceof HTMLVideoElement) || !this.videoPlayback?.has(media)) {
+				return
+			}
+			const playback = this.videoPlayback.get(media)
+			const currentTime = Number(media.currentTime)
+			const delta = currentTime - playback.lastTime
+			if (!media.seeking && Number.isFinite(delta) && delta > 0 && delta <= 2) {
+				playback.watchedSeconds += delta
+			}
+			playback.lastTime = currentTime
+			if (event.type === 'timeupdate') {
+				return
+			}
+			if (event.type === 'ended') {
+				this.reportVideoWatch(media, playback)
+				this.videoPlayback.delete(media)
+			}
+		},
+
+		/** Finishes partial playback before a backgrounded page stops running. */
+		onTrackedVisibility() {
+			if (document.visibilityState !== 'hidden' || !this.videoPlayback) {
+				return
+			}
+			this.flushVideoWatches()
+		},
+
+		flushVideoWatches() {
+			if (!this.videoPlayback) {
+				return
+			}
+			for (const [media, playback] of this.videoPlayback) {
+				if (!media.paused && !media.seeking) {
+					const delta = Number(media.currentTime) - playback.lastTime
+					if (Number.isFinite(delta) && delta > 0 && delta <= 2) {
+						playback.watchedSeconds += delta
+					}
+				}
+				this.reportVideoWatch(media, playback)
+			}
+			this.videoPlayback.clear()
+		},
+
+		/**
+		 * Sends only the aggregate fraction, never a playback timeline.
+		 *
+		 * @param {HTMLVideoElement} media the video element
+		 * @param {{status: object, lastTime: number, watchedSeconds: number}} playback accumulated playback state
+		 */
+		reportVideoWatch(media, playback) {
+			const duration = Number(media.duration)
+			if (Number.isFinite(duration) && duration > 0 && playback.watchedSeconds > 0) {
+				this.tracker?.recordVideoWatchRatio(playback.status, playback.watchedSeconds / duration)
 			}
 		},
 

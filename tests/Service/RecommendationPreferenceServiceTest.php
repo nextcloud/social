@@ -32,6 +32,26 @@ class RecommendationPreferenceServiceTest extends TestCase {
 		$this->assertFalse($this->service->isEnabled());
 	}
 
+	public function testAdminOperationalSettingsDefaultOffAndSaveOnlyNamedFlags(): void {
+		$this->config->method('getAppValueBool')->willReturn(false);
+		$this->config->expects($this->once())->method('setAppValue')
+			->with(ConfigService::REC_LEARNING_PAUSED, '1');
+
+		$this->assertSame([
+			'enabled' => false,
+			'remoteDiscoveryPaused' => false,
+			'learningPaused' => false,
+			'forceLegacyFeed' => false,
+		], $this->service->adminSettings());
+
+		$this->assertSame([
+			'enabled' => false,
+			'remoteDiscoveryPaused' => false,
+			'learningPaused' => false,
+			'forceLegacyFeed' => false,
+		], $this->service->saveAdminSettings(null, null, true, null));
+	}
+
 	public function testCatalogHasStableUniqueIdsAndBilingualLabelsWithoutNetworkAccess(): void {
 		$catalog = $this->service->catalog();
 		$ids = array_column($catalog, 'id');
@@ -44,6 +64,7 @@ class RecommendationPreferenceServiceTest extends TestCase {
 		$this->request->method('get')->willReturn([
 			'revision' => 4,
 			'generation' => 1,
+			'learning_mode' => 'off',
 			'topics' => [
 				['topic_id' => 'technology', 'mode' => 'LESS'],
 				['topic_id' => 'tech.apple', 'mode' => 'INTERESTED'],
@@ -76,5 +97,18 @@ class RecommendationPreferenceServiceTest extends TestCase {
 		$this->request->expects($this->never())->method('replace');
 		$this->expectException(InvalidArgumentException::class);
 		$this->service->replace('alice', 0, ['tech.apple']);
+	}
+
+	public function testInvalidOnboardingStateAndContentBalanceAreRejectedBeforeWriting(): void {
+		$this->request->expects($this->never())->method('replace');
+		try {
+			$this->service->replace('alice', 0, [], 'unbounded');
+			$this->fail('Invalid content balance was accepted');
+		} catch (InvalidArgumentException $e) {
+			$this->assertSame('Unknown content balance', $e->getMessage());
+		}
+
+		$this->expectException(InvalidArgumentException::class);
+		$this->service->replace('alice', 0, [], null, 5, false);
 	}
 }

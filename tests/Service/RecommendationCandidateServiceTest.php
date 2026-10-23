@@ -9,19 +9,30 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Service;
 
+use OCA\Social\Atproto\Reader\BlueskyFeeds;
+use OCA\Social\Db\FollowsRequest;
+use OCA\Social\Db\RecommendationSignalRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Service\Discovery\PostDiscoveryService;
 use OCA\Social\Service\InterestService;
+use OCA\Social\Service\RecommendationBehavioralProfile;
 use OCA\Social\Service\RecommendationCandidateService;
 use OCA\Social\Service\RecommendationFeatureExtractor;
+use OCA\Social\Service\RecommendationFeedbackService;
+use OCA\Social\Service\RecommendationFollowFeatures;
 use OCA\Social\Service\RecommendationPreferenceService;
 use OCA\Social\Service\RecommendationRanker;
 use OCA\Social\Service\RecommendationReRanker;
+use OCA\Social\Service\RecommendationSavedFeedCandidates;
+use OCA\Social\Service\RecommendationSignalService;
 use OCA\Social\Service\RecommendationSnapshotStore;
+use OCA\Social\Service\RecommendationSocialGraphCandidates;
 use OCA\Social\Service\RecommendationTopicCatalog;
+use OCA\Social\Service\RecommendationTrendCandidates;
 use OCA\Social\Service\RemoteFetchQueue;
+use OCA\Social\Service\TrendService;
 use OCP\AppFramework\Utility\ITimeFactory;
 use PHPUnit\Framework\TestCase;
 
@@ -32,6 +43,16 @@ class RecommendationCandidateServiceTest extends TestCase {
 	private InterestService $interests;
 	private ITimeFactory $clock;
 	private RecommendationSnapshotStore $snapshots;
+	private RecommendationFeedbackService $feedback;
+	private FollowsRequest $follows;
+	private RecommendationSignalRequest $signals;
+	private TrendService $trends;
+	private BlueskyFeeds $savedFeeds;
+
+	/** @return list<string> */
+	private function appleAliases(): array {
+		return (new RecommendationTopicCatalog())->find('tech.apple')['aliases'] ?? [];
+	}
 
 	protected function setUp(): void {
 		$this->preferences = $this->createMock(RecommendationPreferenceService::class);
@@ -41,6 +62,14 @@ class RecommendationCandidateServiceTest extends TestCase {
 		$this->clock = $this->createStub(ITimeFactory::class);
 		$this->clock->method('getTime')->willReturn(2_000_000_000);
 		$this->snapshots = $this->createMock(RecommendationSnapshotStore::class);
+		$this->feedback = $this->createMock(RecommendationFeedbackService::class);
+		$this->feedback->method('current')->willReturn(['hidden_nids' => [], 'topics' => [], 'authors' => [], 'formats' => []]);
+		$this->feedback->method('apply')->willReturnCallback(static fn (array $candidate, string $topicId, array $state): array => $candidate);
+		$this->follows = $this->createMock(FollowsRequest::class);
+		$this->follows->method('getBetweenMany')->willReturn(['following' => [], 'followedBy' => []]);
+		$this->signals = $this->createMock(RecommendationSignalRequest::class);
+		$this->trends = $this->createMock(TrendService::class);
+		$this->savedFeeds = $this->createMock(BlueskyFeeds::class);
 	}
 
 	private function service(): RecommendationCandidateService {
@@ -55,6 +84,18 @@ class RecommendationCandidateServiceTest extends TestCase {
 			new RecommendationRanker(),
 			new RecommendationReRanker(),
 			$this->snapshots,
+			$this->feedback,
+			new RecommendationFollowFeatures($this->follows),
+			new RecommendationBehavioralProfile(new RecommendationSignalService(
+				$this->preferences,
+				$this->signals,
+				new RecommendationFeatureExtractor(new RecommendationTopicCatalog()),
+				$this->streams,
+				$this->clock,
+			), new RecommendationTopicCatalog()),
+			new RecommendationTrendCandidates($this->trends, $this->streams, new RecommendationFeatureExtractor(new RecommendationTopicCatalog())),
+			new RecommendationSocialGraphCandidates($this->streams, new RecommendationFeatureExtractor(new RecommendationTopicCatalog())),
+			new RecommendationSavedFeedCandidates($this->savedFeeds, $this->streams, new RecommendationFeatureExtractor(new RecommendationTopicCatalog())),
 		);
 	}
 
@@ -82,15 +123,16 @@ class RecommendationCandidateServiceTest extends TestCase {
 		$this->preferences->method('get')->with('alice')->willReturn([
 			'revision' => 0,
 			'generation' => 0,
+			'learning_mode' => 'on',
 			'effective_topics' => ['tech.apple' => 'INTERESTED'],
 		]);
 		$this->interests->method('languagesFor')->with('alice')->willReturn(['en']);
 		$this->interests->method('hiddenFor')->with($this->isInstanceOf(Person::class))->willReturn([]);
 		$note = new Note();
-		$note->setId('https://remote.example/posts/1')->setContent('<p>Apple announces a new device</p>')->setLanguage('en')->setPublishedTime(1_999_999_900);
+		$note->setId('https://bsky.app/profile/did:plc:ewvi7nxzyoun6zhxrhs64oiz/post/3k')->setContent('<p>Apple announces a new device</p>')->setLanguage('en')->setPublishedTime(1_999_999_900);
 		$this->streams->expects($this->once())->method('setViewer')->with($this->isInstanceOf(Person::class));
 		$this->streams->expects($this->once())->method('recommendationCandidatesByTerms')->with(
-			['apple', 'iphone', 'ipad', 'mac'], $this->isType('string'), 100, [], ['en']
+			$this->appleAliases(), $this->isType('string'), 70, [], ['en'], 2_000_000_000
 		)->willReturn(['123' => $note]);
 		$this->queue->expects($this->exactly(2))->method('fillPosts')->willReturnCallback(
 			static function (string $kind, string $term, Person $viewer): bool {
@@ -107,9 +149,114 @@ class RecommendationCandidateServiceTest extends TestCase {
 		$this->assertTrue($result['underfilled']);
 		$this->assertTrue($result['remote_refresh_queued']);
 		$this->assertSame('text', $result['candidates'][0]['format']);
-		$this->assertSame('activitypub', $result['candidates'][0]['protocol']);
-		$this->assertSame(1, $result['candidates'][0]['algorithm_version']);
+		$this->assertSame('atproto', $result['candidates'][0]['protocol']);
+		$this->assertSame(['activitypub' => 0, 'atproto' => 1], $result['sources']);
+		$this->assertSame(RecommendationRanker::ALGORITHM_VERSION, $result['candidates'][0]['algorithm_version']);
 		$this->assertArrayHasKey('rank_score', $result['candidates'][0]);
+		$this->assertSame(1.0, $result['candidates'][0]['rank_features']['novelty']);
+	}
+
+	public function testTopicDiscoveryCanUseTheIndependentExplorationSource(): void {
+		$this->preferences->method('isEnabled')->willReturn(true);
+		$this->preferences->method('get')->willReturn([
+			'revision' => 0,
+			'generation' => 0,
+			'learning_mode' => 'on',
+			'effective_topics' => ['tech.apple' => 'INTERESTED'],
+		]);
+		$this->interests->method('languagesFor')->willReturn(['en']);
+		$this->interests->method('hiddenFor')->willReturn([]);
+		$note = (new Note())
+			->setId('https://bsky.app/profile/did:plc:ewvi7nxzyoun6zhxrhs64oiz/post/3k')
+			->setAttributedTo('https://remote.example/users/author')
+			->setContent('<p>Apple announces a new device</p>')
+			->setLanguage('en')
+			->setPublishedTime(1_999_999_900);
+		$this->streams->expects($this->once())->method('recommendationCandidatesByTerms')->with(
+			$this->appleAliases(), $this->isType('string'), 70, [], ['en'], 2_000_000_000
+		)->willReturn([]);
+		$this->streams->expects($this->once())->method('recommendationExplorationCandidates')->with(
+			$this->isType('string'), 10, intdiv(2_000_000_000, 6 * 3600), [], ['en']
+		)->willReturn(['123' => $note]);
+		$this->queue->method('fillPosts')->willReturn(false);
+
+		$result = $this->service()->discover($this->viewer(), 'tech.apple');
+
+		$this->assertSame(1, $result['count']);
+		$this->assertSame('atproto', $result['candidates'][0]['protocol']);
+	}
+
+	public function testTopicDiscoveryCanUseCachedSecondDegreeFollowCandidates(): void {
+		$this->preferences->method('isEnabled')->willReturn(true);
+		$this->preferences->method('get')->willReturn([
+			'revision' => 0,
+			'generation' => 0,
+			'learning_mode' => 'on',
+			'effective_topics' => ['tech.apple' => 'INTERESTED'],
+		]);
+		$this->interests->method('languagesFor')->willReturn([]);
+		$this->interests->method('hiddenFor')->willReturn([]);
+		$note = (new Note())
+			->setId('https://remote.example/posts/graph-apple')
+			->setAttributedTo('https://remote.example/users/second-degree')
+			->setContent('<p>Apple introduces an iPhone feature</p>')
+			->setPublishedTime(1_999_999_900);
+		$this->streams->method('recommendationCandidatesByTerms')->willReturn([]);
+		$this->streams->expects($this->once())->method('recommendationSocialGraphCandidates')->with(
+			$this->isType('string'), 50, [], []
+		)->willReturn(['125' => $note]);
+		$this->snapshots->method('create')->willReturn(null);
+
+		$result = $this->service()->discover($this->viewer(), 'tech.apple');
+
+		$this->assertSame(1, $result['count']);
+		$this->assertSame('125', $result['candidates'][0]['nid']);
+	}
+
+	public function testTopicDiscoveryCanUseCachedPostsFromSavedBlueskyFeeds(): void {
+		$this->preferences->method('isEnabled')->willReturn(true);
+		$this->preferences->method('get')->willReturn([
+			'revision' => 0,
+			'generation' => 0,
+			'learning_mode' => 'on',
+			'effective_topics' => ['tech.apple' => 'INTERESTED'],
+		]);
+		$this->interests->method('languagesFor')->willReturn([]);
+		$this->interests->method('hiddenFor')->willReturn([]);
+		$post = (new Note())
+			->setId('at://did:plc:bob/app.bsky.feed.post/saved-feed-apple')
+			->setContent('<p>Apple introduces an iPhone feature</p>')
+			->setPublishedTime(1_999_999_900);
+		$this->savedFeeds->expects($this->once())->method('recommendationFeedPostNids')->with($this->isInstanceOf(Person::class), 50)->willReturn(['126']);
+		$this->streams->expects($this->once())->method('getVisibleByNids')->with(['126'])->willReturn(['126' => $post]);
+		$this->streams->method('recommendationCandidatesByTerms')->willReturn([]);
+		$this->snapshots->method('create')->willReturn(null);
+
+		$result = $this->service()->discover($this->viewer(), 'tech.apple');
+
+		$this->assertSame(1, $result['count']);
+		$this->assertSame('126', $result['candidates'][0]['nid']);
+	}
+
+	public function testRemoteDiscoveryPauseKeepsCachedCandidatesAvailableWithoutQueueing(): void {
+		$this->preferences->method('isEnabled')->willReturn(true);
+		$this->preferences->method('remoteDiscoveryPaused')->willReturn(true);
+		$this->preferences->method('get')->willReturn([
+			'revision' => 0, 'generation' => 0, 'learning_mode' => 'on',
+			'effective_topics' => ['tech.apple' => 'INTERESTED'],
+		]);
+		$this->interests->method('languagesFor')->willReturn(['en']);
+		$this->interests->method('hiddenFor')->willReturn([]);
+		$note = new Note();
+		$note->setId('https://bsky.app/profile/did:plc:ewvi7nxzyoun6zhxrhs64oiz/post/3k')->setContent('<p>Apple announces a new device</p>')->setLanguage('en')->setPublishedTime(1_999_999_900);
+		$this->streams->method('recommendationCandidatesByTerms')->willReturn(['123' => $note]);
+		$this->queue->expects($this->never())->method('fillPosts');
+
+		$result = $this->service()->discover($this->viewer(), 'tech.apple');
+
+		$this->assertSame(1, $result['count']);
+		$this->assertTrue($result['underfilled']);
+		$this->assertFalse($result['remote_refresh_queued']);
 	}
 
 	public function testLessNeutralAndHiddenPreferencesDoNotReadOrQueueCandidates(): void {
@@ -132,10 +279,11 @@ class RecommendationCandidateServiceTest extends TestCase {
 		$this->preferences->method('get')->willReturn([
 			'revision' => 3,
 			'generation' => 2,
+			'learning_mode' => 'on',
 			'effective_topics' => ['tech.apple' => 'INTERESTED'],
 		]);
-		$first = (new Note())->setId('https://remote.example/posts/2')->setContent('<p>Apple publishes an update</p>')->setPublishedTime(1_999_999_900);
-		$second = (new Note())->setId('https://remote.example/posts/3')->setContent('<p>Apple publishes another update</p>')->setPublishedTime(1_999_999_800);
+		$first = (new Note())->setId('https://remote.example/posts/2')->setContent('<p>Apple publishes an iPhone update</p>')->setPublishedTime(1_999_999_900);
+		$second = (new Note())->setId('https://remote.example/posts/3')->setContent('<p>Apple publishes another iPhone update</p>')->setPublishedTime(1_999_999_800);
 		$this->streams->expects($this->once())->method('setViewer')->with($this->isInstanceOf(Person::class));
 		$this->streams->expects($this->exactly(2))->method('getVisibleByNids')->willReturnOnConsecutiveCalls(
 			['2' => $first],
@@ -153,5 +301,37 @@ class RecommendationCandidateServiceTest extends TestCase {
 		$this->assertSame('session', $result['session_id']);
 		$this->assertNull($result['next_cursor']);
 		$this->assertFalse($result['cursor_expired']);
+	}
+
+	public function testExplicitFeedbackChangesNewRankingAndHidesPostsBeforeTheCandidateQuery(): void {
+		$this->preferences->method('isEnabled')->willReturn(true);
+		$this->preferences->method('get')->willReturn([
+			'revision' => 0,
+			'generation' => 0,
+			'learning_mode' => 'on',
+			'effective_topics' => ['tech.apple' => 'INTERESTED'],
+		]);
+		$feedback = ['hidden_nids' => ['321'], 'topics' => ['tech.apple' => 'MORE_TOPIC'], 'authors' => [], 'formats' => []];
+		$this->feedback = $this->createMock(RecommendationFeedbackService::class);
+		$this->feedback->method('current')->with('alice')->willReturn($feedback);
+		$this->interests->method('languagesFor')->willReturn([]);
+		$this->interests->method('hiddenFor')->willReturn([]);
+		$note = new Note();
+		$note->setId('https://remote.example/posts/123')->setContent('<p>Apple announces a new device</p>')->setPublishedTime(1_999_999_900);
+		$this->streams->expects($this->once())->method('recommendationCandidatesByTerms')->with(
+			$this->appleAliases(), $this->isType('string'), 70, ['321'], [], 2_000_000_000
+		)->willReturn(['123' => $note]);
+		$this->feedback->expects($this->once())->method('apply')->with(
+			$this->callback(static fn (array $candidate): bool => $candidate['nid'] === '123'), 'tech.apple', $feedback
+		)->willReturnCallback(static function (array $candidate): array {
+			$candidate['topic_match'] = min(1.0, $candidate['topic_match'] + 0.28);
+			return $candidate;
+		});
+		$this->queue->expects($this->exactly(2))->method('fillPosts')->willReturn(false);
+
+		$result = $this->service()->discover($this->viewer(), 'tech.apple');
+
+		$this->assertSame('123', $result['candidates'][0]['nid']);
+		$this->assertSame(1.0, $result['candidates'][0]['rank_features']['topic_match']);
 	}
 }

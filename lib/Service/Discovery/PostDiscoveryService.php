@@ -11,6 +11,8 @@ namespace OCA\Social\Service\Discovery;
 
 use OCA\Social\Atproto\Reader\BlueskyPostSource;
 use OCA\Social\Service\CacheActorService;
+use OCA\Social\Service\RecommendationDiscoveryHealthService;
+use OCA\Social\Service\RecommendationPreferenceService;
 use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -31,6 +33,8 @@ class PostDiscoveryService {
 	public function __construct(
 		private CacheActorService $cacheActors,
 		private LoggerInterface $logger,
+		private RecommendationDiscoveryHealthService $health,
+		private RecommendationPreferenceService $preferences,
 		private ?ContainerInterface $container = null,
 	) {
 	}
@@ -48,7 +52,7 @@ class PostDiscoveryService {
 			}
 		}
 
-		return $this->ask($kind, static fn (PostSource $source): int => $kind === self::TAG
+		return $this->ask($kind, static fn (PostSource $source): PostSourceStats => $kind === self::TAG
 			? $source->tagged($term, self::LIMIT, $viewer)
 			: $source->matching($term, self::LIMIT, $viewer));
 	}
@@ -60,19 +64,35 @@ class PostDiscoveryService {
 	 * @return int how many posts were stored
 	 */
 	public function fillTag(string $tag, int $limit, int $since): int {
-		return $this->ask(self::TAG, static fn (PostSource $source): int => $source->tagged($tag, $limit, null, $since));
+		return $this->ask(self::TAG, static fn (PostSource $source): PostSourceStats => $source->tagged($tag, $limit, null, $since));
 	}
 
 	/**
-	 * @param callable(PostSource): int $read
+	 * @param callable(PostSource): PostSourceStats $read
 	 */
 	private function ask(string $kind, callable $read): int {
+		if ($this->preferences->remoteDiscoveryPaused()) {
+			return 0;
+		}
+
 		$stored = 0;
 		foreach ($this->sources() as $source) {
 			try {
-				$stored += $read($source);
+				$stats = $read($source);
+				$stored += $stats->postsStored;
 			} catch (Throwable $e) {
+				try {
+					$this->health->record(self::provider($source), new PostSourceStats(1, 1, 0, 0, 0, 0));
+				} catch (Throwable $metricsError) {
+					$this->logger->warning('Discovery failure metrics could not be saved', ['exception' => $metricsError]);
+				}
 				$this->logger->info('Posts not read', ['kind' => $kind, 'source' => $source::class, 'exception' => $e]);
+				continue;
+			}
+			try {
+				$this->health->record(self::provider($source), $stats);
+			} catch (Throwable $e) {
+				$this->logger->warning('Discovery health metrics could not be saved', ['source' => $source::class, 'exception' => $e]);
 			}
 		}
 
@@ -92,5 +112,9 @@ class PostDiscoveryService {
 		}
 
 		return $sources;
+	}
+
+	private static function provider(PostSource $source): string {
+		return $source instanceof FediversePostSource ? 'activitypub' : 'atproto';
 	}
 }

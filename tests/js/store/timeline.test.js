@@ -1465,6 +1465,30 @@ describe('timeline store actions', () => {
 			expect(videos.media_type).toBeUndefined()
 		})
 
+		it('uses the v4 For You envelope and advances with its opaque cursor', async () => {
+			globalThis.setInitialState('social', 'serverData', { public: false, interests: { recommendationsEnabled: true } })
+			await store.changeTimelineType({ type: 'interests', params: {} })
+			axios.get
+				.mockResolvedValueOnce({ data: { items: [makeStatus('1')], next_cursor: 'signed-page-2' }, headers: {} })
+				.mockResolvedValueOnce({ data: { items: [makeStatus('2')], next_cursor: null }, headers: {} })
+
+			const first = await store.fetchTimeline()
+			const second = await store.fetchTimeline({ max_id: '1', limit: 15 })
+
+			expect(axios.get).toHaveBeenNthCalledWith(1, `${API}/recommendations/timeline`, {
+				params: { limit: 15, cursor: '' },
+				signal: expect.any(AbortSignal),
+			})
+			expect(axios.get).toHaveBeenNthCalledWith(2, `${API}/recommendations/timeline`, {
+				params: { limit: 15, cursor: 'signed-page-2' },
+				signal: expect.any(AbortSignal),
+			})
+			expect(first).toEqual([expect.objectContaining({ id: '1' })])
+			expect(second).toEqual([expect.objectContaining({ id: '2' })])
+			expect(store.timeline).toEqual(['1', '2'])
+			document.getElementById('initial-state-social-serverData')?.remove()
+		})
+
 		/**
 		 * The Shorts stack used to read the Videos timeline and play every
 		 * video in it, long and landscape ones included. It asks for shorts

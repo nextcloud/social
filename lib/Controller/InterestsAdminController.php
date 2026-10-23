@@ -13,6 +13,7 @@ use InvalidArgumentException;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\SettingRefusedException;
 use OCA\Social\Service\InterestService;
+use OCA\Social\Service\RecommendationDiscoveryHealthService;
 use OCA\Social\Service\RecommendationPreferenceService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
@@ -32,20 +33,34 @@ class InterestsAdminController extends Controller {
 		IRequest $request,
 		private InterestService $interestService,
 		private RecommendationPreferenceService $recommendationService,
+		private RecommendationDiscoveryHealthService $discoveryHealth,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 	}
 
-	/** The independent For You v4 instance kill switch. */
+	/** The independent ranked-recommendations instance kill switch. */
 	#[FrontpageRoute(verb: 'GET', url: '/admin/recommendations')]
 	public function recommendationSettings(): DataResponse {
-		return new DataResponse(['enabled' => $this->recommendationService->isEnabled()]);
+		return new DataResponse($this->recommendationService->adminSettings());
 	}
 
-	/** Only administrators can activate v4 for this instance. */
+	/** Only administrators can change recommendation rollout and emergency switches. */
 	#[FrontpageRoute(verb: 'PUT', url: '/admin/recommendations')]
-	public function saveRecommendationSettings(bool $enabled = false): DataResponse {
-		return new DataResponse(['enabled' => $this->recommendationService->setEnabled($enabled)]);
+	public function saveRecommendationSettings(
+		?bool $enabled = null,
+		?bool $remoteDiscoveryPaused = null,
+		?bool $learningPaused = null,
+		?bool $forceLegacyFeed = null,
+	): DataResponse {
+		return new DataResponse($this->recommendationService->saveAdminSettings(
+			$enabled, $remoteDiscoveryPaused, $learningPaused, $forceLegacyFeed
+		));
+	}
+
+	/** Recent ActivityPub and ATProto discovery coverage, visible to admins only. */
+	#[FrontpageRoute(verb: 'GET', url: '/admin/recommendations/discovery')]
+	public function recommendationDiscoveryHealth(int $hours = RecommendationDiscoveryHealthService::DEFAULT_WINDOW_HOURS): DataResponse {
+		return new DataResponse($this->discoveryHealth->summary($hours));
 	}
 
 	/**

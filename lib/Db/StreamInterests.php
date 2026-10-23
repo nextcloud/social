@@ -10,7 +10,9 @@ declare(strict_types=1);
 namespace OCA\Social\Db;
 
 use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Service\RecommendationFreshness;
 use OCA\Social\Tools\Nid;
 use OCA\Social\Tools\SearchTerms;
 use OCP\DB\QueryBuilder\IQueryBuilder;
@@ -31,6 +33,8 @@ trait StreamInterests {
 	private const RECOMMENDATION_FALLBACK_SCAN = 500;
 	/** Maximum word-index results examined for one topic lookup. */
 	private const RECOMMENDATION_INDEX_CANDIDATES = 300;
+	/** Maximum alias lookups for a multi-topic For You page request. */
+	private const RECOMMENDATION_MAX_TERMS = 20;
 
 	/**
 	 * The posts among these the viewer may see, each once.
@@ -177,6 +181,7 @@ trait StreamInterests {
 		int $limit,
 		array $excludeNids = [],
 		array $languages = [],
+		?int $now = null,
 	): array {
 		if ($this->viewer === null || $terms === [] || $limit < 1) {
 			return [];
@@ -184,15 +189,235 @@ trait StreamInterests {
 
 		$sinceNid = Nid::normalize($sinceNid);
 		$limit = min(100, $limit);
+		if ($now === null || $now <= 0) {
+			return $this->recommendationCandidatesInRange($terms, $sinceNid, '', $limit, $excludeNids, $languages);
+		}
+
+		$recentSinceNid = Nid::fromPublishedTime(
+			max(0, $now - RecommendationFreshness::RECENT_WINDOW_DAYS * 86400), 0, StreamRequest::NID_LIMIT
+		);
+		$recentLimit = RecommendationFreshness::recentCandidateLimit($limit);
+		$historicalLimit = RecommendationFreshness::historicalCandidateLimit($limit);
+		$recent = $this->recommendationCandidatesInRange($terms, $recentSinceNid, '', $recentLimit, $excludeNids, $languages);
+		if ($historicalLimit === 0) {
+			return $recent;
+		}
+
+		$excluded = array_values(array_unique(array_merge($excludeNids, array_keys($recent))));
+		$historical = $this->recommendationCandidatesInRange($terms, $sinceNid, $recentSinceNid, $historicalLimit, $excluded, $languages);
+		$missingHistorical = $historicalLimit - count($historical);
+		$unusedCapacity = $limit - count($recent) - count($historical);
+		$missingRecent = $recentLimit - count($recent);
+		$refillLimit = min($unusedCapacity, $missingHistorical + $missingRecent);
+		if ($refillLimit > 0) {
+			$refill = $this->recommendationCandidatesInRange(
+				$terms,
+				$recentSinceNid,
+				'',
+				$refillLimit,
+				array_values(array_unique(array_merge($excluded, array_keys($historical)))),
+				$languages
+			);
+			$recent += $refill;
+		}
+
+		return $recent + $historical;
+	}
+
+	/**
+	 * Public, visible posts by accounts the viewer currently follows. This
+	 * recall source is independent of the word index: followed authors can
+	 * appear even when their post contains none of the selected topic aliases.
+	 * Topic and hard-hide preferences are still applied by the ranker.
+	 *
+	 * @param list<string> $excludeNids posts already selected or hidden
+	 * @param list<string> $languages empty means any language
+	 * @return array<string, Stream> visible public statuses keyed by nid
+	 */
+	public function recommendationFollowCandidates(string $sinceNid, int $limit, array $excludeNids = [], array $languages = []): array {
+		if ($this->viewer === null || $limit < 1) {
+			return [];
+		}
+
+		$qb = $this->getStreamNidsSelectSql(true);
+		$expr = $qb->expr();
+		$qb->innerJoin('s', self::TABLE_FOLLOWS, 'rec_follow', $expr->andX(
+			$expr->eq('rec_follow.object_id_prim', 's.attributed_to_prim'),
+			$expr->eq('rec_follow.actor_id_prim', $qb->createNamedParameter($qb->prim($this->viewer->getId()))),
+			$expr->eq('rec_follow.type', $qb->createNamedParameter(Follow::TYPE)),
+			$expr->eq('rec_follow.accepted', $qb->createNamedParameter('1'))
+		));
+		$qb->limitToStatusTypes();
+		$qb->andWhere($expr->eq('s.visibility', $qb->createNamedParameter(Stream::TYPE_PUBLIC)));
+		$qb->andWhere($expr->gt('s.nid', $qb->createNamedParameter(Nid::normalize($sinceNid))));
+		$qb->limitToViewer('sd', 'f', true, false, SocialCoreQueryBuilder::HIDDEN_TIMELINE, 'to');
+		$qb->filterDuplicate();
+		$this->filterSilencedActors($qb);
+		$qb->andWhere($expr->neq(
+			's.attributed_to_prim', $qb->createNamedParameter($qb->prim($this->viewer->getId()))
+		));
+		if ($excludeNids !== []) {
+			$qb->andWhere($expr->notIn(
+				's.nid', $qb->createNamedParameter($excludeNids, IQueryBuilder::PARAM_STR_ARRAY)
+			));
+		}
+		if ($languages !== []) {
+			$qb->andWhere($expr->orX(
+				$expr->in('s.language', $qb->createNamedParameter($languages, IQueryBuilder::PARAM_STR_ARRAY)),
+				$expr->eq('s.language', $qb->createNamedParameter('')),
+				$expr->isNull('s.language')
+			));
+		}
+		$qb->orderBy('s.nid', 'desc');
+		$qb->setMaxResults(min(100, $limit));
+
+		$nids = $this->getNidsFromRequest($qb);
+		$visible = $this->getVisibleByNids($nids);
+		$ordered = [];
+		foreach ($nids as $nid) {
+			if (isset($visible[$nid])) {
+				$ordered[$nid] = $visible[$nid];
+			}
+		}
+
+		return $ordered;
+	}
+
+	/**
+	 * Bounded public posts by accounts followed by the viewer's accepted follows.
+	 * Both edges must be accepted ActivityPub follows; cached post visibility is
+	 * checked again for the viewer before any candidate is returned.
+	 *
+	 * @param list<string> $excludeNids posts already selected or hidden
+	 * @param list<string> $languages empty means any language
+	 * @return array<string, Stream> visible public statuses keyed by nid
+	 */
+	public function recommendationSocialGraphCandidates(string $sinceNid, int $limit, array $excludeNids = [], array $languages = []): array {
+		if ($this->viewer === null || $limit < 1) {
+			return [];
+		}
+
+		$qb = $this->getStreamNidsSelectSql(true);
+		$expr = $qb->expr();
+		$viewerPrim = $qb->prim($this->viewer->getId());
+		$qb->innerJoin('s', self::TABLE_FOLLOWS, 'rec_graph_author', $expr->andX(
+			$expr->eq('rec_graph_author.object_id_prim', 's.attributed_to_prim'),
+			$expr->eq('rec_graph_author.type', $qb->createNamedParameter(Follow::TYPE)),
+			$expr->eq('rec_graph_author.accepted', $qb->createNamedParameter('1'))
+		));
+		$qb->innerJoin('rec_graph_author', self::TABLE_FOLLOWS, 'rec_graph_viewer', $expr->andX(
+			$expr->eq('rec_graph_viewer.object_id_prim', 'rec_graph_author.actor_id_prim'),
+			$expr->eq('rec_graph_viewer.actor_id_prim', $qb->createNamedParameter($viewerPrim)),
+			$expr->eq('rec_graph_viewer.type', $qb->createNamedParameter(Follow::TYPE)),
+			$expr->eq('rec_graph_viewer.accepted', $qb->createNamedParameter('1'))
+		));
+		$qb->limitToStatusTypes();
+		$qb->andWhere($expr->eq('s.visibility', $qb->createNamedParameter(Stream::TYPE_PUBLIC)));
+		$qb->andWhere($expr->gt('s.nid', $qb->createNamedParameter(Nid::normalize($sinceNid))));
+		$qb->limitToViewer('sd', 'f', true, false, SocialCoreQueryBuilder::HIDDEN_TIMELINE, 'to');
+		$qb->filterDuplicate();
+		$this->filterSilencedActors($qb);
+		$qb->andWhere($expr->neq('s.attributed_to_prim', $qb->createNamedParameter($viewerPrim)));
+		if ($excludeNids !== []) {
+			$qb->andWhere($expr->notIn('s.nid', $qb->createNamedParameter($excludeNids, IQueryBuilder::PARAM_STR_ARRAY)));
+		}
+		if ($languages !== []) {
+			$qb->andWhere($expr->orX(
+				$expr->in('s.language', $qb->createNamedParameter($languages, IQueryBuilder::PARAM_STR_ARRAY)),
+				$expr->eq('s.language', $qb->createNamedParameter('')),
+				$expr->isNull('s.language')
+			));
+		}
+		$qb->orderBy('s.nid', 'desc');
+		$qb->setMaxResults(min(100, $limit));
+
+		$nids = $this->getNidsFromRequest($qb);
+		$visible = $this->getVisibleByNids($nids);
+		$ordered = [];
+		foreach ($nids as $nid) {
+			if (isset($visible[$nid])) {
+				$ordered[$nid] = $visible[$nid];
+			}
+		}
+
+		return $ordered;
+	}
+
+	/**
+	 * A small deterministic sample from the recent public corpus. This gives
+	 * the local classifier a chance to find posts missed by topic aliases or a
+	 * lagging search index without scanning more than the bounded newest window.
+	 *
+	 * @param list<string> $excludeNids posts already selected or hidden
+	 * @param list<string> $languages empty means any language
+	 * @return array<string, Stream> visible public statuses keyed by nid
+	 */
+	public function recommendationExplorationCandidates(
+		string $sinceNid,
+		int $limit,
+		int $rotation,
+		array $excludeNids = [],
+		array $languages = [],
+	): array {
+		if ($this->viewer === null || $limit < 1) {
+			return [];
+		}
+
+		$qb = $this->getStreamNidsSelectSql(true);
+		$expr = $qb->expr();
+		$qb->limitToStatusTypes();
+		$qb->andWhere($expr->eq('s.visibility', $qb->createNamedParameter(Stream::TYPE_PUBLIC)));
+		$qb->andWhere($expr->gt('s.nid', $qb->createNamedParameter(Nid::normalize($sinceNid))));
+		$qb->limitToViewer('sd', 'f', true, false, SocialCoreQueryBuilder::HIDDEN_TIMELINE, 'to');
+		$qb->filterDuplicate();
+		$this->filterSilencedActors($qb);
+		$qb->andWhere($expr->neq(
+			's.attributed_to_prim', $qb->createNamedParameter($qb->prim($this->viewer->getId()))
+		));
+		if ($excludeNids !== []) {
+			$qb->andWhere($expr->notIn(
+				's.nid', $qb->createNamedParameter($excludeNids, IQueryBuilder::PARAM_STR_ARRAY)
+			));
+		}
+		if ($languages !== []) {
+			$qb->andWhere($expr->orX(
+				$expr->in('s.language', $qb->createNamedParameter($languages, IQueryBuilder::PARAM_STR_ARRAY)),
+				$expr->eq('s.language', $qb->createNamedParameter('')),
+				$expr->isNull('s.language')
+			));
+		}
+		$qb->orderBy('s.nid', 'desc');
+		$qb->setMaxResults(self::RECOMMENDATION_FALLBACK_SCAN);
+		$nids = $this->getNidsFromRequest($qb);
+		usort($nids, fn (string $left, string $right): int => strcmp(
+			hash('sha256', $this->viewer->getId() . ':' . $rotation . ':' . $left),
+			hash('sha256', $this->viewer->getId() . ':' . $rotation . ':' . $right)
+		));
+		$nids = array_slice($nids, 0, min(100, $limit));
+		$visible = $this->getVisibleByNids($nids);
+		$ordered = [];
+		foreach ($nids as $nid) {
+			if (isset($visible[$nid])) {
+				$ordered[$nid] = $visible[$nid];
+			}
+		}
+
+		return $ordered;
+	}
+
+	/** @param list<string> $terms @param list<string> $excludeNids @param list<string> $languages @return array<string, Stream> */
+	private function recommendationCandidatesInRange(array $terms, string $sinceNid, string $beforeNid, int $limit, array $excludeNids, array $languages): array {
+		$sinceNid = Nid::normalize($sinceNid);
+		$beforeNid = $beforeNid === '' ? '' : Nid::normalize($beforeNid);
 		$wantedNids = [];
 		if ($this->searchTermsRequest->isReady()) {
-			foreach (array_slice(array_values(array_unique($terms)), 0, 12) as $term) {
+			foreach (array_slice(array_values(array_unique($terms)), 0, self::RECOMMENDATION_MAX_TERMS) as $term) {
 				$whole = SearchTerms::ofText($term, 12, false);
 				if ($whole === []) {
 					continue;
 				}
 				foreach ($this->searchTermsRequest->candidateNids(
-					$whole, '', 0, 0, $sinceNid, '', self::RECOMMENDATION_INDEX_CANDIDATES
+					$whole, '', $beforeNid === '' ? 0 : $beforeNid, 0, $sinceNid, '', self::RECOMMENDATION_INDEX_CANDIDATES
 				) as $nid) {
 					$wantedNids[$nid] = true;
 					if (count($wantedNids) >= self::RECOMMENDATION_INDEX_CANDIDATES) {
@@ -207,6 +432,9 @@ trait StreamInterests {
 		$expr = $qb->expr();
 		$qb->andWhere($expr->eq('s.visibility', $qb->createNamedParameter(Stream::TYPE_PUBLIC)));
 		$qb->andWhere($expr->gt('s.nid', $qb->createNamedParameter($sinceNid)));
+		if ($beforeNid !== '') {
+			$qb->andWhere($expr->lt('s.nid', $qb->createNamedParameter($beforeNid)));
+		}
 		$qb->limitToViewer('sd', 'f', true, false, SocialCoreQueryBuilder::HIDDEN_TIMELINE, 'to');
 		$qb->filterDuplicate();
 		$this->filterSilencedActors($qb);

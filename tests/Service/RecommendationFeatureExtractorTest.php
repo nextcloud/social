@@ -27,7 +27,7 @@ class RecommendationFeatureExtractorTest extends TestCase {
 
 		$features = $this->extractor()->extract($post);
 
-		$this->assertSame(1, $features['version']);
+		$this->assertSame(3, $features['version']);
 		$this->assertSame('de', $features['language']);
 		$this->assertSame(0.72, $features['topics']['oss.nextcloud']['score']);
 		$this->assertSame('text', $features['topics']['oss.nextcloud']['evidence']);
@@ -60,5 +60,50 @@ class RecommendationFeatureExtractorTest extends TestCase {
 		]);
 		$this->assertSame('short', $extractor->extract($short)['format']);
 		$this->assertSame('poll', $extractor->extract(new Question())['format']);
+	}
+
+	public function testExpandedTopicAliasesMatchEnglishAndGermanContent(): void {
+		$extractor = $this->extractor();
+		$englishAi = $extractor->extract((new Note())->setContent('<p>Artificial intelligence and machine learning research.</p>'));
+		$germanClimate = $extractor->extract((new Note())->setContent('<p>Der Klimawandel verändert die Umwelt.</p>'));
+		$englishSports = $extractor->extract((new Note())->setContent('<p>Football and basketball highlights.</p>'));
+		$germanGaming = $extractor->extract((new Note())->setContent('<p>Neue Videospiele erscheinen heute.</p>'));
+		$germanBusiness = $extractor->extract((new Note())->setContent('<p>Wirtschaft und Unternehmen im Wandel.</p>'));
+		$germanCulture = $extractor->extract((new Note())->setContent('<p>Kultur und Kunst im Museum.</p>'));
+		$germanPhotography = $extractor->extract((new Note())->setContent('<p>Fotografie mit natürlichem Licht.</p>'));
+		$englishEducation = $extractor->extract((new Note())->setContent('<p>New approaches to education and teaching.</p>'));
+		$englishSoftware = $extractor->extract((new Note())->setContent('<p>Programming and software development.</p>'));
+
+		$this->assertArrayHasKey('tech.ai', $englishAi['topics']);
+		$this->assertArrayHasKey('technology', $englishAi['topics']);
+		$this->assertArrayHasKey('environment', $germanClimate['topics']);
+		$this->assertArrayHasKey('sports', $englishSports['topics']);
+		$this->assertArrayHasKey('gaming', $germanGaming['topics']);
+		$this->assertArrayHasKey('business', $germanBusiness['topics']);
+		$this->assertArrayHasKey('culture', $germanCulture['topics']);
+		$this->assertArrayHasKey('photography', $germanPhotography['topics']);
+		$this->assertArrayHasKey('education', $englishEducation['topics']);
+		$this->assertArrayHasKey('software', $englishSoftware['topics']);
+		$this->assertSame(3, $englishAi['version']);
+	}
+
+	public function testAmbiguousAppleRequiresTechnologyContextAndIgnoresQuotedOrCodeText(): void {
+		$extractor = $this->extractor();
+		$brand = $extractor->extract((new Note())->setContent('<p>Apple unveils macOS today.</p>'));
+		$fruit = $extractor->extract((new Note())->setContent('<p>I ate an apple after visiting the orchard.</p>'));
+		$quoted = $extractor->extract((new Note())->setContent('<blockquote>Apple unveils macOS today.</blockquote><p>A sunny afternoon.</p>'));
+		$markdownQuote = $extractor->extract((new Note())->setContent("> Apple unveils macOS today.\nA sunny afternoon."));
+		$code = $extractor->extract((new Note())->setContent('<pre><code>Nextcloud and Apple iPhone</code></pre><p>A sunny afternoon.</p>'));
+		$markdownCode = $extractor->extract((new Note())->setContent("A sunny afternoon.\n```\nNextcloud Apple iPhone\n```"));
+
+		$this->assertArrayHasKey('tech.apple', $brand['topics']);
+		$this->assertArrayNotHasKey('tech.apple', $fruit['topics']);
+		$this->assertArrayNotHasKey('tech.apple', $quoted['topics']);
+		$this->assertArrayNotHasKey('technology', $quoted['topics']);
+		$this->assertArrayNotHasKey('tech.apple', $markdownQuote['topics']);
+		$this->assertArrayNotHasKey('oss.nextcloud', $code['topics']);
+		$this->assertArrayNotHasKey('tech.apple', $code['topics']);
+		$this->assertArrayNotHasKey('oss.nextcloud', $markdownCode['topics']);
+		$this->assertArrayNotHasKey('tech.apple', $markdownCode['topics']);
 	}
 }

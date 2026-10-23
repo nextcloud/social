@@ -42,8 +42,25 @@ export const FLUSH_EVERY = 30000
 /** The most the server takes in one request. */
 export const BATCH_SIZE = 100
 
+/** Keep reading events bounded while a server is unavailable. */
+const MAX_BUFFER_EVENTS = 1000
+
+/** A transient network failure is retried on later flushes, then discarded. */
+const MAX_SEND_ATTEMPTS = 5
+
 /** Shorter than this is a post going past, not one being looked at. */
 const MIN_DWELL = 250
+
+/** @return {string} a unique identifier for one observation */
+function uuid() {
+	if (typeof globalThis.crypto?.randomUUID === 'function') {
+		return globalThis.crypto.randomUUID()
+	}
+	return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (char) => {
+		const value = Math.floor(Math.random() * 16)
+		return (char === 'x' ? value : (value & 0x3) | 0x8).toString(16)
+	})
+}
 
 /**
  * Which context a timeline reports under, by the `type` the list is given.
@@ -57,6 +74,8 @@ const CONTEXTS = {
 	interests: 'interests',
 	photos: 'photos',
 	videos: 'videos',
+	shorts: 'shorts',
+	reels: 'reels',
 	'single-post': 'detail',
 }
 
@@ -160,6 +179,8 @@ function sideOf(entry, viewportHeight) {
 /**
  * @param {object} options what the tracker works with
  * @param {string} options.context what the signals say they came from
+ * @param {number|null} [options.generation] current recommendation consent/reset generation
+ * @param {boolean} [options.allowUntagged] whether a consented recommendation context tracks without hashtags
  * @param {(events: object[], options: {beacon: boolean}) => Promise<void>} [options.send] how a batch goes out
  * @param {(status: import('../types/Mastodon.js').Status) => boolean} [options.isOwn] whether the reader wrote a post
  * @param {() => number} [options.now] the clock
@@ -169,6 +190,8 @@ function sideOf(entry, viewportHeight) {
  */
 export function createInterestTracker({
 	context,
+	generation = null,
+	allowUntagged = false,
 	send = sendSignals,
 	isOwn = () => false,
 	now = () => Date.now(),
@@ -177,6 +200,9 @@ export function createInterestTracker({
 }) {
 	/** @type {object[]} what is waiting to be sent */
 	let buffer = []
+	const sendAttempts = new WeakMap()
+	let flushing = false
+	let flushPromise = null
 
 	/**
 	 * Every post being watched, by its element.
@@ -195,6 +221,32 @@ export function createInterestTracker({
 	const skipped = new Set()
 	/** explicit events already recorded, as `id|kind` */
 	const recorded = new Set()
+	const impressed = new Set()
+	const sessionId = uuid()
+	let learningGeneration = Number.isInteger(generation) && generation >= 0 ? generation : null
+
+	/**
+	 * @param {string} statusId the post whose event is being reported
+	 * @param {string} kind the observed action
+	 * @param {object} [extra] bounded event-specific details
+	 */
+	function signal(statusId, kind, extra = {}) {
+		if (buffer.length >= MAX_BUFFER_EVENTS) {
+			logger.debug('Reading signal buffer is full; dropping a new observation')
+			return
+		}
+		const event = {
+			status_id: statusId,
+			kind,
+			context,
+			...extra,
+		}
+		if (learningGeneration !== null) {
+			event.event_id = uuid()
+			event.generation = learningGeneration
+		}
+		buffer.push(event)
+	}
 
 	let pageVisible = doc.visibilityState !== 'hidden'
 	let focused = typeof doc.hasFocus === 'function' ? doc.hasFocus() : true
@@ -209,6 +261,9 @@ export function createInterestTracker({
 
 	/** @return {boolean} whether the page as a whole lets anything count */
 	const pageCounts = () => pageVisible && focused && !idle
+	const canTrack = (status) => allowUntagged
+		? Boolean(status?.id) && !isOwn(status)
+		: isTrackable(status, isOwn)
 
 	/**
 	 * Closes the stretch a post is counting, adding it to the view's total.
@@ -255,15 +310,19 @@ export function createInterestTracker({
 		const ms = Math.min(view.ms, VIEW_CAP)
 		const shown = at - view.enteredAt
 		const scrolling = at - lastScroll <= SCROLLING_WITHIN
+		if (learningGeneration !== null && !impressed.has(id) && ms >= 750) {
+			impressed.add(id)
+			signal(id, 'impression', { session_id: sessionId, visible_ms: Math.min(ms, VIEW_CAP) })
+		}
 
 		if (leftTo !== null && leftTo !== view.enteredFrom && shown < SKIP_BELOW && scrolling) {
 			if (!skipped.has(id) && !dwelled.has(id)) {
 				skipped.add(id)
-				buffer.push({ status_id: id, kind: 'skip', context })
+				signal(id, 'skip')
 			}
 		} else if (ms >= MIN_DWELL && !dwelled.has(id)) {
 			dwelled.add(id)
-			buffer.push({ status_id: id, kind: 'dwell', ms: Math.round(ms), context })
+			signal(id, 'dwell', { ms: Math.round(ms) })
 		}
 
 		view.ms = 0
@@ -390,28 +449,62 @@ export function createInterestTracker({
 	}
 
 	/**
-	 * Sends what is buffered, a request per hundred events.
-	 *
-	 * Best effort: a failed batch is dropped rather than retried. It is a
-	 * signal about reading, and one lost batch is noise the scores absorb;
-	 * holding it would only grow a buffer on a server that is down.
+	 * Sends what is buffered, a request per hundred events. A failed batch is
+	 * put back unchanged so its event IDs remain stable on retry. Both the
+	 * buffer and retry count are bounded while the server is unavailable.
 	 *
 	 * @param {object} [options] how
 	 * @param {boolean} [options.beacon] the page is going away
 	 */
 	function flush({ beacon = false } = {}) {
+		if (flushing || buffer.length === 0) {
+			return flushPromise ?? Promise.resolve()
+		}
+
+		flushing = true
+		const batches = []
 		while (buffer.length > 0) {
 			const batch = buffer.slice(0, BATCH_SIZE)
 			buffer = buffer.slice(BATCH_SIZE)
-			// called at once rather than in a promise chain: on `pagehide` the
-			// beacon has to be queued before the handler returns
-			try {
-				Promise.resolve(send(batch, { beacon }))
-					.catch((error) => logger.debug('Could not report reading signals', { error }))
-			} catch (error) {
-				logger.debug('Could not report reading signals', { error })
-			}
+			batches.push(batch)
 		}
+
+		// Start each bounded batch immediately: a pagehide beacon must be
+		// queued before its handler returns.
+		const sends = batches.map((batch, index) => {
+			try {
+				return Promise.resolve(send(batch, { beacon })).then(
+					() => ({ index, batch }),
+					(error) => ({ index, batch, error }),
+				)
+			} catch (error) {
+				return Promise.resolve({ index, batch, error })
+			}
+		})
+		flushPromise = Promise.all(sends).then((results) => {
+			const retry = []
+			for (const result of results.filter((item) => 'error' in item).sort((a, b) => a.index - b.index)) {
+				logger.debug('Could not report reading signals', { error: result.error })
+				for (const event of result.batch) {
+					const attempts = (sendAttempts.get(event) ?? 0) + 1
+					if (attempts < MAX_SEND_ATTEMPTS) {
+						sendAttempts.set(event, attempts)
+						retry.push(event)
+					} else {
+						logger.debug('Discarding a reading signal after repeated send failures')
+					}
+				}
+			}
+			buffer = retry.concat(buffer).slice(0, MAX_BUFFER_EVENTS)
+		}).finally(() => {
+			flushing = false
+			flushPromise = null
+			if (destroyed && buffer.length === 0) {
+				clearInterval(flushTimer)
+			}
+		})
+
+		return flushPromise
 	}
 
 	const flushTimer = setInterval(() => flush(), FLUSH_EVERY)
@@ -432,6 +525,10 @@ export function createInterestTracker({
 	// beside it: `this` inside an object literal is still being built, and
 	// TypeScript reads it as `{}`
 	const tracker = {
+		setLearningGeneration(value) {
+			learningGeneration = Number.isInteger(value) && value >= 0 ? value : null
+		},
+
 		/**
 		 * Starts watching a post. Posts that cannot teach anything — the
 		 * reader's own, or ones without a hashtag — are never watched.
@@ -440,7 +537,7 @@ export function createInterestTracker({
 		 * @param {import('../types/Mastodon.js').Status} status the post the reader sees in it
 		 */
 		observe(element, status) {
-			if (destroyed || watched.has(element) || !isTrackable(status, isOwn)) {
+			if (destroyed || watched.has(element) || !canTrack(status)) {
 				return
 			}
 			watched.set(element, { element, status, visible: false, since: null, ms: 0, enteredAt: 0, enteredFrom: 'below' })
@@ -491,7 +588,7 @@ export function createInterestTracker({
 		 * @param {'open'|'media'|'link'|'mute'} kind what happened
 		 */
 		record(status, kind) {
-			if (destroyed || !isTrackable(status, isOwn)) {
+			if (destroyed || !canTrack(status)) {
 				return
 			}
 			const key = status.id + '|' + kind
@@ -499,7 +596,26 @@ export function createInterestTracker({
 				return
 			}
 			recorded.add(key)
-			buffer.push({ status_id: status.id, kind, context })
+			signal(status.id, kind)
+		},
+
+		/**
+		 * Records a bounded fraction of a video's duration actually played.
+		 *
+		 * @param {import('../types/Mastodon.js').Status} status the video post
+		 * @param {number} ratio the fraction watched
+		 */
+		recordVideoWatchRatio(status, ratio) {
+			if (destroyed || learningGeneration === null || !canTrack(status)
+				|| !Number.isFinite(ratio) || ratio <= 0) {
+				return
+			}
+			const key = status.id + '|video_watch_ratio'
+			if (recorded.has(key)) {
+				return
+			}
+			recorded.add(key)
+			signal(status.id, 'video_watch_ratio', { ratio: Math.min(1, Math.round(ratio * 1000) / 1000) })
 		},
 
 		flush,
@@ -517,10 +633,12 @@ export function createInterestTracker({
 			if (destroyed) {
 				return
 			}
+			destroyed = true
 			finishVisible(now())
 			flush()
-			destroyed = true
-			clearInterval(flushTimer)
+			if (buffer.length === 0 && !flushing) {
+				clearInterval(flushTimer)
+			}
 			clearTimeout(idleTimer)
 			clearTimeout(refreshTimer)
 			observer?.disconnect()
