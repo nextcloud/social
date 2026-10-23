@@ -109,11 +109,11 @@ jobs:
           path: translationfiles/templates/social.pot
           if-no-files-found: error
 
-      # Only on a push to the default branch, and only when the token is
-      # configured: a fork or a repository without the secret must not fail
-      # here, it simply has nothing to push.
+      # Scheduled and called workflows verify extraction only. Upload source
+      # strings only after a push to the repository's current default branch.
+      # A fork or repository without the token simply has nothing to push.
       - name: Push source strings to Transifex
-        if: github.event_name != 'pull_request'
+        if: github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
         env:
           TX_TOKEN: ${{ secrets.TRANSIFEX_API_TOKEN }}
         run: |
