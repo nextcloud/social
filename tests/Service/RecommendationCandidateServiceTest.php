@@ -144,6 +144,27 @@ class RecommendationCandidateServiceTest extends TestCase {
 		$this->assertSame(1.0, $result['candidates'][0]['rank_features']['novelty']);
 	}
 
+	public function testRemoteDiscoveryPauseKeepsCachedCandidatesAvailableWithoutQueueing(): void {
+		$this->preferences->method('isEnabled')->willReturn(true);
+		$this->preferences->method('remoteDiscoveryPaused')->willReturn(true);
+		$this->preferences->method('get')->willReturn([
+			'revision' => 0, 'generation' => 0, 'learning_mode' => 'on',
+			'effective_topics' => ['tech.apple' => 'INTERESTED'],
+		]);
+		$this->interests->method('languagesFor')->willReturn(['en']);
+		$this->interests->method('hiddenFor')->willReturn([]);
+		$note = new Note();
+		$note->setId('https://bsky.app/profile/did:plc:ewvi7nxzyoun6zhxrhs64oiz/post/3k')->setContent('<p>Apple announces a new device</p>')->setLanguage('en')->setPublishedTime(1_999_999_900);
+		$this->streams->method('recommendationCandidatesByTerms')->willReturn(['123' => $note]);
+		$this->queue->expects($this->never())->method('fillPosts');
+
+		$result = $this->service()->discover($this->viewer(), 'tech.apple');
+
+		$this->assertSame(1, $result['count']);
+		$this->assertTrue($result['underfilled']);
+		$this->assertFalse($result['remote_refresh_queued']);
+	}
+
 	public function testLessNeutralAndHiddenPreferencesDoNotReadOrQueueCandidates(): void {
 		$this->preferences->method('isEnabled')->willReturn(true);
 		$this->preferences->method('get')->willReturnOnConsecutiveCalls(

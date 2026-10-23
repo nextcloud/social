@@ -36,7 +36,7 @@ final class RecommendationSignalService implements IRecommendationSignalRecorder
 	#[\Override]
 	public function recordEvents(Person $viewer, array $events): array {
 		$state = $this->preferences->get($viewer->getUserId());
-		if (!$this->preferences->isEnabled() || $state['learning_mode'] !== 'on') {
+		if (!$this->preferences->isEnabled() || $this->preferences->learningPaused() || $state['learning_mode'] !== 'on') {
 			return ['accepted' => 0, 'duplicates' => 0, 'discarded' => min(count($events), self::MAX_EVENTS), 'profile_version' => $state['revision']];
 		}
 
@@ -173,7 +173,7 @@ final class RecommendationSignalService implements IRecommendationSignalRecorder
 
 		try {
 			$state = $this->preferences->get($viewer->getUserId());
-			if (!$this->preferences->isEnabled() || $state['learning_mode'] !== 'on') {
+			if (!$this->preferences->isEnabled() || $this->preferences->learningPaused() || $state['learning_mode'] !== 'on') {
 				return;
 			}
 			$this->streams->setViewer($viewer);
@@ -205,7 +205,7 @@ final class RecommendationSignalService implements IRecommendationSignalRecorder
 	/** @return array{topics: array<string, float>, authors: array<string, float>, formats: array<string, float>} */
 	public function profile(string $actorKey): array {
 		$state = $this->preferences->get($actorKey);
-		if ($state['learning_mode'] === 'off' || !$this->preferences->isEnabled()) {
+		if ($state['learning_mode'] === 'off' || !$this->preferences->isEnabled() || $this->preferences->learningPaused()) {
 			return ['topics' => [], 'authors' => [], 'formats' => []];
 		}
 		$profile = $this->signals->profile($actorKey);
@@ -225,7 +225,7 @@ final class RecommendationSignalService implements IRecommendationSignalRecorder
 	/** @param list<Stream> $posts @return array<string, float> stream nid => bounded recency-weighted exposure penalty */
 	public function exposurePenalties(Person $viewer, array $posts): array {
 		$state = $this->preferences->get($viewer->getUserId());
-		if (!$this->preferences->isEnabled() || ($state['learning_mode'] ?? 'off') === 'off' || $posts === []) {
+		if (!$this->preferences->isEnabled() || $this->preferences->learningPaused() || ($state['learning_mode'] ?? 'off') === 'off' || $posts === []) {
 			return [];
 		}
 

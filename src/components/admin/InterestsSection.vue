@@ -17,6 +17,20 @@
 				<p class="interests-admin__hint">
 					{{ t('social', 'This instance switch is off by default. When enabled, readers can set topic preferences and use the ranked For You feed after choosing active topics. Behavioral learning stays off until a reader explicitly enables it. Discovery uses bounded background jobs and eligible public posts; the chronological Following feed is unchanged.') }}
 				</p>
+				<div class="interests-admin__operations">
+					<div v-for="control in operationalControls" :key="control.key">
+						<NcCheckboxRadioSwitch
+							:modelValue="form[control.key]"
+							type="switch"
+							:disabled="v4Saving"
+							@update:modelValue="saveOperationalFlag(control.key, $event)">
+							{{ control.label() }}
+						</NcCheckboxRadioSwitch>
+						<p class="interests-admin__hint">
+							{{ control.hint() }}
+						</p>
+					</div>
+				</div>
 				<DiscoveryHealth />
 			</section>
 			<NcCheckboxRadioSwitch v-model="form.enabled" type="switch">
@@ -117,6 +131,24 @@ const FIELDS = [
 	},
 ]
 
+const OPERATIONAL_CONTROLS = [
+	{
+		key: 'remoteDiscoveryPaused',
+		label: () => t('social', 'Pause remote discovery'),
+		hint: () => t('social', 'Stops new Fediverse and Bluesky discovery requests. Already cached posts remain available for ranking.'),
+	},
+	{
+		key: 'learningPaused',
+		label: () => t('social', 'Pause behavioral learning'),
+		hint: () => t('social', 'Stops all behavioral signal recording instance-wide, including signals from users who opted in.'),
+	},
+	{
+		key: 'forceLegacyFeed',
+		label: () => t('social', 'Use the legacy For You feed'),
+		hint: () => t('social', 'Temporarily serves the established hashtag-interest feed. Readers may need to reload an open For You page.'),
+	},
+]
+
 /**
  * @param {object} settings `adminSettings.interests`, or what a save answered
  * @return {object} the form's values; the numbers as the strings a field holds
@@ -125,6 +157,9 @@ function formOf(settings) {
 	return {
 		enabled: settings?.enabled !== false,
 		recommendationsEnabled: settings?.recommendationsEnabled === true,
+		remoteDiscoveryPaused: settings?.remoteDiscoveryPaused === true,
+		learningPaused: settings?.learningPaused === true,
+		forceLegacyFeed: settings?.forceLegacyFeed === true,
 		learningDefault: settings?.learningDefault !== false,
 		...Object.fromEntries(FIELDS.map((field) => [field.key, String(settings?.[field.key] ?? field.fallback)])),
 	}
@@ -159,6 +194,7 @@ export default {
 	data() {
 		return {
 			FIELDS,
+			operationalControls: OPERATIONAL_CONTROLS,
 			form: formOf(this.settings),
 			saving: false,
 			v4Saving: false,
@@ -256,6 +292,26 @@ export default {
 				this.v4Saving = false
 			}
 		},
+
+		/**
+		 * @param {'remoteDiscoveryPaused'|'learningPaused'|'forceLegacyFeed'} key Which operational switch to save.
+		 * @param {boolean} value The new switch state.
+		 */
+		async saveOperationalFlag(key, value) {
+			const previous = this.form[key]
+			this.form[key] = value
+			this.v4Saving = true
+			try {
+				const { data } = await axios.put(recommendationsUrl(), { [key]: value })
+				this.form[key] = data?.[key] === true
+				showSuccess(t('social', 'For You 4.0 setting saved'))
+			} catch (error) {
+				this.form[key] = previous
+				showError(errorOf(error, t('social', 'Could not save the For You 4.0 setting')))
+			} finally {
+				this.v4Saving = false
+			}
+		},
 	},
 }
 </script>
@@ -279,6 +335,11 @@ export default {
 		gap: calc(var(--default-grid-baseline) * 3) calc(var(--default-grid-baseline) * 4);
 		inline-size: 100%;
 		margin-block-end: calc(var(--default-grid-baseline) * 2);
+	}
+
+	&__operations {
+		display: grid;
+		gap: calc(var(--default-grid-baseline) * 2);
 	}
 
 	&__number {

@@ -41,13 +41,20 @@ class InterestsAdminController extends Controller {
 	/** The independent For You v4 instance kill switch. */
 	#[FrontpageRoute(verb: 'GET', url: '/admin/recommendations')]
 	public function recommendationSettings(): DataResponse {
-		return new DataResponse(['enabled' => $this->recommendationService->isEnabled()]);
+		return new DataResponse($this->recommendationService->adminSettings());
 	}
 
-	/** Only administrators can activate v4 for this instance. */
+	/** Only administrators can change recommendation rollout and emergency switches. */
 	#[FrontpageRoute(verb: 'PUT', url: '/admin/recommendations')]
-	public function saveRecommendationSettings(bool $enabled = false): DataResponse {
-		return new DataResponse(['enabled' => $this->recommendationService->setEnabled($enabled)]);
+	public function saveRecommendationSettings(
+		?bool $enabled = null,
+		?bool $remoteDiscoveryPaused = null,
+		?bool $learningPaused = null,
+		?bool $forceLegacyFeed = null,
+	): DataResponse {
+		return new DataResponse($this->recommendationService->saveAdminSettings(
+			$enabled, $remoteDiscoveryPaused, $learningPaused, $forceLegacyFeed
+		));
 	}
 
 	/** Recent ActivityPub and ATProto discovery coverage, visible to admins only. */

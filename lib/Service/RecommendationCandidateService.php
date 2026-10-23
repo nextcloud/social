@@ -136,7 +136,7 @@ class RecommendationCandidateService {
 
 		$underfilled = count($candidates) < min($limit, self::MIN_COVERAGE_TARGET);
 		$queued = false;
-		if ($underfilled) {
+		if ($underfilled && !$this->preferences->remoteDiscoveryPaused()) {
 			$remoteAlias = self::remoteAlias($aliases);
 			if ($remoteAlias !== '') {
 				// AP providers expose topic-like discovery as hashtag timelines;

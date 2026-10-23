@@ -35,6 +35,48 @@ class RecommendationPreferenceService {
 		return $this->isEnabled();
 	}
 
+	/** Whether For You may request new posts from remote discovery providers. */
+	public function remoteDiscoveryPaused(): bool {
+		return $this->configService->getAppValueBool(ConfigService::REC_REMOTE_DISCOVERY_PAUSED);
+	}
+
+	/** Global emergency stop for consented behavioural learning. */
+	public function learningPaused(): bool {
+		return $this->configService->getAppValueBool(ConfigService::REC_LEARNING_PAUSED);
+	}
+
+	/** Whether the web For You page must use the established interest feed. */
+	public function forceLegacyFeed(): bool {
+		return $this->configService->getAppValueBool(ConfigService::REC_FORCE_LEGACY_FEED);
+	}
+
+	/** @return array{enabled: bool, remoteDiscoveryPaused: bool, learningPaused: bool, forceLegacyFeed: bool} */
+	public function adminSettings(): array {
+		return [
+			'enabled' => $this->isEnabled(),
+			'remoteDiscoveryPaused' => $this->remoteDiscoveryPaused(),
+			'learningPaused' => $this->learningPaused(),
+			'forceLegacyFeed' => $this->forceLegacyFeed(),
+		];
+	}
+
+	/** Update only supplied operational switches and return their effective state. */
+	public function saveAdminSettings(?bool $enabled, ?bool $remoteDiscoveryPaused, ?bool $learningPaused, ?bool $forceLegacyFeed): array {
+		if ($enabled !== null) {
+			$this->setEnabled($enabled);
+		}
+		foreach ([
+			ConfigService::REC_REMOTE_DISCOVERY_PAUSED => $remoteDiscoveryPaused,
+			ConfigService::REC_LEARNING_PAUSED => $learningPaused,
+			ConfigService::REC_FORCE_LEGACY_FEED => $forceLegacyFeed,
+		] as $key => $value) {
+			if ($value !== null) {
+				$this->configService->setAppValue($key, $value ? '1' : '0');
+			}
+		}
+		return $this->adminSettings();
+	}
+
 	/** @return list<array{id: string, parentId: ?string, labels: array{en: string, de: string}, aliases: list<string>, policyTags: list<string>, languageHints: list<string>, version: int, enabled: bool}> */
 	public function catalog(): array {
 		return $this->catalog->all();

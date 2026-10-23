@@ -111,6 +111,16 @@ class RecommendationSignalServiceTest extends TestCase {
 		$this->assertSame(1, $this->service->recordEvents($this->viewer(), [$event])['discarded']);
 	}
 
+	public function testInstanceWideLearningPauseBlocksBrowserAndNativeActionSignals(): void {
+		$this->preferences->method('learningPaused')->willReturn(true);
+		$this->streams->expects($this->never())->method('getVisibleByNids');
+		$this->signals->expects($this->never())->method('record');
+		$event = ['event_id' => '1d9cfd49-4e69-4bb8-b7fc-854df448d310', 'generation' => 7, 'kind' => 'like', 'status_id' => '123'];
+
+		$this->assertSame(1, $this->service->recordEvents($this->viewer(), [$event])['discarded']);
+		$this->service->recordAction($this->viewer(), $this->parentPost(), 'like');
+	}
+
 	public function testImpressionRequiresAQualifiedVisiblePostAndSessionId(): void {
 		$this->streams->expects($this->once())->method('getVisibleByNids')->willReturn(['123' => $this->parentPost()]);
 		$this->signals->expects($this->once())->method('record')->with(

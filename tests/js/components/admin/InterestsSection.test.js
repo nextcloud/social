@@ -57,7 +57,7 @@ describe('the For you card', () => {
 	it('shows what stands now', () => {
 		const wrapper = mountCard({ ...DEFAULTS, learningDefault: false, threshold: 2.5 })
 
-		expect(switches(wrapper).map((box) => box.props('modelValue'))).toEqual([false, true, false])
+		expect(switches(wrapper).map((box) => box.props('modelValue'))).toEqual([false, false, false, false, true, false])
 		expect(fields(wrapper).map((field) => field.props('modelValue'))).toEqual(['30', '2.5', '30', '7'])
 	})
 
@@ -80,13 +80,13 @@ describe('the For you card', () => {
 	it('fills in the defaults for an instance that never saved the card', () => {
 		const wrapper = mountCard({})
 
-		expect(switches(wrapper).map((box) => box.props('modelValue'))).toEqual([false, true, true])
+		expect(switches(wrapper).map((box) => box.props('modelValue'))).toEqual([false, false, false, false, true, true])
 		expect(fields(wrapper).map((field) => field.props('modelValue'))).toEqual(['30', '3', '30', '7'])
 	})
 
 	it('saves all six values in one request, the numbers as numbers', async () => {
 		const wrapper = mountCard()
-		await switches(wrapper)[2].vm.$emit('update:modelValue', false)
+		await switches(wrapper)[5].vm.$emit('update:modelValue', false)
 		await type(wrapper, 0, '60')
 		await type(wrapper, 1, '4.5')
 
@@ -112,6 +112,16 @@ describe('the For you card', () => {
 
 		expect(put).toHaveBeenCalledWith(RECOMMENDATIONS_ROUTE, { enabled: true })
 		expect(switches(wrapper)[0].props('modelValue')).toBe(true)
+	})
+
+	it.each(['remoteDiscoveryPaused', 'learningPaused', 'forceLegacyFeed'])('saves the %s fallback independently', async (key) => {
+		const wrapper = mountCard()
+		const index = { remoteDiscoveryPaused: 1, learningPaused: 2, forceLegacyFeed: 3 }[key]
+		await switches(wrapper)[index].vm.$emit('update:modelValue', true)
+		await flushPromises()
+
+		expect(put).toHaveBeenCalledWith(RECOMMENDATIONS_ROUTE, { [key]: true })
+		expect(wrapper.vm.form[key]).toBe(true)
 	})
 
 	it('shows provider discovery health and refreshes it on demand', async () => {

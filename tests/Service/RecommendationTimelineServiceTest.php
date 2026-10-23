@@ -307,6 +307,18 @@ class RecommendationTimelineServiceTest extends TestCase {
 		$this->assertSame($post, $page['items'][0]);
 	}
 
+	public function testAdminLegacyFallbackBypassesRankedCandidates(): void {
+		$this->preferences->method('get')->willReturn($this->state([['topic_id' => 'tech.apple', 'mode' => 'INTERESTED']]));
+		$this->preferences->method('forceLegacyFeed')->willReturn(true);
+		$this->legacyFeed->expects($this->once())->method('page')->with($this->isInstanceOf(Person::class), 1, '0', 0, '')->willReturn([]);
+		$this->streams->expects($this->never())->method('recommendationCandidatesByTerms');
+
+		$page = $this->service()->page($this->viewer(), 1);
+
+		$this->assertSame('LEGACY', $page['mode']);
+		$this->assertSame([], $page['items']);
+	}
+
 	public function testAnAllHiddenProfileDoesNotFallBackAroundExplicitChoices(): void {
 		$effective = ['tech.apple' => 'HIDE', 'technology' => 'HIDE'];
 		$this->preferences->method('get')->willReturn($this->state([['topic_id' => 'technology', 'mode' => 'HIDE']], $effective));

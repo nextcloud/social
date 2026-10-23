@@ -57,6 +57,16 @@ class RecommendationTimelineService {
 		$limit = max(1, min(RecommendationCandidateService::MAX_PAGE_SIZE, $requested));
 		$media = in_array($media, self::MEDIA, true) ? $media : '';
 		$state = $this->preferences->get($viewer->getUserId());
+		if ($this->preferences->forceLegacyFeed()) {
+			if ($cursor === '' || str_starts_with($cursor, 'legacy.')) {
+				$legacyCursor = $cursor === '' ? '0' : $this->decodeLegacyCursor($cursor, $state['revision'], $state['generation']);
+				return $legacyCursor === null
+					? $this->empty($state['revision'], true, 'LEGACY')
+					: $this->legacyPage($viewer, $limit, $legacyCursor, $media, $state['revision'], $state['generation']);
+			}
+			// A ranked snapshot cursor cannot be continued against a different source.
+			return $this->empty($state['revision'], true, 'LEGACY');
+		}
 		$topics = $this->selectedTopics($state['effective_topics'] ?? []);
 
 		if ($cursor !== '' && str_starts_with($cursor, 'legacy.')) {
@@ -148,7 +158,9 @@ class RecommendationTimelineService {
 			$snapshot['explanations'] ?? $explanationEntries,
 		);
 		$underfilled = count($ranked) < min($limit, self::MIN_COVERAGE);
-		$queued = $underfilled ? $this->queueCoverage($topics, $viewer, $now) : false;
+		$queued = $underfilled && !$this->preferences->remoteDiscoveryPaused()
+			? $this->queueCoverage($topics, $viewer, $now)
+			: false;
 
 		return [
 			'items' => $items,
