@@ -17,7 +17,7 @@ use OCA\Social\Tools\SearchTerms;
 
 /** Deterministic, local-only features used to retrieve recommendation candidates. */
 final class RecommendationFeatureExtractor {
-	public const VERSION = 1;
+	public const VERSION = 2;
 	private const MAX_CONTENT_CHARS = 20000;
 	private const MAX_TERMS = 500;
 
