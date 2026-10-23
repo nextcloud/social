@@ -44,6 +44,9 @@ final readonly class RecommendationFeedSnapshot {
 		if (count($rankedNids) > self::MAX_POSTS || count(array_unique($rankedNids)) !== count($rankedNids)) {
 			throw new InvalidArgumentException('Recommendation snapshots must be bounded and unique');
 		}
+		if (!array_is_list($rankedNids)) {
+			throw new InvalidArgumentException('Snapshot post identifiers must be an ordered list');
+		}
 	}
 
 	/** @param list<string> $rankedNids */
@@ -57,6 +60,14 @@ final readonly class RecommendationFeedSnapshot {
 		array $rankedNids,
 		int $ttl = 3600,
 	): self {
+		$rankedNids = array_slice($rankedNids, 0, self::MAX_POSTS);
+		foreach ($rankedNids as $nid) {
+			if (!is_string($nid) || $nid === '') {
+				throw new InvalidArgumentException('Snapshot post identifiers must be non-empty strings');
+			}
+		}
+		$rankedNids = array_values(array_unique($rankedNids));
+
 		return new self(
 			bin2hex(random_bytes(16)),
 			hash('sha256', $viewerId),
@@ -67,7 +78,7 @@ final readonly class RecommendationFeedSnapshot {
 			$generation,
 			$now,
 			$now + max(1, min(3600, $ttl)),
-			array_values(array_unique(array_slice($rankedNids, 0, self::MAX_POSTS))),
+			$rankedNids,
 		);
 	}
 
@@ -126,6 +137,7 @@ final readonly class RecommendationFeedSnapshot {
 		$payload = json_encode([
 			'v' => self::CURSOR_VERSION,
 			'sid' => $this->id,
+			'algorithm' => $this->algorithmVersion,
 			'viewer' => $this->viewerKey,
 			'mode' => $this->mode,
 			'media' => $this->mediaKind,
@@ -174,6 +186,7 @@ final readonly class RecommendationFeedSnapshot {
 		}
 		if (!is_array($payload)
 			|| ($payload['v'] ?? null) !== self::CURSOR_VERSION
+			|| ($payload['algorithm'] ?? null) !== self::ALGORITHM_VERSION
 			|| !is_string($payload['sid'] ?? null)
 			|| preg_match('/^[a-f0-9]{32}$/', $payload['sid']) !== 1
 			|| !is_string($payload['viewer'] ?? null)
