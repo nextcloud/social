@@ -17,6 +17,9 @@ use OCA\Social\Service\InterestService;
 use OCA\Social\Service\RecommendationCandidateService;
 use OCA\Social\Service\RecommendationFeatureExtractor;
 use OCA\Social\Service\RecommendationPreferenceService;
+use OCA\Social\Service\RecommendationRanker;
+use OCA\Social\Service\RecommendationReRanker;
+use OCA\Social\Service\RecommendationSnapshotStore;
 use OCA\Social\Service\RecommendationTopicCatalog;
 use OCA\Social\Service\RemoteFetchQueue;
 use OCP\AppFramework\Utility\ITimeFactory;
@@ -28,6 +31,7 @@ class RecommendationCandidateServiceTest extends TestCase {
 	private RemoteFetchQueue $queue;
 	private InterestService $interests;
 	private ITimeFactory $clock;
+	private RecommendationSnapshotStore $snapshots;
 
 	protected function setUp(): void {
 		$this->preferences = $this->createMock(RecommendationPreferenceService::class);
@@ -36,6 +40,7 @@ class RecommendationCandidateServiceTest extends TestCase {
 		$this->interests = $this->createMock(InterestService::class);
 		$this->clock = $this->createStub(ITimeFactory::class);
 		$this->clock->method('getTime')->willReturn(2_000_000_000);
+		$this->snapshots = $this->createMock(RecommendationSnapshotStore::class);
 	}
 
 	private function service(): RecommendationCandidateService {
@@ -47,6 +52,9 @@ class RecommendationCandidateServiceTest extends TestCase {
 			$this->queue,
 			$this->interests,
 			$this->clock,
+			new RecommendationRanker(),
+			new RecommendationReRanker(),
+			$this->snapshots,
 		);
 	}
 
@@ -72,6 +80,8 @@ class RecommendationCandidateServiceTest extends TestCase {
 	public function testSelectedTopicReturnsLocalMatchAndQueuesOnlyBoundedBackgroundRefresh(): void {
 		$this->preferences->method('isEnabled')->willReturn(true);
 		$this->preferences->method('get')->with('alice')->willReturn([
+			'revision' => 0,
+			'generation' => 0,
 			'effective_topics' => ['tech.apple' => 'INTERESTED'],
 		]);
 		$this->interests->method('languagesFor')->with('alice')->willReturn(['en']);
@@ -98,6 +108,8 @@ class RecommendationCandidateServiceTest extends TestCase {
 		$this->assertTrue($result['remote_refresh_queued']);
 		$this->assertSame('text', $result['candidates'][0]['format']);
 		$this->assertSame('activitypub', $result['candidates'][0]['protocol']);
+		$this->assertSame(1, $result['candidates'][0]['algorithm_version']);
+		$this->assertArrayHasKey('rank_score', $result['candidates'][0]);
 	}
 
 	public function testLessNeutralAndHiddenPreferencesDoNotReadOrQueueCandidates(): void {
@@ -113,5 +125,33 @@ class RecommendationCandidateServiceTest extends TestCase {
 		$this->service()->discover($this->viewer(), 'tech.apple');
 		$this->service()->discover($this->viewer(), 'tech.apple');
 		$this->service()->discover($this->viewer(), 'tech.apple');
+	}
+
+	public function testCursorPageRechecksVisibilityAndRefillsFromTheSameSnapshot(): void {
+		$this->preferences->method('isEnabled')->willReturn(true);
+		$this->preferences->method('get')->willReturn([
+			'revision' => 3,
+			'generation' => 2,
+			'effective_topics' => ['tech.apple' => 'INTERESTED'],
+		]);
+		$first = (new Note())->setId('https://remote.example/posts/2')->setContent('<p>Apple publishes an update</p>')->setPublishedTime(1_999_999_900);
+		$second = (new Note())->setId('https://remote.example/posts/3')->setContent('<p>Apple publishes another update</p>')->setPublishedTime(1_999_999_800);
+		$this->streams->expects($this->once())->method('setViewer')->with($this->isInstanceOf(Person::class));
+		$this->streams->expects($this->exactly(2))->method('getVisibleByNids')->willReturnOnConsecutiveCalls(
+			['2' => $first],
+			['3' => $second]
+		);
+		$this->snapshots->expects($this->exactly(2))->method('nextPage')->willReturnOnConsecutiveCalls(
+			['session_id' => 'session', 'nids' => ['1', '2'], 'next_cursor' => 'cursor-two'],
+			['session_id' => 'session', 'nids' => ['3', '4'], 'next_cursor' => null],
+		);
+		$this->queue->expects($this->never())->method('fillPosts');
+
+		$result = $this->service()->discover($this->viewer(), 'tech.apple', 2, 'cursor-one');
+
+		$this->assertSame(['2', '3'], array_column($result['candidates'], 'nid'));
+		$this->assertSame('session', $result['session_id']);
+		$this->assertNull($result['next_cursor']);
+		$this->assertFalse($result['cursor_expired']);
 	}
 }
