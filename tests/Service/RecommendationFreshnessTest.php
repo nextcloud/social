@@ -42,7 +42,7 @@ class RecommendationFreshnessTest extends TestCase {
 
 		self::assertLessThan($text, $short);
 		self::assertSame($text, $unknown);
-		self::assertSame(0.5, RecommendationFreshness::score(new Note()->setPublishedTime(0), 2_000_000_000));
+		self::assertSame(0.5, RecommendationFreshness::score((new Note())->setPublishedTime(0), 2_000_000_000));
 		self::assertSame(1.0, RecommendationFreshness::scoreAgeHours(-12.0));
 		self::assertSame(0.5, RecommendationFreshness::scoreAgeHours(INF));
 	}
