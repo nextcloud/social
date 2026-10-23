@@ -13,7 +13,8 @@ namespace OCA\Social\Service;
 final class RecommendationReRanker {
 	private const WINDOW_SIZE = 20;
 	private const MAX_AUTHOR_IN_WINDOW = 2;
-	private const MAX_TOPIC_IN_WINDOW = 9;
+	private const MAX_TOPIC_IN_WINDOW = 3;
+	private const TOPIC_CONCENTRATION_COST = 0.18;
 	private const LOOKAHEAD = 50;
 	private const DEFAULT_EXPLORATION_INTERVAL = 10;
 	private const EXPLORATION_MIN_RANK_DISTANCE = 4;
@@ -24,10 +25,9 @@ final class RecommendationReRanker {
 
 	/**
 	 * @param list<array<string, mixed>> $rankedCandidates
-	 * @param list<string> $prioritisedTopics
 	 * @return list<array<string, mixed>>
 	 */
-	public function page(array $rankedCandidates, int $pageSize = 20, array $prioritisedTopics = [], ?string $sessionSeed = null, string $contentBalance = 'balanced'): array {
+	public function page(array $rankedCandidates, int $pageSize = 20, ?string $sessionSeed = null, string $contentBalance = 'balanced'): array {
 		$pageSize = max(0, min(100, $pageSize));
 		$explorationInterval = match ($contentBalance) {
 			'following' => self::DEFAULT_EXPLORATION_INTERVAL * 2,
@@ -68,11 +68,8 @@ final class RecommendationReRanker {
 					$penalty += max(0.0, (float)($recentAuthorCount - self::MAX_AUTHOR_IN_WINDOW + 1)) * 0.08;
 				}
 				foreach ($topics as $topic) {
-					if (in_array($topic, $prioritisedTopics, true)) {
-						continue;
-					}
 					$recentTopicCount = self::recentTopicCount($selected, $topic);
-					$penalty += max(0.0, (float)($recentTopicCount - self::MAX_TOPIC_IN_WINDOW + 1)) * 0.04;
+					$penalty += max(0.0, (float)($recentTopicCount - self::MAX_TOPIC_IN_WINDOW + 1)) * self::TOPIC_CONCENTRATION_COST;
 				}
 				$adjusted = (float)($candidate['rank_score'] ?? 0.0) - $penalty;
 				$adjustedScores[$index] = $adjusted;

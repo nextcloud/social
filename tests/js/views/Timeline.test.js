@@ -714,7 +714,7 @@ describe('Timeline', () => {
 
 	it('explains how My Feed and For You differ', () => {
 		const home = mountTimeline()
-		expect(home.find('.feed-scope-notice__text').text())
+		expect(home.find('.timeline-scope-description').text())
 			.toBe('My Feed shows posts from accounts you follow, in chronological order.')
 		home.unmount()
 
@@ -723,8 +723,8 @@ describe('Timeline', () => {
 			interests: { enabled: false, learning: false, recommendationsEnabled: true },
 		})
 		const forYou = mountTimeline({ params: { type: 'interests' } })
-		expect(forYou.find('.feed-scope-notice__text').text())
-			.toBe('For You automatically ranks posts using your learned interests, post content, freshness, follows and discovery. It can include posts from beyond the accounts you follow.')
+		expect(forYou.find('.timeline-scope-description').text())
+			.toBe('For You ranks eligible public posts using automatically learned interests, post content, freshness, followed accounts and discovery. Separately enabled activity learning can refine new sessions. It can include posts from beyond the accounts you follow.')
 	})
 
 	/**

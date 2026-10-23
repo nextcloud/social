@@ -82,35 +82,21 @@ class RecommendationsControllerTest extends TestCase {
 		parent::tearDown();
 	}
 
-	public function testPreferencesAlwaysUseTheAuthenticatedOwner(): void {
-		$state = ['revision' => 2, 'generation' => 1, 'topics' => []];
+	public function testLearningStatusDoesNotExposeTopicPreferences(): void {
+		$state = ['revision' => 2, 'generation' => 1, 'learning_mode' => 'off', 'learning' => false,
+			'topics' => [['topic_id' => 'tech.apple', 'mode' => 'PRIORITISE']], 'effective_topics' => ['tech.apple' => 'PRIORITISE']];
 		$this->service->expects($this->once())->method('get')->with('alice')->willReturn($state);
 
 		$response = $this->controller()->preferences();
 
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
-		$this->assertSame($state, $response->getData());
+		$this->assertSame(['revision' => 2, 'generation' => 1, 'learning_mode' => 'off', 'learning' => false], $response->getData());
 	}
 
-	public function testPreferenceWriteCannotChooseAnotherOwner(): void {
-		$this->service->expects($this->once())->method('replace')->with(
-			'alice', 3, [['topic_id' => 'tech.apple', 'mode' => 'INTERESTED']], null, null, null
-		)->willReturn(['revision' => 4, 'generation' => 4, 'topics' => []]);
-
-		$response = $this->controller()->savePreferences(3, [['topic_id' => 'tech.apple', 'mode' => 'INTERESTED']]);
-
-		$this->assertSame(Http::STATUS_OK, $response->getStatus());
-	}
-
-	public function testStaleWriteReturnsConflictWithTheCurrentOwnerState(): void {
-		$current = ['revision' => 5, 'generation' => 5, 'topics' => []];
-		$this->service->expects($this->once())->method('replace')->with('alice', 2, [], null, null, null)->willReturn(null);
-		$this->service->expects($this->once())->method('get')->with('alice')->willReturn($current);
-
-		$response = $this->controller()->savePreferences(2, []);
-
-		$this->assertSame(Http::STATUS_CONFLICT, $response->getStatus());
-		$this->assertSame(['error' => 'revision-conflict', 'current' => $current], $response->getData());
+	public function testReaderCannotSetOrRequestAnIndividualTopic(): void {
+		$this->assertFalse(method_exists(RecommendationsController::class, 'catalog'));
+		$this->assertFalse(method_exists(RecommendationsController::class, 'savePreferences'));
+		$this->assertFalse(method_exists(RecommendationsController::class, 'candidates'));
 	}
 
 	public function testLearningModeIsOwnedByTheAuthenticatedReader(): void {
@@ -142,20 +128,6 @@ class RecommendationsControllerTest extends TestCase {
 		$this->service->expects($this->never())->method('get');
 
 		$this->assertSame(Http::STATUS_NOT_FOUND, $this->controller()->preferences()->getStatus());
-	}
-
-	public function testCandidateDiscoveryUsesTheAuthenticatedReaderAndRequestedTopic(): void {
-		$result = ['topic_id' => 'tech.apple', 'count' => 0, 'requested' => 10, 'underfilled' => true,
-			'remote_refresh_queued' => false, 'sources' => ['activitypub' => 0, 'atproto' => 0], 'session_id' => null,
-			'next_cursor' => null, 'cursor_expired' => false, 'candidates' => []];
-		$this->candidateService->expects($this->once())->method('discover')->with(
-			$this->callback(static fn (Person $viewer): bool => $viewer->getUserId() === 'alice'), 'tech.apple', 10, ''
-		)->willReturn($result);
-
-		$response = $this->controller()->candidates('tech.apple', 10);
-
-		$this->assertSame(Http::STATUS_OK, $response->getStatus());
-		$this->assertSame($result, $response->getData());
 	}
 
 	public function testRankedTimelineUsesOnlyTheAuthenticatedReader(): void {
@@ -234,7 +206,7 @@ class RecommendationsControllerTest extends TestCase {
 	}
 
 	public function testExportIncludesTheAuthenticatedOwnersCurrentFeedback(): void {
-		$this->service->expects($this->once())->method('get')->with('alice')->willReturn(['revision' => 1, 'topics' => []]);
+		$this->service->expects($this->once())->method('get')->with('alice')->willReturn(['revision' => 1, 'generation' => 0, 'learning_mode' => 'off', 'learning' => false, 'topics' => [['topic_id' => 'tech.apple', 'mode' => 'HIDE']]]);
 		$this->feedbackService->expects($this->once())->method('export')->with('alice')->willReturn([
 			['scope' => 'topic', 'scope_key' => 'tech.apple', 'operation' => 'MORE_TOPIC', 'created_at' => 2_000_000_000],
 		]);
@@ -243,5 +215,6 @@ class RecommendationsControllerTest extends TestCase {
 
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
 		$this->assertSame('MORE_TOPIC', $response->getData()['feedback'][0]['operation']);
+		$this->assertSame(['revision' => 1, 'generation' => 0, 'learning_mode' => 'off', 'learning' => false], $response->getData()['preferences']);
 	}
 }

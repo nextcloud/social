@@ -144,10 +144,34 @@ class RecommendationRankerTest extends TestCase {
 		$ranker = new RecommendationReRanker();
 
 		$normal = $ranker->page($ranked, 11);
-		$prioritised = $ranker->page($ranked, 11, ['topic.one']);
 
-		$this->assertSame('other', $normal[9]['nid'], 'soft topic concentration yields when another topic is available');
-		$this->assertSame('10', $prioritised[9]['nid'], 'an explicitly prioritised topic is exempt from the soft cap');
+		$this->assertSame('other', $normal[3]['nid'], 'automatic ranking should surface another topic after three matches');
+	}
+
+	public function testRepeatedHighScoringStoriesDoNotFillThePageWhenOtherTopicsAreAvailable(): void {
+		$ranked = [];
+		for ($i = 1; $i <= 30; $i++) {
+			$ranked[] = [
+				'nid' => 'security-story-' . $i,
+				'rank_score' => 0.98 - ($i * 0.001),
+				'author_key' => 'author-' . $i,
+				'topic_ids' => ['technology', 'software', 'software.security'],
+			];
+		}
+		for ($i = 1; $i <= 20; $i++) {
+			$ranked[] = [
+				'nid' => 'different-topic-' . $i,
+				'rank_score' => 0.80 - ($i * 0.001),
+				'author_key' => 'different-author-' . $i,
+				'topic_ids' => ['topic.' . $i],
+			];
+		}
+
+		$page = (new RecommendationReRanker())->page($ranked, 20, 'topic-diversity-regression');
+		$repeatedStories = array_filter($page, static fn (array $candidate): bool => str_starts_with($candidate['nid'], 'security-story-'));
+
+		$this->assertLessThanOrEqual(3, count($repeatedStories), 'one story cluster should not crowd out other subjects in the first page');
+		$this->assertContains('different-topic-1', array_column($page, 'nid'));
 	}
 
 	public function testQualifiedExplorationUsesOneStableBoundedSlot(): void {

@@ -24,7 +24,7 @@ class RecommendationTimelineService {
 	private const MAX_REFRESH_TOPICS = 2;
 	private const LOOKBACK_DAYS = RecommendationFreshness::LOOKBACK_DAYS;
 	private const MIN_COVERAGE = 15;
-	private const MODE = 'for-you-v4-automatic-profile-3';
+	private const MODE = 'for-you-v4-automatic-profile-4';
 	private const MEDIA = ['', 'photos', 'videos', 'shorts', 'media'];
 
 	public function __construct(
@@ -71,9 +71,8 @@ class RecommendationTimelineService {
 			// A ranked snapshot cursor cannot be continued against a different source.
 			return $this->empty($state['revision'], true, 'LEGACY');
 		}
-		// Existing preference rows remain readable for API compatibility and
-		// consent revisioning, but the web feed is fully automatic: no saved
-		// topic selections or content-balance choice changes its ranking.
+		// Persisted legacy rows still provide revision/generation values for
+		// consent and cursor invalidation. Their topic fields never set the feed.
 		if ($cursor !== '' && str_starts_with($cursor, 'legacy.')) {
 			$legacyCursor = $this->decodeLegacyCursor($cursor, $state['revision'], $state['generation']);
 			if ($legacyCursor === null) {
@@ -185,7 +184,7 @@ class RecommendationTimelineService {
 			}
 		}
 		$contentBalance = 'balanced';
-		$ranked = $this->reRanker->page($this->ranker->rank($candidates, $contentBalance), self::MAX_CANDIDATES, [], bin2hex(random_bytes(16)), $contentBalance);
+		$ranked = $this->reRanker->page($this->ranker->rank($candidates, $contentBalance), self::MAX_CANDIDATES, bin2hex(random_bytes(16)), $contentBalance);
 		$explorationNids = array_values(array_map(
 			static fn (array $candidate): string => (string)$candidate['nid'],
 			array_filter($ranked, static fn (array $candidate): bool => ($candidate['_exploration_slot'] ?? false) === true)

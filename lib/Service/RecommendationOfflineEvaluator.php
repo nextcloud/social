@@ -413,17 +413,17 @@ final class RecommendationOfflineEvaluator {
 				return $this->ranker->rank($candidates);
 			case 'h0_plus_rerank':
 				$ranked = $this->ranker->rank($candidates);
-				return $this->reRanker->page($ranked, self::PAGE_SIZE, array_keys($profile['topic_grades'] ?? []), (string)$profile['id']);
+				return $this->reRanker->page($ranked, self::PAGE_SIZE, (string)$profile['id']);
 			case 'h0_following':
 				return $this->ranker->rank($candidates, 'following');
 			case 'h0_following_plus_rerank':
 				$ranked = $this->ranker->rank($candidates, 'following');
-				return $this->reRanker->page($ranked, self::PAGE_SIZE, array_keys($profile['topic_grades'] ?? []), (string)$profile['id'], 'following');
+				return $this->reRanker->page($ranked, self::PAGE_SIZE, (string)$profile['id'], 'following');
 			case 'h0_discovery':
 				return $this->ranker->rank($candidates, 'discovery');
 			case 'h0_discovery_plus_rerank':
 				$ranked = $this->ranker->rank($candidates, 'discovery');
-				return $this->reRanker->page($ranked, self::PAGE_SIZE, array_keys($profile['topic_grades'] ?? []), (string)$profile['id'], 'discovery');
+				return $this->reRanker->page($ranked, self::PAGE_SIZE, (string)$profile['id'], 'discovery');
 			default:
 				return [];
 		}
