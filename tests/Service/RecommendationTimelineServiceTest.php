@@ -32,6 +32,7 @@ use OCA\Social\Service\RecommendationSavedFeedCandidates;
 use OCA\Social\Service\RecommendationSignalService;
 use OCA\Social\Service\RecommendationSnapshotStore;
 use OCA\Social\Service\RecommendationSocialGraphCandidates;
+use OCA\Social\Service\RecommendationTimelineAssembler;
 use OCA\Social\Service\RecommendationTimelineService;
 use OCA\Social\Service\RecommendationTopicCatalog;
 use OCA\Social\Service\RecommendationTrendCandidates;
@@ -95,25 +96,27 @@ class RecommendationTimelineServiceTest extends TestCase {
 	}
 
 	private function service(): RecommendationTimelineService {
+		$features = new RecommendationFeatureExtractor($this->catalog);
+		$explanations = new RecommendationExplanationService($this->catalog);
+		$behavioralProfile = new RecommendationBehavioralProfile(new RecommendationSignalService(
+			$this->preferences,
+			$this->signals,
+			new RecommendationFeatureExtractor($this->catalog),
+			$this->streams,
+			$this->clock,
+		), $this->catalog);
+
 		return new RecommendationTimelineService(
 			$this->preferences,
-			$this->catalog,
-			new RecommendationFeatureExtractor($this->catalog),
+			new RecommendationTimelineAssembler($this->catalog, $features, $explanations, $behavioralProfile),
 			$this->streams,
 			$this->interests,
 			$this->legacyFeed,
 			new RecommendationRanker(),
 			new RecommendationReRanker(),
 			$this->snapshots,
-			new RecommendationExplanationService($this->catalog),
 			$this->feedback,
-			new RecommendationBehavioralProfile(new RecommendationSignalService(
-				$this->preferences,
-				$this->signals,
-				new RecommendationFeatureExtractor($this->catalog),
-				$this->streams,
-				$this->clock,
-			), $this->catalog),
+			$behavioralProfile,
 			new RecommendationFollowFeatures($this->follows),
 			new RecommendationTrendCandidates($this->trends, $this->streams, new RecommendationFeatureExtractor($this->catalog)),
 			new RecommendationSocialGraphCandidates($this->streams, new RecommendationFeatureExtractor($this->catalog)),
