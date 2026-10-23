@@ -13,6 +13,7 @@ use InvalidArgumentException;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ClientService;
+use OCA\Social\Service\RecommendationCandidateService;
 use OCA\Social\Service\RecommendationPreferenceService;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
@@ -33,6 +34,7 @@ class RecommendationsController extends ClientApiController {
 		AccountService $accountService,
 		ClientService $clientService,
 		private RecommendationPreferenceService $recommendationService,
+		private RecommendationCandidateService $candidateService,
 	) {
 		parent::__construct($request, $userSession, $logger, $accountService, $clientService);
 	}
@@ -98,6 +100,15 @@ class RecommendationsController extends ClientApiController {
 			'exported_at' => time(),
 			'preferences' => $this->recommendationService->get($this->viewer()->getUserId()),
 		]);
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/recommendations/candidates/{topicId}')]
+	public function candidates(string $topicId, int $limit = 20): DataResponse {
+		return $this->answer(['read:accounts'], fn (): array
+			=> $this->candidateService->discover($this->viewer(), $topicId, $limit)
+		);
 	}
 
 	/** @param string[] $scopes @param callable(): mixed $callback */

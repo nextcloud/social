@@ -13,6 +13,7 @@ use OCA\Social\Controller\RecommendationsController;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ClientService;
+use OCA\Social\Service\RecommendationCandidateService;
 use OCA\Social\Service\RecommendationPreferenceService;
 use OCP\AppFramework\Http;
 use OCP\IRequest;
@@ -26,6 +27,7 @@ use Psr\Log\NullLogger;
 #[AllowMockObjectsWithoutExpectations]
 class RecommendationsControllerTest extends TestCase {
 	private RecommendationPreferenceService $service;
+	private RecommendationCandidateService $candidateService;
 	private bool $enabled = true;
 
 	private function controller(): RecommendationsController {
@@ -48,12 +50,14 @@ class RecommendationsControllerTest extends TestCase {
 			$accounts,
 			$this->createStub(ClientService::class),
 			$this->service,
+			$this->candidateService,
 		);
 	}
 
 	protected function setUp(): void {
 		$this->service = $this->createMock(RecommendationPreferenceService::class);
 		$this->service->method('isEnabled')->willReturnCallback(fn (): bool => $this->enabled);
+		$this->candidateService = $this->createMock(RecommendationCandidateService::class);
 	}
 
 	protected function tearDown(): void {
@@ -97,5 +101,18 @@ class RecommendationsControllerTest extends TestCase {
 		$this->service->expects($this->never())->method('get');
 
 		$this->assertSame(Http::STATUS_NOT_FOUND, $this->controller()->preferences()->getStatus());
+	}
+
+	public function testCandidateDiscoveryUsesTheAuthenticatedReaderAndRequestedTopic(): void {
+		$result = ['topic_id' => 'tech.apple', 'count' => 0, 'requested' => 10, 'underfilled' => true,
+			'remote_refresh_queued' => false, 'sources' => ['activitypub' => 0, 'atproto' => 0], 'candidates' => []];
+		$this->candidateService->expects($this->once())->method('discover')->with(
+			$this->callback(static fn (Person $viewer): bool => $viewer->getUserId() === 'alice'), 'tech.apple', 10
+		)->willReturn($result);
+
+		$response = $this->controller()->candidates('tech.apple', 10);
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame($result, $response->getData());
 	}
 }
