@@ -35,19 +35,7 @@
 						</label>
 					</div>
 				</section>
-				<section v-else-if="wizardStep === 1" aria-labelledby="recommendation-onboarding-subtopics">
-					<h4 id="recommendation-onboarding-subtopics">
-						{{ t('social', 'Refine with subtopics') }}
-					</h4>
-					<p>{{ t('social', 'Optional: focus on a narrower area. A parent topic remains selected unless you change it later.') }}</p>
-					<div class="recommendation-topics__choices">
-						<label v-for="topic in childTopics" :key="topic.id" class="recommendation-topics__choice">
-							<input type="checkbox" :checked="topicSelected(topic.id)" @change="toggleTopic(topic.id, $event)">
-							<span>{{ labelOf(parentTopic(topic.parentId)) }} <span aria-hidden="true">›</span> {{ labelOf(topic) }}</span>
-						</label>
-					</div>
-				</section>
-				<section v-else-if="wizardStep === 2" aria-labelledby="recommendation-onboarding-languages">
+				<section v-else-if="wizardStep === 1" aria-labelledby="recommendation-onboarding-languages">
 					<h4 id="recommendation-onboarding-languages">
 						{{ t('social', 'Choose languages') }}
 					</h4>
@@ -93,7 +81,7 @@
 						</p>
 					</div>
 				</section>
-				<section v-else-if="wizardStep === 3" aria-labelledby="recommendation-onboarding-balance">
+				<section v-else-if="wizardStep === 2" aria-labelledby="recommendation-onboarding-balance">
 					<h4 id="recommendation-onboarding-balance">
 						{{ t('social', 'Choose your content balance') }}
 					</h4>
@@ -125,7 +113,7 @@
 						{{ t('social', 'Back') }}
 					</NcButton>
 					<NcButton
-						v-if="wizardStep < 4"
+						v-if="wizardStep < 3"
 						variant="primary"
 						:disabled="saving"
 						@click="advanceWizard">
@@ -134,7 +122,7 @@
 						</template>
 						{{ t('social', 'Continue') }}
 					</NcButton>
-					<NcButton v-if="wizardStep < 4" :disabled="saving" @click="advanceWizard">
+					<NcButton v-if="wizardStep < 3" :disabled="saving" @click="advanceWizard">
 						{{ t('social', 'Skip this step') }}
 					</NcButton>
 					<NcButton
@@ -343,19 +331,22 @@ export default {
 		},
 
 		wizardStep() {
-			return Math.max(0, Math.min(4, Number(this.onboardingStep) || 0))
+			const savedStep = Math.max(0, Math.min(5, Number(this.onboardingStep) || 0))
+			if (savedStep <= 0) {
+				return 0
+			}
+			if (savedStep <= 2) {
+				return 1
+			}
+			return savedStep === 3 ? 2 : 3
 		},
 
 		onboardingSteps() {
-			return [t('social', 'Topics'), t('social', 'Subtopics'), t('social', 'Languages'), t('social', 'Content balance'), t('social', 'Review')]
+			return [t('social', 'Topics'), t('social', 'Languages'), t('social', 'Content balance'), t('social', 'Review')]
 		},
 
 		rootTopics() {
 			return this.topics.filter((topic) => !topic.parentId && !topic.policyTags?.includes('sensitive-topic'))
-		},
-
-		childTopics() {
-			return this.topics.filter((topic) => topic.parentId && !topic.policyTags?.includes('sensitive-topic'))
 		},
 
 		topicGroups() {
@@ -506,10 +497,6 @@ export default {
 			return this.topics.some((topic) => topic.id === topicId && this.draft[topic.parentId] === 'HIDE')
 		},
 
-		parentTopic(parentId) {
-			return this.topics.find((topic) => topic.id === parentId) || { id: parentId, labels: { en: parentId } }
-		},
-
 		topicSelected(topicId) {
 			return ['INTERESTED', 'PRIORITISE'].includes(this.draft[topicId])
 		},
@@ -524,6 +511,9 @@ export default {
 		},
 
 		preferencePayload(onboardingStep, onboardingComplete = false) {
+			const storedStep = onboardingComplete
+				? 5
+				: [0, 2, 3, 4][Math.max(0, Math.min(3, Number(onboardingStep) || 0))]
 			const topics = Object.entries(this.draft)
 				.filter(([, mode]) => mode)
 				.map(([topicId, mode]) => ({ topic_id: topicId, mode }))
@@ -531,7 +521,7 @@ export default {
 				if_revision: this.revision,
 				topics,
 				content_balance: this.draftContentBalance,
-				onboarding_step: onboardingStep,
+				onboarding_step: storedStep,
 				onboarding_complete: onboardingComplete,
 			}
 		},
@@ -555,7 +545,7 @@ export default {
 		},
 
 		async advanceWizard() {
-			if (this.wizardStep === 2) {
+			if (this.wizardStep === 1) {
 				this.saving = true
 				try {
 					await axios.put(interestsUrl() + '/settings', { languages: this.selectedLanguages })

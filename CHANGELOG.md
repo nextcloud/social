@@ -13,6 +13,7 @@
 - **recommendations:** Batch Fediverse tag-provider requests, honour the shared host circuit breaker and `Retry-After`, and cap individual post hydration plus the total discovery pass.
 ### Features
 
+- **recommendations:** Simplify first-use For You setup to broad topic choices, languages, content balance and review; keep detailed topic refinement in settings and map saved progress from the previous setup flow safely.
 - **recommendations:** Recall topic-matching posts already read from a person’s saved Bluesky custom feeds, using a short-lived local cache and no synchronous AppView request.
 - **recommendations:** Add a capped local public-trend candidate source to ranked For You discovery. Trend candidates still pass viewer visibility, language, moderation and explicit topic-match checks, and trend popularity does not grant a ranking bonus.
 - **recommendations:** Recall a bounded set of public topic matches from the reader's second-degree follow graph, using only accepted local follow edges and rechecking post visibility before ranking.
