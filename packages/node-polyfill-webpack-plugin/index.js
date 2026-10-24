@@ -9,6 +9,15 @@
  */
 'use strict'
 
+/* global module, require */
+
+/**
+ * Selects keys from an object by name or predicate.
+ *
+ * @param {Record<string, unknown>} object - Values to select from.
+ * @param {string[] | ((key: string, value: unknown, object: Record<string, unknown>) => boolean)} predicate - Key list or selector function.
+ * @return {Record<string, unknown>} The selected values.
+ */
 function includeKeys(object, predicate) {
 	const result = {}
 
@@ -52,18 +61,30 @@ const defaultPolyfills = new Set([
 	'zlib',
 ])
 
+/**
+ * Builds the filter that applies this plugin's alias options.
+ *
+ * @param {{ excludeAliases: string[], onlyAliases: string[], additionalAliases: string[] }} options - Alias selection options.
+ * @return {(object: Record<string, unknown>) => Record<string, unknown>} A filter for the aliases map.
+ */
 function createAliasFilter({ excludeAliases, onlyAliases, additionalAliases }) {
 	if (onlyAliases.length > 0) {
-		return object => includeKeys(object, onlyAliases)
+		return (object) => includeKeys(object, onlyAliases)
 	}
 
 	if (additionalAliases.length > 0) {
-		return object => includeKeys(object, key => (defaultPolyfills.has(key) && !excludeAliases.includes(key)) || additionalAliases.includes(key))
+		return (object) => includeKeys(object, (key) => (defaultPolyfills.has(key) && !excludeAliases.includes(key)) || additionalAliases.includes(key))
 	}
 
-	return object => includeKeys(object, key => defaultPolyfills.has(key) && !excludeAliases.includes(key))
+	return (object) => includeKeys(object, (key) => defaultPolyfills.has(key) && !excludeAliases.includes(key))
 }
 
+/**
+ * Checks that values are unique across several iterables.
+ *
+ * @param {...Iterable<unknown>} iterables - Values to compare.
+ * @return {boolean} Whether no value appears more than once.
+ */
 function areItemsUnique(...iterables) {
 	const seen = new Set()
 
@@ -124,13 +145,13 @@ module.exports = class NodePolyfillPlugin {
 				process: require.resolve('process/browser'),
 				querystring: require.resolve('querystring-es3'),
 				stream: require.resolve('stream-browserify'),
-				/* eslint-disable camelcase */
+
 				_stream_duplex: require.resolve('readable-stream/lib/_stream_duplex'),
 				_stream_passthrough: require.resolve('readable-stream/lib/_stream_passthrough'),
 				_stream_readable: require.resolve('readable-stream/lib/_stream_readable'),
 				_stream_transform: require.resolve('readable-stream/lib/_stream_transform'),
 				_stream_writable: require.resolve('readable-stream/lib/_stream_writable'),
-				/* eslint-enable camelcase */
+
 				string_decoder: require.resolve('string_decoder/'),
 				sys: require.resolve('util/'),
 				timers: require.resolve('timers-browserify'),
