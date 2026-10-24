@@ -54,7 +54,6 @@ final class ActivityPubEvent {
 			'VERSION:2.0',
 			'PRODID:-//Aloha Social//Fediverse Event//EN',
 			'CALSCALE:GREGORIAN',
-			'METHOD:PUBLISH',
 			'BEGIN:VEVENT',
 			'UID:' . hash('sha256', $stream->getId()) . '@social',
 			'DTSTAMP:' . gmdate('Ymd\THis\Z', $now),
