@@ -217,8 +217,10 @@ class OnlyShortTimelineTest extends ApiTestCase {
 		// removed manual add() API.
 		$alice = $this->account('alice');
 		Server::get(InterestService::class)->saveSettings($alice, ['learning' => true]);
-		$short = Server::get(StreamRequest::class)->getStreamById($shorts[0], true, ACore::FORMAT_LOCAL);
-		Server::get(InterestService::class)->recordAction($alice, $short, InterestService::ACTION_FAVOURITE);
+		foreach (array_slice($shorts, 0, 2) as $shortId) {
+			$short = Server::get(StreamRequest::class)->getStreamById($shortId, true, ACore::FORMAT_LOCAL);
+			Server::get(InterestService::class)->recordAction($alice, $short, InterestService::ACTION_FAVOURITE);
+		}
 		$page = fn (array $query): ApiResponse => $this->call(InterestsController::class, 'timeline', [], $query);
 
 		$this->assertSame(
