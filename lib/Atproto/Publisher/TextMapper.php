@@ -108,10 +108,19 @@ class TextMapper {
 			$threadParts = self::split($threadText, $threadFacets);
 		}
 		if ($needsRoom) {
-			$room = max(0, min(self::CUT_AT, self::MAX_GRAPHEMES - Lexicon::graphemes($extra . $tail) - 1));
-			$text = self::cut($text, $room, max(0, self::MAX_BYTES - strlen($extra . $tail) - strlen('…'))) . '…';
+			// Extra references still belong in the full thread, but a collection
+			// of long URLs must not make its root record invalid. Keep them in the
+			// thread and use the root's limited space for the opening text instead.
+			$rootExtra = $extra;
+			if (Lexicon::graphemes($rootExtra . $tail) >= self::MAX_GRAPHEMES
+				|| strlen($rootExtra . $tail) >= self::MAX_BYTES) {
+				$rootExtra = '';
+			}
+			$room = max(0, min(self::CUT_AT, self::MAX_GRAPHEMES - Lexicon::graphemes($rootExtra . $tail) - 1));
+			$text = self::cut($text, $room, max(0, self::MAX_BYTES - strlen($rootExtra . $tail) - strlen('…'))) . '…';
 			$end = strlen($text) - strlen('…');
 			$facets = array_values(array_filter($facets, static fn (array $facet): bool => $facet['index']['byteEnd'] <= $end));
+			$extra = $rootExtra;
 		}
 
 		$text .= $extra . $tail;
@@ -133,6 +142,11 @@ class TextMapper {
 		preg_match_all('/\\X/u', $text, $matches, PREG_OFFSET_CAPTURE);
 		/** @var list<array{0: string, 1: int}> $clusters */
 		$clusters = $matches[0];
+		$clusterAtByte = [];
+		foreach ($clusters as $index => $cluster) {
+			$clusterAtByte[$cluster[1]] = $index;
+		}
+		$clusterAtByte[strlen($text)] = count($clusters);
 		$parts = [];
 		$start = 0;
 		$count = count($clusters);
@@ -147,6 +161,7 @@ class TextMapper {
 				$bytes += $size;
 				$end++;
 			}
+			$hardEnd = $end;
 			if ($end === $start) {
 				throw new AtprotoException('A Bluesky text grapheme exceeds the record byte limit', 400);
 			}
@@ -162,6 +177,30 @@ class TextMapper {
 				if ($lastBreak !== null) {
 					$end = $lastBreak;
 				}
+			}
+			// Do not split a hashtag or a resolved mention across records: a
+			// partial facet would be discarded from both pieces. Move the cut
+			// before the facet when possible, or include it whole if it starts
+			// in this piece and still fits under the record limits.
+			$boundaryByte = $end < $count ? $clusters[$end][1] : strlen($text);
+			foreach ($facets as $facet) {
+				$type = $facet['features'][0]['$type'] ?? '';
+				if (!in_array($type, ['app.bsky.richtext.facet#mention', 'app.bsky.richtext.facet#tag'], true)) {
+					continue;
+				}
+				$facetStart = $facet['index']['byteStart'];
+				$facetEnd = $facet['index']['byteEnd'];
+				if ($facetStart >= $boundaryByte || $facetEnd <= $boundaryByte) {
+					continue;
+				}
+				$startOfFacet = $clusterAtByte[$facetStart] ?? null;
+				$endOfFacet = $clusterAtByte[$facetEnd] ?? null;
+				if (is_int($startOfFacet) && $startOfFacet > $start) {
+					$end = $startOfFacet;
+				} elseif (is_int($endOfFacet) && $endOfFacet > $end && $endOfFacet <= $hardEnd) {
+					$end = $endOfFacet;
+				}
+				break;
 			}
 			if ($end === $start) {
 				$end++;

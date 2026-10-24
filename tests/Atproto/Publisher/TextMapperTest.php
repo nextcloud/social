@@ -124,10 +124,35 @@ class TextMapperTest extends TestCase {
 		$this->assertGreaterThan(1, count($parts));
 		$this->assertStringNotContainsString($url, $parts[0]['text'], 'the feed preview is not ended with a Social link');
 		$threadText = implode(' ', array_column($parts, 'text'));
+		$withoutWhitespace = static fn (string $text): string => preg_replace('/\\s+/u', '', $text) ?? $text;
+		$this->assertStringStartsWith(
+			$withoutWhitespace(implode(' ', $words)),
+			$withoutWhitespace($threadText),
+			'the complete source body stays in order at the start of the thread'
+		);
 		foreach ($words as $word) {
 			$this->assertStringContainsString($word, $threadText);
 		}
 		$this->assertStringContainsString($url, $parts[array_key_last($parts)]['text'], 'the Social link comes after all thread parts');
+	}
+
+	public function testAResolvedMentionAtAThreadBoundaryKeepsItsFacetWhole(): void {
+		$mention = '@bob@example.test';
+		$text = str_repeat('x', 295) . $mention . str_repeat('y', 40);
+		$facets = [[
+			'index' => ['byteStart' => 295, 'byteEnd' => 295 + strlen($mention)],
+			'features' => [['$type' => 'app.bsky.richtext.facet#mention', 'did' => 'did:plc:bob']],
+		]];
+		$fit = $this->mapper->fit($text, $facets, 'https://s.example/@alice/123');
+
+		$this->assertArrayHasKey('threadParts', $fit);
+		$parts = $fit['threadParts'];
+		$this->assertStringEndsWith(str_repeat('x', 295), $parts[0]['text']);
+		$this->assertStringStartsWith($mention, $parts[1]['text']);
+		$this->assertSame([
+			'index' => ['byteStart' => 0, 'byteEnd' => strlen($mention)],
+			'features' => [['$type' => 'app.bsky.richtext.facet#mention', 'did' => 'did:plc:bob']],
+		], $parts[1]['facets'][0]);
 	}
 
 	public function testLongSocialPageUrlIsDisplayedShortButLinksToTheFullPost(): void {
@@ -171,6 +196,23 @@ class TextMapperTest extends TestCase {
 
 		$this->assertFalse($fit['truncated']);
 		$this->assertSame("With pictures\n\n+2 more pictures\n\nhttps://s.example/p", $fit['text']);
+	}
+
+	public function testOversizedExtraLinesStayInTheThreadWithoutMakingTheRootInvalid(): void {
+		$extras = [str_repeat('alpha-reference ', 30), str_repeat('beta-reference ', 30)];
+		$fit = $this->mapper->fit(str_repeat('Opening sentence. ', 40), [], 'https://s.example/p', $extras);
+
+		$this->assertLessThanOrEqual(TextMapper::MAX_GRAPHEMES, Lexicon::graphemes($fit['text']));
+		$this->assertLessThanOrEqual(TextMapper::MAX_BYTES, strlen($fit['text']));
+		$this->assertStringContainsString('Opening sentence.', $fit['text']);
+		$this->assertArrayHasKey('threadParts', $fit);
+		$threadText = implode(' ', array_column($fit['threadParts'], 'text'));
+		$this->assertSame(30, substr_count($threadText, 'alpha-reference'));
+		$this->assertSame(30, substr_count($threadText, 'beta-reference'));
+		foreach ($fit['threadParts'] as $part) {
+			$this->assertLessThanOrEqual(TextMapper::MAX_GRAPHEMES, Lexicon::graphemes($part['text']));
+			$this->assertLessThanOrEqual(TextMapper::MAX_BYTES, strlen($part['text']));
+		}
 	}
 
 	public function testFacetsOfPlainText(): void {

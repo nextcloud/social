@@ -116,6 +116,7 @@ class RecordMapperTest extends TestCase {
 		$post = $this->post('<p>Hello <a href="https://social.test/tags/world" class="mention hashtag" rel="tag">#world</a></p>');
 		$post->setLanguage('en');
 
+		$this->assertSame('Hello #world', $this->mapper->sourceText($post), 'the source text checker uses the same HTML and mention mapping');
 		['record' => $record, 'truncated' => $truncated] = $this->mapper->post($post, $this->identity, $this->author);
 
 		$this->assertFalse($truncated);

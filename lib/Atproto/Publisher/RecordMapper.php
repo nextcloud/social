@@ -27,6 +27,7 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Question;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\Client\MediaAttachment;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\PinService;
 use OCP\IL10N;
@@ -112,12 +113,24 @@ class RecordMapper {
 
 		$images = [];
 		$dropped = 0;
+		$attachments = $post->getAttachments();
 		$pictures = $this->pictureDocuments($post, $author);
+		$imageAttachments = count(array_filter($attachments, static fn (MediaAttachment $attachment): bool => $attachment->getType() === 'image'));
+		$dropped += max(0, $imageAttachments - count($pictures));
 		$videoEmbed = self::videoEmbed($video);
+		$videoCandidates = count(array_filter($attachments, static fn (MediaAttachment $attachment): bool => in_array($attachment->getType(), ['video', 'gifv'], true)
+			|| str_starts_with($attachment->getMediaType(), 'video/')));
+		$unsupportedAttachments = count(array_filter($attachments, static fn (MediaAttachment $attachment): bool => $attachment->getType() !== 'image'
+			&& !in_array($attachment->getType(), ['video', 'gifv'], true)
+			&& !str_starts_with($attachment->getMediaType(), 'video/')))
+			+ ($videoEmbed === null ? 0 : max(0, $videoCandidates - 1));
+		if ($unsupportedAttachments > 0) {
+			$extra[] = $l10n->n('+%n more media attachment', '+%n more media attachments', $unsupportedAttachments);
+		}
 		if ($videoEmbed !== null) {
 			// one media embed to a post: beside a video, the pictures are
 			// what the link to the post here is for
-			$dropped = count($pictures);
+			$dropped += count($pictures);
 			$pictures = [];
 		}
 		foreach ($pictures as $i => $document) {
@@ -127,6 +140,7 @@ class RecordMapper {
 			}
 			$picture = $this->pictures->blobFor($identity, $author, $document);
 			if ($picture === null) {
+				$dropped++;
 				continue;
 			}
 			$image = ['image' => $picture['blob']->toRecordValue(), 'alt' => $document->getDescription()];
@@ -192,6 +206,24 @@ class RecordMapper {
 
 		return ['record' => $record, 'truncated' => $fit['truncated']]
 			+ ($continuations === [] ? [] : ['continuations' => $continuations]);
+	}
+
+	/** The post's text as Bluesky publication maps it, without fitting or writing media. */
+	public function sourceText(Stream $post): string {
+		return $this->text->fromHtml($post->getContent(), $this->mentionResolver())['text'];
+	}
+
+	/** The poll choices that must accompany the source body on Bluesky. */
+	/** @return string[] */
+	public function sourcePollOptions(Stream $post): array {
+		if (!$post instanceof Question) {
+			return [];
+		}
+
+		return array_values(array_filter(array_map(
+			static fn (array $option): string => trim((string)($option['title'] ?? '')),
+			$post->getOptions()
+		), static fn (string $option): bool => $option !== ''));
 	}
 
 	/**

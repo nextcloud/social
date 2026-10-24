@@ -32,6 +32,7 @@ use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\ActivityPub\Object\Question;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\DurableCache;
@@ -102,6 +103,7 @@ class PublisherTest extends TestCase {
 		$this->mapper = $this->createMock(RecordMapper::class);
 		$this->mappedPost = ['record' => ['$type' => RecordMapper::POST, 'text' => 'hi', 'createdAt' => '2026-10-08T10:00:00.000Z'], 'truncated' => false];
 		$this->mapper->method('post')->willReturnCallback(fn (): array => $this->mappedPost);
+		$this->mapper->method('sourceText')->willReturn('hi');
 		$this->streamRequest = $this->createMock(StreamRequest::class);
 		$actors = $this->createMock(CacheActorService::class);
 		$actor = new Person();
@@ -373,6 +375,26 @@ class PublisherTest extends TestCase {
 		$this->assertSame('updated', $this->publisher->editPost($this->post(1760000000 - 60 * 60 * 24 * 30)));
 	}
 
+	public function testRetryCompletesAnExistingRootWithMissingContinuationRecords(): void {
+		$rootRkey = '3kznmn7xqxl22';
+		$root = ['$type' => RecordMapper::POST, 'text' => 'first part…', 'createdAt' => '2026-10-08T10:00:00.000Z'];
+		$rootBytes = DagCbor::encode($root);
+		$this->records[] = new StoredRecord(self::DID, RecordMapper::POST, $rootRkey, Cid::forDagCbor($rootBytes), $rootBytes, self::POST, 0);
+		$this->mappedPost = [
+			'record' => $root,
+			'truncated' => true,
+			'continuations' => [['text' => 'the missing second part', 'facets' => []]],
+		];
+		$this->mapper->method('sourceText')->willReturn('first part… the missing second part');
+		$this->repositories->expects($this->once())->method('write')->with(self::DID, $this->anything(), $this->callback(static fn (array $writes): bool => count($writes) === 1
+			&& $writes[0]->action === RepoWrite::CREATE
+			&& $writes[0]->collection === RecordMapper::POST
+			&& $writes[0]->record['text'] === 'the missing second part'
+			&& $writes[0]->record['reply']['root']['uri'] === 'at://' . self::DID . '/' . RecordMapper::POST . '/' . $rootRkey))->willReturnCallback(fn (): CommitResult => $this->written());
+
+		$this->assertNull($this->publisher->publishPost($this->post()));
+	}
+
 	public function testEditingALongPostUpdatesItsExistingThreadRecordsInPlace(): void {
 		$rootRkey = '3kznmn7xqxl22';
 		$continuationRkey = '3kznmn7xqxl23';
@@ -487,8 +509,65 @@ class PublisherTest extends TestCase {
 		$private = $this->post();
 		$private->setVisibility(Stream::TYPE_DIRECT);
 		$this->assertSame('not_applicable', $this->publisher->statusOf($private)['state']);
-		$this->records[] = new StoredRecord(self::DID, RecordMapper::POST, '3kznmn7xqxl22', Cid::forRaw('r'), '', self::POST, 0);
+		$this->records[] = new StoredRecord(self::DID, RecordMapper::POST, '3kznmn7xqxl22', Cid::forRaw('r'), DagCbor::encode(['$type' => RecordMapper::POST, 'text' => 'h']), self::POST, 0);
+		$this->assertSame('waiting', $this->publisher->statusOf($this->post())['state'], 'a root record with missing source text is not reported as delivered');
+		$this->records = [];
+		$warned = $this->post()->setSpoilerText('warning');
+		$this->records[] = new StoredRecord(self::DID, RecordMapper::POST, '3kznmn7xqxl22', Cid::forRaw('r'), DagCbor::encode(['$type' => RecordMapper::POST, 'text' => 'Content warning: warning\n\nhi']), self::POST, 0);
+		$this->assertSame('published', $this->publisher->statusOf($warned)['state'], 'a warning prefix does not hide a complete source body from delivery status');
+		$this->records = [];
+		$this->records[] = new StoredRecord(self::DID, RecordMapper::POST, '3kznmn7xqxl22', Cid::forRaw('r'), DagCbor::encode(['$type' => RecordMapper::POST, 'text' => 'hi old']), self::POST, 0);
+		$this->assertSame('waiting', $this->publisher->statusOf($this->post())['state'], 'a stale longer version is not reported as the current edit');
+		$this->importedPosts[] = self::POST;
+		$this->assertSame('published', $this->publisher->statusOf($this->post())['state'], 'an imported record is not reclassified as an incomplete local publication');
+		$this->importedPosts = [];
+		$pageUrl = $this->post()->pageUrl();
+		$tail = "\n\n" . $pageUrl;
+		$rootRkey = '3kznmn7xqxl22';
+		$continuationRkey = '3kznmn7xqxl23';
+		$rootBytes = DagCbor::encode(['$type' => RecordMapper::POST, 'text' => 'h']);
+		$rootCid = Cid::forDagCbor($rootBytes);
+		$continuation = [
+			'$type' => RecordMapper::POST,
+			'text' => 'i' . $tail,
+			'facets' => [['index' => ['byteStart' => 3, 'byteEnd' => 3 + strlen($pageUrl)], 'features' => [['$type' => 'app.bsky.richtext.facet#link', 'uri' => $pageUrl]]]],
+		];
+		$this->records = [
+			new StoredRecord(self::DID, RecordMapper::POST, $rootRkey, $rootCid, $rootBytes, self::POST, 0),
+			new StoredRecord(self::DID, RecordMapper::POST, $continuationRkey, Cid::forRaw('c'), DagCbor::encode($continuation), self::POST, 0),
+		];
+		$this->assertSame('waiting', $this->publisher->statusOf($this->post())['state'], 'a continuation without a reply chain is not reported as delivered');
+		$continuation['reply'] = [
+			'root' => ['uri' => 'at://' . self::DID . '/' . RecordMapper::POST . '/' . $rootRkey, 'cid' => $rootCid->toString()],
+			'parent' => ['uri' => 'at://' . self::DID . '/' . RecordMapper::POST . '/' . $rootRkey, 'cid' => $rootCid->toString()],
+		];
+		$continuationBytes = DagCbor::encode($continuation);
+		$this->records[1] = new StoredRecord(self::DID, RecordMapper::POST, $continuationRkey, Cid::forDagCbor($continuationBytes), $continuationBytes, self::POST, 0);
 		$this->assertSame(['state' => 'published', 'uri' => 'at://' . self::DID . '/app.bsky.feed.post/3kznmn7xqxl22', 'url' => 'https://bsky.app/profile/alice.social.test/post/3kznmn7xqxl22'], $this->publisher->statusOf($this->post()));
+	}
+
+	public function testPollDeliveryWaitsForEveryOption(): void {
+		$poll = new Question();
+		$poll->setNid(++$this->nid);
+		$poll->setId(self::POST);
+		$poll->setLocal(true);
+		$poll->setAttributedTo('https://social.test/@alice');
+		$poll->setVisibility(Stream::TYPE_PUBLIC);
+		$poll->setContent('<p>hi</p>');
+		$poll->setPollData(['First choice', 'Second choice'], false, 3600);
+		$this->mapper->method('sourcePollOptions')->willReturn(['First choice', 'Second choice']);
+		$this->records[] = new StoredRecord(self::DID, RecordMapper::POST, '3kznmn7xqxl22', Cid::forRaw('r'), DagCbor::encode([
+			'$type' => RecordMapper::POST,
+			'text' => 'hi\n\nPoll: First choice',
+		]), self::POST, 0);
+
+		$this->assertSame('waiting', $this->publisher->statusOf($poll)['state']);
+
+		$this->records[0] = new StoredRecord(self::DID, RecordMapper::POST, '3kznmn7xqxl22', Cid::forRaw('r'), DagCbor::encode([
+			'$type' => RecordMapper::POST,
+			'text' => 'hi\n\nPoll: First choice / Second choice',
+		]), self::POST, 0);
+		$this->assertSame('published', $this->publisher->statusOf($poll)['state']);
 	}
 
 	public function testReconcilePublishesWhatHasNoRecord(): void {
