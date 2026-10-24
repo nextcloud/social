@@ -15,6 +15,7 @@ final class RecommendationReRanker {
 	private const MAX_AUTHOR_IN_WINDOW = 2;
 	private const MAX_TOPIC_IN_WINDOW = 3;
 	private const MAX_STORY_IN_PAGE = 3;
+	private const MAX_STORY_OVERFLOW = 1;
 	private const MIN_STORY_TERMS = 3;
 	private const MIN_FUZZY_STORY_OVERLAP = 3;
 	private const MAX_STORY_TERMS = 60;
@@ -86,11 +87,15 @@ final class RecommendationReRanker {
 			$adjustedScores = [];
 			foreach ($window as $index => $candidate) {
 				$author = (string)($candidate['author_key'] ?? '');
-				$storySaturated = self::storyCount($candidate, $selected) >= self::MAX_STORY_IN_PAGE;
+				$storyCount = self::storyCount($candidate, $selected);
+				$storySaturated = $storyCount >= self::MAX_STORY_IN_PAGE;
 				$topicSaturated = self::hasSaturatedTopic(self::topicIds($candidate), $saturatedTopics);
 				$authorSaturated = $author !== '' && isset($saturatedAuthors[$author]);
+				$storyOverflow = $storySaturated
+					&& !$hasDiverseAlternative
+					&& $storyCount < self::MAX_STORY_IN_PAGE + self::MAX_STORY_OVERFLOW;
 				$exposureFatigued = self::exposurePenalty($candidate) >= self::STORY_FATIGUE_THRESHOLD;
-				if ($storySaturated
+				if (($storySaturated && !$storyOverflow)
 					|| ($hasDiverseAlternative && ($topicSaturated || $authorSaturated))
 					|| ($hasUnseenAlternative && $exposureFatigued)) {
 					continue;

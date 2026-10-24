@@ -215,6 +215,25 @@ class TextMapperTest extends TestCase {
 		}
 	}
 
+	public function testExtraLinksDoNotReplaceTheSocialPostLinkInAThread(): void {
+		$postUrl = 'https://s.example/@alice/123';
+		$extraUrl = 'https://images.example/picture';
+		$fit = $this->mapper->fit(str_repeat('A long post. ', 40), [], $postUrl, ['More pictures: ' . $extraUrl]);
+
+		$this->assertArrayHasKey('threadParts', $fit);
+		$rootLink = end($fit['facets']);
+		$this->assertSame($postUrl, $rootLink['features'][0]['uri']);
+
+		$threadLinks = [];
+		foreach ($fit['threadParts'] as $part) {
+			foreach ($part['facets'] as $facet) {
+				$threadLinks[] = $facet['features'][0]['uri'] ?? '';
+			}
+		}
+		$this->assertContains($postUrl, $threadLinks);
+		$this->assertContains($extraUrl, $threadLinks);
+	}
+
 	public function testFacetsOfPlainText(): void {
 		$facets = TextMapper::facetsOf('See https://example.org/a. And #tag2 #ünï');
 

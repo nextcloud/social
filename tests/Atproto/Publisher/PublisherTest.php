@@ -708,6 +708,28 @@ class PublisherTest extends TestCase {
 		$this->assertSame($editedCid, $writes[1][0]->record['pinnedPost']['cid']);
 	}
 
+	public function testAnIncompleteMultiCommitEditIsNotReportedAsUpdated(): void {
+		$this->records[] = new StoredRecord(self::DID, RecordMapper::POST, '3kznmn7xqxl22', Cid::forRaw('r'), $this->mappedBytes(), self::POST, 0);
+		$this->mappedPost['continuations'] = array_fill(0, RepositoryService::MAX_WRITES + 1, ['text' => 'part', 'facets' => []]);
+		$nextResults = [$this->written(), null];
+		$chunkSizes = [];
+		$results = [];
+		$this->repositories->expects($this->exactly(2))->method('write')
+			->willReturnCallback(function (string $did, PrivateKey $key, array $writes) use (&$nextResults, &$chunkSizes, &$results): ?CommitResult {
+				$chunkSizes[] = count($writes);
+				$result = array_shift($nextResults);
+				$results[] = $result;
+
+				return $result;
+			});
+
+		$result = $this->publisher->editPost($this->post());
+
+		$this->assertSame([RepositoryService::MAX_WRITES, 1], $chunkSizes);
+		$this->assertNull($results[1]);
+		$this->assertSame('kept', $result);
+	}
+
 	public function testAnEditUpdatesChangedReplyRulesWithoutChangingThePostRecord(): void {
 		$postRecord = ['$type' => RecordMapper::POST, 'text' => 'hi', 'createdAt' => '2026-10-08T10:00:00.000Z'];
 		$this->records[] = new StoredRecord(self::DID, RecordMapper::POST, '3kznmn7xqxl22', Cid::forDagCbor(DagCbor::encode($postRecord)), DagCbor::encode($postRecord), self::POST, 0);

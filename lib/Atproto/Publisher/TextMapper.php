@@ -97,9 +97,9 @@ class TextMapper {
 			$extraOffset = strlen($text) + strlen(self::PARAGRAPH);
 			foreach ($extraLines as $line) {
 				if (preg_match_all('#https?://[^\s<>"\')\]]+#u', $line, $matches, PREG_OFFSET_CAPTURE) > 0) {
-					foreach ($matches[0] as [$url, $offset]) {
-						$url = rtrim($url, '.,;:!?');
-						$threadFacets[] = self::link($extraOffset + $offset, $extraOffset + $offset + strlen($url), $url);
+					foreach ($matches[0] as [$extraUrl, $offset]) {
+						$extraUrl = rtrim($extraUrl, '.,;:!?');
+						$threadFacets[] = self::link($extraOffset + $offset, $extraOffset + $offset + strlen($extraUrl), $extraUrl);
 					}
 				}
 				$extraOffset += strlen($line) + strlen(self::BREAK);

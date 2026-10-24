@@ -212,17 +212,7 @@ class ClientApiControllerTest extends TestCase {
 	public function testMastodonApiRefusalIncludesItsStableCodeAndParameters(): void {
 		$request = $this->createStub(IRequest::class);
 		\OC::$server->register(IRequest::class, $request);
-		$controller = new class(
-			$request,
-			$this->createStub(\OCP\IURLGenerator::class),
-			$this->createStub(IUserSession::class),
-			new NullLogger(),
-			$this->createStub(ClientService::class),
-			$this->createStub(AccountService::class),
-			$this->createStub(\OCA\Social\Service\CacheActorService::class),
-			$this->createStub(\OCA\Social\Service\StreamService::class),
-			$this->createStub(\OCA\Social\Service\FollowService::class),
-		) extends MastodonApiController {
+		$controller = new class($request, $this->createStub(\OCP\IURLGenerator::class), $this->createStub(IUserSession::class), new NullLogger(), $this->createStub(ClientService::class), $this->createStub(AccountService::class), $this->createStub(\OCA\Social\Service\CacheActorService::class), $this->createStub(\OCA\Social\Service\StreamService::class), $this->createStub(\OCA\Social\Service\FollowService::class), ) extends MastodonApiController {
 			public function refusal(Throwable $exception): DataResponse {
 				return $this->error($exception);
 			}

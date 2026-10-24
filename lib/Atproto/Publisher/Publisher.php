@@ -564,8 +564,8 @@ class Publisher {
 		$threadWrites = $this->threadWrites($post, $identity, $mapped, $record, $rkey);
 		$gateWrites = $this->gateChanges($post, $identity->did, $rkey);
 		$writes = $this->rootAndGatesFirst($threadWrites, $rkey, $gateWrites);
-		if ($writes !== [] || $gateWrites !== []) {
-			$this->writeChunks($identity, $writes);
+		if ($writes !== [] && $this->writeChunks($identity, $writes) === null) {
+			return false;
 		}
 		if ($writes !== []) {
 			$this->logger->info('Post edit published to Bluesky', ['post' => $post->getId(), 'did' => $identity->did]);
@@ -588,11 +588,10 @@ class Publisher {
 		foreach (array_chunk($writes, RepositoryService::MAX_WRITES) as $chunk) {
 			$committed = $this->repositories->write($identity->did, $this->identities->signingKey($identity), $chunk);
 			// A duplicate first-publication can lose the root createOnce() race.
-			// Do not continue with its separately generated replies: that would
-			// leave a second, branching thread beside the root the other writer
-			// just committed. Reconciliation can complete the winning thread.
+			// Do not continue with its separately generated replies or report the
+			// earlier chunks as a complete thread. Reconciliation can finish it.
 			if ($committed === null) {
-				return $result;
+				return null;
 			}
 			$result = $committed;
 		}
