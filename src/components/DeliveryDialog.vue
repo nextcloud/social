@@ -19,6 +19,9 @@
 			<p class="delivery-hint">
 				{{ summary }}
 			</p>
+			<p v-if="delivery.instances.length" class="delivery-hint delivery-hint--muted">
+				{{ t('social', 'Delivered means the remote inbox accepted the activity. The remote server decides which timelines show it; home feeds usually show posts from accounts the reader follows, while mentions can appear in notifications.') }}
+			</p>
 			<ul v-if="delivery.instances.length || bluesky" class="delivery-list">
 				<li
 					v-for="entry in delivery.instances"

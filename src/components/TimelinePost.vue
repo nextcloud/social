@@ -123,7 +123,14 @@
 				{{ importingEvent ? t('social', 'Adding…') : t('social', 'Add to Nextcloud Calendar') }}
 			</NcButton>
 			<a
-				v-else-if="item.event.start_time"
+				v-if="item.event.start_time && !serverData.public && calendarImportFailed"
+				class="post-event__calendar post-event__calendar--download"
+				:href="eventCalendarUrl">
+				<CalendarMonthOutline :size="16" />
+				{{ t('social', 'Download calendar file') }}
+			</a>
+			<a
+				v-if="item.event.start_time && serverData.public"
 				class="post-event__calendar"
 				:href="eventCalendarUrl">
 				<CalendarMonthOutline :size="16" />
@@ -156,7 +163,26 @@
 				{{ t('social', 'Remove me') }}
 			</NcButton>
 		</p>
+
 		<div v-if="isEditing" class="post-edit-inline">
+			<div v-if="item.event" class="post-edit-event">
+				<label>
+					{{ t('social', 'Event title') }}
+					<input v-model="editEvent.name" type="text" maxlength="300" required>
+				</label>
+				<label>
+					{{ t('social', 'Starts') }}
+					<input v-model="editEvent.start_time" type="datetime-local" required>
+				</label>
+				<label>
+					{{ t('social', 'Ends (optional)') }}
+					<input v-model="editEvent.end_time" type="datetime-local">
+				</label>
+				<label>
+					{{ t('social', 'Event location (optional)') }}
+					<input v-model="editEvent.location" type="text" maxlength="500">
+				</label>
+			</div>
 			<input
 				v-model="editSpoiler"
 				type="text"
@@ -165,6 +191,10 @@
 				maxlength="200"
 				:aria-label="t('social', 'Content warning')"
 				:placeholder="t('social', 'Content warning, e.g. what the post is about')">
+			<label class="post-edit-sensitive">
+				<input v-model="editSensitive" type="checkbox">
+				{{ t('social', 'Mark media as sensitive') }}
+			</label>
 			<textarea
 				ref="editInput"
 				v-model="editContent"
@@ -182,16 +212,10 @@
 					role="status">
 					{{ editCharactersLeftLabel }}
 				</span>
-				<NcButton
-					variant="primary"
-					:disabled="!editCanSave"
-					:aria-label="t('social', 'Save')"
-					@click="saveEdit">
+				<NcButton variant="primary" :disabled="!editCanSave" :aria-label="t('social', 'Save')" @click="saveEdit">
 					{{ t('social', 'Save') }}
 				</NcButton>
-				<NcButton
-					:aria-label="t('social', 'Cancel')"
-					@click="cancelEdit">
+				<NcButton :aria-label="t('social', 'Cancel')" @click="cancelEdit">
 					{{ t('social', 'Cancel') }}
 				</NcButton>
 			</div>
@@ -598,12 +622,12 @@ import visibilitiesInfo from './Visibility/VisibilitiesInfos.js'
 import VisibilityIcon from './Visibility/VisibilityIcon.vue'
 import { mapStores } from 'pinia'
 import { focusedElement, returnFocusTo } from '../utils/focus.js'
-import { htmlToPlainText } from '../utils/plainText.js'
 import { defaultLanguage, languageName } from '../utils/postLanguage.js'
 import { useAccountStore } from '../store/account.js'
 import { feel } from '../services/senses.js'
 import { useInstanceStore } from '../store/instance.js'
-import { useTimelineStore } from '../store/timeline.js'
+import { isPersonalizedFeed, useTimelineStore } from '../store/timeline.js'
+import { htmlToPlainText } from '../utils/plainText.js'
 import { useCurrentUser } from '../composables/useCurrentUser.js'
 import { useServerData } from '../composables/useServerData.js'
 import { defineAsyncComponent } from 'vue'
@@ -702,6 +726,7 @@ export default {
 		return {
 			isEditing: false,
 			importingEvent: false,
+			calendarImportFailed: false,
 			/** the petal directions, so the template does not build a list per render */
 			PETALS: [0, 1, 2, 3, 4],
 			/** the press-and-hold timer on the heart, null when nothing is held */
@@ -729,6 +754,8 @@ export default {
 			filterLifted: false,
 			editContent: '',
 			editSpoiler: '',
+			editSensitive: false,
+			editEvent: { name: '', start_time: '', end_time: '', location: '' },
 			showReportDialog: false,
 			showMuteDialog: false,
 			/** the menu's own button, which the focus goes back to after a dialog */
@@ -764,7 +791,7 @@ export default {
 	computed: {
 		/** @return {boolean} whether the recommendation feedback controls can be used on this For You post */
 		canUseRecommendationFeedback() {
-			return this.type === 'interests'
+			return isPersonalizedFeed({ type: this.type, params: this.timelineStore.params })
 				&& this.serverData?.public !== true
 				&& this.serverData?.interests?.recommendationsEnabled === true
 				&& !!this.item.nid
@@ -933,25 +960,30 @@ export default {
 		 * the post until the reader lifts it.
 		 */
 		mediaLeads() {
-			return this.hasAttachments && !this.hasSpoiler && !this.isEditing
+			return this.hasAttachments && !this.hasSpoiler
 		},
 
-		/** @return {number} how many characters the edit has left */
+
+		/** @return {string} */
 		editCharsLeft() {
 			return this.maxLength - this.editContent.length
 		},
 
-		/** @return {boolean} */
 		editIsTooLong() {
 			return this.editCharsLeft < 0
 		},
 
-		/** @return {boolean} */
 		editCanSave() {
-			return this.editContent.trim() !== '' && !this.editIsTooLong
+			return this.editContent.trim() !== '' && !this.editIsTooLong && this.editEventIsValid
 		},
 
-		/** @return {string} */
+		editEventIsValid() {
+			if (!this.item.event) return true
+			return this.editEvent.name.trim() !== ''
+				&& this.editEvent.start_time !== ''
+				&& (!this.editEvent.end_time || this.editEvent.end_time > this.editEvent.start_time)
+		},
+
 		editCharactersLeftLabel() {
 			return this.editIsTooLong
 				? n('social', '%n character too many', '%n characters too many', -this.editCharsLeft)
@@ -1307,6 +1339,7 @@ export default {
 				return
 			}
 			this.importingEvent = true
+			this.calendarImportFailed = false
 			try {
 				const { data } = await axios.post(generateUrl(`apps/social/api/v1/statuses/${encodeURIComponent(this.item.id)}/calendar/import`))
 				showSuccess(data.already_imported
@@ -1314,7 +1347,16 @@ export default {
 					: t('social', 'Event added to {calendar}', { calendar: data.calendar || t('social', 'your Nextcloud Calendar') }))
 			} catch (error) {
 				logger.error('Could not import the event into Nextcloud Calendar', { error })
-				showError(t('social', 'Could not add this event to your Nextcloud Calendar'))
+				this.calendarImportFailed = true
+				const reason = error?.response?.data?.error
+				const message = reason === 'No writable calendar is available'
+					? t('social', 'No writable calendar is available. Download the calendar file and add it manually.')
+					: reason === 'Calendar import is unavailable'
+						? t('social', 'Calendar import is unavailable. Download the calendar file instead.')
+						: reason === 'Event not found'
+							? t('social', 'This event could not be found. It may have been removed.')
+							: t('social', 'Could not add this event to your Nextcloud Calendar. You can download the calendar file instead.')
+				showError(message)
 			} finally {
 				this.importingEvent = false
 			}
@@ -1643,13 +1685,14 @@ export default {
 				const entryId = store.timeline.find((id) => id === this.item.id || store.statuses[id]?.reblog?.id === this.item.id)
 				const entry = entryId === undefined ? null : (store.statuses[entryId] ?? null)
 				const index = entryId === undefined ? -1 : store.timeline.indexOf(entryId)
-				if (kind === 'HIDE_POST' && entry !== null && this.type === 'interests') {
+				const inPersonalizedFeed = isPersonalizedFeed({ type: this.type, params: store.params })
+				if (kind === 'HIDE_POST' && entry !== null && inPersonalizedFeed) {
 					store.removeStatus(entry, false)
 					store.forgetRemoval(entry)
 				}
 
 				const restore = () => {
-					if (kind === 'HIDE_POST' && entry !== null && this.type === 'interests' && store.getTimelineIdentity === identity) {
+					if (kind === 'HIDE_POST' && entry !== null && inPersonalizedFeed && store.getTimelineIdentity === identity) {
 						store.restoreStatus(entry, index)
 					}
 				}
@@ -1672,37 +1715,35 @@ export default {
 		},
 
 		editPost() {
-			// never the author's bio: an image-only post has no content, and
-			// seeding the editor from account.note offered to publish it
 			this.editContent = htmlToPlainText(this.item.content || '')
 			this.editSpoiler = this.item.spoiler_text || ''
+			this.editSensitive = this.item.sensitive === true
+			this.editEvent = {
+				name: this.item.event?.name || '',
+				start_time: this.toLocalDateTime(this.item.event?.start_time),
+				end_time: this.toLocalDateTime(this.item.event?.end_time),
+				location: this.item.event?.location || '',
+			}
 			this.isEditing = true
-			this.$nextTick(() => {
-				if (this.$refs.editInput) {
-					/** @type {HTMLElement} */ (this.$refs.editInput).focus()
-				}
-			})
+			this.$nextTick(() => this.$refs.editInput?.focus())
 		},
 
 		async saveEdit() {
-			if (!this.editCanSave) {
-				return
-			}
-
-			const warning = this.editSpoiler.trim()
+			if (!this.editCanSave) return
+			const event = this.item.event ? {
+				name: this.editEvent.name.trim(),
+				start_time: this.fromLocalDateTime(this.editEvent.start_time),
+				end_time: this.fromLocalDateTime(this.editEvent.end_time),
+				location: this.editEvent.location.trim(),
+			} : undefined
 			const response = await this.timelineStore.postEdit({
 				status: this.item,
 				content: this.editContent.trim(),
-				// fixing a typo used to un-hide sensitive content for every
-				// follower, because the warning was always sent back empty
-				spoiler_text: warning,
-				sensitive: warning !== '' || this.item.sensitive === true,
+				spoiler_text: this.editSpoiler.trim(),
+				sensitive: this.editSensitive,
+				...(event === undefined ? {} : { event }),
 			})
-			if (response === undefined) {
-				// the store already said so; keep what was typed
-				return
-			}
-
+			if (response === undefined) return
 			this.isEditing = false
 			this.editContent = ''
 			this.editSpoiler = ''
@@ -1713,6 +1754,20 @@ export default {
 			this.editContent = ''
 			this.editSpoiler = ''
 		},
+
+		toLocalDateTime(value) {
+			if (!value) return ''
+			const date = new Date(value)
+			return Number.isNaN(date.getTime()) ? '' : new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+		},
+
+		fromLocalDateTime(value) {
+			if (!value) return null
+			const date = new Date(value)
+			return Number.isNaN(date.getTime()) ? null : date.toISOString()
+		},
+
+
 
 		/**
 		 * Opens the confirmation. Deleting federates and cannot be undone, so
@@ -1742,9 +1797,9 @@ export default {
 			// the post as it stands, kept before the store forgets it
 			const draft = redraft ? this.item : null
 
-			await this.timelineStore.postDelete(this.item)
+			const deleted = await this.timelineStore.postDelete(this.item)
 
-			if (draft !== null) {
+			if (deleted === true && draft !== null) {
 				this.timelineStore.setComposerDisplayStatus(true)
 				eventBus.emit('composer-redraft', draft)
 			}
@@ -2257,289 +2312,55 @@ export default {
 		}
 	}
 
-	.post-edit-inline {
+}
+
+
+
+.post-edit-inline {
+	margin-bottom: 10px;
+
+	.post-edit-event {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 8px;
 		margin-bottom: 10px;
 
-		.post-edit-textarea {
-			width: 100%;
-			min-height: 100px;
-			padding: 8px;
-			border: 1px solid var(--color-border);
-			border-radius: 8px;
-			background: var(--color-main-background);
-			color: var(--color-main-text);
-			font-family: inherit;
-			font-size: 15px;
-			line-height: 1.65;
-			resize: vertical;
-			box-sizing: border-box;
-
-			&:focus-visible {
-				border-color: var(--color-primary-element);
-				outline: 2px solid var(--color-primary-element);
-				outline-offset: 1px;
-			}
-		}
-
-		.post-edit-warning {
-			width: 100%;
-			margin-bottom: 6px;
-			padding: 8px 10px;
-			border: 1px solid var(--color-border);
-			border-radius: var(--border-radius, 8px);
-			background: var(--color-main-background);
-			color: var(--color-main-text);
-			font-size: 14px;
-			box-sizing: border-box;
-
-			&:focus-visible {
-				border-color: var(--color-primary-element);
-				outline: 2px solid var(--color-primary-element);
-				outline-offset: 1px;
-			}
-		}
-
-		.post-edit-actions {
-			display: flex;
-			gap: 8px;
-			margin-top: 8px;
-			align-items: center;
-			justify-content: flex-end;
-		}
-
-		.post-edit-count {
-			margin-inline-end: auto;
-			font-size: 12px;
-			color: var(--color-text-lighter);
-
-			&--over {
-				color: var(--color-error);
-				font-weight: 600;
-			}
-		}
+		label { display: grid; gap: 4px; font-size: .9rem; }
+		input { min-width: 0; width: 100%; }
 	}
 
-	/*
-	 * The action row is the loudest thing in a card and the least often used:
-	 * somebody scrolling a timeline is reading, not boosting. So a card at rest
-	 * carries nothing at all, and what arrives when the pointer does is one
-	 * pill in the bottom-right corner: it fades in at the width of the overflow
-	 * menu and widens to the left to let the rest of the row out.
-	 *
-	 * Only the pill changes size. The card does not grow, nothing below it
-	 * moves, and — unlike the full-width panel this replaces — the pill is
-	 * short enough to live in the card's own bottom padding and the fourteen
-	 * pixels of gap below it, so it covers no part of the next card.
-	 *
-	 * A grid whose single column goes from `0fr` to `1fr` is what animates the
-	 * width, for the same reason the height of a thing like this cannot be
-	 * animated any other way: the row's width is not knowable in advance. A
-	 * reply count going from 9 to 10 is another pixel, the icons are a
-	 * translation away from being wider, and `width: auto` does not interpolate
-	 * anywhere this app can rely on yet.
-	 *
-	 * The menu is deliberately outside the rail: it is the part the pill is as
-	 * wide as when it arrives, and keeping it out of the animating column is
-	 * what stops it drifting sideways while the pill opens.
-	 *
-	 * Nothing here is discoverable without a pointer, which is a real cost and
-	 * a deliberate one — a mark on every card in a timeline is a hundred marks
-	 * on a screen. Touch does not pay it: see the `hover: none` block at the
-	 * end of this file, where the row is not a pill at all.
-	 *
-	 * **What is at rest and what arrives.** How many replies, boosts and
-	 * likes a post has is *about the post* — it belongs to a reader running
-	 * down a timeline deciding what to open, and hiding it until the pointer
-	 * lands meant the only way to see which posts had landed was to point at
-	 * each of them in turn. So the counts are always drawn, as type: no
-	 * button, no border, no surface, with the glyphs dimmed to a hairline.
-	 *
-	 * What arrives on hover is the *controls* — the pill fades in behind the
-	 * row at the size the row already occupies, and the glyphs come up to
-	 * full. Nothing moves: no track widens, no digit shifts, and the pointer
-	 * is never chasing a button that is still travelling. The one thing that
-	 * stays lit at rest is a like or a boost this reader has already given,
-	 * because that is state rather than chrome.
-	 */
-	/*
-	 * One row across the foot: the reactions at the near end, the counts and
-	 * their controls at the far one. It wraps, so a post with a dozen
-	 * reactions puts the controls on a line of their own rather than crushing
-	 * them, and `align-items: center` keeps the two halves on one baseline
-	 * whatever height the reactions take.
-	 */
-	.post-footer {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: center;
-		gap: 6px;
-		margin-top: 2px;
-	}
-
-	.post-footer--profile-actions {
-		display: block;
-		padding-top: 8px;
-		border-top: 1px solid var(--color-border);
-	}
-
-	.post-actions-reveal {
-		/* in flow now, at the far end of the footer. `relative` is what the
-		   surface below is drawn against */
-		position: relative;
-		margin-inline-start: auto;
-		display: flex;
-		padding: 1px;
-		border: 1px solid transparent;
-		border-radius: 999px;
-	}
-
-	/*
-	 * The surface, drawn *behind* the row at the size the row already has.
-	 * A pseudo-element rather than the background, border and shadow of the
-	 * row itself, so the whole thing arrives as one opacity — one compositor
-	 * property, on a page that can be showing a hundred of these.
-	 */
-	.post-actions-reveal::before {
-		content: '';
-		position: absolute;
-		inset: -1px;
-		border-radius: 999px;
+	.post-edit-textarea {
+		box-sizing: border-box;
+		width: 100%;
+		min-height: 100px;
+		padding: 8px;
+		border: 1px solid var(--color-border);
+		border-radius: 8px;
 		background: var(--color-main-background);
-		border: 1px solid var(--color-primary-element);
-		box-shadow: var(--social-elevation-raised);
-		opacity: 0;
-		/* out in a tenth of a second and flat: a pointer crossing four cards
-		   on its way somewhere else must not leave four pills fading behind it */
-		transition: opacity .1s linear;
-		pointer-events: none;
+		color: var(--color-main-text);
+		font: inherit;
+		resize: vertical;
 	}
 
-	/*
-	 * `focus-within` is not decoration here: it is the whole of the keyboard
-	 * path. Tabbing into a card has to open the same pill the pointer does, or
-	 * the controls are focusable and unmarked.
-	 */
-	&:hover .post-actions-reveal::before,
-	&:focus-within .post-actions-reveal::before,
-	.post-actions-reveal--held::before {
-		opacity: 1;
-		transition: opacity .2s ease;
+	.post-edit-warning {
+		box-sizing: border-box;
+		width: 100%;
+		margin-bottom: 6px;
+		padding: 8px 10px;
+		border: 1px solid var(--color-border);
+		border-radius: 8px;
+		background: var(--color-main-background);
+		color: var(--color-main-text);
 	}
 
-	/* the menu is a control rather than a fact about the post, so it keeps to
-	   the same rule as the glyphs: out of the way until it is asked for */
-	.post-actions :deep(.action-item),
-	.post-actions :deep(.actions) {
-		opacity: 0;
-		transition: opacity .16s ease;
-	}
+	.post-edit-sensitive { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
+	.post-edit-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+	.post-edit-count { margin-inline-end: auto; color: var(--color-text-lighter); font-size: 12px; }
+	.post-edit-count--over { color: var(--color-error); font-weight: 600; }
+}
 
-	&:hover .post-actions :deep(.action-item),
-	&:hover .post-actions :deep(.actions),
-	&:focus-within .post-actions :deep(.action-item),
-	&:focus-within .post-actions :deep(.actions),
-	.post-actions-reveal--held :deep(.action-item),
-	.post-actions-reveal--held :deep(.actions) {
-		opacity: 1;
-	}
-
-	.post-actions__groups {
-		display: flex;
-		flex: 1 1 auto;
-		flex-wrap: wrap;
-		align-items: center;
-		justify-content: flex-end;
-		gap: 4px;
-		min-inline-size: 0;
-
-		// Reply entries indent from the start while keeping this same outside
-		// edge. The entry's auto width already accounts for that indent, so a
-		// negative end margin would push the icon and count past the edge.
-		.post-action-group--reply {
-			margin-inline-start: auto;
-		}
-	}
-
-	/* it had a top margin from when it was a row of its own */
-	.post-footer :deep(.reaction-bar) {
-		margin-top: 0;
-	}
-
-	&:hover .post-actions :deep(.button-vue__icon),
-	&:focus-within .post-actions :deep(.button-vue__icon),
-	.post-actions-reveal--held :deep(.button-vue__icon) {
-		opacity: 1;
-	}
-
-	.post-actions {
-		display: flex;
-		align-items: center;
-		gap: 2px;
-
-		.post-action-group {
-			display: inline-flex;
-			flex: 0 0 auto;
-			align-items: center;
-			gap: 3px;
-
-			/* against its own glyph, across the button's padding, so it
-			   reads as that glyph's number and not the next one's */
-			.post-action-count {
-				margin-inline-start: -4px;
-				text-align: start;
-			}
-		}
-
-		.post-action-count {
-			font-size: 11px;
-			font-weight: 600;
-			color: var(--color-main-text);
-			text-align: center;
-		}
-
-		:deep(.button-vue) {
-			border-radius: 8px;
-
-			&:hover {
-				background: var(--color-background-dark);
-			}
-		}
-
-		/* gone at rest, back with the pointer or the keyboard: thirty grey
-		   glyphs down a page are noise, and the one row that is being looked
-		   at is the one that is pointed at. A touch screen keeps them (see the
-		   `hover: none` block below), since it cannot point first */
-		:deep(.button-vue__icon) {
-			opacity: var(--post-action-rest, 0);
-			transition: opacity .2s ease;
-		}
-
-		/* a number needs its glyph to say what it counts, so a control with
-		   a count beside it keeps a hairline at rest */
-		.post-action-group:has(.post-action-count) {
-			--post-action-rest: .38;
-		}
-
-		/* except a like or a boost this reader has already given. That is the
-		   state of the post as far as they are concerned, and it is the one
-		   thing on this row worth seeing without pointing at it. */
-		:deep(.button-vue[aria-pressed="true"] .button-vue__icon) {
-			opacity: 1;
-		}
-
-		/* 28px rather than the 34px a button is elsewhere: this is a
-		   secondary row, and the pill has to be short enough to fit between
-		   the text and the next card. Still above the 24px floor a pointer
-		   target has. */
-		:deep(.button-vue--icon-only) {
-			min-height: 28px;
-			min-width: 28px;
-		}
-
-		:deep(.button-vue) {
-			border-radius: 999px;
-		}
-	}
+@media (max-width: 600px) {
+	.post-edit-inline .post-edit-event { grid-template-columns: 1fr; }
 }
 
 .post-action-group {

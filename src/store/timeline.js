@@ -231,6 +231,12 @@ function pruneIndex(state) {
 	state.statuses = statuses
 }
 
+/** @param {{type: string, params?: {scope?: string}}} state timeline identity @return {boolean} */
+export function isPersonalizedFeed(state) {
+	return state.type === 'interests'
+		|| (['photos', 'videos', 'shorts'].includes(state.type) && state.params?.scope === 'interests')
+}
+
 /**
  * Whether the list is a ranking rather than a timeline: For you, whole or as
  * the For you scope of Photos, Videos and Shorts, and a Bluesky feed or list,
@@ -240,9 +246,7 @@ function pruneIndex(state) {
  * @return {boolean}
  */
 export function isRanked(state) {
-	return state.type === 'interests'
-		|| state.type === 'bluesky'
-		|| (['photos', 'videos', 'shorts'].includes(state.type) && state.params?.scope === 'interests')
+	return isPersonalizedFeed(state) || state.type === 'bluesky'
 }
 
 /**
@@ -287,9 +291,7 @@ function appendNew(list, statuses) {
 
 /** @param {{type: string, account?: string, params: object}} list the timeline */
 function usesV4RecommendationTimeline(list) {
-	const isInterests = list.type === 'interests'
-		|| (['photos', 'videos', 'shorts'].includes(list.type) && list.params?.scope === 'interests')
-	return isInterests && loadState('social', 'serverData', {
+	return isPersonalizedFeed(list) && loadState('social', 'serverData', {
 		public: false,
 		interests: { recommendationsEnabled: false },
 	})?.interests?.recommendationsEnabled === true
@@ -1462,11 +1464,11 @@ export const useTimelineStore = defineStore('timeline', {
 				logger.error('Failed to create a status', { error })
 			}
 		},
-		async postEdit({ status, content, spoiler_text, sensitive }) {
+		async postEdit({ status, content, spoiler_text, sensitive, event }) {
 			try {
 				const response = await axios.put(
 					generateUrl(`apps/social/api/v1/statuses/${status.id}`),
-					{ status: content, spoiler_text, sensitive },
+					{ status: content, spoiler_text, sensitive, ...(event !== undefined ? { event } : {}) },
 				)
 				this.updateStatus(response.data)
 				logger.info('Post edited', response.data.id)
@@ -1481,6 +1483,7 @@ export const useTimelineStore = defineStore('timeline', {
 				this.removeStatus(status)
 				const response = await axios.delete(generateUrl(`apps/social/api/v1/post?id=${status.uri}`))
 				logger.info('Post deleted with token ' + response.data.result.token)
+				return true
 			} catch (error) {
 				// restoreStatus puts it back in the list it came from; addToTimeline
 				// always appended to the replies, so a failed delete of an ancestor
@@ -1488,6 +1491,7 @@ export const useTimelineStore = defineStore('timeline', {
 				this.restoreStatus(status)
 				showError(t('social', 'Could not delete the post'))
 				logger.error('Failed to delete the status', { error })
+				return false
 			}
 		},
 		/**

@@ -360,7 +360,7 @@ class PostService {
 	 */
 	public function editPost(
 		int|string $nid, Person $actor, string $content, ?string $spoilerText = null, ?bool $sensitive = null,
-		?string $language = null, array $mediaAttributes = [],
+		?string $language = null, array $mediaAttributes = [], ?array $event = null, bool $eventProvided = false,
 	): Stream {
 		$this->moderationService->assertNotSuspended($actor->getId());
 		$this->moderationService->assertNotMoved($actor);
@@ -400,6 +400,17 @@ class PostService {
 			$stream->setAttachments($this->documentService->applyMediaAttributes(
 				$stream->getAttachments(), $actor->getPreferredUsername(), $mediaAttributes
 			));
+		}
+		if ($eventProvided) {
+			$details = $stream->getDetailsAll();
+			if ($event === null) {
+				unset($details[Details::EVENT]);
+				$stream->setSubType('Note');
+			} else {
+				$details[Details::EVENT] = $event;
+				$stream->setSubType('Event');
+			}
+			$stream->setDetailsAll($details);
 		}
 
 		// `published` stays the creation time. The edit used to be stamped

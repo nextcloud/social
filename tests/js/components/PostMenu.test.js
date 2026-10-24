@@ -111,7 +111,9 @@ describe('the post menu', () => {
 			await itemFor(wrapper, 'Show me more like this post').trigger('click')
 			expect(wrapper.emitted('recommendationFeedback')).toEqual([['MORE_SIMILAR']])
 			expect(items(mountMenu(post, { timelineType: 'home', recommendationFeedbackEnabled: true })))
-				.not.toContain('Hide this post from For You')
+				.toContain('Hide this post from For You')
+			expect(items(mountMenu(post, { timelineType: 'photos', recommendationFeedbackEnabled: true })))
+				.toContain('Hide this post from For You')
 		})
 
 		it('does not offer similarity feedback when no automatic cluster is available', () => {

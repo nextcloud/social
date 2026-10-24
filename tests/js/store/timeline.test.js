@@ -9,7 +9,7 @@ import { toRaw } from 'vue'
 import axios from '@nextcloud/axios'
 import { showError, showSuccess } from '../../../src/services/toast.js'
 
-import { isRanked, useTimelineStore } from '../../../src/store/timeline.js'
+import { isPersonalizedFeed, isRanked, useTimelineStore } from '../../../src/store/timeline.js'
 import logger from '../../../src/services/logger.js'
 
 vi.mock('@nextcloud/axios', () => ({
@@ -444,6 +444,15 @@ describe('timeline store getters', () => {
 	it('reads Photos at a circle of people as a timeline, not a ranking', () => {
 		expect(isRanked({ type: 'photos', params: { scope: 'timeline' } })).toBe(false)
 		expect(isRanked({ type: 'home', params: {} })).toBe(false)
+	})
+
+	it('recognizes For You scopes separately from other ranked feeds', () => {
+		expect(isPersonalizedFeed({ type: 'interests', params: {} })).toBe(true)
+		expect(isPersonalizedFeed({ type: 'photos', params: { scope: 'interests' } })).toBe(true)
+		expect(isPersonalizedFeed({ type: 'videos', params: { scope: 'interests' } })).toBe(true)
+		expect(isPersonalizedFeed({ type: 'shorts', params: { scope: 'interests' } })).toBe(true)
+		expect(isPersonalizedFeed({ type: 'bluesky', params: {} })).toBe(false)
+		expect(isPersonalizedFeed({ type: 'photos', params: { scope: 'home' } })).toBe(false)
 	})
 
 	it('getTimeline is the timeline, not a client-side search over it', () => {
@@ -1063,6 +1072,22 @@ describe('timeline store actions', () => {
 			expect(response.data).toEqual(edited)
 		})
 
+		it('sends edited event details when the post is an event', async () => {
+			const status = makeStatus('1')
+			store.addToTimeline([status])
+			axios.put.mockResolvedValue({ data: makeStatus('1') })
+			const event = { name: 'Updated event', start_time: '2026-10-25T10:00:00.000Z', end_time: null, location: 'Hall' }
+
+			await store.postEdit({ status, content: 'edited', spoiler_text: '', sensitive: false, event })
+
+			expect(axios.put).toHaveBeenCalledWith(`${API}/statuses/1`, {
+				status: 'edited',
+				spoiler_text: '',
+				sensitive: false,
+				event,
+			})
+		})
+
 		it('leaves the status untouched and shows an error when editing fails', async () => {
 			const status = makeStatus('1')
 			store.addToTimeline([status])
@@ -1085,12 +1110,13 @@ describe('timeline store actions', () => {
 				return { data: { status: 1, result: [] } }
 			})
 
-			await store.postDelete(status)
+			const deleted = await store.postDelete(status)
 
 			expect(axios.delete).toHaveBeenCalledWith(`${API}/post?id=${status.uri}`)
 			expect(timelineDuringRequest).toEqual(['2'])
 			expect(tl().timeline).toEqual(['2'])
 			expect(showError).not.toHaveBeenCalled()
+			expect(deleted).toBe(true)
 		})
 
 		it('re-indexes the status, restores it to the timeline and shows an error when the deletion fails', async () => {
@@ -1098,12 +1124,13 @@ describe('timeline store actions', () => {
 			store.addToTimeline([status, makeStatus('2')])
 			axios.delete.mockRejectedValue(new Error('boom'))
 
-			await store.postDelete(status)
+			const deleted = await store.postDelete(status)
 
 			expect(tl().statuses['1']).toEqual(status)
 			expect(tl().timeline).toContain('1')
 			expect(tl().timeline).toEqual(['2', '1'])
 			expect(showError).toHaveBeenCalledWith('Could not delete the post')
+			expect(deleted).toBe(false)
 		})
 	})
 

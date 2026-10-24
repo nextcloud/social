@@ -84,6 +84,29 @@ class RecommendationFeedSnapshotTest extends TestCase {
 		$this->assertNull(RecommendationFeedSnapshot::fromArray($malformed));
 	}
 
+	public function testAutomaticProfileExplanationSurvivesSnapshotValidation(): void {
+		$reason = [
+			'primary' => 'AUTOMATIC_PROFILE',
+			'topic_ids' => [],
+			'also' => ['AUTOMATIC_PROFILE'],
+			'candidate_source' => 'LOCAL_CACHED_POSTS',
+			'protocol' => 'activitypub',
+			'personalisation_used' => true,
+			'selection_stage' => 'RERANK',
+			'rerank_note' => 'BASE_RANK',
+			'profile_version' => 1,
+			'eligibility_policy_version' => 1,
+			'explanation_version' => 1,
+			'algorithm_version' => 5,
+			'created_at' => self::NOW,
+		];
+		$snapshot = RecommendationFeedSnapshot::create('alice', 'for-you', 'all', 1, 0, self::NOW, ['1'], 900, [], [
+			['nid' => '1', 'reason' => $reason],
+		]);
+
+		$this->assertSame($reason, RecommendationFeedSnapshot::fromArray($snapshot->toArray())->explanations[0]['reason']);
+	}
+
 	public function testMalformedCachedIdListsAreRejectedAndCreationDeduplicates(): void {
 		$snapshot = RecommendationFeedSnapshot::create('alice', 'for-you', 'all', 0, 0, self::NOW, ['1', '1', '2']);
 		$this->assertSame(['1', '2'], $snapshot->rankedNids);

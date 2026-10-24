@@ -368,11 +368,6 @@ export default {
 			default: null,
 		},
 
-		timelineType: {
-			type: String,
-			default: '',
-		},
-
 		recommendationFeedbackEnabled: {
 			type: Boolean,
 			default: false,
@@ -412,8 +407,7 @@ export default {
 	computed: {
 		/** @return {boolean} whether recommendation feedback applies to this author's post in For You */
 		canOfferRecommendationFeedback() {
-			return this.timelineType === 'interests'
-				&& this.recommendationFeedbackEnabled
+			return this.recommendationFeedbackEnabled
 				&& !this.isPublic
 				&& !!this.currentAccount
 				&& !this.isMine

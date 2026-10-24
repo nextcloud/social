@@ -9,6 +9,7 @@ import { flushPromises, mount, RouterLinkStub } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import TimelinePost from '../../../src/components/TimelinePost.vue'
 import eventBus from '../../../src/services/eventBus.js'
+import { showError } from '../../../src/services/toast.js'
 import { createPinia, setActivePinia } from 'pinia'
 import { useAccountStore } from '../../../src/store/account.js'
 import { useSettingsStore } from '../../../src/store/settings.js'
@@ -117,6 +118,8 @@ const POST_ACTIONS = [
 function mountPost({
 	item = makeItem(),
 	route = { name: 'timeline', params: { type: 'home' } },
+	type = 'home',
+	params = {},
 	currentAccount = alice,
 	serverData = { public: false, cloudAddress: 'https://cloud.example.org' },
 	// the like/boost store actions answer with the updated status, and with
@@ -132,12 +135,14 @@ function mountPost({
 		accountStore.setCurrentAccount(`${currentAccount.acct}@cloud.example.org`)
 	}
 	const store = useTimelineStore()
+	store.type = type
+	store.params = params
 	// one mock behind every action the post can take, so "nothing happened"
 	// stays a single assertion
 	POST_ACTIONS.forEach((action) => vi.spyOn(store, action).mockImplementation(dispatch))
 	const $router = { push: vi.fn() }
 	const wrapper = mount(TimelinePost, {
-		props: { item, type: 'home' },
+		props: { item, type },
 		global: {
 			plugins: [pinia],
 			mocks: { $route: route, $router },
@@ -211,6 +216,28 @@ describe('TimelinePost', () => {
 
 			expect(axios.post).toHaveBeenCalledOnce()
 			expect(axios.post).toHaveBeenCalledWith('/index.php/apps/social/api/v1/statuses/101/calendar/import')
+		})
+
+		it('explains missing writable calendars and offers the calendar file', async () => {
+			axios.post.mockRejectedValue({
+				response: { status: 409, data: { error: 'No writable calendar is available' } },
+			})
+			const { wrapper } = mountPost({
+				item: makeItem({
+					event: {
+						name: 'Community meetup',
+						start_time: '2026-11-01T18:00:00Z',
+						location: 'Town hall',
+					},
+				}),
+			})
+
+			await wrapper.find('button.post-event__calendar').trigger('click')
+			await flushPromises()
+
+			expect(showError).toHaveBeenCalledWith('No writable calendar is available. Download the calendar file and add it manually.')
+			expect(wrapper.find('a.post-event__calendar--download').attributes('href'))
+				.toBe('/index.php/apps/social/api/v1/statuses/101/calendar')
 		})
 	})
 
@@ -985,6 +1012,17 @@ describe('TimelinePost', () => {
 	})
 
 	describe('action bar', () => {
+		it('enables recommendation feedback in personalized media scopes', () => {
+			const { wrapper } = mountPost({
+				type: 'photos',
+				params: { scope: 'interests' },
+				item: makeItem({ nid: '123' }),
+				serverData: { public: false, cloudAddress: 'https://cloud.example.org', interests: { recommendationsEnabled: true } },
+			})
+
+			expect(wrapper.vm.canUseRecommendationFeedback).toBe(true)
+		})
+
 		it('is shown on a regular timeline for a logged-in user', () => {
 			const { wrapper } = mountPost()
 			expect(wrapper.find('.post-actions').exists()).toBe(true)
@@ -1738,6 +1776,7 @@ describe('TimelinePost', () => {
 
 			await menuItem(wrapper, 'Edit').trigger('click')
 			await wrapper.find('input.post-edit-warning').setValue('  ')
+			await wrapper.find('.post-edit-sensitive input').setValue(false)
 			await wrapper.find('textarea').setValue('Now harmless')
 			await wrapper.find('.post-edit-actions button[aria-label="Save"]').trigger('click')
 			await flushPromises()
@@ -1746,8 +1785,27 @@ describe('TimelinePost', () => {
 				spoiler_text: '',
 				// the post was flagged sensitive; dropping the warning does
 				// not silently unflag the media
-				sensitive: true,
+				sensitive: false,
 			}))
+		})
+
+		it('edits an event title, time and location with the ActivityPub update', async () => {
+			const item = makeItem({
+				nid: '123',
+				event: { name: 'Old meetup', start_time: '2026-10-25T10:00:00Z', end_time: null, location: 'Old hall' },
+			})
+			const { wrapper, store } = mountPost({ item })
+			await menuItem(wrapper, 'Edit').trigger('click')
+			await wrapper.find('.post-edit-event input').setValue('New meetup')
+			await wrapper.findAll('.post-edit-event input')[1].setValue('2026-10-26T11:30')
+			await wrapper.findAll('.post-edit-event input')[3].setValue('New hall')
+			await wrapper.find('textarea').setValue('New event post')
+			await wrapper.find('.post-edit-actions button[aria-label="Save"]').trigger('click')
+			await flushPromises()
+
+			const edit = store.postEdit.mock.calls[0][0]
+			expect(edit.event).toMatchObject({ name: 'New meetup', location: 'New hall' })
+			expect(edit.event.start_time).toBe(wrapper.vm.fromLocalDateTime('2026-10-26T11:30'))
 		})
 
 		it('never seeds the editor from the author bio, and refuses an over-long edit', async () => {
@@ -1985,6 +2043,7 @@ describe('TimelinePost', () => {
 			language: 'de',
 		})
 		const { wrapper, store } = mountPost({ item })
+		store.postDelete.mockResolvedValue(true)
 		const redrafted = vi.fn()
 		eventBus.on('composer-redraft', redrafted)
 
@@ -1996,6 +2055,21 @@ describe('TimelinePost', () => {
 
 		expect(store.postDelete).toHaveBeenCalled()
 		expect(redrafted).toHaveBeenCalledWith(item)
+		eventBus.off('composer-redraft', redrafted)
+	})
+
+	it('does not re-draft a post when deletion fails', async () => {
+		const { wrapper, store } = mountPost()
+		store.postDelete.mockResolvedValue(false)
+		const redrafted = vi.fn()
+		eventBus.on('composer-redraft', redrafted)
+
+		await wrapper.findAll('.post-menu__item')
+			.find((button) => button.text() === 'Delete & re-draft').trigger('click')
+		await wrapper.find('.nc-dialog__button--1').trigger('click')
+		await flushPromises()
+
+		expect(redrafted).not.toHaveBeenCalled()
 		eventBus.off('composer-redraft', redrafted)
 	})
 

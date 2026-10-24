@@ -27,6 +27,7 @@ use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Object\Question;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\MediaAttachment;
+use OCA\Social\Model\Details;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Model\Post;
 use OCA\Social\Service\AccountService;
@@ -1147,6 +1148,52 @@ class PostServiceTest extends TestCase {
 		$this->assertSame(self::ACTOR_ID, $paths[0]->getUri());
 		$this->assertSame(InstancePath::TYPE_FOLLOWERS, $paths[0]->getType());
 		$this->assertSame(InstancePath::PRIORITY_LOW, $paths[0]->getPriority());
+	}
+
+	public function testAnEditCanRemoveItsContentWarningAndExplicitlyClearSensitive(): void {
+		$stored = $this->storedNote();
+		$stored->setSensitive(true);
+		$reloaded = clone $stored;
+		$reloaded->setSpoilerText('');
+		$reloaded->setSensitive(false);
+		$this->streamRequest->method('getStreamByNid')->with(7)
+			->willReturnOnConsecutiveCalls($stored, $reloaded);
+		$this->activityService->method('updateActivity')->willReturn('token');
+
+		$this->service->editPost(7, $this->actor(), 'new', '', false);
+
+		$this->assertSame('', $stored->getSpoilerText());
+		$this->assertFalse($stored->isSensitive());
+	}
+
+	public function testAnEditWithoutSensitiveFieldPreservesSensitiveStatus(): void {
+		$stored = $this->storedNote();
+		$stored->setSensitive(true);
+		$reloaded = clone $stored;
+		$this->streamRequest->method('getStreamByNid')->with(7)
+			->willReturnOnConsecutiveCalls($stored, $reloaded);
+		$this->activityService->method('updateActivity')->willReturn('token');
+
+		$this->service->editPost(7, $this->actor(), 'new', '', null);
+
+		$this->assertSame('', $stored->getSpoilerText());
+		$this->assertTrue($stored->isSensitive());
+	}
+
+	public function testAnEditUpdatesActivityPubEventDetails(): void {
+		$stored = $this->storedNote();
+		$stored->setSubType('Event');
+		$stored->setDetailArray(Details::EVENT, ['name' => 'Before', 'start_time' => '2026-10-25T10:00:00Z', 'end_time' => null, 'location' => 'Old hall']);
+		$reloaded = clone $stored;
+		$this->streamRequest->method('getStreamByNid')->with(7)
+			->willReturnOnConsecutiveCalls($stored, $reloaded);
+		$this->activityService->method('updateActivity')->willReturn('token');
+		$event = ['name' => 'After', 'start_time' => '2026-10-26T11:00:00Z', 'end_time' => null, 'location' => 'New hall'];
+
+		$this->service->editPost(7, $this->actor(), 'new', null, null, null, [], $event, true);
+
+		$this->assertSame('Event', $stored->getSubType());
+		$this->assertSame($event, $stored->getDetails(Details::EVENT));
 	}
 
 	/**

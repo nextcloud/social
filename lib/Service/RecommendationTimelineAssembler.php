@@ -127,7 +127,12 @@ class RecommendationTimelineAssembler {
 		$authorAffinity = $this->behavioralProfile->authorAffinity($author, $behavioral['authors']);
 		$behavioralTopic = $this->behavioralProfile->topicAffinity($allTopicIds, $behavioral['topics']);
 		$automaticInterest = $automaticSignals[$nid] ?? 0.0;
-		if ($selected === [] && $automaticInterest <= 0.0 && $behavioralTopic <= 0.0 && $authorAffinity <= 0.0 && !$isFollowed && $allTopicIds === []) {
+		// Media-only posts have no caption to classify. Keep them in the
+		// bounded discovery pool for cold-start readers; the upstream candidate
+		// sources and all visibility, moderation, language and hide checks still
+		// apply before a candidate reaches this assembler.
+		$mediaOnly = in_array($format, ['image', 'video', 'short'], true);
+		if ($selected === [] && $automaticInterest <= 0.0 && $behavioralTopic <= 0.0 && $authorAffinity <= 0.0 && !$isFollowed && $allTopicIds === [] && !$mediaOnly) {
 			return null;
 		}
 		$authorFeedback = $author === '' ? null : ($feedback['authors'][hash('sha256', $author)] ?? null);

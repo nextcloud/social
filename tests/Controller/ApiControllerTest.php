@@ -2100,7 +2100,7 @@ class ApiControllerTest extends TestCase {
 		]);
 		$item = $this->createMock(Stream::class);
 		$this->postService->expects($this->once())->method('editPost')
-			->with(5, $this->isInstanceOf(Person::class), "edited\ntext", 'cw', true)
+			->with(5, $this->isInstanceOf(Person::class), "edited\ntext", 'cw', true, null, [], null, false)
 			->willReturn($item);
 		$item->expects($this->once())->method('setExportFormat')->with(ACore::FORMAT_LOCAL);
 
@@ -2108,6 +2108,36 @@ class ApiControllerTest extends TestCase {
 
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
 		$this->assertSame($item, $response->getData());
+	}
+
+	public function testStatusUpdateCanClearSpoilerAndSensitivityWhenTheClientSendsEmptyValues(): void {
+		$this->loggedInAs();
+		$this->request->method('getParams')->willReturn([
+			'status' => 'edited',
+			'spoiler_text' => '',
+			'sensitive' => false,
+		]);
+		$this->postService->expects($this->once())->method('editPost')
+			->with(5, $this->anything(), 'edited', '', false, null, [], null, false)
+			->willReturn($this->createStub(Stream::class));
+
+		$this->assertSame(Http::STATUS_OK, $this->controller()->statusUpdate(5)->getStatus());
+	}
+
+	public function testStatusUpdatePassesEventFieldsForActivityPubUpdate(): void {
+		$this->loggedInAs();
+		$event = [
+			'name' => 'Changed gathering',
+			'start_time' => '2026-10-25T10:00:00Z',
+			'end_time' => '2026-10-25T12:00:00Z',
+			'location' => 'Community hall',
+		];
+		$this->request->method('getParams')->willReturn(['status' => 'updated', 'event' => $event]);
+		$this->postService->expects($this->once())->method('editPost')
+			->with(5, $this->anything(), 'updated', null, null, null, [], $event, true)
+			->willReturn($this->createStub(Stream::class));
+
+		$this->assertSame(Http::STATUS_OK, $this->controller()->statusUpdate(5)->getStatus());
 	}
 
 	/**
@@ -2125,10 +2155,10 @@ class ApiControllerTest extends TestCase {
 			],
 		]);
 		$this->postService->expects($this->once())->method('editPost')
-			->with(5, $this->anything(), 'same words', null, false, null, [
+			->with(5, $this->anything(), 'same words', null, null, null, [
 				['id' => '11', 'description' => 'New words', 'focus' => '0.5,-0.2'],
 				['id' => '12', 'description' => 'Second'],
-			])
+			], null, false)
 			->willReturn($this->createStub(Stream::class));
 
 		$this->assertSame(Http::STATUS_OK, $this->controller()->statusUpdate(5)->getStatus());
@@ -2139,7 +2169,7 @@ class ApiControllerTest extends TestCase {
 		$attributes = [['id' => '11', 'description' => 'New words'], ['id' => '12', 'focus' => '0,0']];
 		$this->request->method('getParams')->willReturn(['status' => 'x', 'media_attributes' => $attributes]);
 		$this->postService->expects($this->once())->method('editPost')
-			->with(5, $this->anything(), 'x', null, false, null, $attributes)
+			->with(5, $this->anything(), 'x', null, null, null, $attributes, null, false)
 			->willReturn($this->createStub(Stream::class));
 
 		$this->controller()->statusUpdate(5);
@@ -2149,7 +2179,7 @@ class ApiControllerTest extends TestCase {
 		$this->loggedInAs();
 		$this->request->method('getParams')->willReturn(['status' => 'x']);
 		$this->postService->expects($this->once())->method('editPost')
-			->with(5, $this->anything(), 'x', null, false)
+			->with(5, $this->anything(), 'x', null, null, null, [], null, false)
 			->willReturn($this->createStub(Stream::class));
 
 		$this->controller()->statusUpdate(5);
