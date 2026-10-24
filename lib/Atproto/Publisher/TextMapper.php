@@ -14,10 +14,11 @@ use DOMElement;
 use DOMNode;
 use DOMText;
 use OCA\Social\Atproto\Lexicon\Lexicon;
+use OCA\Social\Exceptions\AtprotoException;
 
 /**
  * A post's HTML as Bluesky text: plain text with facets on UTF-8 byte
- * offsets, cut to what a Bluesky post may hold.
+ * offsets, fitted to one record or split into thread-sized parts.
  *
  * Paragraphs become blank lines and `<br>` a newline; a hashtag and a
  * mention keep their text, a link its href (or `text (href)` when the text
@@ -35,6 +36,8 @@ class TextMapper {
 	public const MAX_BYTES = 3000;
 	/** where a long post is cut, leaving room for the ellipsis and the link */
 	public const CUT_AT = 280;
+	/** keep long instance URLs readable without letting them crowd out the post */
+	private const MAX_DISPLAY_URL_GRAPHEMES = 120;
 
 	private const BREAK = "\n";
 	private const PARAGRAPH = "\n\n";
@@ -51,34 +54,151 @@ class TextMapper {
 	}
 
 	/**
-	 * Cuts text that does not fit and appends a line with the link to the
-	 * whole post. The cut falls on the last word boundary before CUT_AT
-	 * graphemes; a facet past the cut is dropped, and one `#link` facet
-	 * covers the appended URL.
+	 * Fits text in one record with a link to the whole post. When it overflows,
+	 * also returns the full text as word-bounded parts for a Bluesky thread; the
+	 * single-record result remains a compact excerpt for callers that need it.
 	 *
 	 * @param array<int, array{index: array{byteStart: int, byteEnd: int}, features: array}> $facets
 	 * @param string[] $extraLines lines added before the link whether or not the text was cut ("+2 more pictures")
 	 * @param bool $alwaysLink append the link even to text that fits (a poll's votes are here)
-	 * @return array{text: string, facets: array, truncated: bool}
+	 * @return array{text: string, facets: array, truncated: bool, threadParts?: array<int, array{text: string, facets: array}>}
 	 */
 	public function fit(string $text, array $facets, string $url, array $extraLines = [], bool $alwaysLink = false): array {
 		$extra = $extraLines === [] ? '' : self::PARAGRAPH . implode(self::BREAK, $extraLines);
-		$tail = self::PARAGRAPH . $url;
-		$truncated = Lexicon::graphemes($text . $extra) > self::MAX_GRAPHEMES || strlen($text . $extra) > self::MAX_BYTES;
-		if ($truncated) {
-			$room = max(1, min(self::CUT_AT, self::MAX_GRAPHEMES - Lexicon::graphemes($extra . $tail) - 1));
-			$text = self::cut($text, $room, self::MAX_BYTES - strlen($extra . $tail) - strlen('…')) . '…';
-			$end = strlen($text) - strlen('…');
-			$facets = array_values(array_filter($facets, static fn (array $facet): bool => $facet['index']['byteEnd'] <= $end));
-		}
-		if (!$truncated && $extra === '' && !$alwaysLink) {
+		$sourceOverflows = Lexicon::graphemes($text . $extra) > self::MAX_GRAPHEMES || strlen($text . $extra) > self::MAX_BYTES;
+		if (!$sourceOverflows && $extra === '' && !$alwaysLink) {
 			return ['text' => $text, 'facets' => $facets, 'truncated' => false];
 		}
 
-		$text .= $extra . $tail;
-		$facets[] = self::link(strlen($text) - strlen($url), strlen($text), $url);
+		$displayUrl = $url;
+		$tail = self::PARAGRAPH . $displayUrl;
+		$needsRoom = $sourceOverflows
+			|| Lexicon::graphemes($text . $extra . $tail) > self::MAX_GRAPHEMES
+			|| strlen($text . $extra . $tail) > self::MAX_BYTES;
+		$urlWasShortened = false;
+		if ($needsRoom && Lexicon::graphemes($displayUrl) > self::MAX_DISPLAY_URL_GRAPHEMES) {
+			$maxUrlGraphemes = max(0, min(
+				self::MAX_DISPLAY_URL_GRAPHEMES,
+				self::MAX_GRAPHEMES - Lexicon::graphemes($extra . self::PARAGRAPH) - 2
+			));
+			$maxUrlBytes = max(0, self::MAX_BYTES - strlen($extra . self::PARAGRAPH) - strlen('…') - 1);
+			$displayUrl = self::cut($url, max(0, $maxUrlGraphemes - 1), max(0, $maxUrlBytes - strlen('…'))) . '…';
+			$tail = self::PARAGRAPH . $displayUrl;
+			$urlWasShortened = true;
+		}
 
-		return ['text' => $text, 'facets' => $facets, 'truncated' => $truncated];
+		$needsRoom = $needsRoom
+			|| Lexicon::graphemes($text . $extra . $tail) > self::MAX_GRAPHEMES
+			|| strlen($text . $extra . $tail) > self::MAX_BYTES;
+		$threadParts = [];
+		if ($needsRoom) {
+			$threadText = $text . $extra . $tail;
+			$threadFacets = $facets;
+			$extraOffset = strlen($text) + strlen(self::PARAGRAPH);
+			foreach ($extraLines as $line) {
+				if (preg_match_all('#https?://[^\s<>"\')\]]+#u', $line, $matches, PREG_OFFSET_CAPTURE) > 0) {
+					foreach ($matches[0] as [$url, $offset]) {
+						$url = rtrim($url, '.,;:!?');
+						$threadFacets[] = self::link($extraOffset + $offset, $extraOffset + $offset + strlen($url), $url);
+					}
+				}
+				$extraOffset += strlen($line) + strlen(self::BREAK);
+			}
+			$threadFacets[] = self::link(strlen($threadText) - strlen($displayUrl), strlen($threadText), $displayUrl, $url);
+			$threadParts = self::split($threadText, $threadFacets);
+		}
+		if ($needsRoom) {
+			$room = max(0, min(self::CUT_AT, self::MAX_GRAPHEMES - Lexicon::graphemes($extra . $tail) - 1));
+			$text = self::cut($text, $room, max(0, self::MAX_BYTES - strlen($extra . $tail) - strlen('…'))) . '…';
+			$end = strlen($text) - strlen('…');
+			$facets = array_values(array_filter($facets, static fn (array $facet): bool => $facet['index']['byteEnd'] <= $end));
+		}
+
+		$text .= $extra . $tail;
+		$facets[] = self::link(strlen($text) - strlen($displayUrl), strlen($text), $displayUrl, $url);
+
+		return ['text' => $text, 'facets' => $facets, 'truncated' => $sourceOverflows || $urlWasShortened || $needsRoom]
+			+ ($threadParts === [] ? [] : ['threadParts' => $threadParts]);
+	}
+
+	/**
+	 * Split complete text into Bluesky-sized records without losing Unicode
+	 * graphemes. Facets are rebased for each part; a link spanning a part
+	 * boundary remains clickable there and still points to its full URI.
+	 *
+	 * @param array<int, array{index: array{byteStart: int, byteEnd: int}, features: array}> $facets
+	 * @return array<int, array{text: string, facets: array}>
+	 */
+	private static function split(string $text, array $facets): array {
+		preg_match_all('/\\X/u', $text, $matches, PREG_OFFSET_CAPTURE);
+		/** @var list<array{0: string, 1: int}> $clusters */
+		$clusters = $matches[0];
+		$parts = [];
+		$start = 0;
+		$count = count($clusters);
+		while ($start >= 0 && $start < $count) {
+			$end = $start;
+			$bytes = 0;
+			while ($end < $count && $end - $start < self::MAX_GRAPHEMES) {
+				$size = strlen($clusters[$end][0]);
+				if ($bytes + $size > self::MAX_BYTES) {
+					break;
+				}
+				$bytes += $size;
+				$end++;
+			}
+			if ($end === $start) {
+				throw new AtprotoException('A Bluesky text grapheme exceeds the record byte limit', 400);
+			}
+
+			if ($end < $count) {
+				$floor = max(1, $start + 1, $end - 40);
+				$lastBreak = null;
+				for ($candidate = $floor; $candidate < $end; $candidate++) {
+					if (preg_match('/^\\s+$/u', $clusters[$candidate][0]) === 1) {
+						$lastBreak = $candidate;
+					}
+				}
+				if ($lastBreak !== null) {
+					$end = $lastBreak;
+				}
+			}
+			if ($end === $start) {
+				$end++;
+			}
+
+			$byteStart = $clusters[$start][1];
+			$byteEnd = $end >= 0 && $end < $count ? $clusters[$end][1] : strlen($text);
+			$partText = trim(substr($text, $byteStart, $byteEnd - $byteStart));
+			$trimmedStart = strlen(substr($text, $byteStart, $byteEnd - $byteStart)) - strlen(ltrim(substr($text, $byteStart, $byteEnd - $byteStart)));
+			$actualStart = $byteStart + $trimmedStart;
+			$actualEnd = $actualStart + strlen($partText);
+			$partFacets = [];
+			foreach ($facets as $facet) {
+				$overlapStart = max($actualStart, $facet['index']['byteStart']);
+				$overlapEnd = min($actualEnd, $facet['index']['byteEnd']);
+				if ($overlapStart >= $overlapEnd) {
+					continue;
+				}
+				$isFull = $overlapStart === $facet['index']['byteStart'] && $overlapEnd === $facet['index']['byteEnd'];
+				$isLink = ($facet['features'][0]['$type'] ?? '') === 'app.bsky.richtext.facet#link';
+				if (!$isFull && !$isLink) {
+					continue;
+				}
+				$partFacets[] = [
+					'index' => ['byteStart' => $overlapStart - $actualStart, 'byteEnd' => $overlapEnd - $actualStart],
+					'features' => $facet['features'],
+				];
+			}
+			usort($partFacets, static fn (array $a, array $b): int => $a['index']['byteStart'] <=> $b['index']['byteStart']);
+			$parts[] = ['text' => $partText, 'facets' => $partFacets];
+			$start = $end;
+			while ($start >= 0 && $start < $count && preg_match('/^\\s+$/u', $clusters[$start][0]) === 1) {
+				$start++;
+			}
+		}
+
+		return $parts;
 	}
 
 	/**
@@ -301,8 +421,8 @@ class TextMapper {
 		return rtrim($cut, " \n.,;:");
 	}
 
-	private static function link(int $start, int $end, string $url): array {
-		return ['index' => ['byteStart' => $start, 'byteEnd' => $end], 'features' => [['$type' => 'app.bsky.richtext.facet#link', 'uri' => $url]]];
+	private static function link(int $start, int $end, string $text, ?string $uri = null): array {
+		return ['index' => ['byteStart' => $start, 'byteEnd' => $end], 'features' => [['$type' => 'app.bsky.richtext.facet#link', 'uri' => $uri ?? $text]]];
 	}
 
 	private static function tag(int $start, int $end, string $tag): array {

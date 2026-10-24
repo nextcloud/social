@@ -84,8 +84,8 @@ Taken by the product owner; the date is the interview. **Do not re-ask.**
 | D6 | The firehose is served by a daemon, **`occ social:atproto:serve`**, run under systemd. | 09-25 |
 | D7 | `/xrpc/` reaches the app through the existing root web-server rules (`contrib/webserver/*-social-root.conf`), like `/api/` and `/oauth/`. | 09-25 |
 | D8 | **Every public post goes to Bluesky automatically.** Unlisted, followers-only and direct posts never do. No per-post switch. | 10-06 |
-| D9 | A post that does not fit Bluesky is **truncated with a link** to the full post; up to **ten pictures** (the first four use `app.bsky.embed.images`, five to ten use `app.bsky.embed.gallery`); a poll becomes **the question plus a link**; a content warning becomes **a self-label plus a text prefix**. No threads. | 09-25, fixed 10-06; galleries 10-21 |
-| D10 | **Edits**: within a grace period of five minutes the Bluesky record is deleted and recreated; after that the Bluesky copy keeps its text and its likes, and its link leads to the current version here. | 10-06 |
+| D9 | A post that does not fit Bluesky is **published as a thread** of linked replies, preserving the full text; the original post remains the root. Up to **ten pictures** (the first four use `app.bsky.embed.images`, five to ten use `app.bsky.embed.gallery`); a poll becomes **the question plus a link**; a content warning becomes **a self-label plus a text prefix**. | 09-25, revised 10-23; galleries 10-21 |
+| D10 | **Edits**: update the existing Bluesky record at the same URI, regardless of post age, preserving likes and replies. | 10-23 |
 | D11 | **Pictures and video** are published as native Bluesky embeds. Video is processed by Bluesky's video service; arbitrary file blobs are not a supported `app.bsky.feed.post` embed. | 10-06; video and galleries implemented 10-21 |
 | D12 | **Inbound** reads by **polling** the public AppView per followed author, with a cap and backoff; notifications stay on a one-minute cadence so an empty inbox cannot delay the next interaction for hours. **Jetstream** is an optional daemon an administrator may run for instant feed delivery on a large instance. | 09-25 polling, 10-06 the optional daemon; 10-21 notification cadence |
 | D13 | Bluesky posts appear **in the same timelines**, their authors addressed as bare `@alice.bsky.social` with a **badge**. | 09-25, confirmed 10-06 |
@@ -485,7 +485,7 @@ Collection → written when:
 
 | Collection | Written | Content |
 |---|---|---|
-| `app.bsky.actor.profile` (rkey `self`) | account created, profile edited, a picture or a pin changed | `displayName` (the name the account federates, as far as its Nextcloud privacy setting allows; its username without one), `description` (plain text, bio), `pronouns` (the profile row named for them, at most 20 graphemes) and `website` (the row named for one, else the first row that is an address), `avatar` and `banner` blobs (each at most 1,000,000 bytes, JPEG or PNG, re-encoded otherwise), `pinnedPost` (the newest pin that is on Bluesky), `createdAt`; written again when the pinned post's record is replaced by an edit or deleted |
+| `app.bsky.actor.profile` (rkey `self`) | account created, profile edited, a picture or a pin changed | `displayName` (the name the account federates, as far as its Nextcloud privacy setting allows; its username without one), `description` (plain text, bio), `pronouns` (the profile row named for them, at most 20 graphemes) and `website` (the row named for one, else the first row that is an address), `avatar` and `banner` blobs (each at most 1,000,000 bytes, JPEG or PNG, re-encoded otherwise), `pinnedPost` (the newest pin that is on Bluesky), `createdAt`; rewritten when the pinned post's CID changes on edit or the post is deleted |
 | `app.bsky.feed.post` | public post created (D8) | §8 |
 | `app.bsky.feed.like` | a local actor likes a post that **exists on Bluesky** (a Bluesky post, or a local post that was published, §8.6) | `subject` {uri, cid} |
 | `app.bsky.feed.repost` | a local actor boosts such a post | `subject` {uri, cid} |
@@ -763,13 +763,15 @@ person.
 What a missed event or a failed write left behind is caught by the reconcile
 pass (`Publisher::reconcile()`, every five minutes from
 `Cron\AtprotoMaintenance`): it checks the last day's public posts for a
-missing record or an edit within the grace period, and the post records
-written here in that day for a post that is gone. Each run looks at the
-newest 100 of each and at the next 100 of the rest of the day, from where the
-last run stopped (`walkWindow()`, the position kept in
-`social_durable_cache`), so a busy day is looked at whole over a few runs and
-a post missed a moment ago is never waiting behind it. The records a moving
-repository brought (no local object) are not checked.
+missing record, and walks every locally linked Bluesky post record to repair
+edits and remove records whose Social post is gone, including old posts. Each
+run looks at the newest 100 and the next 100 below its saved position
+(`walkPages()`, in `social_durable_cache`); it cycles through the full record
+inventory over time while checking recent public posts each pass. Imported
+posts and records a moving repository brought (no local object) are left as
+they were. An edit that makes a post private, unlisted, archived or otherwise
+ineligible removes its public Bluesky record and its gates; making it public
+again publishes a new record.
 
 ### 8.2 Text
 
@@ -783,13 +785,18 @@ of a Bluesky account (resolved to its DID) or of a local account (its own
 DID). A mention of an ActivityPub account that has no Bluesky identity
 becomes a `#link` facet to its profile URL.
 
-The limit is **300 graphemes** and 3,000 bytes. A post over it is cut at
-the last word boundary before 280 graphemes, `…` appended, and the link to
-the post here (`$post->getUrl()`) added on its own line with a `#link`
-facet — always, so the truncated post is never the whole of what somebody
-sees. The counter in the composer is unchanged (Social's own limit), but a
-hint under it says "Bluesky shows the first 280 characters and a link"
-when crossed. Only a public post is published (`Publisher::goesToBluesky()`),
+The limit is **300 graphemes** and 3,000 bytes. Longer text is split at word
+boundaries into linked `app.bsky.feed.post` records. The first record stays at
+the original URI and remains the thread root; each continuation replies to the
+previous part and points to that root. Facets are rebased to each part, and a
+link crossing a boundary remains linked to its full URI. Edits update these
+records in place, keep their URIs where parts remain, and delete obsolete
+continuations. The counter in the composer is unchanged (Social's own limit),
+but the composer explains when a long public post will become a Bluesky thread.
+Threads exceeding the repository's 200-record commit limit are written in
+ordered bounded commits; a retry or reconciliation completes any partial
+publication, and deletion removes continuation records before the root.
+Only a public post is published (`Publisher::goesToBluesky()`),
 so where the server has Bluesky on and the writing account has an active
 identity, the composer's audience menu says "Not on Bluesky" under Unlisted,
 Followers and Direct message (`VisibilitiesInfos.js` marks which audiences
@@ -878,13 +885,12 @@ actors made of it, in the same job that sends the ActivityPub `Delete`.
 Every removal is tried; when one fails for a reason that may pass, the job
 is tried again later, as in §8.6, and removes what is still there.
 
-**Edit** (D10): if the post is less than five minutes old (`created_at`),
-the record is deleted and a new one created with the new content — a new
-rkey, so the AT URI changes; replies that already referenced the old URI
-on Bluesky dangle, which is why the grace period is short. Later than five
-minutes the Bluesky record is left as it is; the link in it keeps pointing
-at the post here, which shows the current text. The post menu's *Delivery
-status* dialog says which of the two happened.
+**Edit** (D10): the record is updated under its existing rkey, so its AT
+URI remains stable and likes, reposts and replies continue to refer to it.
+The update is queued for delivery for posts of any age; the reconciliation
+pass also walks old records and repairs missed updates. If an edit makes the
+post private, unlisted, archived or otherwise ineligible, its public Bluesky
+record and gates are removed instead.
 
 ### 8.6 Likes, boosts, follows
 
@@ -2563,8 +2569,7 @@ thread root), `RecordMapper` (reply, quote and card embeds, the postgate),
   **without a thumbnail**: the preview's picture is a remote URL, and a
   blob here is a stored document; storing card pictures idempotently
   across reconcile passes is left for later. A card that appears after the
-  post was published is picked up by the reconcile pass within the edit
-  grace period, as an edit would be.
+  post was published is picked up by the reconcile pass as an edit would be.
 - **Quote rules**: a post whose quote policy is followers-only or nobody
   gets an `app.bsky.feed.postgate` under its rkey with `disableRule`.
   Bluesky cannot say "followers only", so the stricter rule is published
@@ -2996,9 +3001,8 @@ direction `inbound` in `social_atproto_move`:
   posts too, the pictures or the video from the blobs held here.
 - **Each is tied to the record it came from**, so a like, a repost or a reply
   on Bluesky reaches it here, and nothing is published again: the publisher
-  leaves an imported post alone — neither rewrites its record when it is
-  younger than the edit grace, nor publishes an archive import dated in the
-  last day as new, which it did before.
+  leaves an imported post alone and does not publish an archive import dated
+  in the last day as new, which it did before.
 - **The account has moved by then**: a post that cannot be imported is
   logged, and the move is done regardless. Running it again picks up only
   what is left.

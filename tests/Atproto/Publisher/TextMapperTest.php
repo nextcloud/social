@@ -114,6 +114,36 @@ class TextMapperTest extends TestCase {
 		$this->assertSame($url, $last['features'][0]['uri']);
 	}
 
+	public function testAFullLongPostKeepsItsSocialLinkAfterTheLastThreadPart(): void {
+		$words = array_map(static fn (int $word): string => 'word' . $word, range(1, 100));
+		$url = 'https://s.example/@alice/123';
+		$fit = $this->mapper->fit(implode(' ', $words), [], $url);
+
+		$this->assertArrayHasKey('threadParts', $fit);
+		$parts = $fit['threadParts'];
+		$this->assertGreaterThan(1, count($parts));
+		$this->assertStringNotContainsString($url, $parts[0]['text'], 'the feed preview is not ended with a Social link');
+		$threadText = implode(' ', array_column($parts, 'text'));
+		foreach ($words as $word) {
+			$this->assertStringContainsString($word, $threadText);
+		}
+		$this->assertStringContainsString($url, $parts[array_key_last($parts)]['text'], 'the Social link comes after all thread parts');
+	}
+
+	public function testLongSocialPageUrlIsDisplayedShortButLinksToTheFullPost(): void {
+		$url = 'https://social.example/' . str_repeat('nested-path/', 35) . 'post/123';
+		$fit = $this->mapper->fit(str_repeat('The full post stays readable. ', 20), [], $url);
+
+		$this->assertTrue($fit['truncated']);
+		$this->assertLessThanOrEqual(TextMapper::MAX_GRAPHEMES, Lexicon::graphemes($fit['text']));
+		$this->assertLessThanOrEqual(TextMapper::MAX_BYTES, strlen($fit['text']));
+		$link = end($fit['facets']);
+		$this->assertSame($url, $link['features'][0]['uri']);
+		$displayUrl = substr($fit['text'], $link['index']['byteStart'], $link['index']['byteEnd'] - $link['index']['byteStart']);
+		$this->assertNotSame($url, $displayUrl);
+		$this->assertStringEndsWith('…', $displayUrl);
+	}
+
 	public function testTheCutCountsGraphemesNotBytes(): void {
 		$text = str_repeat('👨‍👩‍👧‍👧 ', 150);
 		$fit = $this->mapper->fit($text, [], 'https://s.example/p');

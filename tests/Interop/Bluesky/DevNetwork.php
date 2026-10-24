@@ -409,6 +409,19 @@ final class DevNetwork {
 		return is_array($answer['posts'][0] ?? null) ? $answer['posts'][0] : null;
 	}
 
+	/** The AppView's indexed thread, including replies to long-post continuations. */
+	public function postThread(string $uri): ?array {
+		$answer = $this->get($this->appView, 'app.bsky.feed.getPostThread', [
+			'uri' => $uri,
+			// App Views cap this query at ten reply levels. The fixture's
+			// long post uses only a few continuation records.
+			'depth' => '10',
+			'parentHeight' => '0',
+		]);
+
+		return is_array($answer['thread'] ?? null) ? $answer['thread'] : null;
+	}
+
 	/**
 	 * The DIDs on a Bluesky list, as the AppView has it.
 	 *
