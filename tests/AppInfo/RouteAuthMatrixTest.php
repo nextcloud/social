@@ -186,7 +186,7 @@ class RouteAuthMatrixTest extends TestCase {
 	 */
 	private const WEB_SESSION_ONLY = [
 		'MediaApiController::mediaFromFile' => 'copies any of the user\'s own files, more than a client allowed to upload media was granted',
-		'StatusApiController::importStatusCalendar' => 'writes a remote event to the user\'s Nextcloud calendar',
+		'CalendarEventController::importStatusCalendar' => 'writes a remote event to the user\'s Nextcloud calendar',
 	];
 
 	/** @var array<string, string> the broad scopes that permit a state-changing client-API route */
@@ -418,12 +418,12 @@ class RouteAuthMatrixTest extends TestCase {
 	 * forwards its argument to `initViewer()` is read at the call site.
 	 */
 	public function testTheScopeWalkFollowsHelpersThatForwardTheScope(): void {
-		$add = new ReflectionMethod('OCA\\Social\\Controller\\InterestsController', 'add');
+		$resetInterests = new ReflectionMethod('OCA\\Social\\Controller\\InterestsController', 'reset');
 		$accept = new ReflectionMethod('OCA\\Social\\Controller\\NotificationController', 'requestAccept');
 		$settings = new ReflectionMethod('OCA\\Social\\Controller\\PixelfedController', 'appSettings');
 
 		$takers = ['initViewer' => 0, 'optionalViewer' => 0];
-		$this->assertSame([['write:accounts']], self::scopeSets($add, $takers));
+		$this->assertSame([['write:accounts']], self::scopeSets($resetInterests, $takers));
 		$this->assertSame([['write:notifications']], self::scopeSets($accept, $takers));
 		$this->assertSame([['write:accounts'], ['read']], self::scopeSets($settings, $takers));
 	}

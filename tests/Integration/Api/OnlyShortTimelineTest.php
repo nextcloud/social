@@ -211,8 +211,14 @@ class OnlyShortTimelineTest extends ApiTestCase {
 	 */
 	public function testForYouWithOnlyShortRanksOnlyTheShorts(): void {
 		Server::get(ConfigService::class)->setAppValue(ConfigService::SOCIAL_INTERESTS, '1');
-		Server::get(InterestService::class)->add($this->account('alice'), self::TAG);
 		$shorts = $this->seed();
+		// Interests are learned from real actions now; seed the profile through
+		// the same favourite path used by the application instead of calling the
+		// removed manual add() API.
+		$alice = $this->account('alice');
+		Server::get(InterestService::class)->saveSettings($alice, ['learning' => true]);
+		$short = Server::get(StreamRequest::class)->getStreamById($shorts[0], true, ACore::FORMAT_LOCAL);
+		Server::get(InterestService::class)->recordAction($alice, $short, InterestService::ACTION_FAVOURITE);
 		$page = fn (array $query): ApiResponse => $this->call(InterestsController::class, 'timeline', [], $query);
 
 		$this->assertSame(

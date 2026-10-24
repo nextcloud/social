@@ -681,7 +681,7 @@ class FilterServiceTest extends TestCase {
 
 	public function testANotificationAboutALabelledPostIsDroppedForAReaderWhoHidesAi(): void {
 		$this->hidesAi['alice'] = true;
-		$labelled = (new Note())->setHashtags(['aiart']);
+		$labelled = (new Note())->setHashtags(['aigeneratedart']);
 		$labelled->setNid(1)->setContent('<p>a render</p>');
 		$pictured = new Note();
 		$pictured->setNid(2)->setContent('<p>look</p>');

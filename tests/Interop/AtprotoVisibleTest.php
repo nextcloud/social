@@ -159,6 +159,8 @@ class AtprotoVisibleTest extends TestCase {
 		});
 		$this->assertNotNull($root, 'the long post root reached the AppView');
 		$uri = (string)$root['uri'];
+		$socialUrl = (string)($status['url'] ?? '');
+		$this->assertNotSame('', $socialUrl, 'the Social post has a canonical page URL');
 		$initialWords = preg_split('/\s+/u', $initial) ?: [];
 		$initialThread = $this->network->await(function () use ($uri, $initialWords): ?array {
 			$thread = $this->network->postThread($uri);
@@ -173,8 +175,8 @@ class AtprotoVisibleTest extends TestCase {
 		});
 		$this->assertNotNull($initialThread, 'every word is visible across the indexed continuation thread');
 		$this->assertGreaterThan(1, count($initialThread), 'the AppView has indexed continuation records');
-		$this->assertStringNotContainsString((string)$status['id'], $initialThread[0]['text'], 'the root preview does not append the Social link before the full text');
-		$this->assertStringContainsString((string)$status['id'], $initialThread[array_key_last($initialThread)]['text'], 'the Social link follows the full text at the end of the thread');
+		$this->assertStringNotContainsString($socialUrl, $initialThread[0]['text'], 'the root preview does not append the Social link before the full text');
+		$this->assertStringContainsString($socialUrl, $initialThread[array_key_last($initialThread)]['text'], 'the Social link follows the full text at the end of the thread');
 
 		$short = 'Shortened edit ' . bin2hex(random_bytes(4));
 		$this->alice->editStatus((string)$status['id'], $short);
@@ -205,7 +207,7 @@ class AtprotoVisibleTest extends TestCase {
 		});
 		$this->assertNotNull($expandedThread, 'all newly edited words are visible across the thread');
 		$this->assertGreaterThan(1, count($expandedThread));
-		$this->assertStringContainsString((string)$status['id'], $expandedThread[array_key_last($expandedThread)]['text'], 'the edited thread still ends with the Social link');
+		$this->assertStringContainsString($socialUrl, $expandedThread[array_key_last($expandedThread)]['text'], 'the edited thread still ends with the Social link');
 		$this->assertSame($uri, $this->network->postView($uri)['uri'] ?? null, 'editing keeps the root post URI');
 	}
 

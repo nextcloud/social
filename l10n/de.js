@@ -3322,6 +3322,8 @@ OC.L10N.register(
     "Activity learning setting saved" : "Einstellung zum Lernen aus deiner Aktivität gespeichert",
     "Could not save the activity learning setting" : "Einstellung zum Lernen aus deiner Aktivität konnte nicht gespeichert werden",
     "Learned signals reset" : "Gelernte Signale zurückgesetzt",
-    "Could not reset learned signals" : "Gelernte Signale konnten nicht zurückgesetzt werden"
+    "Could not reset learned signals" : "Gelernte Signale konnten nicht zurückgesetzt werden",
+    "A long post may be split into a thread on Bluesky to fit its post limits." : "Ein langer Beitrag kann auf Bluesky in mehrere Beiträge aufgeteilt werden, um die Längenbegrenzung einzuhalten.",
+    "Only a few posts are available in this feed right now. For you limits repeated stories and may show more as new posts arrive." : "In diesem Feed sind gerade nur wenige Beiträge verfügbar. „Für dich“ begrenzt wiederkehrende Themen und zeigt möglicherweise mehr Beiträge an, wenn neue Beiträge erscheinen."
 },
 "nplurals=2; plural=(n != 1);");
