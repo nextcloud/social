@@ -1180,6 +1180,21 @@ class PostServiceTest extends TestCase {
 		$this->assertTrue($stored->isSensitive());
 	}
 
+	public function testClearingEventDetailsPreservesOtherPostSubtypes(): void {
+		$stored = $this->storedNote();
+		$stored->setSubType('Question');
+		$stored->setDetailArray(Details::EVENT, ['name' => 'Stale event']);
+		$reloaded = clone $stored;
+		$this->streamRequest->method('getStreamByNid')->with(7)
+			->willReturnOnConsecutiveCalls($stored, $reloaded);
+		$this->activityService->method('updateActivity')->willReturn('token');
+
+		$this->service->editPost(7, $this->actor(), 'new', null, null, null, [], null, true);
+
+		$this->assertSame('Question', $stored->getSubType());
+		$this->assertNull($stored->getDetails(Details::EVENT));
+	}
+
 	public function testAnEditUpdatesActivityPubEventDetails(): void {
 		$stored = $this->storedNote();
 		$stored->setSubType('Event');

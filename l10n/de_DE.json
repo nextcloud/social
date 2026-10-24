@@ -3336,6 +3336,11 @@
     "Learned signals reset" : "Gelernte Signale zurückgesetzt",
     "Could not reset learned signals" : "Gelernte Signale konnten nicht zurückgesetzt werden",
     "A long post may be split into a thread on Bluesky to fit its post limits." : "Ein langer Beitrag kann auf Bluesky in mehrere Beiträge aufgeteilt werden, damit er die Längenbegrenzung einhält.",
-    "Only a few posts are available in this feed right now. For you limits repeated stories and may show more as new posts arrive." : "In diesem Feed sind gerade nur wenige Beiträge verfügbar. „Für dich“ begrenzt wiederkehrende Themen und zeigt möglicherweise mehr Beiträge an, wenn neue Beiträge erscheinen."
+    "Only a few posts are available in this feed right now. For you limits repeated stories and may show more as new posts arrive." : "In diesem Feed sind gerade nur wenige Beiträge verfügbar. „Für dich“ begrenzt wiederkehrende Themen und zeigt möglicherweise mehr Beiträge an, wenn neue Beiträge erscheinen.",
+    "Mark media as sensitive" : "Medien als sensibel kennzeichnen",
+    "No writable calendar is available. Download the calendar file and add it manually." : "Es ist kein beschreibbarer Kalender verfügbar. Lade die Kalenderdatei herunter und füge sie manuell hinzu.",
+    "Calendar import is unavailable. Download the calendar file instead." : "Der Kalenderimport ist nicht verfügbar. Lade stattdessen die Kalenderdatei herunter.",
+    "This event could not be found. It may have been removed." : "Dieses Ereignis wurde nicht gefunden. Möglicherweise wurde es entfernt.",
+    "Could not add this event to your Nextcloud Calendar. You can download the calendar file instead." : "Dieses Ereignis konnte nicht zu deinem Nextcloud-Kalender hinzugefügt werden. Du kannst stattdessen die Kalenderdatei herunterladen."
 },"pluralForm" :"nplurals=2; plural=(n != 1);"
 }

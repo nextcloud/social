@@ -405,7 +405,9 @@ class PostService {
 			$details = $stream->getDetailsAll();
 			if ($event === null) {
 				unset($details[Details::EVENT]);
-				$stream->setSubType('Note');
+				if ($stream->getSubType() === 'Event') {
+					$stream->setSubType('');
+				}
 			} else {
 				$details[Details::EVENT] = $event;
 				$stream->setSubType('Event');

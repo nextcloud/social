@@ -168,7 +168,11 @@
 			<div v-if="item.event" class="post-edit-event">
 				<label>
 					{{ t('social', 'Event title') }}
-					<input v-model="editEvent.name" type="text" maxlength="300" required>
+					<input
+						v-model="editEvent.name"
+						type="text"
+						maxlength="300"
+						required>
 				</label>
 				<label>
 					{{ t('social', 'Starts') }}
@@ -212,7 +216,11 @@
 					role="status">
 					{{ editCharactersLeftLabel }}
 				</span>
-				<NcButton variant="primary" :disabled="!editCanSave" :aria-label="t('social', 'Save')" @click="saveEdit">
+				<NcButton
+					variant="primary"
+					:disabled="!editCanSave"
+					:aria-label="t('social', 'Save')"
+					@click="saveEdit">
 					{{ t('social', 'Save') }}
 				</NcButton>
 				<NcButton :aria-label="t('social', 'Cancel')" @click="cancelEdit">
@@ -960,9 +968,8 @@ export default {
 		 * the post until the reader lifts it.
 		 */
 		mediaLeads() {
-			return this.hasAttachments && !this.hasSpoiler
+			return this.hasAttachments && !this.hasSpoiler && !this.isEditing
 		},
-
 
 		/** @return {string} */
 		editCharsLeft() {
@@ -978,7 +985,9 @@ export default {
 		},
 
 		editEventIsValid() {
-			if (!this.item.event) return true
+			if (!this.item.event) {
+				return true
+			}
 			return this.editEvent.name.trim() !== ''
 				&& this.editEvent.start_time !== ''
 				&& (!this.editEvent.end_time || this.editEvent.end_time > this.editEvent.start_time)
@@ -1729,13 +1738,17 @@ export default {
 		},
 
 		async saveEdit() {
-			if (!this.editCanSave) return
-			const event = this.item.event ? {
-				name: this.editEvent.name.trim(),
-				start_time: this.fromLocalDateTime(this.editEvent.start_time),
-				end_time: this.fromLocalDateTime(this.editEvent.end_time),
-				location: this.editEvent.location.trim(),
-			} : undefined
+			if (!this.editCanSave) {
+				return
+			}
+			const event = this.item.event
+				? {
+						name: this.editEvent.name.trim(),
+						start_time: this.fromLocalDateTime(this.editEvent.start_time),
+						end_time: this.fromLocalDateTime(this.editEvent.end_time),
+						location: this.editEvent.location.trim(),
+					}
+				: undefined
 			const response = await this.timelineStore.postEdit({
 				status: this.item,
 				content: this.editContent.trim(),
@@ -1743,7 +1756,9 @@ export default {
 				sensitive: this.editSensitive,
 				...(event === undefined ? {} : { event }),
 			})
-			if (response === undefined) return
+			if (response === undefined) {
+				return
+			}
 			this.isEditing = false
 			this.editContent = ''
 			this.editSpoiler = ''
@@ -1756,18 +1771,20 @@ export default {
 		},
 
 		toLocalDateTime(value) {
-			if (!value) return ''
+			if (!value) {
+				return ''
+			}
 			const date = new Date(value)
 			return Number.isNaN(date.getTime()) ? '' : new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
 		},
 
 		fromLocalDateTime(value) {
-			if (!value) return null
+			if (!value) {
+				return null
+			}
 			const date = new Date(value)
 			return Number.isNaN(date.getTime()) ? null : date.toISOString()
 		},
-
-
 
 		/**
 		 * Opens the confirmation. Deleting federates and cannot be undone, so
@@ -2312,9 +2329,186 @@ export default {
 		}
 	}
 
+	/*
+	 * One row across the foot: the reactions at the near end, the counts and
+	 * their controls at the far one. It wraps, so a post with a dozen
+	 * reactions puts the controls on a line of their own rather than crushing
+	 * them, and `align-items: center` keeps the two halves on one baseline
+	 * whatever height the reactions take.
+	 */
+	.post-footer {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 6px;
+		margin-top: 2px;
+	}
+
+	.post-footer--profile-actions {
+		display: block;
+		padding-top: 8px;
+		border-top: 1px solid var(--color-border);
+	}
+
+	.post-actions-reveal {
+		/* in flow now, at the far end of the footer. `relative` is what the
+		   surface below is drawn against */
+		position: relative;
+		margin-inline-start: auto;
+		display: flex;
+		padding: 1px;
+		border: 1px solid transparent;
+		border-radius: 999px;
+	}
+
+	/*
+	 * The surface, drawn *behind* the row at the size the row already has.
+	 * A pseudo-element rather than the background, border and shadow of the
+	 * row itself, so the whole thing arrives as one opacity — one compositor
+	 * property, on a page that can be showing a hundred of these.
+	 */
+	.post-actions-reveal::before {
+		content: '';
+		position: absolute;
+		inset: -1px;
+		border-radius: 999px;
+		background: var(--color-main-background);
+		border: 1px solid var(--color-primary-element);
+		box-shadow: var(--social-elevation-raised);
+		opacity: 0;
+		/* out in a tenth of a second and flat: a pointer crossing four cards
+		   on its way somewhere else must not leave four pills fading behind it */
+		transition: opacity .1s linear;
+		pointer-events: none;
+	}
+
+	/*
+	 * `focus-within` is not decoration here: it is the whole of the keyboard
+	 * path. Tabbing into a card has to open the same pill the pointer does, or
+	 * the controls are focusable and unmarked.
+	 */
+	&:hover .post-actions-reveal::before,
+	&:focus-within .post-actions-reveal::before,
+	.post-actions-reveal--held::before {
+		opacity: 1;
+		transition: opacity .2s ease;
+	}
+
+	/* the menu is a control rather than a fact about the post, so it keeps to
+	   the same rule as the glyphs: out of the way until it is asked for */
+	.post-actions :deep(.action-item),
+	.post-actions :deep(.actions) {
+		opacity: 0;
+		transition: opacity .16s ease;
+	}
+
+	&:hover .post-actions :deep(.action-item),
+	&:hover .post-actions :deep(.actions),
+	&:focus-within .post-actions :deep(.action-item),
+	&:focus-within .post-actions :deep(.actions),
+	.post-actions-reveal--held :deep(.action-item),
+	.post-actions-reveal--held :deep(.actions) {
+		opacity: 1;
+	}
+
+	.post-actions__groups {
+		display: flex;
+		flex: 1 1 auto;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: flex-end;
+		gap: 4px;
+		min-inline-size: 0;
+
+		// Reply entries indent from the start while keeping this same outside
+		// edge. The entry's auto width already accounts for that indent, so a
+		// negative end margin would push the icon and count past the edge.
+		.post-action-group--reply {
+			margin-inline-start: auto;
+		}
+	}
+
+	/* it had a top margin from when it was a row of its own */
+	.post-footer :deep(.reaction-bar) {
+		margin-top: 0;
+	}
+
+	&:hover .post-actions :deep(.button-vue__icon),
+	&:focus-within .post-actions :deep(.button-vue__icon),
+	.post-actions-reveal--held :deep(.button-vue__icon) {
+		opacity: 1;
+	}
+
+	.post-actions {
+		display: flex;
+		align-items: center;
+		gap: 2px;
+
+		.post-action-group {
+			display: inline-flex;
+			flex: 0 0 auto;
+			align-items: center;
+			gap: 3px;
+
+			/* against its own glyph, across the button's padding, so it
+			   reads as that glyph's number and not the next one's */
+			.post-action-count {
+				margin-inline-start: -4px;
+				text-align: start;
+			}
+		}
+
+		.post-action-count {
+			font-size: 11px;
+			font-weight: 600;
+			color: var(--color-main-text);
+			text-align: center;
+		}
+
+		:deep(.button-vue) {
+			border-radius: 8px;
+
+			&:hover {
+				background: var(--color-background-dark);
+			}
+		}
+
+		/* gone at rest, back with the pointer or the keyboard: thirty grey
+		   glyphs down a page are noise, and the one row that is being looked
+		   at is the one that is pointed at. A touch screen keeps them (see the
+		   `hover: none` block below), since it cannot point first */
+		:deep(.button-vue__icon) {
+			opacity: var(--post-action-rest, 0);
+			transition: opacity .2s ease;
+		}
+
+		/* a number needs its glyph to say what it counts, so a control with
+		   a count beside it keeps a hairline at rest */
+		.post-action-group:has(.post-action-count) {
+			--post-action-rest: .38;
+		}
+
+		/* except a like or a boost this reader has already given. That is the
+		   state of the post as far as they are concerned, and it is the one
+		   thing on this row worth seeing without pointing at it. */
+		:deep(.button-vue[aria-pressed="true"] .button-vue__icon) {
+			opacity: 1;
+		}
+
+		/* 28px rather than the 34px a button is elsewhere: this is a
+		   secondary row, and the pill has to be short enough to fit between
+		   the text and the next card. Still above the 24px floor a pointer
+		   target has. */
+		:deep(.button-vue--icon-only) {
+			min-height: 28px;
+			min-width: 28px;
+		}
+
+		:deep(.button-vue) {
+			border-radius: 999px;
+		}
+	}
 }
-
-
 
 .post-edit-inline {
 	margin-bottom: 10px;

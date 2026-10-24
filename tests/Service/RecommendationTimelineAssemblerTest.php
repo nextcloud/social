@@ -52,6 +52,11 @@ class RecommendationTimelineAssemblerTest extends TestCase {
 		self::assertNotNull($candidate);
 		self::assertSame('image', $candidate['format']);
 		self::assertSame([], $candidate['topic_ids']);
+
+		$textPost = (new Note())->setContent('<p></p>');
+		self::assertNull($assembler->candidate($textPost, '4', [], '', 1, [], [
+			'topics' => [], 'authors' => [], 'formats' => [],
+		], [], [], []));
 	}
 
 	public function testDiversityUsesSpecificTopicsInsteadOfTheirBroadParents(): void {
