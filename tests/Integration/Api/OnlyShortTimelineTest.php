@@ -13,14 +13,15 @@ use OCA\Social\Controller\AccountApiController;
 use OCA\Social\Controller\InterestsController;
 use OCA\Social\Controller\ListController;
 use OCA\Social\Controller\TimelineApiController;
+use OCA\Social\Db\InterestsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\Client\AttachmentMeta;
 use OCA\Social\Model\Client\AttachmentMetaDim;
 use OCA\Social\Model\Client\MediaAttachment;
+use OCA\Social\Model\Interest;
 use OCA\Social\Service\ConfigService;
-use OCA\Social\Service\InterestService;
 use OCP\Server;
 use PHPUnit\Framework\Attributes\DataProvider;
 
@@ -212,15 +213,11 @@ class OnlyShortTimelineTest extends ApiTestCase {
 	public function testForYouWithOnlyShortRanksOnlyTheShorts(): void {
 		Server::get(ConfigService::class)->setAppValue(ConfigService::SOCIAL_INTERESTS, '1');
 		$shorts = $this->seed();
-		// Interests are learned from real actions now; seed the profile through
-		// the same favourite path used by the application instead of calling the
-		// removed manual add() API.
+		// This test exercises feed ranking, not signal collection. Seed the
+		// learned profile directly above the configured listing threshold so
+		// database-specific action/cache behavior cannot leave the feed empty.
 		$alice = $this->account('alice');
-		Server::get(InterestService::class)->saveSettings($alice, ['learning' => true]);
-		foreach (array_slice($shorts, 0, 2) as $shortId) {
-			$short = Server::get(StreamRequest::class)->getStreamById($shortId, true, ACore::FORMAT_LOCAL);
-			Server::get(InterestService::class)->recordAction($alice, $short, InterestService::ACTION_FAVOURITE);
-		}
+		Server::get(InterestsRequest::class)->save($alice->getId(), new Interest(self::TAG, 50.0, time()));
 		$page = fn (array $query): ApiResponse => $this->call(InterestsController::class, 'timeline', [], $query);
 
 		$this->assertSame(
