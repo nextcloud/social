@@ -104,10 +104,13 @@ describe('where a post got to', () => {
 				delivered: 2,
 				waiting: 1,
 				abandoned: 2,
+				instances: [{ host: 'mastodon.social', state: 'delivered', tries: 1, last: 1 }],
 			}))
 
 			expect(wrapper.find('.delivery-hint').text())
 				.toBe('Of 5 deliveries: delivered to 2 servers, waiting for 1 server, given up on 2 servers.')
+			expect(wrapper.findAll('.delivery-hint--muted')[0].text())
+				.toContain('remote inbox accepted the activity')
 		})
 
 		it('explains the audience and retention when there are no recorded deliveries', async () => {

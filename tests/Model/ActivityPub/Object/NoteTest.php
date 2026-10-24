@@ -561,7 +561,7 @@ class NoteTest extends TestCase {
 		$published = $note->jsonSerialize();
 
 		$this->assertSame('Event', $published['type']);
-		$this->assertSame('Community meetup', $published['name']);
+		$this->assertSame('Community meetup · Starts 2026-04-05 16:30 UTC – Ends 2026-04-05 18:00 UTC · At Community hall', $published['name']);
 		$this->assertSame('2026-04-05T16:30:00Z', $published['startTime']);
 		$this->assertSame('2026-04-05T18:00:00Z', $published['endTime']);
 		$this->assertSame(['type' => 'Place', 'name' => 'Community hall'], $published['location']);

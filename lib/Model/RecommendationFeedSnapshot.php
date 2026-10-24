@@ -174,9 +174,9 @@ final readonly class RecommendationFeedSnapshot {
 			}
 			$seen[$entry['nid']] = true;
 			$reason = $entry['reason'];
-			$allowedAlso = ['FOLLOWED_AUTHOR', 'BEHAVIORAL_PROFILE', 'SIMILARITY_FEEDBACK', 'AUTHOR_FEEDBACK', 'FORMAT_FEEDBACK', 'CACHED_CANDIDATE'];
+			$allowedAlso = ['FOLLOWED_AUTHOR', 'BEHAVIORAL_PROFILE', 'SIMILARITY_FEEDBACK', 'AUTOMATIC_PROFILE', 'AUTHOR_FEEDBACK', 'FORMAT_FEEDBACK', 'CACHED_CANDIDATE'];
 			$allowedNotes = ['BASE_RANK', 'DIVERSITY_PLACEMENT', 'EXPLORATION_SLOT'];
-			if (!in_array($reason['primary'] ?? null, ['TOPIC_EXPLICIT', 'EXPLORATION'], true)
+			if (!in_array($reason['primary'] ?? null, ['TOPIC_EXPLICIT', 'AUTOMATIC_PROFILE', 'EXPLORATION'], true)
 				|| !is_array($reason['topic_ids'] ?? null) || !array_is_list($reason['topic_ids']) || count($reason['topic_ids']) > 8
 				|| !is_array($reason['also'] ?? null) || !array_is_list($reason['also']) || count($reason['also']) > count($allowedAlso)
 				|| ($reason['candidate_source'] ?? null) !== 'LOCAL_CACHED_POSTS'

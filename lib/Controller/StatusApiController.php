@@ -443,6 +443,11 @@ class StatusApiController extends MastodonApiController {
 			$status = new Status();
 			$fields = $this->convertInput($input);
 			$status->import($fields);
+			$event = $status->getEvent();
+			if (array_key_exists('event', $fields) && $fields['event'] !== null
+				&& (!is_array($fields['event']) || $event === null || $event['start_time'] === null || trim($event['name']) === '')) {
+				return new DataResponse(['error' => 'Events need a title and valid start time'], Http::STATUS_UNPROCESSABLE_ENTITY);
+			}
 
 			$actor = $this->accountService->getActorFromUserId($this->currentSession());
 
@@ -450,10 +455,12 @@ class StatusApiController extends MastodonApiController {
 				$nid,
 				$actor,
 				$status->getStatus(),
-				$status->getSpoilerText() !== '' ? $status->getSpoilerText() : null,
-				$status->isSensitive(),
+				array_key_exists('spoiler_text', $fields) ? $status->getSpoilerText() : null,
+				array_key_exists('sensitive', $fields) ? $status->isSensitive() : null,
 				$status->getLanguage() !== '' ? $status->getLanguage() : null,
-				$this->mediaAttributes($fields['media_attributes'] ?? [])
+				$this->mediaAttributes($fields['media_attributes'] ?? []),
+				$event,
+				array_key_exists('event', $fields)
 			);
 
 			return new DataResponse($this->served($item), Http::STATUS_OK);
