@@ -7,6 +7,15 @@ const path = require('path')
 const webpack = require('webpack')
 const webpackConfig = require('@nextcloud/webpack-vue-config')
 const CopyPlugin = require('copy-webpack-plugin')
+const NodePolyfillPlugin = require('node-polyfill-webpack-plugin')
+
+// The app uses the browser's WebCrypto API directly and has no Node `crypto`
+// imports. Do not expose the legacy crypto-browserify fallback to app bundles:
+// it brings elliptic into the client build without serving any app code.
+const nodePolyfills = webpackConfig.plugins.find((plugin) => plugin instanceof NodePolyfillPlugin)
+if (nodePolyfills) {
+	nodePolyfills.options.excludeAliases = [...new Set([...nodePolyfills.options.excludeAliases, 'crypto'])]
+}
 
 // the Twemoji pictures posts draw their emoji with. `twemoji` itself stopped
 // at Unicode 12; Discord's fork carries the same file layout and keeps up
