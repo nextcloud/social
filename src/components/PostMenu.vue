@@ -174,7 +174,7 @@
 		</NcActionButton>
 		<template v-if="canOfferRecommendationFeedback">
 			<NcActionButton
-				v-if="feedbackContext?.topics?.length"
+				v-if="feedbackContext?.similarity_available"
 				closeAfterClick
 				@click="$emit('recommendationFeedback', 'MORE_SIMILAR')">
 				<template #icon>
@@ -183,7 +183,7 @@
 				{{ t('social', 'Show me more like this post') }}
 			</NcActionButton>
 			<NcActionButton
-				v-if="feedbackContext?.topics?.length"
+				v-if="feedbackContext?.similarity_available"
 				closeAfterClick
 				@click="$emit('recommendationFeedback', 'LESS_SIMILAR')">
 				<template #icon>
@@ -202,26 +202,6 @@
 					<AccountPlusOutline :size="20" />
 				</template>
 				{{ t('social', 'Show me more from this author') }}
-			</NcActionButton>
-			<NcActionButton
-				v-for="topic in feedbackContext?.topics ?? []"
-				:key="topic.id + ':more'"
-				closeAfterClick
-				@click="$emit('recommendationFeedback', 'MORE_TOPIC', topic.id)">
-				<template #icon>
-					<ThumbUpOutline :size="20" />
-				</template>
-				{{ t('social', 'Show me more about {topic}', { topic: topicLabel(topic) }) }}
-			</NcActionButton>
-			<NcActionButton
-				v-for="topic in feedbackContext?.topics ?? []"
-				:key="topic.id + ':less'"
-				closeAfterClick
-				@click="$emit('recommendationFeedback', 'LESS_TOPIC', topic.id)">
-				<template #icon>
-					<ThumbDownOutline :size="20" />
-				</template>
-				{{ t('social', 'Show me less about {topic}', { topic: topicLabel(topic) }) }}
 			</NcActionButton>
 			<NcActionButton
 				v-if="feedbackContext?.format"
@@ -545,12 +525,6 @@ export default {
 
 	methods: {
 		t,
-		/** @param {object} topic a server-confirmed topic @return {string} */
-		topicLabel(topic) {
-			const language = document.documentElement.lang?.replace('_', '-').split('-')[0] || 'en'
-			return topic.labels?.[language] || topic.labels?.en || topic.id
-		},
-
 		/** @param {string} format a server-detected post format @return {string} */
 		formatLabel(format) {
 			return {

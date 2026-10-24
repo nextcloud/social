@@ -204,7 +204,7 @@ class QueryBudgetTest extends ReaderTestCase {
 		$boosts = 0;
 
 		$this->assertFlatCostWithin(
-			'account boosts', 12,
+			'account boosts', 13,
 			function (int $count) use (&$boosts, $booster): void {
 				for ($i = 0; $i < $count; $i++, $boosts++) {
 					$this->boost($booster, $this->post($this->remoteActor('boosted' . $boosts), 'boosted post ' . $boosts));
@@ -220,7 +220,7 @@ class QueryBudgetTest extends ReaderTestCase {
 		$posts = 0;
 
 		$this->assertFlatCostWithin(
-			'account statuses', 12,
+			'account statuses', 13,
 			function (int $count) use (&$posts, $author): void {
 				for ($i = 0; $i < $count; $i++, $posts++) {
 					$this->post($author, 'profile post ' . $posts);

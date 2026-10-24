@@ -10,11 +10,10 @@ import logger from './logger.js'
  * How reading is measured for the For you feed.
  *
  * One module, so the home feed, a hashtag page and a thread all count a post
- * the same way. It reports time spent on a post, posts scrolled past, and the
- * few things a reader does to a post that the server does not see happen —
- * opening a picture, following a link. It never reports hashtags: the server
- * reads those from the post it stored, so a client cannot teach it tags the
- * post does not carry.
+ * the same way. It reports qualified exposures, quick skips, and the few
+ * things a reader does to a post that the server does not see happen — opening
+ * a picture or following a link. Passive reading time stays in the browser for
+ * exposure and skip qualification; it is not sent as an interest score.
  *
  * A factory with everything it touches passed in, so the rules can be tested
  * with a fake clock and a fake observer rather than a browser.
@@ -26,10 +25,12 @@ export const IDLE_AFTER = 20000
 /** One view of one post counts for at most this long. */
 export const VIEW_CAP = 30000
 
+/** Avoid counting observer jitter as another qualified view of the same post. */
+export const IMPRESSION_COOLDOWN = 5000
+
 /**
  * A post in view for less than this while the reader was scrolling was
- * passed over rather than read. The server knows the expected dwell for the
- * post and applies the precise ratio; this only decides what is a candidate.
+ * probably passed over rather than opened or read.
  */
 export const SKIP_BELOW = 600
 
@@ -210,18 +211,18 @@ export function createInterestTracker({
 	 * `visible` is the observer's answer; `since` is when the current stretch
 	 * of counted time began, null while it is not counting; `ms` what earlier
 	 * stretches added up to. `enteredAt` and `enteredFrom` describe the view as
-	 * it began, which is what tells a skip from a read.
+	 * it began, which helps distinguish a quick scrolling pass from reading.
 	 *
 	 * @type {Map<Element, {element: Element, status: object, visible: boolean, since: number|null, ms: number, enteredAt: number, enteredFrom: string}>}
 	 */
 	const watched = new Map()
 
-	/** posts whose one dwell, or one skip, this page view has already sent */
-	const dwelled = new Set()
+	/** posts with one long-enough view or one skip in this page view */
+	const longViews = new Set()
 	const skipped = new Set()
 	/** explicit events already recorded, as `id|kind` */
 	const recorded = new Set()
-	const impressed = new Set()
+	const impressionAt = new Map()
 	const sessionId = uuid()
 	let learningGeneration = Number.isInteger(generation) && generation >= 0 ? generation : null
 
@@ -297,7 +298,7 @@ export function createInterestTracker({
 	}
 
 	/**
-	 * Ends one view of one post: a dwell if it was read, a skip if it went past.
+	 * Ends one view of one post: a qualified exposure, a quick skip, or neither.
 	 *
 	 * @param {WatchedView} view one of `watched`
 	 * @param {number} at when the view ended
@@ -310,19 +311,20 @@ export function createInterestTracker({
 		const ms = Math.min(view.ms, VIEW_CAP)
 		const shown = at - view.enteredAt
 		const scrolling = at - lastScroll <= SCROLLING_WITHIN
-		if (learningGeneration !== null && !impressed.has(id) && ms >= 750) {
-			impressed.add(id)
+		const lastImpressionAt = impressionAt.get(id)
+		if (learningGeneration !== null && ms >= 750
+			&& (lastImpressionAt === undefined || at - lastImpressionAt >= IMPRESSION_COOLDOWN)) {
+			impressionAt.set(id, at)
 			signal(id, 'impression', { session_id: sessionId, visible_ms: Math.min(ms, VIEW_CAP) })
 		}
 
 		if (leftTo !== null && leftTo !== view.enteredFrom && shown < SKIP_BELOW && scrolling) {
-			if (!skipped.has(id) && !dwelled.has(id)) {
+			if (!skipped.has(id) && !longViews.has(id)) {
 				skipped.add(id)
 				signal(id, 'skip')
 			}
-		} else if (ms >= MIN_DWELL && !dwelled.has(id)) {
-			dwelled.add(id)
-			signal(id, 'dwell', { ms: Math.round(ms) })
+		} else if (ms >= MIN_DWELL && !longViews.has(id)) {
+			longViews.add(id)
 		}
 
 		view.ms = 0

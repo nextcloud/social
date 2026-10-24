@@ -15,7 +15,7 @@
 					{{ t('social', 'Enable For You recommendations') }}
 				</NcCheckboxRadioSwitch>
 				<p class="interests-admin__hint">
-					{{ t('social', 'This enables the ranked version of the existing For You feed; it does not add a second feed. Readers can choose from the topic catalog below. Activity learning stays off until each reader enables it. Discovery uses bounded background jobs and eligible public posts; the chronological Following feed is unchanged.') }}
+					{{ t('social', 'This enables automatic ranking in the existing For You feed; it does not add a second feed. The ranker combines learned hashtag interests, post content, freshness, follows and discovery. Readers do not choose topics. Activity learning stays off until each reader separately enables it. Discovery uses bounded background jobs and eligible public posts; the chronological Following feed is unchanged.') }}
 				</p>
 				<div class="interests-admin__operations">
 					<div v-for="control in operationalControls" :key="control.key">
@@ -37,7 +37,7 @@
 				{{ t('social', 'Enable hashtag starting point') }}
 			</NcCheckboxRadioSwitch>
 			<p class="interests-admin__hint">
-				{{ t('social', 'Keeps the familiar hashtag-based For You feed available before a reader has chosen topics, and for the compatibility fallback. It is the same feed route, not a separate timeline.') }}
+				{{ t('social', 'Keeps automatically learned hashtag interests available in For You and as its compatibility fallback. Readers do not choose topics; this is the same feed route, not a separate timeline.') }}
 			</p>
 
 			<NcCheckboxRadioSwitch v-model="form.learningDefault" type="switch" :disabled="!form.enabled">

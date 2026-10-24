@@ -37,6 +37,7 @@ use OCA\Social\Model\StreamAction;
 use OCA\Social\Model\StreamCard;
 use OCA\Social\Service\AiContentService;
 use OCA\Social\Service\VideoDeliveryHold;
+use OCA\Social\Tools\ActivityPubEvent;
 use OCA\Social\Tools\IQueryRow;
 use OCA\Social\Tools\Model\Cache;
 use OCA\Social\Tools\Model\CacheItem;
@@ -2682,6 +2683,11 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		// a status, and the one exception to the entity's no-missing-keys rule
 		if ($this->isDeliveryHeld()) {
 			$result['delivery'] = 'held';
+		}
+		if ($this->getSubType() === 'Event') {
+			// Keep ordinary Mastodon Status entities unchanged. This extension
+			// appears only when the remote object actually is an Event.
+			$result['event'] = ActivityPubEvent::fromStream($this);
 		}
 
 		if ($this->hasActor()) {

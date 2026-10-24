@@ -211,13 +211,11 @@ class InstanceServiceTest extends TestCase {
 		$this->assertSame(3, $json->stats->user_count);
 		$this->assertSame(0, $json->stats->status_count);
 		$this->assertSame(0, $json->stats->domain_count);
+		$this->assertSame('instance-vapid-key', $json->vapid_key);
+		$this->assertSame('instance-vapid-key', $json->configuration->vapid->public_key);
 	}
 
-	/**
-	 * There is no streaming API, and the address is sent anyway: masto.js
-	 * builds its websocket from it and connected to `undefined` without
-	 * one. At this host the connection is a clean 404 and the client polls.
-	 */
+	/** The optional streaming daemon uses the public host advertised to clients. */
 	public function testTheStreamingUrlNamesThisHost(): void {
 		$this->theming([]);
 		$this->configService->method('getSocialAddress')->willReturn('social.example.org');

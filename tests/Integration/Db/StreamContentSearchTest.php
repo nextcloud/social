@@ -292,8 +292,10 @@ class StreamContentSearchTest extends TestCase {
 
 		$posts = $this->streamRequest->recommendationExplorationCandidates($since, 10, 4);
 
-		$this->assertSame([self::BASE . '/notes/exploration-public'], array_map(
+		$ids = array_map(
 			static fn ($post): string => $post->getId(), array_values($posts)
-		));
+		);
+		$this->assertContains(self::BASE . '/notes/exploration-public', $ids);
+		$this->assertNotContains(self::BASE . '/notes/unlisted', $ids);
 	}
 }

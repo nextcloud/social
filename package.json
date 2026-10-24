@@ -16,9 +16,9 @@
 		"watch": "NODE_ENV=development webpack --progress --watch --config webpack.common.js",
 		"build": "NODE_ENV=production webpack --progress --config webpack.common.js",
 		"serve": "NODE_ENV=development webpack serve --progress --config webpack.common.js",
-		"lint": "eslint src tests/js tests/e2e *.js *.mjs",
+		"lint": "eslint src tests/js tests/e2e packages *.js *.mjs",
 		"typecheck": "tsc -p jsconfig.json && vue-tsc --noEmit -p jsconfig.vue.json",
-		"lint:fix": "eslint src tests/js tests/e2e *.js *.mjs --fix",
+		"lint:fix": "eslint src tests/js tests/e2e packages *.js *.mjs --fix",
 		"stylelint": "stylelint src css",
 		"stylelint:fix": "stylelint src css --fix",
 		"test": "vitest run",
@@ -30,13 +30,13 @@
 		"@nextcloud/auth": "^2.0.0",
 		"@nextcloud/axios": "2.6.0",
 		"@nextcloud/dialogs": "^7.5.0",
-		"@nextcloud/files": "^4.1.0",
+		"@nextcloud/files": "^4.1.1",
 		"@nextcloud/initial-state": "^3.0.0",
 		"@nextcloud/l10n": "^3.4.1",
 		"@nextcloud/logger": "^3.0.3",
 		"@nextcloud/notify_push": "^1.4.0",
 		"@nextcloud/router": "^3.2.0",
-		"@nextcloud/vue": "^9.13.0",
+		"@nextcloud/vue": "^9.14.0",
 		"@noble/hashes": "2.4.0",
 		"@noble/secp256k1": "3.2.0",
 		"blurhash": "^2.0.5",
@@ -80,7 +80,7 @@
 		"css-loader": "^7.1.5",
 		"eslint": "^10.12.0",
 		"jsdom": "^30.1.2",
-		"node-polyfill-webpack-plugin": "^4.0.0",
+		"node-polyfill-webpack-plugin": "file:packages/node-polyfill-webpack-plugin",
 		"sass": "^1.105.1",
 		"sass-loader": "^17.0.1",
 		"style-loader": "^4.0.0",
@@ -100,7 +100,6 @@
 	},
 	"overrides": {
 		"@nextcloud/axios": "2.6.0",
-		"elliptic": "^6.6.1",
 		"fast-xml-parser": ">=5.7.0",
 		"joi": ">=18.2.8",
 		"uuid": "^14.0.0",
@@ -113,6 +112,7 @@
 		"@nextcloud/webpack-vue-config": {
 			"webpack-cli": "$webpack-cli"
 		},
-		"@babel/core": "^8.0.6"
+		"@babel/core": "^8.0.6",
+		"launch-editor": "2.14.2"
 	}
 }

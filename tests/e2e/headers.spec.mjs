@@ -155,13 +155,18 @@ test.describe('response headers', () => {
 
 		const xrpc = await anonymous.get(`${APP}/xrpc/com.atproto.server.describeServer`, { headers: origin })
 		expect(xrpc.headers()['access-control-allow-origin'], 'XRPC is read by browser clients of any origin').toBe('*')
-		const preflight = await anonymous.fetch(`${APP}/xrpc/com.atproto.repo.createRecord`, {
-			method: 'OPTIONS',
-			headers: { ...origin, 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'authorization, dpop' },
-		})
-		expect(preflight.status(), 'the preflight is answered').toBeLessThan(300)
-		expect(preflight.headers()['access-control-allow-origin']).toBe('*')
-		expect(preflight.headers()['access-control-allow-headers'] ?? '').toMatch(/DPoP/)
+		const preflights = []
+		for (const requestOrigin of ['https://bsky.app', 'https://other-bluesky-client.example']) {
+			const preflight = await anonymous.fetch(`${APP}/xrpc/com.atproto.repo.createRecord`, {
+				method: 'OPTIONS',
+				headers: { Origin: requestOrigin, 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'authorization, dpop, x-atproto-session-id' },
+			})
+			expect(preflight.status(), `the preflight is answered for ${requestOrigin}`).toBeLessThan(300)
+			expect(preflight.headers()['access-control-allow-origin'], `the origin ${requestOrigin} is allowed`).toBe('*')
+			expect(preflight.headers()['access-control-allow-headers'] ?? '').toMatch(/DPoP/)
+			expect(preflight.headers()['access-control-allow-headers'] ?? '').toMatch(/X-Atproto-Session-Id/i)
+			preflights.push(preflight)
+		}
 
 		// what Elk or Phanpy calls from a page of its own origin
 		const open = [
@@ -200,7 +205,7 @@ test.describe('response headers', () => {
 
 		// '*' is never combined with credentials, which is what would let
 		// another site read a signed-in answer
-		for (const response of [xrpc, preflight, apiPreflight, ...open.map(([, each]) => each)]) {
+		for (const response of [xrpc, ...preflights, apiPreflight, ...open.map(([, each]) => each)]) {
 			expect(response.headers()['access-control-allow-credentials']).toBeUndefined()
 		}
 		await anonymous.dispose()

@@ -24,10 +24,13 @@ class RecommendationPreferenceRequestTest extends TestCase {
 	private RecommendationSignalRequest $signals;
 	private string $owner;
 	private string $otherOwner;
+	private bool $recommendationsEnabledBeforeTest;
 
 	protected function setUp(): void {
 		parent::setUp();
 		$this->preferences = Server::get(RecommendationPreferenceService::class);
+		$this->recommendationsEnabledBeforeTest = $this->preferences->isEnabled();
+		$this->preferences->setEnabled(true);
 		$this->request = Server::get(RecommendationPreferenceRequest::class);
 		$this->feedback = Server::get(RecommendationFeedbackRequest::class);
 		$this->signals = Server::get(RecommendationSignalRequest::class);
@@ -39,6 +42,7 @@ class RecommendationPreferenceRequestTest extends TestCase {
 	protected function tearDown(): void {
 		$this->request->purge($this->owner);
 		$this->request->purge($this->otherOwner);
+		$this->preferences->setEnabled($this->recommendationsEnabledBeforeTest);
 		parent::tearDown();
 	}
 
@@ -46,58 +50,34 @@ class RecommendationPreferenceRequestTest extends TestCase {
 		$initial = $this->preferences->get($this->owner);
 		$this->assertSame(0, $initial['revision']);
 		$this->assertSame(0, $initial['generation']);
-		$this->assertSame('balanced', $initial['content_balance']);
-		$this->assertFalse($initial['onboarding_complete']);
+		$this->assertSame('off', $initial['learning_mode']);
 
-		$saved = $this->preferences->replace($this->owner, 0, [
-			['topic_id' => 'tech.apple', 'mode' => 'INTERESTED'],
-		], 'discovery', 3, false);
+		$saved = $this->preferences->setLearningMode($this->owner, 0, 'on');
 		$this->assertNotNull($saved);
 		$this->assertSame(1, $saved['revision']);
 		$this->assertSame(1, $saved['generation']);
-		$this->assertSame('discovery', $saved['content_balance']);
-		$this->assertSame(3, $saved['onboarding_step']);
-		$this->assertFalse($saved['onboarding_complete']);
-		$this->assertNull($this->preferences->replace($this->owner, 0, [
-			['topic_id' => 'oss.nextcloud', 'mode' => 'PRIORITISE'],
-		]));
-		$this->assertSame([['topic_id' => 'tech.apple', 'mode' => 'INTERESTED']], $this->preferences->get($this->owner)['topics']);
+		$this->assertSame('on', $saved['learning_mode']);
+		$this->assertNull($this->preferences->setLearningMode($this->owner, 0, 'off'));
+		$this->assertSame('on', $this->preferences->get($this->owner)['learning_mode']);
 
 		$reset = $this->preferences->reset($this->owner, 1);
 		$this->assertNotNull($reset);
 		$this->assertSame(2, $reset['revision']);
 		$this->assertSame(2, $reset['generation']);
-		$this->assertSame([], $reset['topics']);
-		$this->assertSame('balanced', $reset['content_balance']);
-		$this->assertSame(0, $reset['onboarding_step']);
-		$this->assertFalse($reset['onboarding_complete']);
 		$this->assertSame($reset, $this->preferences->reset($this->owner, 1), 'repeating the same reset is idempotent');
 	}
 
-	public function testOnboardingReviewAndContentBalanceAreSavedAtomicallyAndOwnerScoped(): void {
-		$review = $this->preferences->replace($this->owner, 0, [], 'following', 5, true);
-		self::assertNotNull($review);
-		self::assertSame('following', $review['content_balance']);
-		self::assertSame(5, $review['onboarding_step']);
-		self::assertTrue($review['onboarding_complete']);
+	public function testLearningConsentIsOwnerScoped(): void {
+		$this->preferences->setLearningMode($this->owner, 0, 'on');
 
-		self::assertSame('balanced', $this->preferences->get($this->otherOwner)['content_balance']);
-		self::assertFalse($this->preferences->get($this->otherOwner)['onboarding_complete']);
-	}
-
-	public function testOneOwnerCannotReadOrChangeAnotherOwnersPreferences(): void {
-		$this->preferences->replace($this->owner, 0, [
-			['topic_id' => 'tech.apple', 'mode' => 'HIDE'],
-		]);
-
-		$this->assertSame([], $this->preferences->get($this->otherOwner)['topics']);
+		$this->assertSame('off', $this->preferences->get($this->otherOwner)['learning_mode']);
 		$this->assertSame(0, $this->preferences->get($this->otherOwner)['revision']);
 	}
 
 	public function testResetPurgesExplicitFeedbackAtomicallyWithThePreferenceGeneration(): void {
 		$this->preferences->get($this->owner);
 		$eventId = '792b7610-e146-422c-9c87-d703412e9874';
-		$this->feedback->record($this->owner, '0f6f07ce-f9d0-4a0d-90f2-9f1ebc629072', $eventId, 'topic', 'tech.apple', 'MORE_TOPIC', 2_000_000_000);
+		$this->feedback->record($this->owner, '0f6f07ce-f9d0-4a0d-90f2-9f1ebc629072', $eventId, 'post', '123', 'HIDE_POST', 2_000_000_000);
 		$this->assertCount(1, $this->feedback->current($this->owner));
 
 		$this->preferences->reset($this->owner, 0);
@@ -116,6 +96,8 @@ class RecommendationPreferenceRequestTest extends TestCase {
 		$recorded = $this->signals->record($this->owner, $eventId, $generation, 'like', [$signal], null, 2_000_000_000);
 		self::assertTrue($recorded['accepted']);
 		self::assertFalse($recorded['duplicate']);
+		self::assertSame($enabled['revision'], $recorded['profile_version']);
+		self::assertSame($enabled['revision'], $this->request->get($this->owner)['revision'], 'learning a signal does not change the consent/CAS revision or expire open timeline cursors');
 		$duplicate = $this->signals->record($this->owner, $eventId, $generation, 'like', [$signal], null, 2_000_000_001);
 		self::assertTrue($duplicate['duplicate']);
 		self::assertSame(1, count($this->signals->profile($this->owner)['topics']));
@@ -126,6 +108,27 @@ class RecommendationPreferenceRequestTest extends TestCase {
 		$late = $this->signals->record($this->owner, '5c5bc6c7-787f-4df7-a5bd-973cf942c55c', $generation, 'like', [$signal], null, 2_000_000_002);
 		self::assertFalse($late['accepted']);
 		self::assertSame([], $this->signals->profile($this->owner)['topics']);
+	}
+
+	public function testStoryExposureBandsAreOwnerScopedAndPurgedWithTheLearningGeneration(): void {
+		$initial = $this->request->get($this->owner);
+		$enabled = $this->request->setLearningMode($this->owner, $initial['revision'], 'on');
+		self::assertNotNull($enabled);
+		$session = 'c8bb7f51-2e1e-4e92-b1a9-1cab0f3a0e10';
+		$keys = array_map(static fn (int $band): string => hash('sha256', 'story-band-' . $band), range(0, 7));
+		$impression = ['post_keys' => $keys, 'session_key' => $session];
+		$eventId = 'daafc587-f141-4e0b-9ab3-20615915a22e';
+
+		$first = $this->signals->record($this->owner, $eventId, $enabled['generation'], 'impression', [], $impression, 2_000_000_000);
+		self::assertTrue($first['accepted']);
+		self::assertFalse($first['duplicate']);
+		$duplicate = $this->signals->record($this->owner, $eventId, $enabled['generation'], 'impression', [], $impression, 2_000_000_001);
+		self::assertTrue($duplicate['duplicate']);
+		self::assertCount(8, $this->signals->exposures($this->owner, $enabled['generation'], $keys, 2_000_000_000 - 30 * 86400));
+		self::assertSame([], $this->signals->exposures($this->otherOwner, $enabled['generation'], $keys, 2_000_000_000 - 30 * 86400));
+
+		$this->request->resetLearning($this->owner, $duplicate['profile_version']);
+		self::assertSame([], $this->signals->exposures($this->owner, $enabled['generation'], $keys, 2_000_000_000 - 30 * 86400));
 	}
 
 	public function testTurningLearningOffAndBackOnInvalidatesEventsFromTheEarlierConsentPeriod(): void {

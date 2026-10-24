@@ -109,8 +109,8 @@ class AtprotoVisibleTest extends TestCase {
 			$this->assertSame(Server::get(RepositoryService::class)->getHead($identity->did)?->rev, $relayStatus['rev'], 'the relay is at the same revision');
 		}
 
-		// an edit within the grace period replaces the record; the AppView
-		// shows the new text under a new URI
+		// an edit updates the record in place; the AppView shows the new text
+		// under the same URI
 		$edited = $words . ' (edited)';
 		$this->alice->editStatus((string)$status['id'], $edited);
 		Server::get(Publisher::class)->reconcile();
@@ -124,7 +124,7 @@ class AtprotoVisibleTest extends TestCase {
 			return null;
 		});
 		$this->assertNotNull($editedItem, 'the edit reached the AppView');
-		$this->assertNotSame($feedItem['uri'], $editedItem['uri'], 'an edit is a new record');
+		$this->assertSame($feedItem['uri'], $editedItem['uri'], 'an edit keeps the record URI');
 
 		// a delete takes it off
 		$this->alice->deleteStatus((string)$status['id']);
@@ -139,5 +139,89 @@ class AtprotoVisibleTest extends TestCase {
 			return true;
 		});
 		$this->assertTrue($gone, 'the deleted post left the AppView');
+	}
+
+	public function testLongPostsAndEditsReachTheAppViewAsACompleteThread(): void {
+		$identity = Server::get(IdentityService::class)->forActor($this->alice->actor);
+		$this->assertNotNull($identity);
+
+		$initial = 'Long initial ' . implode(' ', array_map(static fn (int $n): string => sprintf('word%03d', $n), range(1, 100)));
+		$status = $this->alice->postStatus($initial);
+		Server::get(Publisher::class)->reconcile();
+		$root = $this->network->await(function () use ($identity, $initial): ?array {
+			foreach ($this->network->authorFeed($identity->did) as $item) {
+				$post = $item['post'] ?? [];
+				if (str_starts_with((string)($post['record']['text'] ?? ''), 'Long initial ')) {
+					return $post;
+				}
+			}
+			return null;
+		});
+		$this->assertNotNull($root, 'the long post root reached the AppView');
+		$uri = (string)$root['uri'];
+		$socialUrl = (string)($status['url'] ?? '');
+		$this->assertNotSame('', $socialUrl, 'the Social post has a canonical page URL');
+		$initialWords = preg_split('/\s+/u', $initial) ?: [];
+		$initialThread = $this->network->await(function () use ($uri, $initialWords): ?array {
+			$thread = $this->network->postThread($uri);
+			$parts = self::threadParts($thread ?? []);
+			$visible = implode(' ', array_column($parts, 'text'));
+			foreach ($initialWords as $word) {
+				if (!str_contains($visible, $word)) {
+					return null;
+				}
+			}
+			return $parts;
+		});
+		$this->assertNotNull($initialThread, 'every word is visible across the indexed continuation thread');
+		$this->assertGreaterThan(1, count($initialThread), 'the AppView has indexed continuation records');
+		$this->assertStringNotContainsString($socialUrl, $initialThread[0]['text'], 'the root preview does not append the Social link before the full text');
+		$this->assertStringContainsString($socialUrl, $initialThread[array_key_last($initialThread)]['text'], 'the Social link follows the full text at the end of the thread');
+
+		$short = 'Shortened edit ' . bin2hex(random_bytes(4));
+		$this->alice->editStatus((string)$status['id'], $short);
+		Server::get(Publisher::class)->reconcile();
+		$shortThread = $this->network->await(function () use ($uri, $short): ?array {
+			$thread = $this->network->postThread($uri);
+			$parts = self::threadParts($thread ?? []);
+			if (($parts[0]['text'] ?? '') !== $short || count($parts) !== 1) {
+				return null;
+			}
+			return $parts;
+		});
+		$this->assertNotNull($shortThread, 'the AppView shows the shortened edit and no obsolete continuation');
+
+		$expanded = 'Expanded edit ' . implode(' ', array_map(static fn (int $n): string => sprintf('fresh%03d', $n), range(1, 100)));
+		$this->alice->editStatus((string)$status['id'], $expanded);
+		Server::get(Publisher::class)->reconcile();
+		$expandedWords = preg_split('/\s+/u', $expanded) ?: [];
+		$expandedThread = $this->network->await(function () use ($uri, $expandedWords): ?array {
+			$parts = self::threadParts($this->network->postThread($uri) ?? []);
+			$visible = implode(' ', array_column($parts, 'text'));
+			foreach ($expandedWords as $word) {
+				if (!str_contains($visible, $word)) {
+					return null;
+				}
+			}
+			return $parts;
+		});
+		$this->assertNotNull($expandedThread, 'all newly edited words are visible across the thread');
+		$this->assertGreaterThan(1, count($expandedThread));
+		$this->assertStringContainsString($socialUrl, $expandedThread[array_key_last($expandedThread)]['text'], 'the edited thread still ends with the Social link');
+		$this->assertSame($uri, $this->network->postView($uri)['uri'] ?? null, 'editing keeps the root post URI');
+	}
+
+	/** @return list<array{text: string}> */
+	private static function threadParts(array $thread): array {
+		$post = $thread['post'] ?? [];
+		$record = $post['record'] ?? [];
+		$parts = is_string($record['text'] ?? null) ? [['text' => $record['text']]] : [];
+		$replies = is_array($thread['replies'] ?? null) ? $thread['replies'] : [];
+		foreach ($replies as $reply) {
+			if (is_array($reply)) {
+				$parts = [...$parts, ...self::threadParts($reply)];
+			}
+		}
+		return $parts;
 	}
 }

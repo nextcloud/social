@@ -14,7 +14,7 @@ use OCA\Social\Service\RecommendationTopicCatalog;
 use PHPUnit\Framework\TestCase;
 
 class RecommendationExplanationServiceTest extends TestCase {
-	public function testExplainsActualExplicitTopicFollowAndProfileSignalsWithoutRawScores(): void {
+	public function testExplainsAutomaticTopicFollowAndProfileSignalsWithoutRawScores(): void {
 		$service = new RecommendationExplanationService(new RecommendationTopicCatalog());
 		$reason = $service->explain([
 			'matching_topic_ids' => ['tech.apple'],
@@ -25,9 +25,9 @@ class RecommendationExplanationServiceTest extends TestCase {
 			'_promoted_by_diversity' => true,
 		], 7, 2_000_000_000);
 
-		$this->assertSame('TOPIC_EXPLICIT', $reason['primary']);
+		$this->assertSame('AUTOMATIC_PROFILE', $reason['primary']);
 		$this->assertSame(['tech.apple'], $reason['topic_ids']);
-		$this->assertSame(['FOLLOWED_AUTHOR', 'BEHAVIORAL_PROFILE', 'SIMILARITY_FEEDBACK', 'CACHED_CANDIDATE'], $reason['also']);
+		$this->assertSame(['FOLLOWED_AUTHOR', 'BEHAVIORAL_PROFILE', 'SIMILARITY_FEEDBACK', 'AUTOMATIC_PROFILE', 'CACHED_CANDIDATE'], $reason['also']);
 		$this->assertSame('atproto', $reason['protocol']);
 		$this->assertSame('DIVERSITY_PLACEMENT', $reason['rerank_note']);
 		$this->assertSame(7, $reason['profile_version']);
@@ -45,6 +45,6 @@ class RecommendationExplanationServiceTest extends TestCase {
 		$this->assertSame('EXPLORATION', $reason['primary']);
 		$this->assertSame(['tech.apple'], $reason['topic_ids']);
 		$this->assertSame('EXPLORATION_SLOT', $reason['rerank_note']);
-		$this->assertSame(['CACHED_CANDIDATE'], $reason['also']);
+		$this->assertSame(['AUTOMATIC_PROFILE', 'CACHED_CANDIDATE'], $reason['also']);
 	}
 }

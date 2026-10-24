@@ -13,6 +13,7 @@ use OCA\Social\AppInfo\Application;
 use OCA\Social\Atproto\Identity\IdentityService;
 use OCA\Social\Atproto\Model\BlobRef;
 use OCA\Social\Atproto\Model\Identity;
+use OCA\Social\Atproto\Model\StoredRecord;
 use OCA\Social\Atproto\Protocol\Cid;
 use OCA\Social\Atproto\Protocol\Syntax;
 use OCA\Social\Atproto\Reader\BlueskyIds;
@@ -26,6 +27,7 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Question;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\Client\MediaAttachment;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\PinService;
 use OCP\IL10N;
@@ -37,7 +39,7 @@ use Throwable;
  * What a Social post or profile becomes as a Bluesky record.
  *
  * This is the one place that decides what leaves for Bluesky: a public
- * post's text with facets, cut to fit and linked back when it does not;
+ * post's text with facets, split into thread replies when it does not fit;
  * a "Content warning: …" line and a `!warn` self-label for a content
  * warning; a poll as its question and options; up to ten pictures as
  * blobs, the words added for these in the post's language; a reply to or
@@ -73,7 +75,7 @@ class RecordMapper {
 	}
 
 	/**
-	 * @return array{record: array<string, mixed>, truncated: bool}
+	 * @return array{record: array<string, mixed>, truncated: bool, continuations?: array<int, array{text: string, facets: array}>}
 	 */
 	public function post(Stream $post, Identity $identity, Person $author, array $video = ['state' => 'none']): array {
 		$mapped = $this->text->fromHtml($post->getContent(), $this->mentionResolver());
@@ -111,12 +113,24 @@ class RecordMapper {
 
 		$images = [];
 		$dropped = 0;
+		$attachments = $post->getAttachments();
 		$pictures = $this->pictureDocuments($post, $author);
+		$imageAttachments = count(array_filter($attachments, static fn (MediaAttachment $attachment): bool => $attachment->getType() === 'image'));
+		$dropped += max(0, $imageAttachments - count($pictures));
 		$videoEmbed = self::videoEmbed($video);
+		$videoCandidates = count(array_filter($attachments, static fn (MediaAttachment $attachment): bool => in_array($attachment->getType(), ['video', 'gifv'], true)
+			|| str_starts_with($attachment->getMediaType(), 'video/')));
+		$unsupportedAttachments = count(array_filter($attachments, static fn (MediaAttachment $attachment): bool => $attachment->getType() !== 'image'
+			&& !in_array($attachment->getType(), ['video', 'gifv'], true)
+			&& !str_starts_with($attachment->getMediaType(), 'video/')))
+			+ ($videoEmbed === null ? 0 : max(0, $videoCandidates - 1));
+		if ($unsupportedAttachments > 0) {
+			$extra[] = $l10n->n('+%n more media attachment', '+%n more media attachments', $unsupportedAttachments);
+		}
 		if ($videoEmbed !== null) {
 			// one media embed to a post: beside a video, the pictures are
 			// what the link to the post here is for
-			$dropped = count($pictures);
+			$dropped += count($pictures);
 			$pictures = [];
 		}
 		foreach ($pictures as $i => $document) {
@@ -126,6 +140,7 @@ class RecordMapper {
 			}
 			$picture = $this->pictures->blobFor($identity, $author, $document);
 			if ($picture === null) {
+				$dropped++;
 				continue;
 			}
 			$image = ['image' => $picture['blob']->toRecordValue(), 'alt' => $document->getDescription()];
@@ -159,6 +174,13 @@ class RecordMapper {
 			}
 		}
 		usort($fit['facets'], static fn (array $a, array $b): int => $a['index']['byteStart'] <=> $b['index']['byteStart']);
+		$continuations = [];
+		if (isset($fit['threadParts'])) {
+			$parts = $fit['threadParts'];
+			$fit['text'] = $parts[0]['text'];
+			$fit['facets'] = $parts[0]['facets'];
+			$continuations = array_slice($parts, 1);
+		}
 
 		$record = [
 			'$type' => self::POST,
@@ -182,7 +204,26 @@ class RecordMapper {
 			$record['labels'] = ['$type' => 'com.atproto.label.defs#selfLabels', 'values' => $labels];
 		}
 
-		return ['record' => $record, 'truncated' => $fit['truncated']];
+		return ['record' => $record, 'truncated' => $fit['truncated']]
+			+ ($continuations === [] ? [] : ['continuations' => $continuations]);
+	}
+
+	/** The post's text as Bluesky publication maps it, without fitting or writing media. */
+	public function sourceText(Stream $post): string {
+		return $this->text->fromHtml($post->getContent(), $this->mentionResolver())['text'];
+	}
+
+	/** The poll choices that must accompany the source body on Bluesky. */
+	/** @return string[] */
+	public function sourcePollOptions(Stream $post): array {
+		if (!$post instanceof Question) {
+			return [];
+		}
+
+		return array_values(array_filter(array_map(
+			static fn (array $option): string => trim((string)($option['title'] ?? '')),
+			$post->getOptions()
+		), static fn (string $option): bool => $option !== ''));
 	}
 
 	/**
@@ -499,10 +540,13 @@ class RecordMapper {
 	 */
 	private function pinnedOf(Identity $identity, Person $actor): ?array {
 		foreach ($this->pins->getPinnedIds($actor->getId()) as $postId) {
-			foreach ($this->repositories->getRecordsByLocalId($postId) as $record) {
-				if ($record->collection === self::POST && $record->did === $identity->did) {
-					return ['uri' => $record->uri(), 'cid' => $record->cid->toString()];
-				}
+			$records = array_values(array_filter(
+				$this->repositories->getRecordsByLocalId($postId),
+				static fn (StoredRecord $record): bool => $record->collection === self::POST && $record->did === $identity->did,
+			));
+			usort($records, static fn (StoredRecord $a, StoredRecord $b): int => strcmp($a->rkey, $b->rkey));
+			if ($records !== []) {
+				return ['uri' => $records[0]->uri(), 'cid' => $records[0]->cid->toString()];
 			}
 		}
 

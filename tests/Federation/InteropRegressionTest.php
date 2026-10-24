@@ -224,6 +224,12 @@ class InteropRegressionTest extends TestCase {
 		/** @var Note $event */
 		$event = AP::instance()->getItemFromData($this->fixture('mobilizon-create-event'))->getObject();
 		$this->assertSame('<p>Fediverse meetup</p>', $event->getContent());
+		$this->assertSame([
+			'name' => 'Fediverse meetup',
+			'start_time' => '2026-04-05T16:30:00Z',
+			'end_time' => '2026-04-05T19:00:00Z',
+			'location' => 'Community hall',
+		], $event->exportAsLocal()['event']);
 	}
 
 	/**

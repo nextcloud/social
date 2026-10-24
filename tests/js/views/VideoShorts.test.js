@@ -808,7 +808,8 @@ describe('VideoShorts', () => {
 
 		it('reports what the reader watched when they move on, under shorts', async () => {
 			const tagged = (id) => ({ ...video(id), tags: [{ name: 'skate' }] })
-			const { wrapper } = await mountShorts([tagged('1'), tagged('2')], { serverData: { public: false, interests: ON } })
+			// The For you scope preserves the order returned by its ranking.
+			const { wrapper } = await mountShorts([tagged('2'), tagged('1')], { serverData: { public: false, interests: ON } })
 			// one player, which follows the slide being watched
 			observers[0].callback([{ isIntersecting: true, target: wrapper.findAll('.short')[0].element }])
 			await flushPromises()

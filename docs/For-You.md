@@ -1,8 +1,8 @@
 # For you — feature specification
 
-Status: specified 2026-09-24, implemented on `feat/my-interests` (not yet released) · App: Aloha Social
+Status: living implementation record · Updated: 2026-10-24 · App: Aloha Social
 
-Where the implementation settled something differently from the first draft, this document says what was built; the API reference is the `For you` section of [API.md](API.md). The feature was first called *For you*; every word a reader sees now says **For you** (German *Für dich*), while the code, the routes, the settings keys and the tables keep the name `interests`, which is an API and stored data.
+Sections 1–7 preserve the initial hashtag-feed design and contain historical details. They are not the current product specification: readers cannot choose or configure recommendation topics, passive time on a post is not an interest signal, and the current automatically ranked timeline and its diversity rules are described in the implementation sections below. The API reference is the `For you` section of [API.md](API.md). User-facing copy says **For you** (German *Für dich*); the code, routes and tables retain the historical `interests` name for compatibility.
 
 ## 1. Summary
 
@@ -36,10 +36,10 @@ Non-goals (v1)
 | Topic | Decision |
 |---|---|
 | Where signals are collected | Home, Local, Global, hashtag pages, Explore/Discover, post detail/thread |
-| Signals | Dwell time, explicit actions, negative actions, media interaction |
+| Signals | Explicit actions, negative actions, media interaction and measured Shorts playback; passive screen dwell is neutral |
 | Storage | Server-side, private per user, aggregated scores only (no raw event log) |
 | Consent | Opt-out per user; the default (on/off) is an admin setting, on out of the box |
-| "Looked at extra long" | Relative to the user's own baseline, adjusted for post length and media |
+| Passive dwell | No score; the time a post stays on screen is not treated as intent |
 | Change over time | Exponential decay (half-life, default 30 days) |
 | Listed interest | Score above a threshold, capped at top N (default 30); manual tags always listed |
 | Multi-tag posts | A post's signal is split evenly across its hashtags |
@@ -109,7 +109,7 @@ A new section in [src/views/Settings.vue](../src/views/Settings.vue) with id
   by both the hashtag feed and For You. An empty list means all languages;
   posts whose language is unknown remain eligible.
 - **Reset all interests**: clears learned scores, manual entries, pins and the
-  dwell baseline. Needs a confirmation step built into the page (the viewer has
+  legacy profile marker. Needs a confirmation step built into the page (the viewer has
   no `confirm()`).
 
 Removing a learned tag resets its score to 0 (it may be learned again). The
@@ -185,7 +185,7 @@ against the dependency list before adding one.
 
 ## 5. Signal collection
 
-### 5.1 Dwell (web UI only)
+### 5.1 Exposure and skip (web UI only)
 Tracked in `TimelineList.vue`, which already runs an `IntersectionObserver`
 ([TimelineList.vue:931](../src/components/TimelineList.vue#L931)), plus
 `TimelineSinglePost.vue` for the detail view. Collection lives in one
@@ -193,27 +193,28 @@ Tracked in `TimelineList.vue`, which already runs an `IntersectionObserver`
 
 - A post is **in view** while ≥ 50 % of it is visible, `document.visibilityState`
   is `visible` and the window has focus.
-- Dwell pauses after 20 s without scroll, pointer or key input (reading
-  stopped) and resumes on input. One view's dwell is capped at 30 s.
+- Visible time pauses after 20 s without scroll, pointer or key input and
+  resumes on input. It is used only to qualify exposure and skip events; a
+  timeline post's passive reading time is not sent to the ranker.
 - A post collapsed behind a content warning counts only after it is expanded.
-- A post counts as **skipped** when it passed fully through the viewport with
-  < 0.3× the expected dwell (see 6.1) while the user was scrolling.
+- A post counts as a **skip** when it passed through the viewport in under
+  600 ms while the user was scrolling.
 - Nothing is recorded for the user's own posts, for posts without hashtags, or
   for posts shown only as a filter warning.
 - The tracker buffers events and flushes them every 30 s, on
   `visibilitychange → hidden` and on `pagehide` (via `navigator.sendBeacon`).
   At most 100 events per request.
 
-Event sent to the server (the client never sends hashtags; the server reads
+Events sent to the server (the client never sends hashtags; the server reads
 them from the stored post, so a client cannot inject tags):
 
 ```json
-{ "status_id": "113…", "kind": "dwell", "ms": 5400, "context": "home" }
+{ "status_id": "113…", "kind": "impression", "visible_ms": 900, "session_id": "…", "context": "home" }
 { "status_id": "113…", "kind": "skip", "context": "federated" }
 { "status_id": "113…", "kind": "media", "context": "tag" }
 ```
 
-`kind` ∈ `dwell | skip | open | media | link`. `context` ∈ `home | local |
+`kind` ∈ `impression | skip | open | media | link`. `context` ∈ `home | local |
 federated | tag | explore | detail | interests | photos | videos | shorts`
 (`reels`, which older cached bundles send for the Shorts stack, is accepted
 as `shorts`).
@@ -222,9 +223,10 @@ In the Photos and Videos grids every tile is on screen at once, so time in
 view says nothing about any one of them: there only opening a tile counts,
 as `media`. The Shorts stack (`src/services/shortSignals.js`) measures the
 player instead of the screen, under `shorts`: a slide left within 2 s that had
-not played through is a `skip`; otherwise a `dwell` whose `ms` is how much of
-the video played — all of it once it ended or looped. The server weighs that
-against the video's running time (6.1).
+not played through is a `skip`; the separately consented recommendation
+profile receives an actual playback fraction. The legacy hashtag profile only
+uses Shorts `dwell` when the video has a known duration and treats it as watch
+time (6.1), never as ordinary reading time.
 
 ### 5.2 Explicit and negative actions (server-side)
 These are recorded on the server where the action happens, so they also count
@@ -238,7 +240,7 @@ when the action comes from a Mastodon app:
 | Bookmark | bookmark endpoint | +3 |
 | Open detail/thread | web `open` event | +1.5 |
 | Expand media / play video / open link | web `media`, `link` events | +1 |
-| Long dwell / normal dwell / skip | web `dwell`, `skip` events | +1 / +0.3 / −0.2 (see 6.1) |
+| Passive screen dwell / skip | web `dwell`, `skip` events | 0 / −0.2; measured Shorts playback remains separate |
 | Less like this | new endpoint | −3 |
 | Mute author (from a post) | `MuteDialog` sends a `mute` signal after a successful mute | −1 |
 
@@ -257,34 +259,24 @@ disabled by the admin.
 All scoring lives in one pure class, `InterestScorer`, with no database access,
 so it can be unit-tested exhaustively.
 
-### 6.1 Dwell normalisation
-Expected dwell for a post:
+### 6.1 Passive dwell and measured playback
+Time a post remains on screen has no positive or negative score. The reader may
+be reading slowly, interrupted, or simply have not scrolled past it yet. A
+quick skip remains a weak negative signal; explicit actions such as opening,
+saving, liking or boosting carry the positive intent.
 
-```
-expected_ms = 1200 + 35 × visible_text_chars + 1500 × media_count
-```
-
-(capped at 20 000). The ratio `r = dwell_ms / expected_ms` is compared with the
-user's own baseline `b`, an exponential moving average of `r` over their dwell
-events (α = 0.05, starting at 1.0, stored per user):
-
-- `r ≥ 2b` → long dwell, +1
-- `b ≤ r < 2b` → normal dwell, +0.3
-- `r < b` and not a skip → 0
-- skip → −0.2
-
-The baseline is updated only by `dwell` events, never by skips.
-
-A `dwell` from the Shorts stack (`context` `shorts`) on a video that says how
-long it runs is watch time, not reading time, and is judged differently:
+A `dwell` from the Shorts stack (`context` `shorts`) on a video with a known
+duration is measured player playback, not screen time, and is judged by the
+fraction watched:
 
 ```
 expected_ms = min(30 000, duration_ms)
 share       = dwell_ms / expected_ms
 ```
 
-`share ≥ 0.9` → +1, `0.5 ≤ share < 0.9` → +0.3, less → 0, and the baseline
-is not touched: how fast someone watches says nothing about how fast they read.
+`share ≥ 0.9` → +1, `0.5 ≤ share < 0.9` → +0.3, less → 0. Playback never
+changes a reading-pace baseline. A video without a known duration and ordinary
+timeline dwell are neutral.
 
 ### 6.2 Distribution across hashtags
 A post with `n` hashtags (from `social_stream_tag`, normalised with
@@ -426,12 +418,8 @@ administrator has the feature off:
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/api/v1/interests` | settings, listed interests in rank order, candidates, `thin`, `cap` |
-| POST | `/api/v1/interests` | add a manual interest `{ tag }` |
-| POST | `/api/v1/interests/{tag}/move` | pin at rank `{ position }` |
-| POST | `/api/v1/interests/{tag}/pin`, `/unpin` | pin where it stands / let it float |
-| DELETE | `/api/v1/interests/{tag}` | forget it; 422 for a followed tag |
-| POST | `/api/v1/interests/reset` | forget everything |
+| GET | `/api/v1/interests` | settings, automatically learned interests, candidates, `thin`, `cap` |
+| POST | `/api/v1/interests/reset` | forget the automatic profile, hidden posts and reading pace |
 | PUT | `/api/v1/interests/settings` | learning, paused, languages, notice acknowledged |
 | POST | `/api/v1/interests/signals` | web events (5.1); 204; 30 a minute |
 | POST / DELETE | `/api/v1/interests/less/{nid}` | less like this / undo |
@@ -469,8 +457,8 @@ fresh installs only.
 | hashtag | string(127) | normalised |
 | score | float | clamped [−10, 50] |
 | scored_at | bigint | unix time, for lazy decay |
-| manual | smallint | added by the reader |
-| position | int, nullable | the pinned rank; null floats |
+| manual | smallint | legacy field; reader-selected interests are ignored |
+| position | int, nullable | legacy pin; no longer affects ranking |
 | score_week | float, nullable | the score as the current week began, for the trend arrow |
 
 Unique index `(actor_id_prim, hashtag)`. Every read is one reader's whole set,
@@ -547,10 +535,9 @@ In `AdminSettings` (Aloha Social admin page):
   well as the JS build.
 
 ## 14. Testing
-- `InterestScorer`: normalisation against the baseline, skip, splitting,
-  15-tag cutoff, decay and pause shift, clamping, followed floor, list
-  assembly (pinned / manual / learned / cap), rank weights, thin-learning
-  seeds.
+- `InterestScorer`: signal splitting, the 15-tag cutoff, decay and pause
+  shifting, clamping, followed-tag floor, list assembly (legacy manual/pinned
+  rows ignored, learned ranking and cap), rank weights, and thin-learning.
 - Feed ranking: relevance × recency, diversity caps, exploration slot,
   exclusion rules (mutes, blocks, filters, language, hidden, own posts),
   snapshot pagination by `offset` and by `max_id`.
@@ -562,11 +549,10 @@ In `AdminSettings` (Aloha Social admin page):
 - `interestTracker.js`: fake timers + a mocked IntersectionObserver for the
   visibility, focus, idle pause, 30 s cap, CW-collapsed and skip rules, and
   the flush on `pagehide`.
-- `InterestCloud.vue`: rank → size step mapping, drag reorder, popover
-  actions, keyboard moves and announcements, reduced-motion.
-- Playwright on devel: switcher tab, chip, less like this + undo, the cloud
-  (drag, popover higher/lower/pin/remove, add, candidates, reset) at desktop
-  and phone width, in light and dark themes.
+- `InterestsSettings.vue`: automatic learning and pause switches, language
+  filters, reset confirmation, and absence of reader-selected topic controls.
+- Playwright on devel: switcher tab, less like this + undo, automatic learning
+  controls and reset at desktop and phone width, in light and dark themes.
 
 ## 15. Documentation
 The README, `info.xml` description (with a fresh screenshot of the feed and
@@ -595,49 +581,52 @@ Resolved 2026-09-24:
 No open points remain.
 # For You recommendations foundation (F0)
 
-The ranked For You experience builds on the existing automatically learned hashtag profile. Its internal instance setting `rec_v4_enabled` defaults to off and is exposed in Administration → Social → For you. With it off, the established hashtag feed remains available. When enabled, the web For You timeline uses one shared ranker: learned hashtag relevance, content classification, freshness, followed accounts, local discovery and any separately consented behavioral profile all contribute to one candidate order. Readers do not choose topics or configure ranking weights; stored topic preferences are retained for API compatibility but do not change the web feed. Behavioural learning requires the reader's separate consent; discovery telemetry contains instance-level aggregates only.
+The ranked For You experience builds on the existing automatically learned hashtag profile. Its internal instance setting `rec_v4_enabled` defaults to off and is exposed in Administration → Social → For you. With it off, the established hashtag feed remains available. When enabled, the web For You timeline uses one shared ranker: learned hashtag relevance, content classification, freshness, followed accounts, local discovery and any separately consented behavioral profile all contribute to one candidate order. Readers do not choose topics or configure ranking weights. The API exposes no topic catalog, topic preference write or topic-specific feed route; legacy database columns are retained only for reversible migration. Behavioural learning requires the reader's separate consent; discovery telemetry contains instance-level aggregates only.
 
 ## First-use setup and content balance (T05)
 
 There is no first-use algorithm setup. The learned hashtag profile already supplies automatic interests and can be inspected, corrected, paused or reset in Settings → For You. New behavioral signals remain separately consent-gated. The language filter remains optional, with an empty selection meaning all languages; posts without a known language remain eligible.
 
-The versioned topic catalogue contains more than 125 English and German topic labels and aliases across technology, software, science, culture, community, transport, food, health and other areas. It supplies features to the same automatic ranker; it is not a checklist or a parallel algorithm. Politics, health, identity and religion topics are marked sensitive and excluded from automatic text classification and behavioral profiling. Text classification ignores HTML/Markdown quotations and code blocks; the ambiguous word “Apple” needs a related product or company term in the same sentence, while explicit Apple hashtags and product names remain usable evidence.
+The versioned topic catalogue contains more than 125 English and German topic labels and aliases across technology, software, science, culture, community, transport, food, health and other areas. It supplies features to the same automatic ranker; it is not a checklist or a parallel algorithm. Security notices and vulnerability language map to the IT-security topic alongside their software topic; the PHP2Shell incident name is an explicit security alias so reports that omit generic security terms still enter the same diversity group. Politics, health, identity and religion topics are marked sensitive and excluded from automatic text classification and behavioral profiling. Text classification ignores HTML/Markdown quotations and code blocks; the ambiguous word “Apple” needs a related product or company term in the same sentence, while explicit Apple hashtags and product names remain usable evidence.
 
-The ranker uses its balanced weighting by default. Older saved topic choices and content-balance values remain readable for API compatibility but do not affect the web timeline. Safety, moderation and visibility controls remain hard requirements; exploration never bypasses them. Synthetic offline evaluations are exploratory and do not establish real-world satisfaction or justify claims of parity with large commercial recommenders. Activity-learning consent remains separate.
+The ranker uses its automatic weighting by default. Legacy topic-choice and content-balance columns are not readable or writable through the reader API and do not affect the web timeline. Safety, moderation and visibility controls remain hard requirements; exploration never bypasses them. Synthetic offline evaluations are exploratory and do not establish real-world satisfaction or justify claims of parity with large commercial recommenders. Activity-learning consent remains separate.
 
 ## Candidate discovery (F1)
 
-With the instance switch on, `GET /api/v1/recommendations/candidates/{topicId}` retrieves a bounded page from the local stream when the signed-in reader's effective preference is Interested or Prioritise. The query uses the existing search-term index when ready, otherwise scans only a capped recent public window. In both cases it applies the normal viewer ACL, discoverability, mute/block, age, language and own-post filters before hydration. Sensitive-topic catalog entries and HIDE/NEUTRAL/LESS choices do not trigger discovery. Matching uses deterministic local text and hashtag features; no embedding service or behavioural profile is involved. Results report protocol coverage and an underfilled state honestly. An underfilled result may enqueue one rate-limited ActivityPub hashtag fill and Bluesky public search through the existing background queue; the request never waits for remote servers. All optional ActivityPub and ATProto post-discovery paths share a hard cap of 120 outbound requests per fixed hour across workers, including peer hashtag requests, origin post hydration and Bluesky AppView searches. Each request claims a unique expiring slot in the shared durable cache table, so the cap remains shared with local-only APCu and across concurrent workers. The admin emergency pause is enforced inside the shared discovery service, so it also covers legacy hashtag fills and followed-tag refresh jobs. When the slot store is unavailable, the budget is exhausted or discovery is paused, remote discovery stops while cached candidates remain available. This is candidate retrieval only: it does not change either feed's ranking or imply that the corpus is complete.
+Topic-specific candidate retrieval is not exposed to readers. The internal classifier and discovery services contribute to the automatic timeline without requiring a reader-selected topic. Optional ActivityPub and ATProto post-discovery paths share a hard cap of 120 outbound requests per fixed hour across workers. Each request claims a unique expiring slot in the shared durable cache table, so the cap remains shared with local-only APCu and across concurrent workers. The admin emergency pause is enforced inside the shared discovery service, so it also covers legacy hashtag fills and followed-tag refresh jobs. When the slot store is unavailable, the budget is exhausted or discovery is paused, remote discovery stops while cached candidates remain available.
 
 ## Ranked web timeline
 
 The Aloha Social web interface uses `GET /api/v1/recommendations/timeline` when the administrator has enabled recommendations. The endpoint returns an envelope containing existing status objects, an opaque session cursor, profile and algorithm versions, and an honest coverage state. The frontend unwraps the items into the existing timeline store, preserving the current card, interaction, media-scope and infinite-scroll behavior. Mastodon-compatible clients continue to use the unchanged `/api/v1/timelines/interests` list response.
 
-Every web session uses the same bounded candidate and ranking path. The pool combines the reader's automatically ranked hashtag candidates with classified content, followed accounts, local trends, second-degree follow posts and cached items from saved Bluesky feeds. One score blends the hashtag ranker's learned relevance and recency with content match, freshness, feedback and any separately consented behavioral profile; author/topic diversity is then applied before a viewer-bound one-hour snapshot is created. Saved-feed recall uses only posts already opened and cached locally, so the request never waits on Bluesky AppView. Follow edges, trends, graph results and saved-feed posts are retrieval hints rather than popularity bonuses; all candidates are rechecked for visibility, moderation, language and hard hides. Hidden or newly invisible posts are skipped on continuation pages; an invalid or stale cursor returns a refresh condition. Photos, Videos, Shorts and media-only scopes have separate snapshots. There is no switch between a legacy hashtag feed and a topic feed on the web.
+Every web session uses the same bounded candidate and ranking path. The pool combines the reader's automatically ranked hashtag candidates with classified content, followed accounts, local trends, second-degree follow posts and cached items from saved Bluesky feeds. One score blends the hashtag ranker's learned relevance and recency with content match, freshness, feedback and any separately consented behavioral profile. The re-ranker uses the most specific classified topics for diversity, caps a topic at three placements in a rolling 20-post window while another topic is available in the bounded lookahead, and caps an author at two placements in that window while another eligible author is available. Both caps relax when their alternatives are exhausted. It groups similar stories using at most 60 transient body terms per candidate: it keeps up to 20 terms from the opening and samples the remainder across the full post, so long articles are not fingerprinted only by their introductions. The source scan is bounded to 20,000 characters; posts beyond that bound do not produce story fingerprints, because unseen text could contain a sensitive topic. Stories need at least three shared terms and 0.60 Jaccard overlap, so a short shared phrase does not make an unrelated long post the same story. Pairwise matches form connected story clusters, so a chain of headline variants cannot evade the limit; each identifiable cluster is capped at three placements in the assembled ranked snapshot, even when the candidate pool has no other identifiable story. This can leave the page underfilled rather than repeat the same incident. Story terms are omitted when the post contains a recognized sensitive-topic alias or hashtag, are removed before ranked items are returned, and are never stored in the viewer-bound one-hour snapshot. For readers who separately consent to behavioral learning, qualified impressions also store owner-scoped HMAC story fingerprints for 30 days; no story terms or post identifiers are stored in that history. A later feed build applies a recency-weighted story exposure penalty after six short-story samples or two longer-story bands match within the same session. When that penalty reaches 0.75, the story yields to a lower-exposure candidate if one is eligible in the active lookahead; if all available candidates are similarly exposed, the feed may use it to avoid an empty page. Repeated impressions in one session count toward the penalty, while the maximum count across matching fingerprints prevents one impression from being counted multiple times. Without behavioral consent, the in-snapshot diversity cap still applies, but no exposure history is stored. When no other topic is available in the active lookahead, the topic cap relaxes too. Saved-feed recall uses only posts already opened and cached locally, so the request never waits on Bluesky AppView. Follow edges, trends, graph results and saved-feed posts are retrieval hints rather than popularity bonuses; all candidates are rechecked for visibility, moderation, language and hard hides. Hidden or newly invisible posts are skipped on continuation pages; an invalid or stale cursor returns a refresh condition. Photos, Videos, Shorts and media-only scopes have separate snapshots. There is no switch between a legacy hashtag feed and a topic feed on the web.
+
+In the current consented behavioral profile, passive reading time does not increase a topic score. A quick skip can lower affinity; explicit likes, saves, boosts, opening a post, and measured video playback can raise it. This avoids treating a post that stayed on screen for a moment as proof of interest. Recently stored aggregates from older versions may still contain dwell signals and decay over time; the bounded topic and story caps continue to limit repeated material while those older signals fade.
+
+Story exposure is stored as owner-scoped HMAC fingerprints. Longer stories use 64 MinHash values grouped into 16 four-value bands; at least two matching bands in one session count as a repeated story. Three-to-five-term stories use 16 independent MinHash samples and need at least six matches, which gives headline variants a useful chance to share fatigue history without treating one coincidental overlap as the same story. They also retain the historical exact owner-scoped term-set key, so old exposure rows still match. Posts whose text is too short to fingerprint, or whose content is covered by the sensitive-topic policy, use an owner-scoped HMAC of the local post key instead; the raw post ID and sensitive text are not stored in exposure history. If the instance secret or owner key is unavailable, no exact-post exposure key is written. Algorithm version 18 expanded story-term sampling across full posts; version 19 adds the PHP2Shell security alias and starts a fresh cursor mode so readers do not continue a page assembled under the earlier topic catalogue.
 
 This integrated version ranks the locally cached corpus. Underfilled coverage schedules bounded refresh through the existing ActivityPub and Bluesky background queue without delaying the page request. It does not claim remote sources are fully indexed or that the initial coefficients are calibrated.
 
 ### Explicit feedback (F3)
 
-`POST /api/v1/recommendations/feedback` accepts an event UUID, a locally visible stream ID, an operation and, for topic actions, a topic ID. The server derives author, topic and format values from the viewer-readable post; the client cannot target an arbitrary account or claim an unrelated topic. `HIDE_POST` immediately excludes that post from new candidate pages and from later pages of an open snapshot. `MORE_TOPIC`, `LESS_TOPIC`, `MORE_AUTHOR` and `MORE_FORMAT` affect newly generated rankings only, so an open session keeps its order while scrolling. These controls stay separate from manual topic choices and never follow, mute or block anyone. The response contains an owner-bound feedback ID that can reverse the exact action for ten minutes; event UUIDs deduplicate retries during that Undo window. Active feedback scopes and request rates are bounded. The owner-only export includes current feedback; reset and account deletion clear the stored feedback.
+`POST /api/v1/recommendations/feedback` accepts an event UUID, a locally visible stream ID, and a post-specific feedback operation. Readers cannot submit topic choices or topic IDs. Similarity feedback applies to an automatically derived content cluster; author and format scopes are also derived server-side. `HIDE_POST` immediately excludes that post from new candidate pages and from later pages of an open snapshot. Feedback affects newly generated rankings only, so an open session keeps its order while scrolling. The feedback controls never follow, mute or block anyone. The response contains an owner-bound feedback ID that can reverse the exact action for ten minutes; event UUIDs deduplicate retries during that Undo window. Active feedback scopes and request rates are bounded. The owner-only export includes current feedback; reset and account deletion clear the stored feedback.
 
-`GET /api/v1/recommendations/context/{postId}` supplies the contextual menu with only the nonsensitive catalog topics detected in a currently visible post and its detected format. The server applies the same viewer visibility check as the feedback write, so the client cannot offer a topic the post does not match or leak a sensitive topic label.
+`GET /api/v1/recommendations/context/{postId}` supplies only whether similarity feedback can be offered and the automatically detected post format. It returns no topic IDs or labels.
 
-The catalog has stable IDs, German and English labels, reviewed local aliases, version, policy tags and language hints. Policy tags classify catalog entries only; they are never inferred or applied to a reader. Manual topic preferences are stored per Nextcloud account in additive tables. Updates require `if_revision`; stale writes receive HTTP 409 with the current state. `HIDE` on a parent applies to descendants, while a child preference may replace an inherited soft value. The preference export is owner-only. Reset is revision-protected, idempotent, increments the generation before clearing choices, and account deletion purges the records.
+The internal catalog has stable IDs, German and English labels, reviewed local aliases, version, policy tags and language hints. Policy tags classify catalog entries only; they are never inferred or applied to a reader. Legacy preference columns are retained for rollback compatibility, but the reader API cannot retrieve or change topic choices. Reset is revision-protected and clears the learned profile and feedback; account deletion purges account-scoped records.
 
 ## Transparent ranking baseline (F2)
 
-Topic candidates are ordered by a deterministic, versioned linear score and then assembled into a page with soft author and topic diversity. The initial weights are a documented, uncalibrated hypothesis, not a claim to reproduce another platform's algorithm. The score uses explicit topic match and freshness now; author affinity, follow status, format preference, usefulness, feedback, novelty and exposure remain neutral until those signals are actually available to this reader. Non-finite inputs are replaced with the feature's neutral value, domains are clipped, ties use source reliability and stable post ID, and the ranker records its algorithm and feature versions. Page assembly deduplicates canonical IDs and never drops an otherwise eligible candidate just because diversity targets cannot be met. A reader's explicitly prioritised topic can exceed the soft topic mix target. Ranked topic-candidate pages are kept in a bounded, one-hour immutable snapshot with an opaque HMAC-signed cursor bound to the viewer, topic, media kind, preference revision and reset generation. Each continuation rechecks current visibility and skips posts no longer visible, with bounded refill from the same snapshot. This ranks and pages the candidate response only; it does not yet replace or reorder the existing timeline.
+The internal ranker uses a deterministic, versioned linear score and assembles pages with conditional author, topic and story caps. The initial weights are a documented, uncalibrated hypothesis, not a claim to reproduce another platform's algorithm. Non-finite inputs are replaced with neutral values, domains are clipped, ties are stable, and the ranker records its algorithm and feature versions. The public web timeline uses the automatic candidate pool and snapshot; it does not accept a selected topic.
 
 ## Routes
 
 | Method | Route | Purpose |
 |---|---|---|
-| GET | `/api/v1/recommendations/catalog` | Local, versioned topics and labels |
-| GET | `/api/v1/recommendations/preferences` | Authenticated reader's topics, content balance, resumable setup state and revision |
-| PUT | `/api/v1/recommendations/preferences` | Replace explicit choices with `if_revision` and `topics`; optionally persist content balance and onboarding progress |
-| POST | `/api/v1/recommendations/reset` | Clear topic choices and reset content balance/setup with `if_revision` |
-| GET | `/api/v1/recommendations/export` | Export the authenticated reader's preference state |
+| GET | `/api/v1/recommendations/preferences` | Activity-learning status and revision counters only |
+| PUT | `/api/v1/recommendations/learning` | Change the authenticated reader's separate activity-learning consent |
+| POST | `/api/v1/recommendations/reset` | Reset learned activity signals and explicit feedback with `if_revision` |
+| GET | `/api/v1/recommendations/export` | Export activity-learning status and explicit feedback; no topic preferences |
 | GET/PUT | `/admin/recommendations` | Administrator-only instance kill switch |
 
 For local checks, run `composer test:unit -- --filter 'RecommendationPreferenceServiceTest|RecommendationPreferencesMigrationTest|UserDeletedListenerTest'`, then `npm test -- --run` and `npm run build`. Disable the instance switch to roll back the ranked feed; the additive schema is retained and the existing feed remains available.

@@ -237,6 +237,17 @@ describe('Timeline', () => {
 		expect(wrapper.find('h2').exists()).toBe(false)
 	})
 
+	it('explains when For you has too few different posts to fill the feed', async () => {
+		const wrapper = mountTimeline({ params: { type: 'interests' } })
+		timelineStore.recommendationCoverage = {
+			[timelineStore.getTimelineIdentity]: { state: 'UNDERFILLED', known_eligible: 3, returned: 3, remote_refresh_queued: true },
+		}
+		timelineStore.addToTimeline([{ id: 'short-feed', created_at: '2026-01-01T00:00:00Z' }])
+		await nextTick()
+
+		expect(wrapper.text()).toContain('Only a few posts are available in this feed right now.')
+	})
+
 	it.each(['timeline', 'federated', 'favourites'])('switches the store to the %s timeline from the route', (type) => {
 		const wrapper = mountTimeline({ params: { type } })
 		expect(timelineStore.changeTimelineType).toHaveBeenCalledWith({ type, params: {} })
@@ -714,7 +725,7 @@ describe('Timeline', () => {
 
 	it('explains how My Feed and For You differ', () => {
 		const home = mountTimeline()
-		expect(home.find('.feed-scope-notice__text').text())
+		expect(home.find('.timeline-scope-description').text())
 			.toBe('My Feed shows posts from accounts you follow, in chronological order.')
 		home.unmount()
 
@@ -723,8 +734,8 @@ describe('Timeline', () => {
 			interests: { enabled: false, learning: false, recommendationsEnabled: true },
 		})
 		const forYou = mountTimeline({ params: { type: 'interests' } })
-		expect(forYou.find('.feed-scope-notice__text').text())
-			.toBe('For You automatically ranks posts using your learned interests, post content, freshness, follows and discovery. It can include posts from beyond the accounts you follow.')
+		expect(forYou.find('.timeline-scope-description').text())
+			.toBe('For You ranks eligible public posts using automatically learned interests, post content, freshness, followed accounts and discovery. Separately enabled activity learning can refine new sessions. It can include posts from beyond the accounts you follow.')
 	})
 
 	/**

@@ -16,8 +16,10 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\Client\MediaAttachment;
+use OCA\Social\Model\Details;
 use OCA\Social\Security\HtmlSanitizer;
 use OCA\Social\Tests\Model\TActivityPubMocks;
+use OCA\Social\Tools\ActivityPubEvent;
 use OCP\IURLGenerator;
 use PHPUnit\Framework\TestCase;
 
@@ -517,6 +519,52 @@ class NoteTest extends TestCase {
 		$this->publishVideoObjects(false);
 
 		$this->assertSame('Note', $this->localVideoPost()->jsonSerialize()['type']);
+	}
+
+	public function testAnIncomingActivityStreamsEventKeepsItsValidatedDetails(): void {
+		$this->nobodyIsKnown();
+		$source = $this->mastodonNote();
+		$source['type'] = 'Event';
+		$source['name'] = 'Community meetup';
+		$source['startTime'] = '2026-04-05T18:30:00+02:00';
+		$source['endTime'] = '2026-04-05T20:00:00+02:00';
+		$source['location'] = ['type' => 'Place', 'name' => 'Community hall'];
+		$note = new Note();
+
+		$note->import($source);
+
+		$this->assertSame('Event', $note->getSubType());
+		$this->assertSame([
+			'name' => 'Community meetup',
+			'start_time' => '2026-04-05T16:30:00Z',
+			'end_time' => '2026-04-05T18:00:00Z',
+			'location' => 'Community hall',
+		], $note->getDetails(Details::EVENT));
+		$this->assertStringContainsString('SUMMARY:Community meetup', ActivityPubEvent::calendar($note, 1_800_000_000) ?? '');
+	}
+
+	public function testALocalEventIsPublishedWithTheActivityStreamsEventShape(): void {
+		$note = new Note();
+		$note->setId('https://cloud.example.org/apps/social/@alice/events/1');
+		$note->setLocal(true);
+		$note->setAttributedTo('https://cloud.example.org/apps/social/@alice');
+		$note->setContent('<p>Join the neighborhood meetup</p>');
+		$note->setSubType('Event');
+		$note->setDetailArray(Details::EVENT, [
+			'name' => 'Community meetup',
+			'start_time' => '2026-04-05T16:30:00Z',
+			'end_time' => '2026-04-05T18:00:00Z',
+			'location' => 'Community hall',
+		]);
+		$note->setExportFormat(ACore::FORMAT_ACTIVITYPUB);
+
+		$published = $note->jsonSerialize();
+
+		$this->assertSame('Event', $published['type']);
+		$this->assertSame('Community meetup', $published['name']);
+		$this->assertSame('2026-04-05T16:30:00Z', $published['startTime']);
+		$this->assertSame('2026-04-05T18:00:00Z', $published['endTime']);
+		$this->assertSame(['type' => 'Place', 'name' => 'Community hall'], $published['location']);
 	}
 
 	/** Nothing to resolve the setting from must not lose the post. */

@@ -35,6 +35,8 @@ use PHPUnit\Framework\TestCase;
 class RepositoryIntegrationTest extends TestCase {
 	private const DID = 'did:plc:integrationtest00000000';
 	private const ACTOR = 'https://nextcloud.test/index.php/apps/social/@atproto-integration';
+	private const OLDER_HEALTH_DID = 'did:plc:ewvi7nxzyoun6zhxrhs64oiz';
+	private const NEWER_HEALTH_DID = 'did:plc:zv2c4g5p6q7r8s9t0u1v2w3x';
 
 	private RepositoryService $repositories;
 	private AtprotoRepoRequest $repoRequest;
@@ -115,13 +117,11 @@ class RepositoryIntegrationTest extends TestCase {
 	}
 
 	public function testHealthProbeSelectsTheNewestActiveIdentity(): void {
-		$olderDid = 'did:plc:ewvi7nxzyoun6zhxrhs64oiz';
-		$newerDid = 'did:plc:zv2c4g5p6q7r8s9t0u1v2w3x';
-		$this->identityRequest->create('https://social.test/users/older', $olderDid, 'older.social.test', 'sealed', 'did:key:zQ3sh', '', Identity::STATE_ACTIVE);
-		$this->identityRequest->create('https://social.test/users/newer', $newerDid, 'newer.social.test', 'sealed', 'did:key:zQ3sh', '', Identity::STATE_ACTIVE);
+		$this->identityRequest->create('https://social.test/users/older', self::OLDER_HEALTH_DID, 'older.social.test', 'sealed', 'did:key:zQ3sh', '', Identity::STATE_ACTIVE);
+		$this->identityRequest->create('https://social.test/users/newer', self::NEWER_HEALTH_DID, 'newer.social.test', 'sealed', 'did:key:zQ3sh', '', Identity::STATE_ACTIVE);
 
-		$this->assertSame($olderDid, $this->identityRequest->firstActive()?->did);
-		$this->assertSame($newerDid, $this->identityRequest->latestActive()?->did);
+		$this->assertSame(self::OLDER_HEALTH_DID, $this->identityRequest->firstActive()?->did);
+		$this->assertSame(self::NEWER_HEALTH_DID, $this->identityRequest->latestActive()?->did);
 	}
 
 	/**
@@ -263,6 +263,8 @@ class RepositoryIntegrationTest extends TestCase {
 		$this->repositories->delete(self::DID);
 		$this->blobRequest->deleteByDid(self::DID);
 		$this->identityRequest->deleteByDid(self::DID);
+		$this->identityRequest->deleteByDid(self::OLDER_HEALTH_DID);
+		$this->identityRequest->deleteByDid(self::NEWER_HEALTH_DID);
 		try {
 			$this->identityRequest->getByDid(self::DID);
 			$this->fail('identity row still there');

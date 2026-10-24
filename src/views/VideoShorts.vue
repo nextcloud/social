@@ -461,13 +461,14 @@ export default {
 		hasForYou() {
 			const serverData = this.settingsStore.getServerData
 
-			return !serverData?.public && hasInterestsFeed(serverData?.interests)
+			return !serverData?.public
+				&& (serverData?.interests?.recommendationsEnabled === true || hasInterestsFeed(serverData?.interests))
 		},
 
 		/**
 		 * The scope being watched: the one asked for when it is on offer, and
-		 * otherwise For you once reading has taught it something, My Feed
-		 * before that.
+		 * otherwise For you when its learned profile is ready or instance
+		 * recommendations are enabled, My Feed before that.
 		 *
 		 * @return {string}
 		 */
@@ -476,7 +477,11 @@ export default {
 				return this.scope
 			}
 
-			return this.hasForYou && this.settingsStore.getServerData?.interests?.profile === true ? 'interests' : 'home'
+			const interests = this.settingsStore.getServerData?.interests
+			const readyForRecommendations = interests?.recommendationsEnabled === true
+				|| interests?.profile === true
+
+			return this.hasForYou && readyForRecommendations ? 'interests' : 'home'
 		},
 
 		/**

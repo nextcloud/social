@@ -53,7 +53,7 @@
  */
 
 /*!
-* focus-trap 8.2.2
+* focus-trap 8.2.3
 * @license MIT, https://github.com/focus-trap/focus-trap/blob/master/LICENSE
 */
 

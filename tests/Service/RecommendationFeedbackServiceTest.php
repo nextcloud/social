@@ -60,24 +60,10 @@ class RecommendationFeedbackServiceTest extends TestCase {
 			->setId('https://remote.example/posts/123')->setContent('<p>Apple released a new iPhone</p>');
 	}
 
-	public function testTopicFeedbackUsesAValidatedLabelFromTheVisiblePost(): void {
-		$this->request->expects($this->once())->method('byEvent')->with('alice', '792b7610-e146-422c-9c87-d703412e9874')->willReturn(null);
-		$this->streams->expects($this->once())->method('setViewer')->with($this->isInstanceOf(Person::class));
-		$this->streams->expects($this->once())->method('getVisibleByNids')->with(['123'])->willReturn(['123' => $this->applePost()]);
-		$this->request->expects($this->once())->method('record')->with(
-			'alice', $this->matchesRegularExpression('/^[a-f0-9-]{36}$/'), '792b7610-e146-422c-9c87-d703412e9874',
-			'topic', 'tech.apple', 'MORE_TOPIC', 2_000_000_000
-		)->willReturn([
-			'record' => ['feedback_id' => '0f6f07ce-f9d0-4a0d-90f2-9f1ebc629072', 'event_id' => '792b7610-e146-422c-9c87-d703412e9874',
-				'scope' => 'topic', 'scope_key' => 'tech.apple', 'operation' => 'MORE_TOPIC', 'undo_until' => 2_000_000_600],
-			'feedback_version' => 1, 'duplicate' => false,
-		]);
-
-		$result = $this->service()->record($this->viewer(), '792b7610-e146-422c-9c87-d703412e9874', '123', 'MORE_TOPIC', 'tech.apple');
-
-		$this->assertSame('MORE_TOPIC', $result['operation']);
-		$this->assertSame(['type' => 'topic', 'key' => 'tech.apple'], $result['applied_scope']);
-		$this->assertTrue($result['changed_for_next_session']);
+	public function testTopicSelectionFeedbackIsRejected(): void {
+		$this->request->expects($this->never())->method('record');
+		$this->expectException(InvalidArgumentException::class);
+		$this->service()->record($this->viewer(), '792b7610-e146-422c-9c87-d703412e9874', '123', 'MORE_TOPIC');
 	}
 
 	public function testAuthorFeedbackHashesThePostAuthorInsteadOfTrustingClientInput(): void {
@@ -123,16 +109,14 @@ class RecommendationFeedbackServiceTest extends TestCase {
 		$this->service()->record($this->viewer(), '792b7610-e146-422c-9c87-d703412e9874', '123', 'MORE_SIMILAR');
 	}
 
-	public function testFeedbackContextOnlyOffersMatchedNonsensitiveTopicsForVisiblePosts(): void {
+	public function testFeedbackContextExposesAvailabilityAndFormatWithoutTopicLabels(): void {
 		$post = $this->applePost()->setContent('<p>Apple released a new iPhone. International politics and elections.</p>');
 		$this->streams->expects($this->once())->method('setViewer')->with($this->isInstanceOf(Person::class));
 		$this->streams->expects($this->once())->method('getVisibleByNids')->with(['123'])->willReturn(['123' => $post]);
 
 		$context = $this->service()->context($this->viewer(), '123');
 
-		$this->assertSame('text', $context['format']);
-		$this->assertContains(['id' => 'tech.apple', 'labels' => ['en' => 'Apple', 'de' => 'Apple']], $context['topics']);
-		$this->assertNotContains('politics.international', array_column($context['topics'], 'id'));
+		$this->assertSame(['similarity_available' => true, 'format' => 'text'], $context);
 	}
 
 	public function testFeedbackContextDoesNotExposeUnreadablePosts(): void {
@@ -156,30 +140,6 @@ class RecommendationFeedbackServiceTest extends TestCase {
 		$this->service()->record($this->viewer(), '792b7610-e146-422c-9c87-d703412e9874', '123', 'HIDE_POST');
 	}
 
-	public function testSensitiveOrUnmatchedTopicsAreRejected(): void {
-		$this->request->method('byEvent')->willReturn(null);
-		$this->streams->method('getVisibleByNids')->willReturn(['123' => $this->applePost()]);
-		$this->request->expects($this->never())->method('record');
-		$this->expectException(InvalidArgumentException::class);
-		$this->service()->record($this->viewer(), '792b7610-e146-422c-9c87-d703412e9874', '123', 'MORE_TOPIC', 'politics.international');
-	}
-
-	public function testExplicitFeedbackChangesOnlyItsNamedRankingDimension(): void {
-		$service = $this->service();
-		$candidate = ['topic_match' => 0.72, 'author_key' => 'https://remote.example/users/bob', 'format' => 'image'];
-		$feedback = [
-			'topics' => ['tech.apple' => 'LESS_TOPIC'],
-			'authors' => [hash('sha256', 'https://remote.example/users/bob') => 'MORE_AUTHOR'],
-			'formats' => ['image' => 'MORE_FORMAT'],
-		];
-
-		$updated = $service->apply($candidate, 'tech.apple', $feedback);
-
-		$this->assertEqualsWithDelta(0.17, $updated['topic_match'], 0.000001);
-		$this->assertSame(1.0, $updated['author_affinity']);
-		$this->assertSame(1.0, $updated['format_match']);
-	}
-
 	public function testExportContainsOnlyCurrentOwnerFeedbackFields(): void {
 		$this->request->expects($this->once())->method('current')->with('alice')->willReturn([
 			"topic\0tech.apple" => [
@@ -190,8 +150,6 @@ class RecommendationFeedbackServiceTest extends TestCase {
 			],
 		]);
 
-		$this->assertSame([[
-			'scope' => 'topic', 'scope_key' => 'tech.apple', 'operation' => 'MORE_TOPIC', 'created_at' => 2_000_000_000,
-		]], $this->service()->export('alice'));
+		$this->assertSame([], $this->service()->export('alice'), 'legacy topic feedback is inert and omitted');
 	}
 }

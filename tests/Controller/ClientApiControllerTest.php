@@ -15,6 +15,7 @@ use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\ClientNotFoundException;
 use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\RefusalException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Service\AccountService;
@@ -206,6 +207,21 @@ class ClientApiControllerTest extends TestCase {
 
 		$this->assertSame($status, $response->getStatus());
 		$this->assertSame($message, $response->getData()['error']);
+	}
+
+	public function testMastodonApiRefusalIncludesItsStableCodeAndParameters(): void {
+		$request = $this->createStub(IRequest::class);
+		\OC::$server->register(IRequest::class, $request);
+		$controller = new class($request, $this->createStub(\OCP\IURLGenerator::class), $this->createStub(IUserSession::class), new NullLogger(), $this->createStub(ClientService::class), $this->createStub(AccountService::class), $this->createStub(\OCA\Social\Service\CacheActorService::class), $this->createStub(\OCA\Social\Service\StreamService::class), $this->createStub(\OCA\Social\Service\FollowService::class), ) extends MastodonApiController {
+			public function refusal(Throwable $exception): DataResponse {
+				return $this->error($exception);
+			}
+		};
+
+		$response = $controller->refusal(new RefusalException('subscription limit reached', 'push-subscriptions-full', null, ['limit' => 20]));
+
+		$this->assertSame(Http::STATUS_UNPROCESSABLE_ENTITY, $response->getStatus());
+		$this->assertSame(['error' => 'subscription limit reached', 'code' => 'push-subscriptions-full', 'limit' => 20], $response->getData());
 	}
 
 	public function testPageUrlKeepsTheFiltersAndReplacesTheCursor(): void {

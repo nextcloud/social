@@ -32,6 +32,7 @@ use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\ActivityPub\Object\Question;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\DurableCache;
@@ -54,12 +55,16 @@ class PublisherTest extends TestCase {
 
 	/** @var VideoUploadService&MockObject */
 	private VideoUploadService $videos;
+	private AtprotoConfig $config;
+	private bool $atprotoEnabled = true;
 	/** what the post's video is, as the upload service says */
 	private array $video = ['state' => 'none'];
 	/** @var RepositoryService&MockObject */
 	private RepositoryService $repositories;
 	/** @var RecordMapper&MockObject */
 	private RecordMapper $mapper;
+	/** @var array<string, mixed> the value returned by the post mapper */
+	private array $mappedPost = [];
 	/** @var StreamRequest&MockObject */
 	private StreamRequest $streamRequest;
 	/** @var ITimeFactory&MockObject */
@@ -85,8 +90,8 @@ class PublisherTest extends TestCase {
 	private int $nid = 0;
 
 	protected function setUp(): void {
-		$config = $this->createMock(AtprotoConfig::class);
-		$config->method('isEnabled')->willReturn(true);
+		$this->config = $this->createMock(AtprotoConfig::class);
+		$this->config->method('isEnabled')->willReturnCallback(fn (): bool => $this->atprotoEnabled);
 		$this->identity = new Identity(1, 'https://social.test/@alice', self::DID, 'alice.social.test', 'sealed', 'did:key:z', '', Identity::STATE_ACTIVE, '', 0);
 		$identities = $this->createMock(IdentityService::class);
 		$identities->method('forActor')->willReturnCallback(fn (): Identity => $this->identity);
@@ -96,7 +101,9 @@ class PublisherTest extends TestCase {
 		$this->repositories->method('getRecordsByLocalId')->willReturnCallback(fn (string $id): array => array_values(array_filter($this->records, static fn (StoredRecord $r): bool => $r->localId === $id)));
 		$this->repositories->method('getRecord')->willReturnCallback(fn (): StoredRecord => new StoredRecord(self::DID, RecordMapper::PROFILE, 'self', Cid::forRaw('p'), DagCbor::encode($this->profile), '', 0));
 		$this->mapper = $this->createMock(RecordMapper::class);
-		$this->mapper->method('post')->willReturn(['record' => ['$type' => RecordMapper::POST, 'text' => 'hi', 'createdAt' => '2026-10-08T10:00:00.000Z'], 'truncated' => false]);
+		$this->mappedPost = ['record' => ['$type' => RecordMapper::POST, 'text' => 'hi', 'createdAt' => '2026-10-08T10:00:00.000Z'], 'truncated' => false];
+		$this->mapper->method('post')->willReturnCallback(fn (): array => $this->mappedPost);
+		$this->mapper->method('sourceText')->willReturn('hi');
 		$this->streamRequest = $this->createMock(StreamRequest::class);
 		$actors = $this->createMock(CacheActorService::class);
 		$actor = new Person();
@@ -121,7 +128,7 @@ class PublisherTest extends TestCase {
 		$this->durableCache->method('removeShared')->willReturnCallback(function (string $namespace, string $key): void {
 			unset($this->shared[$namespace . '/' . $key]);
 		});
-		$this->publisher = new Publisher($config, $identities, $this->repositories, $this->mapper, $this->videos, $this->streamRequest, $actors, $this->time, new NullLogger(), $this->imported, $this->durableCache, $presence, null, $moves);
+		$this->publisher = new Publisher($this->config, $identities, $this->repositories, $this->mapper, $this->videos, $this->streamRequest, $actors, $this->time, new NullLogger(), $this->imported, $this->durableCache, $presence, null, $moves);
 	}
 
 	public function testAPostWaitsWhileTheAccountMovesAwayAndGoesBeforeTheDidMoves(): void {
@@ -163,13 +170,48 @@ class PublisherTest extends TestCase {
 		$this->repositories->expects($this->once())->method('write')->with(self::DID, $this->anything(), $this->callback(static function (array $writes): bool {
 			return count($writes) === 1 && $writes[0]->action === RepoWrite::CREATE && $writes[0]->once && $writes[0]->collection === RecordMapper::POST && $writes[0]->localId === self::POST;
 		}))->willReturnCallback(function (string $did, PrivateKey $key, array $writes): CommitResult {
-			$this->records[] = new StoredRecord(self::DID, RecordMapper::POST, $writes[0]->rkey, Cid::forRaw('r'), '', self::POST, 0);
+			$this->records[] = new StoredRecord(self::DID, RecordMapper::POST, $writes[0]->rkey, Cid::forRaw('r'), $this->mappedBytes(), self::POST, 0);
 
 			return $this->written();
 		});
 
 		$this->assertNotNull($this->publisher->publishPost($this->post()));
 		$this->assertNull($this->publisher->publishPost($this->post()), 'already there');
+	}
+
+	public function testAThreadLargerThanOneRepositoryCommitIsWrittenInBoundedChunks(): void {
+		$this->mappedPost['continuations'] = array_fill(0, RepositoryService::MAX_WRITES, ['text' => 'continued', 'facets' => []]);
+		$chunks = [];
+		$this->repositories->expects($this->exactly(2))->method('write')->willReturnCallback(function (string $did, PrivateKey $key, array $writes) use (&$chunks): CommitResult {
+			$chunks[] = $writes;
+
+			return $this->written();
+		});
+
+		$this->assertNotNull($this->publisher->publishPost($this->post()));
+		$this->assertSame([RepositoryService::MAX_WRITES, 1], array_map('count', $chunks));
+		$this->assertSame(RepoWrite::CREATE, $chunks[0][0]->action);
+		$this->assertSame(RecordMapper::POST, $chunks[0][0]->collection);
+	}
+
+	public function testRetryCompletesAnExistingPartialThread(): void {
+		$this->mappedPost['continuations'] = [
+			['text' => 'second part', 'facets' => []],
+			['text' => 'third part', 'facets' => []],
+		];
+		$root = $this->mappedPost['record'];
+		$this->records[] = new StoredRecord(self::DID, RecordMapper::POST, '3kznmn7xqxl22', Cid::forDagCbor(DagCbor::encode($root)), DagCbor::encode($root), self::POST, 0);
+		$writes = [];
+		$this->repositories->expects($this->once())->method('write')->willReturnCallback(function (string $did, PrivateKey $key, array $batch) use (&$writes): CommitResult {
+			$writes = $batch;
+
+			return $this->written();
+		});
+
+		$this->assertNull($this->publisher->publishPost($this->post()));
+		$this->assertCount(2, $writes);
+		$this->assertSame([RepoWrite::CREATE, RepoWrite::CREATE], array_column($writes, 'action'));
+		$this->assertSame(['second part', 'third part'], array_column(array_map(static fn (RepoWrite $write): array => $write->record, $writes), 'text'));
 	}
 
 	public function testAPostAnotherWorkerPublishedMeanwhileIsNotPublishedAgain(): void {
@@ -212,6 +254,27 @@ class PublisherTest extends TestCase {
 		$this->assertFalse($this->publisher->deletePost(self::POST));
 	}
 
+	public function testDeletingALargeThreadUsesBoundedCommitsAndRemovesTheRootLast(): void {
+		$rootRkey = '3kznmn7xqxl00';
+		$this->records[] = new StoredRecord(self::DID, RecordMapper::POST, $rootRkey, Cid::forRaw('root'), '', self::POST, 0);
+		for ($index = 1; $index <= RepositoryService::MAX_WRITES; $index++) {
+			$rkey = '3kznmn7xqxl' . str_pad((string)$index, 3, '0', STR_PAD_LEFT);
+			$this->records[] = new StoredRecord(self::DID, RecordMapper::POST, $rkey, Cid::forRaw('part' . $index), '', self::POST, 0);
+		}
+		$chunks = [];
+		$this->repositories->expects($this->exactly(2))->method('write')->willReturnCallback(function (string $did, PrivateKey $key, array $writes) use (&$chunks): CommitResult {
+			$chunks[] = $writes;
+
+			return $this->written();
+		});
+
+		$this->assertTrue($this->publisher->deletePost(self::POST));
+		$this->assertSame([RepositoryService::MAX_WRITES, 1], array_map('count', $chunks));
+		$this->assertSame(RepoWrite::DELETE, $chunks[0][0]->action);
+		$this->assertNotSame($rootRkey, $chunks[0][0]->rkey);
+		$this->assertSame($rootRkey, $chunks[1][0]->rkey);
+	}
+
 	public function testOnlyPublicLocalPostsGo(): void {
 		$this->repositories->expects($this->never())->method('write');
 
@@ -248,7 +311,7 @@ class PublisherTest extends TestCase {
 	public function testADeleteTakesThePostgateWithIt(): void {
 		$this->records[] = new StoredRecord(self::DID, RecordMapper::POST, '3kznmn7xqxl22', Cid::forRaw('r'), '', self::POST, 0);
 		$this->records[] = new StoredRecord(self::DID, RecordMapper::POSTGATE, '3kznmn7xqxl22', Cid::forRaw('g'), '', self::POST, 0);
-		$this->repositories->expects($this->once())->method('write')->with(self::DID, $this->anything(), $this->callback(static fn (array $writes): bool => array_map(static fn (RepoWrite $w): string => $w->action . ' ' . $w->collection, $writes) === [RepoWrite::DELETE . ' ' . RecordMapper::POST, RepoWrite::DELETE . ' ' . RecordMapper::POSTGATE]))->willReturnCallback(fn (): CommitResult => $this->written());
+		$this->repositories->expects($this->once())->method('write')->with(self::DID, $this->anything(), $this->callback(static fn (array $writes): bool => array_map(static fn (RepoWrite $w): string => $w->action . ' ' . $w->collection, $writes) === [RepoWrite::DELETE . ' ' . RecordMapper::POSTGATE, RepoWrite::DELETE . ' ' . RecordMapper::POST]))->willReturnCallback(fn (): CommitResult => $this->written());
 
 		$this->assertTrue($this->publisher->deletePost(self::POST));
 	}
@@ -288,18 +351,157 @@ class PublisherTest extends TestCase {
 		$this->assertFalse($this->publisher->deletePost(self::POST));
 	}
 
-	public function testAnEditWithinTheGraceReplacesAndLaterKeeps(): void {
+	public function testAnEditUpdatesTheSameRecordRegardlessOfAge(): void {
 		$this->records[] = new StoredRecord(self::DID, RecordMapper::POST, '3kznmn7xqxl22', Cid::forRaw('r'), '', self::POST, 0);
-		$this->repositories->expects($this->once())->method('write')->with(self::DID, $this->anything(), $this->callback(static fn (array $writes): bool => count($writes) === 2 && $writes[0]->action === RepoWrite::DELETE && $writes[1]->action === RepoWrite::CREATE))->willReturnCallback(fn (): CommitResult => $this->written());
+		$this->repositories->expects($this->exactly(3))->method('write')->with(self::DID, $this->anything(), $this->callback(static fn (array $writes): bool => count($writes) === 1
+			&& in_array($writes[0]->action, [RepoWrite::UPDATE, RepoWrite::CREATE], true)
+			&& ($writes[0]->action !== RepoWrite::UPDATE || $writes[0]->rkey === '3kznmn7xqxl22')))->willReturnCallback(fn (): CommitResult => $this->written());
 
 		$fresh = $this->post(1760000000 - 60);
-		$this->assertSame('replaced', $this->publisher->editPost($fresh));
+		$this->assertSame('updated', $this->publisher->editPost($fresh));
 
 		$old = $this->post(1760000000 - 3600);
-		$this->assertSame('kept', $this->publisher->editPost($old));
+		$this->assertSame('updated', $this->publisher->editPost($old));
 
 		$this->records = [];
-		$this->assertSame('none', $this->publisher->editPost($old));
+		$this->assertSame('updated', $this->publisher->editPost($old));
+	}
+
+	public function testAnEditPublishesTheCurrentPostWhenItsFirstPublicationWasMissed(): void {
+		$this->repositories->expects($this->once())->method('write')->with(self::DID, $this->anything(), $this->callback(static fn (array $writes): bool => count($writes) === 1
+			&& $writes[0]->action === RepoWrite::CREATE && $writes[0]->localId === self::POST
+			&& $writes[0]->record['text'] === 'hi'))->willReturnCallback(fn (): CommitResult => $this->written());
+
+		$this->assertSame('updated', $this->publisher->editPost($this->post(1760000000 - 60 * 60 * 24 * 30)));
+	}
+
+	public function testRetryCompletesAnExistingRootWithMissingContinuationRecords(): void {
+		$rootRkey = '3kznmn7xqxl22';
+		$root = ['$type' => RecordMapper::POST, 'text' => 'first part…', 'createdAt' => '2026-10-08T10:00:00.000Z'];
+		$rootBytes = DagCbor::encode($root);
+		$this->records[] = new StoredRecord(self::DID, RecordMapper::POST, $rootRkey, Cid::forDagCbor($rootBytes), $rootBytes, self::POST, 0);
+		$this->mappedPost = [
+			'record' => $root,
+			'truncated' => true,
+			'continuations' => [['text' => 'the missing second part', 'facets' => []]],
+		];
+		$this->mapper->method('sourceText')->willReturn('first part… the missing second part');
+		$this->repositories->expects($this->once())->method('write')->with(self::DID, $this->anything(), $this->callback(static fn (array $writes): bool => count($writes) === 1
+			&& $writes[0]->action === RepoWrite::CREATE
+			&& $writes[0]->collection === RecordMapper::POST
+			&& $writes[0]->record['text'] === 'the missing second part'
+			&& $writes[0]->record['reply']['root']['uri'] === 'at://' . self::DID . '/' . RecordMapper::POST . '/' . $rootRkey))->willReturnCallback(fn (): CommitResult => $this->written());
+
+		$this->assertNull($this->publisher->publishPost($this->post()));
+	}
+
+	public function testEditingALongPostUpdatesItsExistingThreadRecordsInPlace(): void {
+		$rootRkey = '3kznmn7xqxl22';
+		$continuationRkey = '3kznmn7xqxl23';
+		$createdAt = '2026-10-08T10:00:00.000Z';
+		$oldRoot = ['$type' => RecordMapper::POST, 'text' => 'before', 'createdAt' => $createdAt];
+		$oldRootCid = Cid::forDagCbor(DagCbor::encode($oldRoot))->toString();
+		$oldContinuation = [
+			'$type' => RecordMapper::POST,
+			'text' => 'old second part',
+			'createdAt' => $createdAt,
+			'reply' => [
+				'root' => ['uri' => 'at://' . self::DID . '/' . RecordMapper::POST . '/' . $rootRkey, 'cid' => $oldRootCid],
+				'parent' => ['uri' => 'at://' . self::DID . '/' . RecordMapper::POST . '/' . $rootRkey, 'cid' => $oldRootCid],
+			],
+		];
+		$this->records[] = new StoredRecord(self::DID, RecordMapper::POST, $rootRkey, Cid::forDagCbor(DagCbor::encode($oldRoot)), DagCbor::encode($oldRoot), self::POST, 0);
+		$this->records[] = new StoredRecord(self::DID, RecordMapper::POST, $continuationRkey, Cid::forDagCbor(DagCbor::encode($oldContinuation)), DagCbor::encode($oldContinuation), self::POST, 0);
+
+		$newRoot = ['$type' => RecordMapper::POST, 'text' => 'after', 'createdAt' => $createdAt];
+		$this->mappedPost = [
+			'record' => $newRoot,
+			'truncated' => true,
+			'continuations' => [['text' => 'new second part', 'facets' => []]],
+		];
+		$writes = [];
+		$this->repositories->expects($this->once())->method('write')->willReturnCallback(function (string $did, PrivateKey $key, array $batch) use (&$writes): CommitResult {
+			$writes = $batch;
+
+			return $this->written();
+		});
+
+		$this->assertSame('updated', $this->publisher->editPost($this->post()));
+		$this->assertCount(2, $writes);
+		$this->assertSame([RepoWrite::UPDATE, RepoWrite::UPDATE], array_column($writes, 'action'));
+		$this->assertSame([$rootRkey, $continuationRkey], array_column($writes, 'rkey'));
+		$this->assertSame('after', $writes[0]->record['text']);
+		$this->assertSame('new second part', $writes[1]->record['text']);
+		$this->assertSame('at://' . self::DID . '/' . RecordMapper::POST . '/' . $rootRkey, $writes[1]->record['reply']['root']['uri']);
+		$this->assertSame($writes[1]->record['reply']['root'], $writes[1]->record['reply']['parent']);
+		$this->assertSame(Cid::forDagCbor(DagCbor::encode($newRoot))->toString(), $writes[1]->record['reply']['parent']['cid']);
+	}
+
+	public function testEditingALongPostDeletesContinuationsThatAreNoLongerNeeded(): void {
+		$rootRkey = '3kznmn7xqxl22';
+		$continuationRkey = '3kznmn7xqxl23';
+		$createdAt = '2026-10-08T10:00:00.000Z';
+		$oldRoot = ['$type' => RecordMapper::POST, 'text' => 'before', 'createdAt' => $createdAt];
+		$oldRootCid = Cid::forDagCbor(DagCbor::encode($oldRoot))->toString();
+		$oldContinuation = [
+			'$type' => RecordMapper::POST,
+			'text' => 'old second part',
+			'createdAt' => $createdAt,
+			'reply' => [
+				'root' => ['uri' => 'at://' . self::DID . '/' . RecordMapper::POST . '/' . $rootRkey, 'cid' => $oldRootCid],
+				'parent' => ['uri' => 'at://' . self::DID . '/' . RecordMapper::POST . '/' . $rootRkey, 'cid' => $oldRootCid],
+			],
+		];
+		$this->records[] = new StoredRecord(self::DID, RecordMapper::POST, $rootRkey, Cid::forDagCbor(DagCbor::encode($oldRoot)), DagCbor::encode($oldRoot), self::POST, 0);
+		$this->records[] = new StoredRecord(self::DID, RecordMapper::POST, $continuationRkey, Cid::forDagCbor(DagCbor::encode($oldContinuation)), DagCbor::encode($oldContinuation), self::POST, 0);
+		$this->mappedPost = [
+			'record' => ['$type' => RecordMapper::POST, 'text' => 'shortened', 'createdAt' => $createdAt],
+			'truncated' => false,
+		];
+		$writes = [];
+		$this->repositories->expects($this->once())->method('write')->willReturnCallback(function (string $did, PrivateKey $key, array $batch) use (&$writes): CommitResult {
+			$writes = $batch;
+
+			return $this->written();
+		});
+
+		$this->assertSame('updated', $this->publisher->editPost($this->post()));
+		$this->assertCount(2, $writes);
+		$this->assertSame(RepoWrite::UPDATE, $writes[0]->action);
+		$this->assertSame($rootRkey, $writes[0]->rkey);
+		$this->assertSame(RepoWrite::DELETE, $writes[1]->action);
+		$this->assertSame($continuationRkey, $writes[1]->rkey);
+	}
+
+	public function testAnAlreadyQueuedEditDoesNotWriteAfterBlueskyIsDisabled(): void {
+		$this->records[] = new StoredRecord(self::DID, RecordMapper::POST, '3kznmn7xqxl22', Cid::forRaw('r'), '', self::POST, 0);
+		$this->atprotoEnabled = false;
+		$this->repositories->expects($this->never())->method('write');
+
+		$this->assertSame('kept', $this->publisher->editPost($this->post()));
+	}
+
+	public function testMakingAPostPrivateStillRemovesItAfterBlueskySyncIsDisabled(): void {
+		$this->records[] = new StoredRecord(self::DID, RecordMapper::POST, '3kznmn7xqxl22', Cid::forRaw('r'), '', self::POST, 0);
+		$this->atprotoEnabled = false;
+		$this->repositories->expects($this->once())->method('write')->with(self::DID, $this->anything(), $this->callback(static fn (array $writes): bool => count($writes) === 1
+			&& $writes[0]->action === RepoWrite::DELETE
+			&& $writes[0]->rkey === '3kznmn7xqxl22'))->willReturnCallback(fn (): CommitResult => $this->written());
+		$post = $this->post();
+		$post->setVisibility(Stream::TYPE_FOLLOWERS);
+
+		$this->assertSame('deleted', $this->publisher->editPost($post));
+	}
+
+	public function testAnEditThatMakesAPublishedPostPrivateRemovesItsPublicRecord(): void {
+		$this->records[] = new StoredRecord(self::DID, RecordMapper::POST, '3kznmn7xqxl22', Cid::forRaw('r'), '', self::POST, 0);
+		$this->repositories->expects($this->once())->method('write')->with(self::DID, $this->anything(), $this->callback(static fn (array $writes): bool => count($writes) === 1
+			&& $writes[0]->action === RepoWrite::DELETE
+			&& $writes[0]->rkey === '3kznmn7xqxl22'))->willReturnCallback(fn (): CommitResult => $this->written());
+		$post = $this->post();
+		$post->setVisibility(Stream::TYPE_FOLLOWERS);
+
+		$this->assertSame('deleted', $this->publisher->editPost($post));
 	}
 
 	public function testTheStatusForTheDeliveryDialog(): void {
@@ -307,8 +509,65 @@ class PublisherTest extends TestCase {
 		$private = $this->post();
 		$private->setVisibility(Stream::TYPE_DIRECT);
 		$this->assertSame('not_applicable', $this->publisher->statusOf($private)['state']);
-		$this->records[] = new StoredRecord(self::DID, RecordMapper::POST, '3kznmn7xqxl22', Cid::forRaw('r'), '', self::POST, 0);
+		$this->records[] = new StoredRecord(self::DID, RecordMapper::POST, '3kznmn7xqxl22', Cid::forRaw('r'), DagCbor::encode(['$type' => RecordMapper::POST, 'text' => 'h']), self::POST, 0);
+		$this->assertSame('waiting', $this->publisher->statusOf($this->post())['state'], 'a root record with missing source text is not reported as delivered');
+		$this->records = [];
+		$warned = $this->post()->setSpoilerText('warning');
+		$this->records[] = new StoredRecord(self::DID, RecordMapper::POST, '3kznmn7xqxl22', Cid::forRaw('r'), DagCbor::encode(['$type' => RecordMapper::POST, 'text' => 'Content warning: warning\n\nhi']), self::POST, 0);
+		$this->assertSame('published', $this->publisher->statusOf($warned)['state'], 'a warning prefix does not hide a complete source body from delivery status');
+		$this->records = [];
+		$this->records[] = new StoredRecord(self::DID, RecordMapper::POST, '3kznmn7xqxl22', Cid::forRaw('r'), DagCbor::encode(['$type' => RecordMapper::POST, 'text' => 'hi old']), self::POST, 0);
+		$this->assertSame('waiting', $this->publisher->statusOf($this->post())['state'], 'a stale longer version is not reported as the current edit');
+		$this->importedPosts[] = self::POST;
+		$this->assertSame('published', $this->publisher->statusOf($this->post())['state'], 'an imported record is not reclassified as an incomplete local publication');
+		$this->importedPosts = [];
+		$pageUrl = $this->post()->pageUrl();
+		$tail = "\n\n" . $pageUrl;
+		$rootRkey = '3kznmn7xqxl22';
+		$continuationRkey = '3kznmn7xqxl23';
+		$rootBytes = DagCbor::encode(['$type' => RecordMapper::POST, 'text' => 'h']);
+		$rootCid = Cid::forDagCbor($rootBytes);
+		$continuation = [
+			'$type' => RecordMapper::POST,
+			'text' => 'i' . $tail,
+			'facets' => [['index' => ['byteStart' => 3, 'byteEnd' => 3 + strlen($pageUrl)], 'features' => [['$type' => 'app.bsky.richtext.facet#link', 'uri' => $pageUrl]]]],
+		];
+		$this->records = [
+			new StoredRecord(self::DID, RecordMapper::POST, $rootRkey, $rootCid, $rootBytes, self::POST, 0),
+			new StoredRecord(self::DID, RecordMapper::POST, $continuationRkey, Cid::forRaw('c'), DagCbor::encode($continuation), self::POST, 0),
+		];
+		$this->assertSame('waiting', $this->publisher->statusOf($this->post())['state'], 'a continuation without a reply chain is not reported as delivered');
+		$continuation['reply'] = [
+			'root' => ['uri' => 'at://' . self::DID . '/' . RecordMapper::POST . '/' . $rootRkey, 'cid' => $rootCid->toString()],
+			'parent' => ['uri' => 'at://' . self::DID . '/' . RecordMapper::POST . '/' . $rootRkey, 'cid' => $rootCid->toString()],
+		];
+		$continuationBytes = DagCbor::encode($continuation);
+		$this->records[1] = new StoredRecord(self::DID, RecordMapper::POST, $continuationRkey, Cid::forDagCbor($continuationBytes), $continuationBytes, self::POST, 0);
 		$this->assertSame(['state' => 'published', 'uri' => 'at://' . self::DID . '/app.bsky.feed.post/3kznmn7xqxl22', 'url' => 'https://bsky.app/profile/alice.social.test/post/3kznmn7xqxl22'], $this->publisher->statusOf($this->post()));
+	}
+
+	public function testPollDeliveryWaitsForEveryOption(): void {
+		$poll = new Question();
+		$poll->setNid(++$this->nid);
+		$poll->setId(self::POST);
+		$poll->setLocal(true);
+		$poll->setAttributedTo('https://social.test/@alice');
+		$poll->setVisibility(Stream::TYPE_PUBLIC);
+		$poll->setContent('<p>hi</p>');
+		$poll->setPollData(['First choice', 'Second choice'], false, 3600);
+		$this->mapper->method('sourcePollOptions')->willReturn(['First choice', 'Second choice']);
+		$this->records[] = new StoredRecord(self::DID, RecordMapper::POST, '3kznmn7xqxl22', Cid::forRaw('r'), DagCbor::encode([
+			'$type' => RecordMapper::POST,
+			'text' => 'hi\n\nPoll: First choice',
+		]), self::POST, 0);
+
+		$this->assertSame('waiting', $this->publisher->statusOf($poll)['state']);
+
+		$this->records[0] = new StoredRecord(self::DID, RecordMapper::POST, '3kznmn7xqxl22', Cid::forRaw('r'), DagCbor::encode([
+			'$type' => RecordMapper::POST,
+			'text' => 'hi\n\nPoll: First choice / Second choice',
+		]), self::POST, 0);
+		$this->assertSame('published', $this->publisher->statusOf($poll)['state']);
 	}
 
 	public function testReconcilePublishesWhatHasNoRecord(): void {
@@ -388,13 +647,13 @@ class PublisherTest extends TestCase {
 		$this->assertSame([[5, 4, 3, 2], [5, 4, 1], [5, 4, 3, 2]], $passes);
 	}
 
-	public function testReconcileReplacesAMissedEditAndRemovesADeletedPost(): void {
-		$edited = $this->post(1760000000 - 60);
+	public function testReconcileUpdatesAMissedEditInPlaceAndRemovesADeletedPost(): void {
+		$edited = $this->post(1760000000 - 60 * 60 * 24 * 30);
 		$stale = new StoredRecord(self::DID, RecordMapper::POST, '3kznmn7xqxl22', Cid::forRaw('r'), DagCbor::encode(['$type' => RecordMapper::POST, 'text' => 'before']), self::POST, 0);
 		$orphan = new StoredRecord(self::DID, RecordMapper::POST, '3kznmn7xqxl33', Cid::forRaw('o'), $this->mappedBytes(), 'https://social.test/@alice/3', 0);
 		$this->records = [$stale, $orphan];
 		$this->streamRequest->method('getLocalPublicSince')->willReturn([$edited]);
-		$this->repositories->method('getRecordsSince')->with(RecordMapper::POST, 1760000000 - Publisher::RECONCILE_WINDOW, 100)->willReturn([$stale, $orphan]);
+		$this->repositories->method('getRecordsSince')->with(RecordMapper::POST, 0, 100)->willReturn([$stale, $orphan]);
 		$this->streamRequest->method('getStreamById')->willReturnCallback(static function (string $id) use ($edited): Note {
 			if ($id === self::POST) {
 				return $edited;
@@ -409,9 +668,82 @@ class PublisherTest extends TestCase {
 		});
 
 		$this->assertSame(2, $this->publisher->reconcile());
-		$this->assertSame(RepoWrite::DELETE . ' 3kznmn7xqxl22', $writes[0][0], 'the stale record goes');
-		$this->assertSame(RepoWrite::CREATE, explode(' ', $writes[0][1])[0], 'and the edit takes its place');
+		$this->assertSame([RepoWrite::UPDATE . ' 3kznmn7xqxl22'], $writes[0], 'the existing URI receives the edit');
 		$this->assertSame([RepoWrite::DELETE . ' 3kznmn7xqxl33'], $writes[1], 'the orphan record is removed');
+	}
+
+	public function testReconcileRemovesAnOlderPostThatBecamePrivate(): void {
+		$record = new StoredRecord(self::DID, RecordMapper::POST, '3kznmn7xqxl22', Cid::forRaw('r'), $this->mappedBytes(), self::POST, 0);
+		$this->records[] = $record;
+		$post = $this->post(1760000000 - 60 * 60 * 24 * 30);
+		$post->setVisibility(Stream::TYPE_FOLLOWERS);
+		$this->streamRequest->method('getStreamById')->with(self::POST)->willReturn($post);
+		$this->repositories->method('getRecordsSince')->with(RecordMapper::POST, 0, 100)->willReturn([$record]);
+		$this->repositories->expects($this->once())->method('write')->with(self::DID, $this->anything(), $this->callback(static fn (array $writes): bool => count($writes) === 1
+			&& $writes[0]->action === RepoWrite::DELETE
+			&& $writes[0]->rkey === '3kznmn7xqxl22'))->willReturnCallback(fn (): CommitResult => $this->written());
+
+		$this->assertSame(1, $this->publisher->reconcile());
+	}
+
+	public function testEditingAPinnedPostRefreshesItsStrongReferenceCid(): void {
+		$record = new StoredRecord(self::DID, RecordMapper::POST, '3kznmn7xqxl22', Cid::forRaw('r'), DagCbor::encode(['$type' => RecordMapper::POST, 'text' => 'before']), self::POST, 0);
+		$this->records[] = $record;
+		$this->profile['pinnedPost'] = ['uri' => $record->uri(), 'cid' => $record->cid->toString()];
+		$editedRecord = ['$type' => RecordMapper::POST, 'text' => 'hi', 'createdAt' => '2026-10-08T10:00:00.000Z'];
+		$editedCid = Cid::forDagCbor(DagCbor::encode($editedRecord))->toString();
+		$this->mapper->method('profile')->willReturn(['$type' => RecordMapper::PROFILE, 'pinnedPost' => ['uri' => $record->uri(), 'cid' => $editedCid]]);
+		$writes = [];
+		$this->repositories->expects($this->exactly(2))->method('write')->willReturnCallback(function (string $did, $key, array $batch) use (&$writes): CommitResult {
+			$writes[] = $batch;
+
+			return $this->written();
+		});
+
+		$this->assertSame('updated', $this->publisher->editPost($this->post()));
+		$this->assertSame(RepoWrite::UPDATE, $writes[0][0]->action);
+		$this->assertSame('3kznmn7xqxl22', $writes[0][0]->rkey);
+		$this->assertSame(RecordMapper::PROFILE, $writes[1][0]->collection);
+		$this->assertSame(RepoWrite::UPDATE, $writes[1][0]->action);
+		$this->assertSame($editedCid, $writes[1][0]->record['pinnedPost']['cid']);
+	}
+
+	public function testAnIncompleteMultiCommitEditIsNotReportedAsUpdated(): void {
+		$this->records[] = new StoredRecord(self::DID, RecordMapper::POST, '3kznmn7xqxl22', Cid::forRaw('r'), $this->mappedBytes(), self::POST, 0);
+		$this->mappedPost['continuations'] = array_fill(0, RepositoryService::MAX_WRITES + 1, ['text' => 'part', 'facets' => []]);
+		$nextResults = [$this->written(), null];
+		$chunkSizes = [];
+		$results = [];
+		$this->repositories->expects($this->exactly(2))->method('write')
+			->willReturnCallback(function (string $did, PrivateKey $key, array $writes) use (&$nextResults, &$chunkSizes, &$results): ?CommitResult {
+				$chunkSizes[] = count($writes);
+				$result = array_shift($nextResults);
+				$results[] = $result;
+
+				return $result;
+			});
+
+		$result = $this->publisher->editPost($this->post());
+
+		$this->assertSame([RepositoryService::MAX_WRITES, 1], $chunkSizes);
+		$this->assertNull($results[1]);
+		$this->assertSame('kept', $result);
+	}
+
+	public function testAnEditUpdatesChangedReplyRulesWithoutChangingThePostRecord(): void {
+		$postRecord = ['$type' => RecordMapper::POST, 'text' => 'hi', 'createdAt' => '2026-10-08T10:00:00.000Z'];
+		$this->records[] = new StoredRecord(self::DID, RecordMapper::POST, '3kznmn7xqxl22', Cid::forDagCbor(DagCbor::encode($postRecord)), DagCbor::encode($postRecord), self::POST, 0);
+		$oldGate = ['$type' => RecordMapper::THREADGATE, 'post' => 'at://' . self::DID . '/' . RecordMapper::POST . '/3kznmn7xqxl22', 'allow' => [], 'createdAt' => '2026-10-08T10:00:00.000Z'];
+		$this->records[] = new StoredRecord(self::DID, RecordMapper::THREADGATE, '3kznmn7xqxl22', Cid::forDagCbor(DagCbor::encode($oldGate)), DagCbor::encode($oldGate), self::POST, 0);
+		$newGate = $oldGate;
+		$newGate['allow'] = [['$type' => RecordMapper::THREADGATE . '#mentionRule']];
+		$this->mapper->method('threadgate')->willReturn($newGate);
+		$this->repositories->expects($this->once())->method('write')->with(self::DID, $this->anything(), $this->callback(static fn (array $writes): bool => count($writes) === 1
+			&& $writes[0]->action === RepoWrite::UPDATE
+			&& $writes[0]->collection === RecordMapper::THREADGATE
+			&& $writes[0]->record === $newGate))->willReturnCallback(fn (): CommitResult => $this->written());
+
+		$this->assertSame('updated', $this->publisher->editPost($this->post()));
 	}
 
 	public function testDeletingThePinnedPostWritesTheProfileAgain(): void {
@@ -578,7 +910,7 @@ class PublisherTest extends TestCase {
 		$this->assertFalse($this->publisher->writeRecord($actor, 'app.bsky.feed.like', ['$type' => 'app.bsky.feed.like'], 'https://social.test/like/1'));
 		$this->assertFalse($this->publisher->publishProfile($actor));
 		$this->records[] = new StoredRecord(self::DID, RecordMapper::POST, '3kznmn7xqxl22', Cid::forRaw('r'), DagCbor::encode(['$type' => RecordMapper::POST, 'text' => 'before']), self::POST, 0);
-		$this->assertSame('kept', $this->publisher->editPost($this->post(1760000000 - 60)), 'an edit within the grace is not published');
+		$this->assertSame('kept', $this->publisher->editPost($this->post(1760000000 - 60)), 'an edit is not published while the identity is off');
 		$this->publisher->updateGates($this->post());
 		$this->assertTrue($this->publisher->deletePost(self::POST));
 	}

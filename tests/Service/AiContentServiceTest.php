@@ -91,8 +91,16 @@ class AiContentServiceTest extends TestCase {
 	// isLabelled, on an exported status
 
 	public function testAStatusTaggedWithADefaultIsLabelledWhateverTheCase(): void {
-		foreach (['aigenerated', 'AIgenerated', '#MidJourney', 'Sora'] as $name) {
+		foreach (['aigenerated', 'AIgenerated', '#AIGeneratedArt', 'GeneratedByAI', '#MidJourney', 'Sora'] as $name) {
 			$this->assertTrue(
+				$this->service->isLabelled(['tags' => [['name' => $name, 'url' => '']]]), $name
+			);
+		}
+	}
+
+	public function testGenericAiTagsDoNotLabelAStatusAsGenerated(): void {
+		foreach (['AI', '#AI', 'aiart', 'aiimage', 'aiphoto', 'aivideo'] as $name) {
+			$this->assertFalse(
 				$this->service->isLabelled(['tags' => [['name' => $name, 'url' => '']]]), $name
 			);
 		}
@@ -134,7 +142,7 @@ class AiContentServiceTest extends TestCase {
 			'id' => '9',
 			'tags' => [],
 			'media_attachments' => [],
-			'reblog' => ['id' => '3', 'tags' => [['name' => 'aiart', 'url' => '']]],
+			'reblog' => ['id' => '3', 'tags' => [['name' => 'aigeneratedart', 'url' => '']]],
 		];
 
 		$this->assertTrue($this->service->isLabelled($boost));

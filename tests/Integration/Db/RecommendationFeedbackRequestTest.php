@@ -39,19 +39,19 @@ class RecommendationFeedbackRequestTest extends TestCase {
 
 	public function testFeedbackIsIdempotentUndoRestoresThePreviousScopeAndIsSafeToRepeat(): void {
 		$now = 2_000_000_000;
-		$first = $this->feedback->record($this->owner, self::uuid(1), self::uuid(101), 'topic', 'tech.apple', 'MORE_TOPIC', $now);
-		$duplicate = $this->feedback->record($this->owner, self::uuid(2), self::uuid(101), 'topic', 'tech.apple', 'MORE_TOPIC', $now + 1);
+		$first = $this->feedback->record($this->owner, self::uuid(1), self::uuid(101), 'similarity', 'technology|text', 'MORE_SIMILAR', $now);
+		$duplicate = $this->feedback->record($this->owner, self::uuid(2), self::uuid(101), 'similarity', 'technology|text', 'MORE_SIMILAR', $now + 1);
 		$this->assertTrue($duplicate['duplicate']);
 		$this->assertSame($first['record']['feedback_id'], $duplicate['record']['feedback_id']);
 		$this->assertSame(1, $duplicate['feedback_version']);
 
-		$second = $this->feedback->record($this->owner, self::uuid(3), self::uuid(102), 'topic', 'tech.apple', 'LESS_TOPIC', $now + 2);
-		$this->assertSame('LESS_TOPIC', $this->feedback->current($this->owner)["topic\0tech.apple"]['operation']);
+		$second = $this->feedback->record($this->owner, self::uuid(3), self::uuid(102), 'similarity', 'technology|text', 'LESS_SIMILAR', $now + 2);
+		$this->assertSame('LESS_SIMILAR', $this->feedback->current($this->owner)["similarity\0technology|text"]['operation']);
 
 		$undone = $this->feedback->undo($this->owner, $second['record']['feedback_id'], $now + 3);
 		$this->assertTrue($undone['undone']);
 		$this->assertFalse($undone['expired']);
-		$this->assertSame('MORE_TOPIC', $this->feedback->current($this->owner)["topic\0tech.apple"]['operation']);
+		$this->assertSame('MORE_SIMILAR', $this->feedback->current($this->owner)["similarity\0technology|text"]['operation']);
 		$this->assertTrue($this->feedback->undo($this->owner, $second['record']['feedback_id'], $now + 4)['undone']);
 	}
 

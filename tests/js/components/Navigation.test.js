@@ -19,6 +19,17 @@ import { useSettingsStore } from '../../../src/store/settings.js'
 import { useTimelineStore } from '../../../src/store/timeline.js'
 import { offTimelinePush, onTimelinePush } from '../../../src/services/timelinePush.js'
 
+vi.mock('../../../src/components/Composer/Composer.vue', () => ({
+	__esModule: true,
+	__isTeleport: false,
+	__isKeepAlive: false,
+	default: {
+		props: ['initialPaths'],
+		emits: ['posted'],
+		template: '<div class="composer-stub" :data-paths="JSON.stringify(initialPaths)" @click="$emit(\'posted\')" />',
+	},
+}))
+
 vi.hoisted(() => {
 	document.head.dataset.user = 'alice'
 	document.head.dataset.userDisplayname = 'Alice'

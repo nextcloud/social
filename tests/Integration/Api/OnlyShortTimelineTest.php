@@ -13,14 +13,15 @@ use OCA\Social\Controller\AccountApiController;
 use OCA\Social\Controller\InterestsController;
 use OCA\Social\Controller\ListController;
 use OCA\Social\Controller\TimelineApiController;
+use OCA\Social\Db\InterestsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\Client\AttachmentMeta;
 use OCA\Social\Model\Client\AttachmentMetaDim;
 use OCA\Social\Model\Client\MediaAttachment;
+use OCA\Social\Model\Interest;
 use OCA\Social\Service\ConfigService;
-use OCA\Social\Service\InterestService;
 use OCP\Server;
 use PHPUnit\Framework\Attributes\DataProvider;
 
@@ -211,8 +212,12 @@ class OnlyShortTimelineTest extends ApiTestCase {
 	 */
 	public function testForYouWithOnlyShortRanksOnlyTheShorts(): void {
 		Server::get(ConfigService::class)->setAppValue(ConfigService::SOCIAL_INTERESTS, '1');
-		Server::get(InterestService::class)->add($this->account('alice'), self::TAG);
 		$shorts = $this->seed();
+		// This test exercises feed ranking, not signal collection. Seed the
+		// learned profile directly above the configured listing threshold so
+		// database-specific action/cache behavior cannot leave the feed empty.
+		$alice = $this->account('alice');
+		Server::get(InterestsRequest::class)->save($alice->getId(), new Interest(self::TAG, 50.0, time()));
 		$page = fn (array $query): ApiResponse => $this->call(InterestsController::class, 'timeline', [], $query);
 
 		$this->assertSame(

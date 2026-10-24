@@ -33,6 +33,14 @@ describe('the built bundles', () => {
 		expect(readdirSync(JS).some((entry) => entry.endsWith('.js'))).toBe(true)
 	})
 
+	it('does not ship the unused Node crypto polyfill or its elliptic dependency', () => {
+		const cryptoPolyfill = /(?:crypto-browserify|browserify-sign|create-ecdh|elliptic)/
+		const bundles = readdirSync(JS).filter((entry) => entry.endsWith('.js'))
+		const included = bundles.filter((name) => cryptoPolyfill.test(bundle(name) ?? ''))
+
+		expect(included).toEqual([])
+	})
+
 	it.each(['social-dashboard.js', 'social-profilePage.js', 'social-ostatus.js'])(
 		'%s does not carry the emoji picker',
 		(name) => {
@@ -68,6 +76,26 @@ describe('the built bundles', () => {
 			const size = statSync(join(JS, name)).size
 			expect(size, `${name} is ${Math.round(size / 1024)} KB`).toBeLessThan(400 * 1024)
 		}
+	})
+
+	it('ships every lazy chunk referenced by the committed bundles', () => {
+		const files = new Set(readdirSync(JS))
+		const bundles = [...files].filter((name) => name.endsWith('.js'))
+		let references = 0
+
+		for (const name of bundles) {
+			const content = bundle(name)
+			if (content === null) {
+				continue
+			}
+
+			for (const [, chunk] of content.matchAll(/\.e\("([^"]+)"\)/g)) {
+				references++
+				expect(files.has(`social-${chunk}.js`), `${name} requests missing lazy chunk social-${chunk}.js`).toBe(true)
+			}
+		}
+
+		expect(references, 'the committed bundles should contain lazy chunk references').toBeGreaterThan(0)
 	})
 })
 

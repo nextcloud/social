@@ -27,7 +27,6 @@ final class RecommendationSocialGraphCandidates {
 	 * @param list<string> $excludeNids
 	 * @param list<string> $languages
 	 * @param list<string> $topicIds
-	 * @param list<string> $hiddenTopicIds
 	 * @return array<string, Stream> by nid
 	 */
 	public function matching(
@@ -36,7 +35,6 @@ final class RecommendationSocialGraphCandidates {
 		array $excludeNids,
 		array $languages,
 		array $topicIds,
-		array $hiddenTopicIds,
 		string $media = '',
 	): array {
 		$limit = max(0, min(self::MAX_CANDIDATES, $limit));
@@ -50,14 +48,13 @@ final class RecommendationSocialGraphCandidates {
 		foreach ($posts as $nid => $post) {
 			$features = $this->features->extract($post);
 			$matchedTopics = array_keys($features['topics']);
-			if (array_intersect($topicIds, $matchedTopics) === []
-				|| array_intersect($hiddenTopicIds, $matchedTopics) !== []) {
+			if (array_intersect($topicIds, $matchedTopics) === []) {
 				continue;
 			}
 			if ($languages !== [] && $features['language'] !== '' && !in_array($features['language'], $languages, true)) {
 				continue;
 			}
-			if (!self::matchesMedia($features['format'], $media)) {
+			if (!RecommendationMediaFilter::matches($features['format'], $media)) {
 				continue;
 			}
 
@@ -70,13 +67,4 @@ final class RecommendationSocialGraphCandidates {
 		return $result;
 	}
 
-	private static function matchesMedia(string $format, string $media): bool {
-		return match ($media) {
-			'photos' => $format === 'image',
-			'videos' => in_array($format, ['video', 'short'], true),
-			'shorts' => $format === 'short',
-			'media' => in_array($format, ['image', 'video', 'short'], true),
-			default => true,
-		};
-	}
 }

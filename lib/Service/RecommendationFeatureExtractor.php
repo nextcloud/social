@@ -17,21 +17,35 @@ use OCA\Social\Tools\SearchTerms;
 
 /** Deterministic, local-only features used to retrieve recommendation candidates. */
 final class RecommendationFeatureExtractor {
-	public const VERSION = 4;
+	public const VERSION = 8;
 	private const MAX_CONTENT_CHARS = 20000;
-	private const MAX_TERMS = 500;
+	// A 20,000-character body cannot contain more than 10,000 two-character
+	// words separated by at least one character; cover it fully for both
+	// sensitive-topic exclusion and story sampling.
+	private const MAX_TERMS = 10000;
+	private const MAX_STORY_TERMS = 60;
+	private const STORY_HEADLINE_TERMS = 20;
 	/** @var array<string, list<array{alias: string, terms: list<string>}>> */
 	private array $compiledAliases = [];
+	/** @var list<array{terms: list<string>, hashtag: string}> */
+	private array $compiledSensitiveAliases = [];
 
 	public function __construct(
 		private RecommendationTopicCatalog $catalog,
 	) {
 		foreach ($this->catalog->all() as $topic) {
 			$aliases = [];
-			foreach ($topic['aliases'] as $alias) {
+			$topicAliases = $topic['aliases'];
+			if (in_array('sensitive-topic', $topic['policyTags'], true) && $topic['parentId'] === null) {
+				$topicAliases[] = (string)$topic['id'];
+			}
+			foreach (array_unique($topicAliases) as $alias) {
 				$terms = SearchTerms::ofText($alias, 20, true);
 				if ($terms !== []) {
 					$aliases[] = ['alias' => $alias, 'terms' => $terms];
+					if (in_array('sensitive-topic', $topic['policyTags'], true)) {
+						$this->compiledSensitiveAliases[] = ['terms' => $terms, 'hashtag' => self::normaliseHashtag($alias)];
+					}
 				}
 			}
 			$this->compiledAliases[$topic['id']] = $aliases;
@@ -43,11 +57,30 @@ final class RecommendationFeatureExtractor {
 	 * Topics marked sensitive are deliberately omitted until a separate reviewed
 	 * policy allows their use in recommendation ranking.
 	 *
-	 * @return array{version: int, topics: array<string, array{score: float, evidence: string}>, format: string, language: string}
+	 * @return array{version: int, topics: array<string, array{score: float, evidence: string}>, format: string, language: string, story_terms?: list<string>}
 	 */
-	public function extract(Stream $post): array {
-		$bodySegments = self::contentSegments(mb_substr($post->getContent(), 0, self::MAX_CONTENT_CHARS, 'UTF-8'));
+	public function extract(Stream $post, bool $includeStoryTerms = false): array {
+		$content = $post->getContent();
+		$contentExceedsBound = mb_strlen($content, 'UTF-8') > self::MAX_CONTENT_CHARS;
+		$bodySegments = self::contentSegments(mb_substr($content, 0, self::MAX_CONTENT_CHARS, 'UTF-8'));
 		$hashtagTerms = array_map(self::normaliseHashtag(...), $post->getHashtags());
+		// If the body was clipped, a sensitive marker might be in the unseen
+		// tail. Do not create any story fingerprints from a partial view.
+		$hasSensitiveEvidence = $includeStoryTerms && ($contentExceedsBound
+			|| self::hasSensitiveEvidence($bodySegments, $hashtagTerms, $this->compiledSensitiveAliases));
+		$storyTerms = [];
+		$seenStoryTerms = [];
+		if ($includeStoryTerms && !$hasSensitiveEvidence) {
+			foreach ($bodySegments as $segment) {
+				foreach ($segment as $term) {
+					if (!SearchTerms::isStopWord($term) && !isset($seenStoryTerms[$term])) {
+						$seenStoryTerms[$term] = true;
+						$storyTerms[] = $term;
+					}
+				}
+			}
+			$storyTerms = self::boundedStoryTerms($storyTerms);
+		}
 		$matches = [];
 
 		foreach ($this->compiledAliases as $topicId => $aliases) {
@@ -83,12 +116,43 @@ final class RecommendationFeatureExtractor {
 			}
 		}
 
-		return [
+		$features = [
 			'version' => self::VERSION,
 			'topics' => $matches,
 			'format' => self::formatOf($post),
 			'language' => strtolower(trim($post->getLanguage())),
 		];
+		if ($includeStoryTerms) {
+			$features['story_terms'] = $storyTerms;
+		}
+
+		return $features;
+	}
+
+	/**
+	 * Keep the opening words, which usually name the story, and sample the
+	 * remainder across the whole post so long articles do not fingerprint only
+	 * their introduction. The source is already bounded to MAX_TERMS.
+	 *
+	 * @param list<string> $terms
+	 * @return list<string>
+	 */
+	private static function boundedStoryTerms(array $terms): array {
+		if (count($terms) <= self::MAX_STORY_TERMS) {
+			return $terms;
+		}
+
+		$headline = array_slice($terms, 0, self::STORY_HEADLINE_TERMS);
+		$remainder = array_slice($terms, self::STORY_HEADLINE_TERMS);
+		$sampleCount = self::MAX_STORY_TERMS - count($headline);
+		$last = count($remainder) - 1;
+		$sampled = [];
+		for ($sample = 0; $sample < $sampleCount; $sample++) {
+			$index = (int)round($sample * $last / max(1, $sampleCount - 1));
+			$sampled[] = $remainder[$index];
+		}
+
+		return [...$headline, ...$sampled];
 	}
 
 	/** @param list<string> $aliasTerms @param list<list<string>> $segments @param list<string> $aliases */
@@ -130,6 +194,22 @@ final class RecommendationFeatureExtractor {
 		for ($offset = 0, $end = count($haystack) - $length; $offset <= $end; $offset++) {
 			if (array_slice($haystack, $offset, $length) === $needle) {
 				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/** @param list<list<string>> $segments @param list<string> $hashtags @param list<array{terms: list<string>, hashtag: string}> $sensitiveAliases */
+	private static function hasSensitiveEvidence(array $segments, array $hashtags, array $sensitiveAliases): bool {
+		foreach ($sensitiveAliases as $alias) {
+			if ($alias['hashtag'] !== '' && in_array($alias['hashtag'], $hashtags, true)) {
+				return true;
+			}
+			foreach ($segments as $segment) {
+				if (self::containsSequence($segment, $alias['terms'])) {
+					return true;
+				}
 			}
 		}
 

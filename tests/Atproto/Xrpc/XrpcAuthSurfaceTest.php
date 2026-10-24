@@ -229,9 +229,12 @@ class XrpcAuthSurfaceTest extends TestCase {
 
 			$this->assertSame('*', $headers['Access-Control-Allow-Origin'] ?? null, $method);
 			$this->assertStringContainsString('DPoP', $headers['Access-Control-Allow-Headers'] ?? '');
+			$this->assertStringContainsString('X-Atproto-Session-Id', $headers['Access-Control-Allow-Headers'] ?? '');
 			$this->assertStringContainsString('DPoP-Nonce', $headers['Access-Control-Expose-Headers'] ?? '');
 		}
-		$this->assertSame(204, $this->controller->preflight('com.atproto.repo.createRecord')->getStatus());
+		$preflight = $this->controller->preflight('com.atproto.repo.createRecord');
+		$this->assertSame(204, $preflight->getStatus());
+		$this->assertStringContainsString('X-Atproto-Session-Id', $preflight->getHeaders()['Access-Control-Allow-Headers'] ?? '');
 	}
 
 	private function call(string $method, string $kind): Response {

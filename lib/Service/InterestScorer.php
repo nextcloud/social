@@ -22,32 +22,19 @@ use OCA\Social\Model\Interest;
  *
  * The rules, in the order a signal meets them:
  *
- *  - **What a look is worth** is decided against the reader's own habits, not
- *    a stopwatch: the time a post would take to read at an ordinary pace is
- *    worked out from its length and its pictures, and the ratio of the actual
- *    time to that is compared with the ratio this reader usually shows. A fast
- *    reader and a slow one both linger on what interests them — at different
- *    speeds.
+ *  - Passive time on screen is neutral. Only a Shorts player's measured
+ *    playback ratio, explicit actions and skips can teach the profile.
  *  - **A post's signal is split** evenly across its hashtags, so a post with
  *    ten tags teaches ten tags a little rather than each of them a lot; past
  *    fifteen it is tag spam and teaches nothing.
  *  - **Scores decay** with a half-life, worked out when a score is read rather
  *    than by a job that rewrites every row, so what someone was into last
  *    spring does not run their feed today.
- *  - **The list** is every pinned tag at the rank it was pinned to, and the
- *    rest — manual, followed and learned tags above the threshold — filling
- *    the free ranks by score, up to the cap.
+ *  - **The list** is followed tags and automatically learned tags above the
+ *    threshold, ranked by score and limited to the cap. Legacy manual and
+ *    pinned rows are ignored so old reader choices no longer steer the feed.
  */
 class InterestScorer {
-	/** Reading an empty post still takes a moment. */
-	public const BASE_MS = 1200;
-	/** About 1700 characters a minute: an unhurried reading pace. */
-	public const PER_CHAR_MS = 35;
-	/** A picture is looked at, not read. */
-	public const PER_MEDIA_MS = 1500;
-	/** Past this a post is long, and nobody is expected to read all of it. */
-	public const EXPECTED_CAP_MS = 20000;
-
 	/**
 	 * A video longer than this counts as watched once this much of it was:
 	 * one look is capped at `InterestService::MAX_DWELL_MS`, so a longer
@@ -58,9 +45,6 @@ class InterestScorer {
 	public const WATCHED_SHARE = 0.9;
 	/** Half of it is a video they watched rather than swiped past. */
 	public const WATCHED_SOME = 0.5;
-
-	/** How quickly the reader's own pace follows what they do. */
-	public const BASELINE_ALPHA = 0.05;
 
 	public const SIGNAL_LONG_DWELL = 1.0;
 	public const SIGNAL_DWELL = 0.3;
@@ -109,47 +93,6 @@ class InterestScorer {
 
 	public function getCap(): int {
 		return $this->cap;
-	}
-
-	/**
-	 * How long a post takes to read at an ordinary pace.
-	 *
-	 * @param int $chars visible characters of text
-	 * @param int $media pictures and videos
-	 */
-	public function expectedDwellMs(int $chars, int $media): int {
-		$expected = self::BASE_MS + self::PER_CHAR_MS * max(0, $chars) + self::PER_MEDIA_MS * max(0, $media);
-
-		return min(self::EXPECTED_CAP_MS, $expected);
-	}
-
-	/**
-	 * What a look was worth, and the reader's pace after it.
-	 *
-	 * `r` is how long they looked over how long the post takes to read. Twice
-	 * their usual `r` is a post that held them; their usual or more is one
-	 * they read; less is one they only glanced at, which says nothing either
-	 * way. The pace moves a little towards every look.
-	 *
-	 * @return array{0: float, 1: float} the signal, and the new baseline
-	 */
-	public function classifyDwell(int $dwellMs, int $expectedMs, float $baseline): array {
-		$ratio = (float)max(0, $dwellMs) / (float)max(1, $expectedMs);
-		$baseline = ($baseline > 0) ? $baseline : 1.0;
-
-		if ($ratio >= 2.0 * $baseline) {
-			$signal = self::SIGNAL_LONG_DWELL;
-		} elseif ($ratio >= $baseline) {
-			$signal = self::SIGNAL_DWELL;
-		} else {
-			$signal = 0.0;
-		}
-
-		// capped, so one post left on screen during lunch does not teach the
-		// reader's pace that they read at a twentieth of their speed
-		$next = (1.0 - self::BASELINE_ALPHA) * $baseline + self::BASELINE_ALPHA * min($ratio, 10.0);
-
-		return [$signal, $next];
 	}
 
 	/**
@@ -214,12 +157,16 @@ class InterestScorer {
 	 * Adds a signal to a row, in place.
 	 *
 	 * The row's score is decayed to now first, so the old score and the new
-	 * signal are in the same currency. A pinned or manual row does not decay —
-	 * the reader said so, and that does not wear off. When the last signal
+	 * signal are in the same currency. When the last signal
 	 * came in an earlier week, the score as that week ends is kept for the
 	 * trend.
 	 */
 	public function fold(Interest $interest, float $delta, int $now): Interest {
+		// Reader-selected legacy rows no longer seed automatic learning.
+		if ($interest->isManual() || $interest->isPinned()) {
+			$interest = new Interest($interest->getHashtag());
+		}
+
 		$current = $this->current($interest, $now);
 
 		if ($interest->getScoredAt() > 0
@@ -233,12 +180,8 @@ class InterestScorer {
 		return $interest;
 	}
 
-	/** The row's score now: decayed, unless the reader fixed it. */
+	/** The automatically learned score now. */
 	public function current(Interest $interest, int $now): float {
-		if ($interest->isManual() || $interest->isPinned()) {
-			return $interest->getScore();
-		}
-
 		return $this->decayed($interest->getScore(), $interest->getScoredAt(), $now);
 	}
 
@@ -277,13 +220,15 @@ class InterestScorer {
 		$followed = array_fill_keys($followed, true);
 		$entries = [];
 		foreach ($rows as $row) {
+			if ($row->isManual() || $row->isPinned()) {
+				continue;
+			}
 			$entries[$row->getHashtag()] = $row;
 		}
 		foreach (array_keys($followed) as $tag) {
 			$entries[$tag] ??= new Interest((string)$tag);
 		}
 
-		$pinned = [];
 		$floating = [];
 		$candidates = [];
 		$negative = [];
@@ -291,23 +236,20 @@ class InterestScorer {
 			$tag = (string)$tag;
 			$score = $this->current($row, $now);
 			$isFollowed = isset($followed[$tag]);
-			$source = $isFollowed ? 'followed' : ($row->isManual() ? 'manual' : 'learned');
-			if ($isFollowed || $row->isManual()) {
+			$source = $isFollowed ? 'followed' : 'learned';
+			if ($isFollowed) {
 				$score = max($score, $this->threshold);
 			}
 
 			$entry = [
 				'tag' => $tag,
 				'source' => $source,
-				'pinned' => $row->isPinned(),
+				'pinned' => false,
 				'score' => round($score, 2),
 				'trend' => ($source === 'learned') ? $this->trend($score, $row->getScoreWeek()) : null,
-				'position' => $row->getPosition(),
 			];
 
-			if ($row->isPinned()) {
-				$pinned[] = $entry;
-			} elseif ($source !== 'learned' || $score >= $this->threshold) {
+			if ($source !== 'learned' || $score >= $this->threshold) {
 				$floating[] = $entry;
 			} elseif ($score > 0) {
 				$candidates[] = ['tag' => $tag, 'score' => round($score, 2)];
@@ -316,22 +258,10 @@ class InterestScorer {
 			}
 		}
 
-		usort($pinned, static fn (array $a, array $b): int => [$a['position'], $a['tag']] <=> [$b['position'], $b['tag']]);
 		usort($floating, static fn (array $a, array $b): int => [$b['score'], $a['tag']] <=> [$a['score'], $b['tag']]);
 
-		// the cap limits what floats in; a pin is the reader's word and stays
-		$length = max(count($pinned), min($this->cap, count($pinned) + count($floating)));
-		$slots = array_fill(0, $length, null);
-		foreach ($pinned as $entry) {
-			$slots[$this->freeSlot($slots, (int)$entry['position'])] = $entry;
-		}
-
-		$overflow = $floating;
-		foreach ($slots as $index => $slot) {
-			if ($slot === null) {
-				$slots[$index] = array_shift($overflow);
-			}
-		}
+		$listedEntries = array_slice($floating, 0, $this->cap);
+		$overflow = array_slice($floating, $this->cap);
 
 		// a tag above the threshold that did not fit is still a tag the reader
 		// might want: first in line among the candidates
@@ -343,8 +273,7 @@ class InterestScorer {
 		usort($candidates, static fn (array $a, array $b): int => [$b['score'], $a['tag']] <=> [$a['score'], $b['tag']]);
 
 		$listed = [];
-		foreach (array_values(array_filter($slots)) as $rank => $entry) {
-			unset($entry['position']);
+		foreach ($listedEntries as $rank => $entry) {
 			$listed[] = ['tag' => $entry['tag'], 'rank' => $rank] + $entry;
 		}
 
@@ -354,29 +283,6 @@ class InterestScorer {
 			'negative' => $negative,
 			'thin' => count($listed) < self::THIN,
 		];
-	}
-
-	/**
-	 * The slot a pin lands in: the one it asked for, or the nearest free one
-	 * after it, or before it when the list ends first.
-	 *
-	 * @param array<int, mixed> $slots
-	 */
-	private function freeSlot(array $slots, int $wanted): int {
-		$last = count($slots) - 1;
-		$wanted = max(0, min($wanted, $last));
-		for ($index = $wanted; $index <= $last; $index++) {
-			if ($slots[$index] === null) {
-				return $index;
-			}
-		}
-		for ($index = $wanted - 1; $index >= 0; $index--) {
-			if ($slots[$index] === null) {
-				return $index;
-			}
-		}
-
-		return $last;
 	}
 
 	private function trend(float $score, ?float $week): ?string {

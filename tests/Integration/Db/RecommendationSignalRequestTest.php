@@ -47,7 +47,10 @@ class RecommendationSignalRequestTest extends TestCase {
 		);
 
 		$this->assertSame([
-			$this->postKey => ['impressions' => 5, 'updated_at' => $this->now - 1800],
+			$this->postKey => [
+				'f7f454f1-d33d-4fb5-a132-335837049d23' => ['impressions' => 2, 'updated_at' => $this->now - 3600],
+				'f7f454f1-d33d-4fb5-a132-335837049d24' => ['impressions' => 3, 'updated_at' => $this->now - 1800],
+			],
 		], $result);
 	}
 

@@ -9,7 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\RefusalException;
 use OCA\Social\Security\RemoteAddress;
 use OCP\Lock\ILockingProvider;
 use OCP\Security\ICrypto;
@@ -62,15 +62,15 @@ class PushSubscriptionService {
 		bool $standard = false,
 	): array {
 		if ($userId === '' || $token === '' || $accessToken === '') {
-			throw new InvalidResourceException('A signed-in account and app token are required');
+			throw new RefusalException('A signed-in account and app token are required', 'push-auth-required');
 		}
 		self::validateEndpoint($endpoint);
 		if (strlen($p256dh) > 256 || preg_match('/^[A-Za-z0-9_-]{80,100}$/', $p256dh) !== 1
 			|| strlen($auth) > 128 || preg_match('/^[A-Za-z0-9_-]{16,64}$/', $auth) !== 1) {
-			throw new InvalidResourceException('The push subscription keys are invalid');
+			throw new RefusalException('The push subscription keys are invalid', 'push-keys-invalid');
 		}
 		if (!in_array($policy, self::POLICIES, true)) {
-			throw new InvalidResourceException('The notification policy is invalid');
+			throw new RefusalException('The notification policy is invalid', 'push-policy-invalid');
 		}
 		$normalizedAlerts = self::normalizeAlerts($alerts);
 
@@ -85,7 +85,12 @@ class PushSubscriptionService {
 				}
 			}
 			if ($existingId === '' && count($subscriptions) >= self::MAX_PER_ACCOUNT) {
-				throw new InvalidResourceException('This account already has the maximum number of push subscriptions');
+				throw new RefusalException(
+					'This account already has the maximum number of push subscriptions',
+					'push-subscriptions-full',
+					null,
+					['limit' => self::MAX_PER_ACCOUNT],
+				);
 			}
 
 			$id = $existingId !== '' ? $existingId : (string)random_int(1, PHP_INT_MAX);
@@ -135,7 +140,7 @@ class PushSubscriptionService {
 
 	public function update(string $userId, string $token, array $alerts, string $policy): ?array {
 		if (!in_array($policy, self::POLICIES, true)) {
-			throw new InvalidResourceException('The notification policy is invalid');
+			throw new RefusalException('The notification policy is invalid', 'push-policy-invalid');
 		}
 		$normalizedAlerts = self::normalizeAlerts($alerts);
 
@@ -173,7 +178,7 @@ class PushSubscriptionService {
 		foreach (self::ALERTS as $alert) {
 			$value = $alerts[$alert] ?? false;
 			if (!is_bool($value) && !in_array($value, [0, 1, '0', '1', 'true', 'false'], true)) {
-				throw new InvalidResourceException('The push alert preferences are invalid');
+				throw new RefusalException('The push alert preferences are invalid', 'push-alerts-invalid');
 			}
 			$normalized[$alert] = in_array($value, [true, 1, '1', 'true'], true);
 		}
@@ -191,7 +196,7 @@ class PushSubscriptionService {
 			|| isset($parts['pass'])
 			|| isset($parts['fragment'])
 			|| RemoteAddress::reachableAddresses($parts['host']) === []) {
-			throw new InvalidResourceException('The push endpoint must be a reachable public HTTPS URL');
+			throw new RefusalException('The push endpoint must be a reachable public HTTPS URL', 'push-endpoint-unreachable');
 		}
 	}
 

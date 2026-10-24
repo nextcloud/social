@@ -113,6 +113,10 @@ class StatusAssemblyServiceTest extends TestCase {
 				return $this->params['poll'] ?? null;
 			}
 
+			public function paramEvent(): ?array {
+				return $this->params['event'] ?? null;
+			}
+
 			public function paramMediaIds(): array {
 				return array_map('intval', $this->params['media_ids'] ?? []);
 			}

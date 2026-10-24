@@ -57,18 +57,18 @@ describe('why a post is in For you', () => {
 		})
 	})
 
-	it('explains a v4 match using the localized selected topic label', () => {
+	it('explains an automatic match using the localized topic label', () => {
 		const originalLanguage = document.documentElement.lang
 		document.documentElement.lang = 'de-DE'
 		expect(interestReason({
 			tags: [],
-			reason: 'topic',
+			reason: 'automatic',
 			topics: [{ id: 'oss.nextcloud', labels: { en: 'Nextcloud', de: 'Nextcloud' } }],
 		})).toEqual({
 			tag: null,
-			reason: 'topic',
-			text: 'Because you chose Nextcloud',
-			label: "Why you're seeing this: it matches your chosen topic Nextcloud",
+			reason: 'automatic',
+			text: 'Based on your interests in Nextcloud',
+			label: "Why you're seeing this: Based on your interests in Nextcloud",
 		})
 		document.documentElement.lang = originalLanguage
 	})
@@ -76,7 +76,7 @@ describe('why a post is in For you', () => {
 	it('explains the saved selection stage, protocol, and actual additional signals', () => {
 		expect(interestReason({
 			tags: [],
-			reason: 'topic',
+			reason: 'automatic',
 			topics: [{ id: 'tech.apple', labels: { en: 'Apple', de: 'Apple' } }],
 			explanation: {
 				also: ['FOLLOWED_AUTHOR', 'BEHAVIORAL_PROFILE', 'CACHED_CANDIDATE'],
@@ -86,9 +86,9 @@ describe('why a post is in For you', () => {
 			},
 		})).toEqual({
 			tag: null,
-			reason: 'topic',
-			text: 'Because you chose Apple · From an account you follow',
-			label: "Why you're seeing this: it matches your chosen topic Apple. From an account you follow. Your recent activity also influenced this ranking. Selected from posts available on this server. Bluesky post. Placed here to mix authors and topics. Explanation recorded when the feed was loaded.",
+			reason: 'automatic',
+			text: 'Based on your interests in Apple · From an account you follow',
+			label: "Why you're seeing this: Based on your interests in Apple. From an account you follow. Your recent activity also influenced this ranking. Selected from posts available on this server. Bluesky post. Placed here to mix authors and topics. Explanation recorded when the feed was loaded.",
 		})
 	})
 

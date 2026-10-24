@@ -10,8 +10,8 @@ declare(strict_types=1);
 namespace OCA\Social\Controller;
 
 use OCA\Social\Exceptions\InsufficientScopeException;
-use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemNotFoundException;
+use OCA\Social\Exceptions\RefusalException;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ClientService;
@@ -73,19 +73,19 @@ class PushController extends MastodonApiController {
 		try {
 			$this->initViewer(true);
 			$this->requireUserToken();
-			$subscription = $this->params('subscription');
+			$subscription = $this->params('subscription', 'push-subscription-invalid');
 			$keys = $subscription['keys'] ?? null;
 			if (!is_array($keys)) {
-				throw new InvalidResourceException('The subscription keys are required');
+				throw new RefusalException('The subscription keys are required', 'push-keys-invalid');
 			}
-			$data = $this->params('data');
+			$data = $this->params('data', 'push-data-invalid');
 			$alerts = $data['alerts'] ?? [];
 			if (!is_array($alerts)) {
-				throw new InvalidResourceException('The push alert preferences are invalid');
+				throw new RefusalException('The push alert preferences are invalid', 'push-alerts-invalid');
 			}
 			$standard = $subscription['standard'] ?? false;
 			if (!is_bool($standard) && !in_array($standard, [0, 1, '0', '1', 'true', 'false'], true)) {
-				throw new InvalidResourceException('The standard push format flag is invalid');
+				throw new RefusalException('The standard push format flag is invalid', 'push-standard-invalid');
 			}
 			$saved = $this->subscriptions->save(
 				$this->viewer->getUserId(),
@@ -116,10 +116,10 @@ class PushController extends MastodonApiController {
 			if ($current === null) {
 				throw new ItemNotFoundException('Push subscription not found');
 			}
-			$data = $this->params('data');
+			$data = $this->params('data', 'push-data-invalid');
 			$alerts = $data['alerts'] ?? [];
 			if (!is_array($alerts)) {
-				throw new InvalidResourceException('The push alert preferences are invalid');
+				throw new RefusalException('The push alert preferences are invalid', 'push-alerts-invalid');
 			}
 			$saved = $this->subscriptions->update(
 				$this->viewer->getUserId(),
@@ -163,10 +163,10 @@ class PushController extends MastodonApiController {
 	}
 
 	/** @return array<string, mixed> */
-	private function params(string $key): array {
+	private function params(string $key, string $errorCode): array {
 		$value = $this->request->getParam($key, []);
 		if (!is_array($value)) {
-			throw new InvalidResourceException('The ' . $key . ' parameter must be an object');
+			throw new RefusalException('The ' . $key . ' parameter must be an object', $errorCode);
 		}
 
 		return $value;

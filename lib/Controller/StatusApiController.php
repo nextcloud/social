@@ -148,6 +148,15 @@ class StatusApiController extends MastodonApiController {
 			$data = $this->convertInput($input);
 			$status = new Status();
 			$status->import($data);
+			if (array_key_exists('event', $data)) {
+				$event = $status->getEvent();
+				if ($event === null
+					|| $event['start_time'] === null
+					|| trim($event['name']) === ''
+					|| $status->getPoll() !== null) {
+					return new DataResponse(['error' => 'Events need a title and valid start time, and cannot be polls'], Http::STATUS_UNPROCESSABLE_ENTITY);
+				}
+			}
 
 			// A `scheduled_at` is not a slow post: Mastodon answers it with a
 			// ScheduledStatus entity and publishes nothing until the time
@@ -198,6 +207,7 @@ class StatusApiController extends MastodonApiController {
 			$post = new Post($actor);
 			$post->setContent($status->getStatus());
 			$post->setPoll($status->getPoll());
+			$post->setEvent($status->getEvent());
 			$post->setSpoilerText($status->getSpoilerText());
 			$post->setSensitive($status->isSensitive());
 			$post->setType($this->visibilityOf($status));

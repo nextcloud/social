@@ -42,19 +42,15 @@ class AiContentService {
 	/**
 	 * The hashtags that label a post, lower-case and without their `#`.
 	 *
-	 * Generic words first, then the tools people name. An administrator can
+	 * Explicit labels first, then the tools people name. An administrator can
 	 * add to the list with the `ai_tags` app value; nothing here can take one
 	 * of these away, because a reader who turned the switch on is relying on
 	 * `#aigenerated` meaning what it says.
 	 */
 	public const DEFAULT_TAGS = [
-		'ai',
-		'aiart',
 		'aigenerated',
 		'aigeneratedart',
-		'aiimage',
-		'aiphoto',
-		'aivideo',
+		'generatedbyai',
 		'genai',
 		'generativeai',
 		'madewithai',

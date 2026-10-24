@@ -39,7 +39,7 @@ class RecommendationTrendCandidatesTest extends TestCase {
 			$streams,
 			new RecommendationFeatureExtractor(new RecommendationTopicCatalog()),
 		);
-		$result = $source->forViewer($viewer, 5, ['102'], ['de'], ['tech.apple'], [], 'shorts');
+		$result = $source->forViewer($viewer, 5, ['102'], ['de'], ['tech.apple'], 'shorts');
 
 		$this->assertSame(['103' => $visible], $result);
 	}

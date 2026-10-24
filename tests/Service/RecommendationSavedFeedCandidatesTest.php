@@ -19,7 +19,7 @@ use OCA\Social\Service\RecommendationTopicCatalog;
 use PHPUnit\Framework\TestCase;
 
 class RecommendationSavedFeedCandidatesTest extends TestCase {
-	public function testSavedFeedCandidatesComeFromCachedVisiblePostsAndRespectReaderFilters(): void {
+	public function testSavedFeedCandidatesComeFromCachedVisiblePostsAndRespectLanguageFilters(): void {
 		$viewer = (new Person())->setId('https://social.test/@alice')->setUserId('alice');
 		$apple = (new Note())->setId('at://did:plc:bob/app.bsky.feed.post/1')->setNid(101)->setContent('<p>Apple releases an iPhone update</p>')->setLanguage('en');
 		$wrongLanguage = (new Note())->setId('at://did:plc:bob/app.bsky.feed.post/2')->setNid(102)->setContent('<p>Apple releases an iPhone update</p>')->setLanguage('fr');
@@ -35,12 +35,12 @@ class RecommendationSavedFeedCandidatesTest extends TestCase {
 		]);
 		$source = new RecommendationSavedFeedCandidates($feeds, $streams, new RecommendationFeatureExtractor(new RecommendationTopicCatalog()));
 
-		$result = $source->matching($viewer, 3, [], ['en'], ['tech.apple'], ['photography']);
+		$result = $source->matching($viewer, 3, [], ['en'], ['tech.apple']);
 
-		$this->assertSame([101], array_keys($result));
+		$this->assertSame([101, 103], array_keys($result));
 	}
 
-	public function testEmptyTopicSelectionDoesNotReadSavedFeedCache(): void {
+	public function testEmptyAutomaticProfileDoesNotReadSavedFeedCache(): void {
 		$viewer = (new Person())->setId('https://social.test/@alice')->setUserId('alice');
 		$feeds = $this->createMock(BlueskyFeeds::class);
 		$feeds->expects($this->never())->method('recommendationFeedPostNids');
@@ -48,6 +48,6 @@ class RecommendationSavedFeedCandidatesTest extends TestCase {
 		$streams->expects($this->never())->method('getVisibleByNids');
 		$source = new RecommendationSavedFeedCandidates($feeds, $streams, new RecommendationFeatureExtractor(new RecommendationTopicCatalog()));
 
-		$this->assertSame([], $source->matching($viewer, 10, [], [], [], []));
+		$this->assertSame([], $source->matching($viewer, 10, [], [], []));
 	}
 }

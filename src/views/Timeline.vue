@@ -29,14 +29,14 @@
 			:options="scopes"
 			:value="scope"
 			:label="t('social', 'Which posts to show')" />
-		<FeedScopeNotice
-			v-if="scopeDescription"
-			:key="`${accountStore.currentAccountHandle}:${scope}`"
-			:account="accountStore.currentAccountHandle"
-			:scope="scope"
-			:text="scopeDescription" />
+		<p v-if="scopeDescription" class="timeline-scope-description">
+			{{ scopeDescription }}
+		</p>
 
 		<InterestsLearningBanner v-if="type === 'interests' && hasInterestsTab" />
+		<NcNoteCard v-if="showRecommendationCoverageNote" type="info" class="timeline-recommendation-coverage">
+			{{ t('social', 'Only a few posts are available in this feed right now. For you limits repeated stories and may show more as new posts arrive.') }}
+		</NcNoteCard>
 
 		<div
 			class="timeline-heading-row"
@@ -178,7 +178,6 @@ import IconTagHeart from 'vue-material-design-icons/TagHeart.vue'
 import TimelineList from './../components/TimelineList.vue'
 import DirectMessages from './../components/DirectMessages.vue'
 import TimelineSwitcher from './../components/TimelineSwitcher.vue'
-import FeedScopeNotice from './../components/FeedScopeNotice.vue'
 import FirstPostCelebration from './../components/FirstPostCelebration.vue'
 import Announcements from './../components/Announcements.vue'
 import FirstRun from './../components/FirstRun.vue'
@@ -193,6 +192,7 @@ import HashtagFollowedList from './../components/HashtagFollowedList.vue'
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
 import NcButton from '@nextcloud/vue/components/NcButton'
+import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import eventBus, { NOTIFICATIONS_READ } from './../services/eventBus.js'
 import { rememberFilter, rememberedFilter } from './../services/notifications.js'
 import { hasInterestsFeed, isTracking } from './../services/interests.js'
@@ -219,6 +219,7 @@ export default {
 		Composer,
 		IconCheckAll,
 		NcButton,
+		NcNoteCard,
 		FirstPostCelebration,
 		FirstRun,
 		HashtagFollowButton,
@@ -231,7 +232,6 @@ export default {
 		TimelineList,
 		DirectMessages,
 		TimelineSwitcher,
-		FeedScopeNotice,
 		IconBellCogOutline,
 		IconClose,
 		IconInboxOutline,
@@ -483,7 +483,7 @@ export default {
 				return t('social', 'My Feed shows posts from accounts you follow, in chronological order.')
 			}
 			if (this.scope === 'interests' && this.hasInterestsTab) {
-				return t('social', 'For You automatically ranks posts using your learned interests, post content, freshness, follows and discovery. It can include posts from beyond the accounts you follow.')
+				return t('social', 'For You ranks eligible public posts using automatically learned interests, post content, freshness, followed accounts and discovery. Separately enabled activity learning can refine new sessions. It can include posts from beyond the accounts you follow.')
 			}
 			return ''
 		},
@@ -526,6 +526,16 @@ export default {
 			}
 
 			return ['timeline', 'federated'].includes(scope) ? scope : 'home'
+		},
+
+		/** Whether this ranked feed has fewer eligible posts than the requested page. */
+		showRecommendationCoverageNote() {
+			const isForYou = this.type === 'interests'
+				|| (this.isScopedPage && this.scope === 'interests')
+				|| (this.type === 'shorts' && this.timelineStore.params?.scope === 'interests')
+			const coverage = this.timelineStore.recommendationCoverage[this.timelineStore.getTimelineIdentity]
+
+			return isForYou && coverage?.state === 'UNDERFILLED' && this.timelineStore.getTimeline.length > 0
 		},
 
 		/**
@@ -900,6 +910,13 @@ export default {
 	max-width: var(--social-column);
 	margin: 0 auto;
 	padding: 0;
+}
+
+.timeline-scope-description {
+	max-width: 72ch;
+	margin: calc(var(--default-grid-baseline) * 1) calc(var(--default-grid-baseline) * 2) calc(var(--default-grid-baseline) * 2);
+	color: var(--color-text-maxcontrast);
+	font-size: 0.9rem;
 }
 
 .timeline-heading-row {

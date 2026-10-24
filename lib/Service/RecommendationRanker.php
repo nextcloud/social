@@ -14,8 +14,8 @@ namespace OCA\Social\Service;
  * hypothesis; missing evidence is neutral and never fabricated.
  */
 final class RecommendationRanker {
-	public const ALGORITHM_VERSION = 7;
-	public const FEATURE_VERSION = 8;
+	public const ALGORITHM_VERSION = 19;
+	public const FEATURE_VERSION = 12;
 
 	/** @var array<string, float> */
 	private const BALANCED_WEIGHTS = [

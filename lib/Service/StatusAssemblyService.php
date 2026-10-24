@@ -66,6 +66,7 @@ class StatusAssemblyService {
 			// and this array is echoed back verbatim
 			'media_ids' => array_map('strval', $status->getMediaIds()),
 			'poll' => $status->getPoll(),
+			'event' => $status->getEvent(),
 			'in_reply_to_id' => ($status->getInReplyToId() > 0)
 				? (string)$status->getInReplyToId() : null,
 			'quoted_status_id' => ($status->getQuotedId() !== '') ? $status->getQuotedId() : null,
@@ -84,6 +85,7 @@ class StatusAssemblyService {
 		$post = new Post($actor);
 		$post->setContent($params->paramText());
 		$post->setPoll($params->paramPoll());
+		$post->setEvent($params->paramEvent());
 		$post->setSpoilerText($params->paramString('spoiler_text'));
 		$post->setSensitive($params->paramBool('sensitive'));
 		$post->setType($params->paramString('visibility'));

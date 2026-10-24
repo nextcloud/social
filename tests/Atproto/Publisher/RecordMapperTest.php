@@ -116,6 +116,7 @@ class RecordMapperTest extends TestCase {
 		$post = $this->post('<p>Hello <a href="https://social.test/tags/world" class="mention hashtag" rel="tag">#world</a></p>');
 		$post->setLanguage('en');
 
+		$this->assertSame('Hello #world', $this->mapper->sourceText($post), 'the source text checker uses the same HTML and mention mapping');
 		['record' => $record, 'truncated' => $truncated] = $this->mapper->post($post, $this->identity, $this->author);
 
 		$this->assertFalse($truncated);
@@ -194,14 +195,36 @@ class RecordMapperTest extends TestCase {
 		$this->assertSame("Avertissement de contenu : aviso\n\ntexto", $this->mapper->post($post, $this->identity, $this->author)['record']['text']);
 	}
 
-	public function testALongPostIsCutAndLinked(): void {
-		$post = $this->post('<p>' . str_repeat('word ', 120) . '</p>');
+	public function testALongPostIsPublishedAsAFullThread(): void {
+		$words = array_map(static fn (int $number): string => sprintf('word%03d', $number), range(1, 120));
+		$post = $this->post('<p>' . implode(' ', $words) . '</p>');
 
-		['record' => $record, 'truncated' => $truncated] = $this->mapper->post($post, $this->identity, $this->author);
+		$mapped = $this->mapper->post($post, $this->identity, $this->author);
+		$record = $mapped['record'];
+		$parts = [$record, ...($mapped['continuations'] ?? [])];
 
-		$this->assertTrue($truncated);
-		$this->assertStringEndsWith("…\n\n" . self::POST_ID, $record['text']);
-		$this->assertLessThanOrEqual(300, Lexicon::graphemes($record['text']));
+		$this->assertTrue($mapped['truncated'], 'the text needed more than one Bluesky record');
+		$this->assertGreaterThan(1, count($parts));
+		$this->assertSame(
+			implode(' ', [...$words, self::POST_ID]),
+			(string)preg_replace('/\s+/u', ' ', implode(' ', array_column($parts, 'text'))),
+			'the root and continuations must preserve every source word in order and add the Social link once',
+		);
+		foreach ($parts as $part) {
+			$this->assertLessThanOrEqual(300, Lexicon::graphemes($part['text']));
+			$this->assertLessThanOrEqual(3000, strlen($part['text']));
+		}
+		$this->assertStringNotContainsString(self::POST_ID, $parts[0]['text'], 'the root starts with the post, not a link replacing its continuation');
+		$this->assertStringContainsString(self::POST_ID, $parts[count($parts) - 1]['text'], 'the Social link follows the full post');
+		$links = [];
+		foreach ($parts as $index => $part) {
+			foreach ($part['facets'] ?? [] as $facet) {
+				if (($facet['features'][0]['uri'] ?? '') === self::POST_ID) {
+					$links[] = $index;
+				}
+			}
+		}
+		$this->assertSame([count($parts) - 1], $links, 'the full-post link is clickable exactly once, on the final part');
 		$this->lexicon->validateRecord($record);
 	}
 

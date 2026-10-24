@@ -13,33 +13,18 @@ use InvalidArgumentException;
 use OCP\DB\Exception as DBException;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
-/** Owner-scoped storage for explicit For You topic controls. */
+/** Owner-scoped activity-learning consent and reset generation storage. */
 class RecommendationPreferenceRequest extends CoreRequestBuilder {
 	public const TABLE_PROFILE = 'social_rec_profile';
 	public const TABLE_PREFERENCE = 'social_rec_pref';
 
-	/** @return array{revision: int, generation: int, learning_mode: string, content_balance: string, onboarding_step: int, onboarding_complete: bool, topics: list<array{topic_id: string, mode: string}>} */
+	/** @return array{revision: int, generation: int, learning_mode: string} */
 	public function get(string $actorKey): array {
 		$profile = $this->profile($actorKey);
-		$qb = $this->getQueryBuilder();
-		$qb->select('topic_id', 'mode')->from(self::TABLE_PREFERENCE)
-			->where($qb->expr()->eq('actor_key', $qb->createNamedParameter($actorKey)))
-			->orderBy('topic_id');
-		$result = $qb->executeQuery();
-		$topics = [];
-		while ($row = $result->fetch()) {
-			$topics[] = ['topic_id' => (string)$row['topic_id'], 'mode' => (string)$row['mode']];
-		}
-		$result->closeCursor();
-
 		return [
 			'revision' => $profile['profile_ver'],
 			'generation' => $profile['generation'],
 			'learning_mode' => $profile['learning_mode'],
-			'content_balance' => $profile['content_balance'],
-			'onboarding_step' => $profile['onboarding_step'],
-			'onboarding_complete' => $profile['onboarding_complete'],
-			'topics' => $topics,
 		];
 	}
 
@@ -66,61 +51,7 @@ class RecommendationPreferenceRequest extends CoreRequestBuilder {
 		return $this->get($actorKey);
 	}
 
-	/**
-	 * Applies a validated complete topic choice set iff the caller has the
-	 * current revision. The compare-and-swap update is the serialization point.
-	 *
-	 * @param list<array{topic_id: string, mode: string}> $topics
-	 * @return array{revision: int, generation: int, learning_mode: string, content_balance: string, onboarding_step: int, onboarding_complete: bool, topics: list<array{topic_id: string, mode: string}>}|null null means revision conflict
-	 */
-	public function replace(string $actorKey, int $expectedRevision, array $topics, ?string $contentBalance = null, ?int $onboardingStep = null, ?bool $onboardingComplete = null): ?array {
-		$this->ensureProfile($actorKey);
-		$connection = $this->getConnection();
-		$connection->beginTransaction();
-		try {
-			$qb = $this->getQueryBuilder();
-			$qb->update(self::TABLE_PROFILE)
-				->set('profile_ver', $qb->createNamedParameter($expectedRevision + 1, IQueryBuilder::PARAM_INT))
-				->set('generation', $qb->createNamedParameter($expectedRevision + 1, IQueryBuilder::PARAM_INT))
-				->set('updated_at', $qb->createNamedParameter(time(), IQueryBuilder::PARAM_INT))
-				->where($qb->expr()->eq('actor_key', $qb->createNamedParameter($actorKey)))
-				->andWhere($qb->expr()->eq('profile_ver', $qb->createNamedParameter($expectedRevision, IQueryBuilder::PARAM_INT)));
-			if ($contentBalance !== null) {
-				$qb->set('content_balance', $qb->createNamedParameter($contentBalance));
-			}
-			if ($onboardingStep !== null) {
-				$qb->set('onboarding_step', $qb->createNamedParameter($onboardingStep, IQueryBuilder::PARAM_INT));
-			}
-			if ($onboardingComplete !== null) {
-				$qb->set('onboarding_complete', $qb->createNamedParameter((int)$onboardingComplete, IQueryBuilder::PARAM_INT));
-			}
-			if ($qb->executeStatement() !== 1) {
-				$connection->rollBack();
-				return null;
-			}
-
-			$qb = $this->getQueryBuilder();
-			$qb->delete(self::TABLE_PREFERENCE)->where($qb->expr()->eq('actor_key', $qb->createNamedParameter($actorKey)))->executeStatement();
-			foreach ($topics as $topic) {
-				$qb = $this->getQueryBuilder();
-				$qb->insert(self::TABLE_PREFERENCE)
-					->setValue('actor_key', $qb->createNamedParameter($actorKey))
-					->setValue('topic_id', $qb->createNamedParameter($topic['topic_id']))
-					->setValue('mode', $qb->createNamedParameter($topic['mode']))
-					->setValue('updated_at', $qb->createNamedParameter(time(), IQueryBuilder::PARAM_INT))
-					->setValue('generation', $qb->createNamedParameter($expectedRevision + 1, IQueryBuilder::PARAM_INT))
-					->executeStatement();
-			}
-			$connection->commit();
-		} catch (\Throwable $e) {
-			$connection->rollBack();
-			throw $e;
-		}
-
-		return $this->get($actorKey);
-	}
-
-	/** @return array{revision: int, generation: int, learning_mode: string, content_balance: string, onboarding_step: int, onboarding_complete: bool, topics: list<array{topic_id: string, mode: string}>}|null */
+	/** @return array{revision: int, generation: int, learning_mode: string}|null */
 	public function reset(string $actorKey, int $expectedRevision): ?array {
 		$this->ensureProfile($actorKey);
 		$connection = $this->getConnection();
@@ -130,9 +61,6 @@ class RecommendationPreferenceRequest extends CoreRequestBuilder {
 			$qb->update(self::TABLE_PROFILE)
 				->set('profile_ver', $qb->createNamedParameter($expectedRevision + 1, IQueryBuilder::PARAM_INT))
 				->set('generation', $qb->createNamedParameter($expectedRevision + 1, IQueryBuilder::PARAM_INT))
-				->set('content_balance', $qb->createNamedParameter('balanced'))
-				->set('onboarding_step', $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT))
-				->set('onboarding_complete', $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT))
 				->set('updated_at', $qb->createNamedParameter(time(), IQueryBuilder::PARAM_INT))
 				->where($qb->expr()->eq('actor_key', $qb->createNamedParameter($actorKey)))
 				->andWhere($qb->expr()->eq('profile_ver', $qb->createNamedParameter($expectedRevision, IQueryBuilder::PARAM_INT)));
@@ -140,11 +68,7 @@ class RecommendationPreferenceRequest extends CoreRequestBuilder {
 				$connection->rollBack();
 				$current = $this->get($actorKey);
 				if ($current['revision'] === $expectedRevision + 1
-					&& $current['generation'] === $expectedRevision + 1
-					&& $current['content_balance'] === 'balanced'
-					&& $current['onboarding_step'] === 0
-					&& !$current['onboarding_complete']
-					&& $current['topics'] === []) {
+					&& $current['generation'] === $expectedRevision + 1) {
 					return $current;
 				}
 				return null;
@@ -164,7 +88,7 @@ class RecommendationPreferenceRequest extends CoreRequestBuilder {
 		return $this->get($actorKey);
 	}
 
-	/** @return array{revision: int, generation: int, learning_mode: string, content_balance: string, onboarding_step: int, onboarding_complete: bool, topics: list<array{topic_id: string, mode: string}>}|null */
+	/** @return array{revision: int, generation: int, learning_mode: string}|null */
 	public function resetLearning(string $actorKey, int $expectedRevision): ?array {
 		$this->ensureProfile($actorKey);
 		$connection = $this->getConnection();
@@ -209,11 +133,11 @@ class RecommendationPreferenceRequest extends CoreRequestBuilder {
 		}
 	}
 
-	/** @return array{profile_ver: int, generation: int, learning_mode: string, content_balance: string, onboarding_step: int, onboarding_complete: bool} */
+	/** @return array{profile_ver: int, generation: int, learning_mode: string} */
 	private function profile(string $actorKey): array {
 		$this->ensureProfile($actorKey);
 		$qb = $this->getQueryBuilder();
-		$qb->select('profile_ver', 'generation', 'learning_mode', 'content_balance', 'onboarding_step', 'onboarding_complete')->from(self::TABLE_PROFILE)
+		$qb->select('profile_ver', 'generation', 'learning_mode')->from(self::TABLE_PROFILE)
 			->where($qb->expr()->eq('actor_key', $qb->createNamedParameter($actorKey)))->setMaxResults(1);
 		$result = $qb->executeQuery();
 		$row = $result->fetch();
@@ -223,9 +147,6 @@ class RecommendationPreferenceRequest extends CoreRequestBuilder {
 			'profile_ver' => (int)$row['profile_ver'],
 			'generation' => (int)$row['generation'],
 			'learning_mode' => (string)$row['learning_mode'],
-			'content_balance' => (string)$row['content_balance'],
-			'onboarding_step' => (int)$row['onboarding_step'],
-			'onboarding_complete' => (bool)$row['onboarding_complete'],
 		];
 	}
 

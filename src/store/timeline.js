@@ -135,6 +135,7 @@ function rememberCelebrated() {
  * @property {boolean} restored whether the list was put back rather than loaded
  * @property {Object<string, true>} filled the lists that have shown a post this session, by identity
  * @property {Record<string, string|null>} recommendationCursors opaque continuation cursors for ranked For You timelines, by identity
+ * @property {Record<string, {state: string, known_eligible: number|null, returned: number, remote_refresh_queued: boolean}>} recommendationCoverage ranked-feed coverage, by identity
  * @property {boolean} composerDisplayStatus whether the composer is open
  * @property {string} searchQuery what is being searched for
  * @property {boolean} firstPostCelebration whether the celebration is on screen
@@ -507,6 +508,8 @@ export const useTimelineStore = defineStore('timeline', {
 		remembered: [],
 		/** Opaque ranked-feed cursors keyed by the same identity as the timeline lists. */
 		recommendationCursors: {},
+		/** Coverage returned by the ranked-feed endpoint, keyed by timeline identity. */
+		recommendationCoverage: {},
 		/**
 		 * Whether the list on screen was put back rather than loaded: what tells
 		 * the view that it already holds its pages and must not ask for another
@@ -858,6 +861,9 @@ export const useTimelineStore = defineStore('timeline', {
 				const cursors = { ...this.recommendationCursors }
 				delete cursors[this.getTimelineIdentity]
 				this.recommendationCursors = cursors
+				const coverage = { ...this.recommendationCoverage }
+				delete coverage[this.getTimelineIdentity]
+				this.recommendationCoverage = coverage
 			}
 			this.timeline = []
 			this.parentsTimeline = []
@@ -1223,6 +1229,7 @@ export const useTimelineStore = defineStore('timeline', {
 			}
 			if (!Array.isArray(data) && usesV4RecommendationTimeline({ type, account: '', params })) {
 				this.recommendationCursors = { ...this.recommendationCursors, [identity]: data.next_cursor ?? null }
+				this.recommendationCoverage = { ...this.recommendationCoverage, [identity]: data.coverage ?? null }
 			}
 
 			items.forEach((status) => indexStatus(this, status))
@@ -1832,6 +1839,7 @@ export const useTimelineStore = defineStore('timeline', {
 				: data
 			if (v4Timeline && !Array.isArray(data)) {
 				this.recommendationCursors = { ...this.recommendationCursors, [identity]: data?.next_cursor ?? null }
+				this.recommendationCoverage = { ...this.recommendationCoverage, [identity]: data?.coverage ?? null }
 			}
 			this.timelinePageFilling = response.headers?.['x-social-filling'] === '1'
 				|| response.headers?.['x-social-thread-filling'] === '1'

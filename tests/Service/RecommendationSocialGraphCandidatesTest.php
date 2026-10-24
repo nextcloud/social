@@ -17,7 +17,7 @@ use OCA\Social\Service\RecommendationTopicCatalog;
 use PHPUnit\Framework\TestCase;
 
 class RecommendationSocialGraphCandidatesTest extends TestCase {
-	public function testSecondDegreeRecallStaysBoundedAndRequiresTopicLanguageAndHardHideEligibility(): void {
+	public function testSecondDegreeRecallStaysBoundedAndRequiresAutomaticTopicAndLanguageMatch(): void {
 		$visible = (new Note())->setLanguage('de')->setContent('<p>Apple releases an iPhone update</p>');
 		$unrelated = (new Note())->setContent('<p>Local tennis match results</p>');
 		$wrongLanguage = (new Note())->setLanguage('en')->setContent('<p>Apple publishes an iPhone update</p>');
@@ -34,12 +34,12 @@ class RecommendationSocialGraphCandidatesTest extends TestCase {
 			$streams,
 			new RecommendationFeatureExtractor(new RecommendationTopicCatalog()),
 		);
-		$result = $source->matching('since', 2, ['already-seen'], ['de'], ['tech.apple'], ['tech.politics']);
+		$result = $source->matching('since', 2, ['already-seen'], ['de'], ['tech.apple']);
 
 		$this->assertSame(['1' => $visible], $result);
 	}
 
-	public function testHiddenTopicAndEmptyTopicListProduceNoGraphCandidates(): void {
+	public function testZeroBudgetAndEmptyProfileProduceNoGraphCandidates(): void {
 		$streams = $this->createMock(StreamRequest::class);
 		$streams->expects($this->never())->method('recommendationSocialGraphCandidates');
 		$source = new RecommendationSocialGraphCandidates(
@@ -47,7 +47,7 @@ class RecommendationSocialGraphCandidatesTest extends TestCase {
 			new RecommendationFeatureExtractor(new RecommendationTopicCatalog()),
 		);
 
-		$this->assertSame([], $source->matching('since', 0, [], [], ['tech.apple'], []));
-		$this->assertSame([], $source->matching('since', 2, [], [], [], []));
+		$this->assertSame([], $source->matching('since', 0, [], [], ['tech.apple']));
+		$this->assertSame([], $source->matching('since', 2, [], [], []));
 	}
 }

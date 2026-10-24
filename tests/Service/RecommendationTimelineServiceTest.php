@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Service;
 
 use OCA\Social\Atproto\Reader\BlueskyFeeds;
+use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\RecommendationSignalRequest;
 use OCA\Social\Db\StreamRequest;
@@ -32,14 +33,20 @@ use OCA\Social\Service\RecommendationSavedFeedCandidates;
 use OCA\Social\Service\RecommendationSignalService;
 use OCA\Social\Service\RecommendationSnapshotStore;
 use OCA\Social\Service\RecommendationSocialGraphCandidates;
+use OCA\Social\Service\RecommendationTimelineAssembler;
 use OCA\Social\Service\RecommendationTimelineService;
 use OCA\Social\Service\RecommendationTopicCatalog;
 use OCA\Social\Service\RecommendationTrendCandidates;
 use OCA\Social\Service\RemoteFetchQueue;
 use OCA\Social\Service\TrendService;
 use OCP\AppFramework\Utility\ITimeFactory;
+use OCP\IConfig;
+use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\TestCase;
 
+// The same collaboration doubles receive strict call expectations in the
+// interaction tests and only return stubs in the ranking tests.
+#[AllowMockObjectsWithoutExpectations]
 class RecommendationTimelineServiceTest extends TestCase {
 	private RecommendationPreferenceService $preferences;
 	private StreamRequest $streams;
@@ -95,25 +102,29 @@ class RecommendationTimelineServiceTest extends TestCase {
 	}
 
 	private function service(): RecommendationTimelineService {
+		$features = new RecommendationFeatureExtractor($this->catalog);
+		$explanations = new RecommendationExplanationService($this->catalog);
+		$behavioralProfile = new RecommendationBehavioralProfile(new RecommendationSignalService(
+			$this->preferences,
+			$this->signals,
+			new RecommendationFeatureExtractor($this->catalog),
+			$this->streams,
+			$this->clock,
+			$this->createStub(IConfig::class),
+			$this->createStub(CacheActorsRequest::class),
+		), $this->catalog);
+
 		return new RecommendationTimelineService(
 			$this->preferences,
-			$this->catalog,
-			new RecommendationFeatureExtractor($this->catalog),
+			new RecommendationTimelineAssembler($this->catalog, $features, $explanations, $behavioralProfile),
 			$this->streams,
 			$this->interests,
 			$this->legacyFeed,
 			new RecommendationRanker(),
 			new RecommendationReRanker(),
 			$this->snapshots,
-			new RecommendationExplanationService($this->catalog),
 			$this->feedback,
-			new RecommendationBehavioralProfile(new RecommendationSignalService(
-				$this->preferences,
-				$this->signals,
-				new RecommendationFeatureExtractor($this->catalog),
-				$this->streams,
-				$this->clock,
-			), $this->catalog),
+			$behavioralProfile,
 			new RecommendationFollowFeatures($this->follows),
 			new RecommendationTrendCandidates($this->trends, $this->streams, new RecommendationFeatureExtractor($this->catalog)),
 			new RecommendationSocialGraphCandidates($this->streams, new RecommendationFeatureExtractor($this->catalog)),
@@ -191,7 +202,7 @@ class RecommendationTimelineServiceTest extends TestCase {
 			->setPublishedTime(1_999_999_900);
 		$this->streams->method('recommendationCandidatesByTerms')->willReturn([]);
 		$this->streams->expects($this->once())->method('recommendationSocialGraphCandidates')->with(
-			$this->isType('string'), 10, [], []
+			$this->isString(), 10, [], []
 		)->willReturn(['601' => $graph]);
 		$this->snapshots->method('create')->willReturn(null);
 
@@ -268,10 +279,10 @@ class RecommendationTimelineServiceTest extends TestCase {
 			->setPublishedTime(1_999_999_900);
 		$this->streams->expects($this->once())->method('setViewer')->with($this->isInstanceOf(Person::class));
 		$this->streams->expects($this->once())->method('recommendationCandidatesByTerms')->with(
-			$this->appleAliases(), $this->isType('string'), 50, [], ['en'], 2_000_000_000
+			$this->appleAliases(), $this->isString(), 50, [], ['en'], 2_000_000_000
 		)->willReturn(['123' => $post]);
 		$this->snapshots->expects($this->once())->method('create')->with(
-			'alice', 'for-you-v4-automatic-profile-3', '', 3, 2, 2_000_000_000, ['123'], 20, [], $this->anything()
+			'alice', 'for-you-v12-php-security-alias', '', 3, 2, 2_000_000_000, ['123'], 20, [], $this->anything()
 		)->willReturn(['session_id' => 'session', 'nids' => ['123'], 'exploration_nids' => [], 'next_cursor' => null]);
 		$this->queue->expects($this->exactly(2))->method('fillPosts')->willReturnCallback(
 			static function (string $kind, string $term, Person $viewer): bool {
@@ -304,7 +315,7 @@ class RecommendationTimelineServiceTest extends TestCase {
 			->setPublishedTime(1_999_999_900);
 		$this->streams->method('recommendationCandidatesByTerms')->willReturn([]);
 		$this->streams->expects($this->once())->method('recommendationExplorationCandidates')->with(
-			$this->isType('string'), 10, intdiv(2_000_000_000, 6 * 3600), [], ['en']
+			$this->isString(), 10, intdiv(2_000_000_000, 6 * 3600), [], ['en']
 		)->willReturn(['125' => $post]);
 		$this->snapshots->method('create')->willReturn(null);
 		$this->queue->method('fillPosts')->willReturn(false);
@@ -450,7 +461,7 @@ class RecommendationTimelineServiceTest extends TestCase {
 			'authors' => [hash('sha256', 'https://remote.example/users/apple') => ['fast' => 3.0, 'slow' => 3.0, 'updated_at' => 2_000_000_000]],
 			'formats' => [],
 		];
-		$signals = new RecommendationSignalService($this->preferences, $this->signals, new RecommendationFeatureExtractor($this->catalog), $this->streams, $this->clock);
+		$signals = new RecommendationSignalService($this->preferences, $this->signals, new RecommendationFeatureExtractor($this->catalog), $this->streams, $this->clock, $this->createStub(IConfig::class), $this->createStub(CacheActorsRequest::class));
 		self::assertSame(1.0, $signals->profile('alice')['topics']['tech.apple']);
 		$this->interests->method('hiddenFor')->willReturn([]);
 		$this->interests->method('languagesFor')->willReturn([]);
@@ -488,7 +499,7 @@ class RecommendationTimelineServiceTest extends TestCase {
 				->setId(sprintf('https://remote.example/posts/%02d', $i))
 				->setNid($nid)
 				->setAttributedTo('https://remote.example/users/' . $i)
-				->setContent('<p>Apple releases a new device</p>')
+				->setContent(sprintf('<p>Apple releases a new device case%d sample%d color%d component%d</p>', $i, $i, $i, $i))
 				->setPublishedTime(1_999_999_900);
 		}
 		$this->streams->method('recommendationCandidatesByTerms')->willReturn($posts);

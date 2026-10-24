@@ -16,7 +16,6 @@ use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\FilterService;
 use OCA\Social\Service\IRecommendationSignalEvents;
-use OCA\Social\Service\RecommendationCandidateService;
 use OCA\Social\Service\RecommendationFeedbackService;
 use OCA\Social\Service\RecommendationPreferenceService;
 use OCA\Social\Service\RecommendationTimelineService;
@@ -32,7 +31,7 @@ use OCP\IUserSession;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
-/** Explicit topic preferences for the authenticated reader only. */
+/** Automatic recommendations and separately consented activity learning. */
 class RecommendationsController extends ClientApiController {
 	public function __construct(
 		IRequest $request,
@@ -41,7 +40,6 @@ class RecommendationsController extends ClientApiController {
 		AccountService $accountService,
 		ClientService $clientService,
 		private RecommendationPreferenceService $recommendationService,
-		private RecommendationCandidateService $candidateService,
 		private RecommendationFeedbackService $feedbackService,
 		private IRecommendationSignalEvents $signalService,
 		private RecommendationTimelineService $timelineService,
@@ -52,37 +50,9 @@ class RecommendationsController extends ClientApiController {
 
 	#[NoCSRFRequired]
 	#[PublicPage]
-	#[FrontpageRoute(verb: 'GET', url: '/api/v1/recommendations/catalog')]
-	public function catalog(): DataResponse {
-		return $this->answer(['read:accounts'], fn (): array => ['version' => 1, 'topics' => $this->recommendationService->catalog()]);
-	}
-
-	#[NoCSRFRequired]
-	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/recommendations/preferences')]
 	public function preferences(): DataResponse {
-		return $this->answer(['read:accounts'], fn (): array => $this->recommendationService->get($this->viewer()->getUserId()));
-	}
-
-	#[NoCSRFRequired]
-	#[PublicPage]
-	#[FrontpageRoute(verb: 'PUT', url: '/api/v1/recommendations/preferences')]
-	public function savePreferences(int $if_revision = -1, array|string $topics = [], ?string $content_balance = null, ?int $onboarding_step = null, ?bool $onboarding_complete = null): DataResponse {
-		return $this->answer(['write:accounts'], function () use ($if_revision, $topics, $content_balance, $onboarding_step, $onboarding_complete): DataResponse|array {
-			if ($if_revision < 0) {
-				throw new InvalidArgumentException('if_revision is required');
-			}
-			$decoded = is_string($topics) ? json_decode($topics, true) : $topics;
-			if (!is_array($decoded) || !array_is_list($decoded)) {
-				throw new InvalidArgumentException('topics must be a list');
-			}
-			$state = $this->recommendationService->replace($this->viewer()->getUserId(), $if_revision, $decoded, $content_balance, $onboarding_step, $onboarding_complete);
-			if ($state === null) {
-				return new DataResponse(['error' => 'revision-conflict', 'current' => $this->recommendationService->get($this->viewer()->getUserId())], Http::STATUS_CONFLICT);
-			}
-
-			return $state;
-		});
+		return $this->answer(['read:accounts'], fn (): array => self::learningState($this->recommendationService->get($this->viewer()->getUserId())));
 	}
 
 	#[NoCSRFRequired]
@@ -95,9 +65,9 @@ class RecommendationsController extends ClientApiController {
 			}
 			$state = $this->recommendationService->setLearningMode($this->viewer()->getUserId(), $if_revision, $mode);
 			if ($state === null) {
-				return new DataResponse(['error' => 'revision-conflict', 'current' => $this->recommendationService->get($this->viewer()->getUserId())], Http::STATUS_CONFLICT);
+				return new DataResponse(['error' => 'revision-conflict', 'current' => self::learningState($this->recommendationService->get($this->viewer()->getUserId()))], Http::STATUS_CONFLICT);
 			}
-			return $state;
+			return self::learningState($state);
 		});
 	}
 
@@ -127,10 +97,10 @@ class RecommendationsController extends ClientApiController {
 				default => throw new InvalidArgumentException('scope must be learning or all'),
 			};
 			if ($state === null) {
-				return new DataResponse(['error' => 'revision-conflict', 'current' => $this->recommendationService->get($this->viewer()->getUserId())], Http::STATUS_CONFLICT);
+				return new DataResponse(['error' => 'revision-conflict', 'current' => self::learningState($this->recommendationService->get($this->viewer()->getUserId()))], Http::STATUS_CONFLICT);
 			}
 
-			return $state;
+			return self::learningState($state);
 		});
 	}
 
@@ -141,7 +111,7 @@ class RecommendationsController extends ClientApiController {
 		return $this->answer(['read:accounts'], fn (): array => [
 			'schema_version' => 1,
 			'exported_at' => time(),
-			'preferences' => $this->recommendationService->get($this->viewer()->getUserId()),
+			'preferences' => self::learningState($this->recommendationService->get($this->viewer()->getUserId())),
 			'feedback' => $this->feedbackService->export($this->viewer()->getUserId()),
 		]);
 	}
@@ -162,9 +132,9 @@ class RecommendationsController extends ClientApiController {
 	#[AnonRateLimit(limit: 30, period: 60)]
 	#[UserRateLimit(limit: 30, period: 60)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/recommendations/feedback')]
-	public function feedback(string $event_id = '', string $post_id = '', string $kind = '', string $topic_id = ''): DataResponse {
+	public function feedback(string $event_id = '', string $post_id = '', string $kind = ''): DataResponse {
 		return $this->answer(['write:statuses'], fn (): array
-			=> $this->feedbackService->record($this->viewer(), $event_id, $post_id, $kind, $topic_id)
+			=> $this->feedbackService->record($this->viewer(), $event_id, $post_id, $kind)
 		);
 	}
 
@@ -179,15 +149,6 @@ class RecommendationsController extends ClientApiController {
 		);
 	}
 
-	#[NoCSRFRequired]
-	#[PublicPage]
-	#[FrontpageRoute(verb: 'GET', url: '/api/v1/recommendations/candidates/{topicId}')]
-	public function candidates(string $topicId, int $limit = 20, string $cursor = ''): DataResponse {
-		return $this->answer(['read:accounts'], fn (): array
-			=> $this->candidateService->discover($this->viewer(), $topicId, $limit, $cursor)
-		);
-	}
-
 	/** The web For You feed, with an envelope for its versioned session cursor. */
 	#[NoCSRFRequired]
 	#[PublicPage]
@@ -197,7 +158,7 @@ class RecommendationsController extends ClientApiController {
 	public function timeline(int $limit = 20, string $cursor = '', string $media = ''): DataResponse {
 		return $this->answer(['read:statuses'], function () use ($limit, $cursor, $media): array {
 			$viewer = $this->viewer();
-			$limit = max(1, min(RecommendationCandidateService::MAX_PAGE_SIZE, $limit));
+			$limit = max(1, min(RecommendationTimelineService::MAX_PAGE_SIZE, $limit));
 			$page = $this->timelineService->page($viewer, $limit, $cursor, $media);
 			$result = $page;
 			$items = [];
@@ -238,5 +199,16 @@ class RecommendationsController extends ClientApiController {
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}
+	}
+
+	/** @param array<string, mixed> $state @return array{revision: int, generation: int, learning_mode: string, learning: bool} */
+	private static function learningState(array $state): array {
+		$mode = (string)($state['learning_mode'] ?? 'off');
+		return [
+			'revision' => (int)($state['revision'] ?? 0),
+			'generation' => (int)($state['generation'] ?? 0),
+			'learning_mode' => $mode,
+			'learning' => array_key_exists('learning', $state) ? (bool)$state['learning'] : $mode === 'on',
+		];
 	}
 }

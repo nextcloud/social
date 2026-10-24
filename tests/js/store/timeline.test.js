@@ -1482,10 +1482,19 @@ describe('timeline store actions', () => {
 			globalThis.setInitialState('social', 'serverData', { public: false, interests: { recommendationsEnabled: true } })
 			await store.changeTimelineType({ type: 'interests', params: {} })
 			axios.get
-				.mockResolvedValueOnce({ data: { items: [makeStatus('1')], next_cursor: 'signed-page-2' }, headers: {} })
-				.mockResolvedValueOnce({ data: { items: [makeStatus('2')], next_cursor: null }, headers: {} })
+				.mockResolvedValueOnce({ data: {
+					items: [makeStatus('1')],
+					next_cursor: 'signed-page-2',
+					coverage: { state: 'UNDERFILLED', known_eligible: 3, returned: 1, remote_refresh_queued: true },
+				}, headers: {} })
+				.mockResolvedValueOnce({ data: {
+					items: [makeStatus('2')],
+					next_cursor: null,
+					coverage: { state: 'GOOD', known_eligible: null, returned: 1, remote_refresh_queued: false },
+				}, headers: {} })
 
 			const first = await store.fetchTimeline()
+			expect(store.recommendationCoverage[store.getTimelineIdentity]).toMatchObject({ state: 'UNDERFILLED', known_eligible: 3 })
 			const second = await store.fetchTimeline({ max_id: '1', limit: 15 })
 
 			expect(axios.get).toHaveBeenNthCalledWith(1, `${API}/recommendations/timeline`, {
@@ -1499,6 +1508,7 @@ describe('timeline store actions', () => {
 			expect(first).toEqual([expect.objectContaining({ id: '1' })])
 			expect(second).toEqual([expect.objectContaining({ id: '2' })])
 			expect(store.timeline).toEqual(['1', '2'])
+			expect(store.recommendationCoverage[store.getTimelineIdentity]).toMatchObject({ state: 'GOOD', returned: 1 })
 			document.getElementById('initial-state-social-serverData')?.remove()
 		})
 

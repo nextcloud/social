@@ -154,7 +154,7 @@ class RecommendationFeedbackRequest extends CoreRequestBuilder {
 		$result = $qb->executeQuery();
 		$current = [];
 		while ($row = $result->fetch()) {
-			if ((int)$row['active'] !== 1) {
+			if ((int)$row['active'] !== 1 || (string)$row['scope'] === 'topic') {
 				continue;
 			}
 			$key = (string)$row['scope'] . "\0" . (string)$row['scope_key'];

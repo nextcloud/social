@@ -157,6 +157,7 @@ final class VisibilityMatrix {
 	 * @var array<string, string>
 	 */
 	public const ROUTES_OUTSIDE = [
+		'CalendarEventController::statusCalendar' => 'exports an event only after getStreamByNid() applies the same visibility gate as status; CalendarEventControllerTest',
 		'MediaApiController::mediaCaption' => 'a subtitle track, no post: the post is read through the same getStreamByNid() gate as status, and one the viewer may not see is a 404',
 		'ActivityPubController::dislikes' => 'the same openLocalPost() gate as likes, which is in the matrix',
 		'ActivityPubController::displayQuoteAuthorization' => 'a stamp naming two post ids, served for public quoted posts only; QuoteAuthorizationTest',

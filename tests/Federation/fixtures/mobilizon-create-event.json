@@ -10,6 +10,18 @@
     "name": "Fediverse meetup",
     "url": "https://mobilizon.example/events/9f",
     "attributedTo": "https://mobilizon.example/@group",
+    "startTime": "2026-04-05T18:30:00+02:00",
+    "endTime": "2026-04-05T21:00:00+02:00",
+    "location": {
+      "type": "Place",
+      "name": "Community hall",
+      "address": {
+        "streetAddress": "Main Street 12",
+        "addressLocality": "Berlin",
+        "postalCode": "10115",
+        "addressCountry": "DE"
+      }
+    },
     "published": "2026-03-03T08:00:00Z",
     "to": ["https://www.w3.org/ns/activitystreams#Public"]
   }

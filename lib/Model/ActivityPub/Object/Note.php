@@ -23,6 +23,7 @@ use OCA\Social\Model\Details;
 use OCA\Social\Service\ChannelService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\PeerTubeService;
+use OCA\Social\Tools\ActivityPubEvent;
 use OCP\IURLGenerator;
 use OCP\Server;
 use Throwable;
@@ -127,6 +128,11 @@ class Note extends Stream implements JsonSerializable {
 	#[\Override]
 	public function import(array $data): void {
 		parent::import($data);
+		if (($data['type'] ?? '') === 'Event') {
+			$this->setSubType('Event');
+			$event = ActivityPubEvent::metadata($data);
+			$this->setDetailArray(Details::EVENT, $event);
+		}
 
 		$this->fillHashtags();
 		$this->fillMentions();
@@ -184,8 +190,35 @@ class Note extends Stream implements JsonSerializable {
 		}
 
 		$result = $this->asVideoIfItIsOne($result);
+		$result = $this->asEventIfItIsOne($result);
 
 		$this->cleanArray($result);
+
+		return $result;
+	}
+
+	/** Publish locally authored event details using ActivityStreams' Event shape. */
+	private function asEventIfItIsOne(array $result): array {
+		if ($this->getExportFormat() === self::FORMAT_LOCAL
+			|| !$this->isLocal()
+			|| $this->getSubType() !== 'Event') {
+			return $result;
+		}
+
+		$event = $this->getDetails(Details::EVENT);
+		if (($event['start_time'] ?? null) === null) {
+			return $result;
+		}
+
+		$result['type'] = 'Event';
+		$result['name'] = (string)($event['name'] ?? '');
+		$result['startTime'] = $event['start_time'];
+		if (is_string($event['end_time'] ?? null) && $event['end_time'] !== '') {
+			$result['endTime'] = $event['end_time'];
+		}
+		if (is_string($event['location'] ?? null) && $event['location'] !== '') {
+			$result['location'] = ['type' => 'Place', 'name' => $event['location']];
+		}
 
 		return $result;
 	}
@@ -223,6 +256,9 @@ class Note extends Stream implements JsonSerializable {
 	 */
 	private function asVideoIfItIsOne(array $result): array {
 		if ($this->getExportFormat() === self::FORMAT_LOCAL || !$this->isLocal()) {
+			return $result;
+		}
+		if ($this->getSubType() === 'Event') {
 			return $result;
 		}
 

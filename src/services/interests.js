@@ -159,59 +159,6 @@ export async function undoLessLikeThis(statusId) {
 	await axios.delete(url('/less/' + encodeURIComponent(statusId)))
 }
 
-/**
- * @param {string} tag a hashtag, with or without its `#`
- * @return {string} the path segment naming it
- */
-function tagPath(tag) {
-	return '/' + encodeURIComponent(String(tag).replace(/^#/, ''))
-}
-
-/**
- * @param {string} tag the hashtag to add as a manual interest
- * @return {Promise<object>} the state
- */
-export async function addInterest(tag) {
-	return (await axios.post(url(), { tag: String(tag).replace(/^#/, '') })).data
-}
-
-/**
- * Pins the tag at a rank. Higher, lower, move to top and a drop all end here.
- *
- * @param {string} tag the hashtag to move
- * @param {number} position the 0-based rank it should hold
- * @return {Promise<object>} the state
- */
-export async function moveInterest(tag, position) {
-	return (await axios.post(url(tagPath(tag) + '/move'), { position })).data
-}
-
-/**
- * @param {string} tag the hashtag to hold at its current rank
- * @return {Promise<object>} the state
- */
-export async function pinInterest(tag) {
-	return (await axios.post(url(tagPath(tag) + '/pin'))).data
-}
-
-/**
- * @param {string} tag the hashtag to let float by its score again
- * @return {Promise<object>} the state
- */
-export async function unpinInterest(tag) {
-	return (await axios.post(url(tagPath(tag) + '/unpin'))).data
-}
-
-/**
- * A learned tag's score goes back to nought; a manual one is gone.
- *
- * @param {string} tag the hashtag to remove
- * @return {Promise<object>} the state
- */
-export async function removeInterest(tag) {
-	return (await axios.delete(url(tagPath(tag)))).data
-}
-
 /** @return {Promise<object>} the state, empty */
 export async function resetInterests() {
 	return (await axios.post(url('/reset'))).data

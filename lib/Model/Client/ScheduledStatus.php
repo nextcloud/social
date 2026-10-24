@@ -51,7 +51,7 @@ class ScheduledStatus implements JsonSerializable, StatusParams {
 	 */
 	private const PARAM_KEYS = [
 		'text', 'media_ids', 'poll', 'in_reply_to_id', 'quoted_status_id',
-		'sensitive', 'spoiler_text', 'visibility', 'language',
+		'sensitive', 'spoiler_text', 'visibility', 'language', 'event',
 		'application_id', 'idempotency', 'scheduled_at', 'with_rate_limit',
 	];
 
@@ -93,8 +93,9 @@ class ScheduledStatus implements JsonSerializable, StatusParams {
 	}
 
 	/**
-	 * Anything outside Mastodon's set is dropped rather than stored: `params`
-	 * is echoed back to whoever asks for the entity, so a client that could
+	 * Anything outside Mastodon's set and this app's `event` extension is
+	 * dropped rather than stored: `params` is echoed back to whoever asks for
+	 * the entity, so a client that could
 	 * put arbitrary keys in it would have a place to park arbitrary content
 	 * under this account's name.
 	 *
