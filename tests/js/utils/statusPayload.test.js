@@ -86,6 +86,18 @@ describe('statusPayload', () => {
 		expect(statusPayload(post())).not.toHaveProperty('poll')
 	})
 
+	it('sends event metadata in the server contract and omits it for ordinary posts', () => {
+		const event = {
+			name: 'Community meetup',
+			start_time: '2026-11-02T16:00:00.000Z',
+			end_time: '2026-11-02T18:00:00.000Z',
+			location: 'Library',
+		}
+
+		expect(statusPayload(post({ event })).event).toEqual(event)
+		expect(statusPayload(post({ event: null }))).not.toHaveProperty('event')
+	})
+
 	it('says who may reply only when it is less than everybody', () => {
 		expect(statusPayload(post())).not.toHaveProperty('reply_policy')
 		expect(statusPayload(post({ replyPolicy: 'everyone' }))).not.toHaveProperty('reply_policy')

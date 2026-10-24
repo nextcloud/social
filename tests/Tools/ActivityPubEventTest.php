@@ -36,6 +36,17 @@ class ActivityPubEventTest extends TestCase {
 		self::assertSame('Main Street 12, Berlin, DE', $metadata['location']);
 	}
 
+	public function testImpossibleCalendarDatesAreRejectedInsteadOfNormalized(): void {
+		$metadata = ActivityPubEvent::metadata([
+			'name' => 'Meetup',
+			'startTime' => '2026-02-31T18:30:00Z',
+			'endTime' => '2026-04-31T20:00:00Z',
+		]);
+
+		self::assertNull($metadata['start_time'], 'an impossible start date must not silently move into March');
+		self::assertNull($metadata['end_time'], 'an impossible end date must not silently move into May');
+	}
+
 	public function testCalendarEscapesTextUsesUtcAndFoldsLongLines(): void {
 		$event = (new Note())
 			->setId('https://mobilizon.example/events/9f')
@@ -62,6 +73,26 @@ class ActivityPubEventTest extends TestCase {
 		foreach (explode("\r\n", trim($ics)) as $line) {
 			self::assertLessThanOrEqual(75, strlen($line), 'iCalendar lines are at most 75 octets');
 		}
+	}
+
+	public function testStoredEventWithEndBeforeStartDoesNotExportAnInvalidEnd(): void {
+		$event = (new Note())
+			->setId('https://mobilizon.example/events/invalid-range')
+			->setSubType('Event');
+		$event->setDetailArray(Details::EVENT, [
+			'name' => 'Town hall',
+			'start_time' => '2026-04-05T18:30:00Z',
+			'end_time' => '2026-04-05T17:30:00Z',
+			'location' => '',
+		]);
+
+		$metadata = ActivityPubEvent::fromStream($event);
+		$calendar = ActivityPubEvent::calendar($event, 1_800_000_000);
+
+		self::assertNotNull($metadata);
+		self::assertNull($metadata['end_time']);
+		self::assertIsString($calendar);
+		self::assertStringNotContainsString('DTEND:', $calendar);
 	}
 
 	public function testCalendarIsUnavailableForNotesAndUndatedEvents(): void {

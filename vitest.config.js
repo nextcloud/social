@@ -21,6 +21,11 @@ export default defineConfig({
 	test: {
 		environment: 'jsdom',
 		globals: true,
+		// Fork workers race while loading Vite's temporary client modules when
+		// every isolated file gets its own process. Threads share the transform
+		// cache safely and keep the full suite reproducible under parallel load.
+		pool: 'threads',
+		maxWorkers: 4,
 		setupFiles: ['./tests/js/setup.js'],
 		include: ['src/**/*.{test,spec}.js', 'tests/js/**/*.{test,spec}.js'],
 		css: false,

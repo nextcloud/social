@@ -612,9 +612,15 @@ class StreamTest extends TestCase {
 	}
 
 	public function testAPostTaggedAsMadeWithAiSaysSo(): void {
-		foreach (['aigenerated', 'AIgenerated', '#MidJourney'] as $tag) {
+		foreach (['aigenerated', 'AIgenerated', '#AIGeneratedArt', 'GeneratedByAI'] as $tag) {
 			$this->assertTrue((new Note())->setHashtags(['cats', $tag])->exportAsLocal()['ai_generated'], $tag);
 		}
+	}
+
+	public function testGenericAiTopicDoesNotSetTheGeneratedContentFlag(): void {
+		$status = (new Note())->setHashtags(['technology', '#AI'])->exportAsLocal();
+
+		$this->assertFalse($status['ai_generated']);
 	}
 
 	public function testAPostWhosePictureStatesProvenanceSaysSo(): void {
@@ -630,7 +636,7 @@ class StreamTest extends TestCase {
 
 	public function testABoostCarriesTheLabelOfThePostItBoostsOnBothLevels(): void {
 		$boost = new Announce();
-		$boost->setObject((new Note())->setHashtags(['stablediffusion']));
+		$boost->setObject((new Note())->setHashtags(['aigeneratedart']));
 
 		$status = $boost->exportAsLocal();
 
@@ -654,7 +660,8 @@ class StreamTest extends TestCase {
 		\OC::$server->register(AiContentService::class, new AiContentService($configService));
 
 		$this->assertTrue((new Note())->setHashtags(['Synthetic'])->exportAsLocal()['ai_generated']);
-		$this->assertTrue((new Note())->setHashtags(['aiart'])->exportAsLocal()['ai_generated']);
+		$this->assertTrue((new Note())->setHashtags(['aigeneratedart'])->exportAsLocal()['ai_generated']);
+		$this->assertFalse((new Note())->setHashtags(['aiart'])->exportAsLocal()['ai_generated']);
 		$this->assertFalse((new Note())->setHashtags(['cats'])->exportAsLocal()['ai_generated']);
 	}
 

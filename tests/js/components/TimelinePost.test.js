@@ -190,6 +190,30 @@ describe('TimelinePost', () => {
 		eventBus.all.clear()
 	})
 
+	describe('event calendar import', () => {
+		it('adds a Fediverse event to Nextcloud Calendar with one click', async () => {
+			axios.post.mockClear().mockResolvedValue({ data: { imported: true, calendar: 'Personal' } })
+			const { wrapper } = mountPost({
+				item: makeItem({
+					event: {
+						name: 'Community meetup',
+						start_time: '2026-11-01T18:00:00Z',
+						end_time: '2026-11-01T20:00:00Z',
+						location: 'Town hall',
+					},
+				}),
+			})
+
+			const button = wrapper.find('.post-event__calendar')
+			expect(button.text()).toContain('Add to Nextcloud Calendar')
+			await button.trigger('click')
+			await flushPromises()
+
+			expect(axios.post).toHaveBeenCalledOnce()
+			expect(axios.post).toHaveBeenCalledWith('/index.php/apps/social/api/v1/statuses/101/calendar/import')
+		})
+	})
+
 	describe('header and body', () => {
 		it('marks a like and a boost the reader gave beside the timestamp', () => {
 			const { wrapper } = mountPost({ item: makeItem({ favourited: true, reblogged: true }) })

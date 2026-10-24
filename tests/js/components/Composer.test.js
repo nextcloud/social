@@ -207,6 +207,25 @@ function mountComposer(props = {}, { accountPrivacy, attachTo, router } = {}) {
 	return { wrapper, store }
 }
 
+function enableBluesky() {
+	useSettingsStore().setServerDataEntry({
+		key: 'bluesky',
+		value: { enabled: true, host: 'cloud.example.org' },
+	})
+	const accounts = useAccountStore()
+	accounts.addAccount({
+		actorId: 'https://cloud.example.org/@alice',
+		data: {
+			id: '1',
+			acct: 'alice',
+			username: 'alice',
+			url: 'https://cloud.example.org/@alice',
+			bluesky: { handle: 'alice.cloud.example.org', did: 'did:plc:alice', active: true },
+		},
+	})
+	accounts.setCurrentAccount('alice@cloud.example.org')
+}
+
 const input = (wrapper) => wrapper.find('.message')
 // untrimmed, unlike DOMWrapper.text(), because inserted emoji end with a space
 const typed = (wrapper) => input(wrapper).element.textContent
@@ -483,32 +502,27 @@ describe('Composer', () => {
 		})
 
 		/**
-		 * Every public post written here is also a Bluesky post when this
-		 * server offers one, and Bluesky shows 280 of the 500 characters this
-		 * composer allows. The counter is still Social's; the hint is the
-		 * other network's, said once it matters.
+		 * Public posts also go to Bluesky when this server offers it. Long
+		 * Social posts are published as threads there; warn before one reaches
+		 * the single-record boundary while leaving Social's counter unchanged.
 		 */
 		describe('the Bluesky hint', () => {
 			const hint = (wrapper) => wrapper.find('.composer-bluesky-hint')
-			const offersBluesky = () => useSettingsStore().setServerDataEntry({
-				key: 'bluesky',
-				value: { enabled: true, host: 'cloud.example.org' },
-			})
 
-			it('appears once a public post is longer than Bluesky shows', async () => {
+			it('appears once a public post may need a Bluesky thread', async () => {
 				const { wrapper } = mountComposer()
-				offersBluesky()
+				enableBluesky()
 				await selectVisibility(wrapper, 'public')
-				await setContent(wrapper, 'a'.repeat(280))
+				await setContent(wrapper, 'a'.repeat(160))
 				expect(hint(wrapper).exists()).toBe(false)
 
-				await setContent(wrapper, 'a'.repeat(281))
-				expect(hint(wrapper).text()).toBe('Bluesky shows the first 280 characters and a link to the full post.')
+				await setContent(wrapper, 'a'.repeat(161))
+				expect(hint(wrapper).text()).toBe('A long post may be split into a thread on Bluesky to fit its post limits.')
 			})
 
 			it('says nothing for a post that is not public, which does not go there', async () => {
 				const { wrapper } = mountComposer()
-				offersBluesky()
+				enableBluesky()
 				await selectVisibility(wrapper, 'unlisted')
 				await setContent(wrapper, 'a'.repeat(300))
 
@@ -525,12 +539,21 @@ describe('Composer', () => {
 
 			it('counts what a person sees, not the code points behind a flag', async () => {
 				const { wrapper } = mountComposer()
-				offersBluesky()
+				enableBluesky()
 				await selectVisibility(wrapper, 'public')
-				// 280 flags are 560 code points and 280 graphemes: still within
-				await setContent(wrapper, '🇳🇱'.repeat(280))
+				// Flags count as one grapheme, not two code points.
+				await setContent(wrapper, '🇳🇱'.repeat(160))
 
 				expect(hint(wrapper).exists()).toBe(false)
+			})
+
+			it('also warns when UTF-8 bytes reach the single-record limit first', async () => {
+				const { wrapper } = mountComposer()
+				enableBluesky()
+				await selectVisibility(wrapper, 'public')
+				await setContent(wrapper, '👨‍👩‍👧‍👦'.repeat(120))
+
+				expect(hint(wrapper).exists()).toBe(true)
 			})
 		})
 	})
@@ -2152,6 +2175,33 @@ describe('Composer', () => {
 	})
 
 	describe('posting', () => {
+		it('requires valid event details and sends the local time as a timezone-aware timestamp', async () => {
+			const { wrapper, store } = mountComposer({ defaultVisibility: 'public' })
+			enableBluesky()
+			await wrapper.find('button[aria-label="Create an event"]').trigger('click')
+			expect(wrapper.text()).toContain('The event details are shared with the Fediverse. Bluesky receives the post text, without the event dates or location.')
+			expect(canPost(wrapper)).toBe(false)
+
+			const fields = wrapper.findAll('.event-editor input')
+			const start = '2026-11-02T09:30'
+			const end = '2026-11-02T10:30'
+			await fields[0].setValue('Community gathering')
+			await fields[1].setValue(start)
+			await fields[2].setValue(end)
+			await fields[3].setValue('Central library')
+			expect(canPost(wrapper)).toBe(true)
+
+			await submitButton(wrapper).trigger('click')
+			await flushPromises()
+
+			expect(postedStatus(store).event).toEqual({
+				name: 'Community gathering',
+				start_time: new Date(start).toISOString(),
+				end_time: new Date(end).toISOString(),
+				location: 'Central library',
+			})
+		})
+
 		it('sends the plain text of the message with the attachments and visibility', async () => {
 			const { wrapper, store } = mountComposer({ defaultVisibility: 'public' })
 			await attachFile(wrapper, new File(['x'], 'cat.png', { type: 'image/png' }))

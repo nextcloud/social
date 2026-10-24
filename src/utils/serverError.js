@@ -140,6 +140,15 @@ const SENTENCES = {
 	'setting-not-choice': (said) => t('social', '"{field}" has to be one of: {choices}.', { field: said.field, choices: String(said.choices ?? '') }),
 	'group-unknown': (said) => t('social', 'There is no group "{group}" on this server. Pick another one.', { group: String(said.group ?? '') }),
 	'groups-too-many': (said) => n('social', 'At most %n group can become a list.', 'At most %n groups can become lists.', Number(said.max) || 0),
+	'push-auth-required': () => t('social', 'Sign in before setting up notifications.'),
+	'push-endpoint-unreachable': () => t('social', 'The notification service for this device could not be reached. Set it up again or try later.'),
+	'push-keys-invalid': () => t('social', 'The notification setup for this device is invalid. Remove it and add it again.'),
+	'push-policy-invalid': () => t('social', 'Choose a supported way to receive notifications.'),
+	'push-alerts-invalid': () => t('social', 'One or more notification choices are invalid. Check them and try again.'),
+	'push-standard-invalid': () => t('social', 'Choose whether this device should use the standard notification format.'),
+	'push-subscriptions-full': (said) => n('social', 'You can have at most %n device receiving notifications. Remove one first.', 'You can have at most %n devices receiving notifications. Remove one first.', Number(said.limit) || 0),
+	'push-subscription-invalid': () => t('social', 'This device sent incomplete notification setup. Set it up again.'),
+	'push-data-invalid': () => t('social', 'These notification settings could not be read. Check them and try again.'),
 }
 
 /**

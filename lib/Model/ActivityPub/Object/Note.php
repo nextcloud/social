@@ -20,10 +20,10 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\MediaAttachment;
 use OCA\Social\Model\Details;
-use OCA\Social\Tools\ActivityPubEvent;
 use OCA\Social\Service\ChannelService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\PeerTubeService;
+use OCA\Social\Tools\ActivityPubEvent;
 use OCP\IURLGenerator;
 use OCP\Server;
 use Throwable;
@@ -129,10 +129,9 @@ class Note extends Stream implements JsonSerializable {
 	public function import(array $data): void {
 		parent::import($data);
 		if (($data['type'] ?? '') === 'Event') {
+			$this->setSubType('Event');
 			$event = ActivityPubEvent::metadata($data);
-			if ($event !== null) {
-				$this->setDetailArray(Details::EVENT, $event);
-			}
+			$this->setDetailArray(Details::EVENT, $event);
 		}
 
 		$this->fillHashtags();

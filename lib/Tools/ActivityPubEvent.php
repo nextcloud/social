@@ -18,21 +18,14 @@ use OCA\Social\Model\Details;
 final class ActivityPubEvent {
 	private const MAX_TEXT = 500;
 
-	/** @return array{name: string, start_time: ?string, end_time: ?string, location: string}|null */
-	public static function metadata(array $data): ?array {
-		$name = self::plainText($data['name'] ?? '', 300);
-		$start = self::date($data['startTime'] ?? null);
-		$end = self::date($data['endTime'] ?? null);
-		if ($start !== null && $end !== null && $end <= $start) {
-			$end = null;
-		}
-
-		return [
-			'name' => $name,
-			'start_time' => $start,
-			'end_time' => $end,
-			'location' => self::location($data['location'] ?? null),
-		];
+	/** @return array{name: string, start_time: ?string, end_time: ?string, location: string} */
+	public static function metadata(array $data): array {
+		return self::facts(
+			$data['name'] ?? '',
+			$data['startTime'] ?? null,
+			$data['endTime'] ?? null,
+			$data['location'] ?? null,
+		);
 	}
 
 	/** @return array{name: string, start_time: ?string, end_time: ?string, location: string}|null */
@@ -41,16 +34,13 @@ final class ActivityPubEvent {
 			return null;
 		}
 		$event = $stream->getDetails(Details::EVENT);
-		if (!is_array($event)) {
-			return ['name' => '', 'start_time' => null, 'end_time' => null, 'location' => ''];
-		}
 
-		return [
-			'name' => self::plainText($event['name'] ?? '', 300),
-			'start_time' => self::date($event['start_time'] ?? null),
-			'end_time' => self::date($event['end_time'] ?? null),
-			'location' => self::plainText($event['location'] ?? '', self::MAX_TEXT),
-		];
+		return self::facts(
+			$event['name'] ?? '',
+			$event['start_time'] ?? null,
+			$event['end_time'] ?? null,
+			$event['location'] ?? null,
+		);
 	}
 
 	public static function calendar(Stream $stream, int $now): ?string {
@@ -109,6 +99,22 @@ final class ActivityPubEvent {
 		return $date->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d\TH:i:s\Z');
 	}
 
+	/** @return array{name: string, start_time: ?string, end_time: ?string, location: string} */
+	private static function facts(mixed $name, mixed $start, mixed $end, mixed $location): array {
+		$start = self::date($start);
+		$end = self::date($end);
+		if ($start !== null && $end !== null && $end <= $start) {
+			$end = null;
+		}
+
+		return [
+			'name' => self::plainText($name, 300),
+			'start_time' => $start,
+			'end_time' => $end,
+			'location' => self::location($location),
+		];
+	}
+
 	private static function location(mixed $value): string {
 		if (is_string($value)) {
 			return self::plainText($value, self::MAX_TEXT);
@@ -154,7 +160,7 @@ final class ActivityPubEvent {
 	}
 
 	private static function escape(string $value): string {
-		return str_replace(["\\", ";", ",", "\r\n", "\r", "\n"], ["\\\\", "\\;", "\\,", "\\n", "\\n", "\\n"], $value);
+		return str_replace(['\\', ';', ',', "\r\n", "\r", "\n"], ['\\\\', '\\;', '\\,', '\\n', '\\n', '\\n'], $value);
 	}
 
 	/** Fold at 75 UTF-8 octets without splitting a multi-byte character. */

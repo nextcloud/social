@@ -103,74 +103,18 @@
 			class="new-post-form"
 			:class="{ 'new-post-form--with-media': hasAttachments }"
 			@submit.prevent>
-			<!-- a post whose only attachment is a video is a video, and a video
-			     has a name. Without this the title was guessed out of the first
-			     line of the post, which is right for somebody who wrote one and
-			     wrong for somebody who did not — and PeerTube lists a video by
-			     its name and nothing else -->
-			<div v-if="isVideoPost" class="video-row">
-				<input
-					v-model="videoTitle"
-					type="text"
-					class="video-row__title"
-					maxlength="120"
-					:aria-label="t('social', 'Video title')"
-					:placeholder="t('social', 'Video title — what it is called on other servers')">
-				<div class="video-row__pair">
-					<input
-						v-model="videoCategory"
-						type="text"
-						maxlength="60"
-						:aria-label="t('social', 'Category')"
-						:placeholder="t('social', 'Category, e.g. Music')">
-					<input
-						v-model="videoLicence"
-						type="text"
-						maxlength="60"
-						:aria-label="t('social', 'Licence')"
-						:placeholder="t('social', 'Licence, e.g. CC BY-SA')">
-				</div>
-			</div>
-			<div v-if="showWarning" class="content-warning-row">
-				<div class="content-warning-row__field">
-					<input
-						v-model="spoilerText"
-						type="text"
-						class="content-warning"
-						dir="auto"
-						maxlength="200"
-						:aria-label="t('social', 'Content warning')"
-						:placeholder="t('social', 'Content warning, e.g. what the post is about')">
-					<!-- the toolbar button that opened this row is the other way
-					     to close it, and it is a row further down and a guess:
-					     the way out of a thing belongs on the thing -->
-					<NcButton
-						variant="tertiary"
-						class="content-warning-row__remove"
-						:title="t('social', 'Remove the content warning')"
-						:aria-label="t('social', 'Remove the content warning')"
-						@click.prevent="toggleWarning">
-						<template #icon>
-							<Close :size="18" />
-						</template>
-					</NcButton>
-				</div>
-				<!-- the warnings people actually write, as one press each: the
-				     box stays, because the list cannot cover what a post is
-				     about, and pressing one only fills the box in -->
-				<ul class="content-warning-presets" :aria-label="t('social', 'Common content warnings')">
-					<li v-for="preset in warningPresets" :key="preset">
-						<button
-							type="button"
-							class="content-warning-presets__item"
-							:class="{ 'content-warning-presets__item--active': spoilerText === preset }"
-							:aria-pressed="spoilerText === preset ? 'true' : 'false'"
-							@click="chooseWarning(preset)">
-							{{ preset }}
-						</button>
-					</li>
-				</ul>
-			</div>
+			<!-- A video has its own name and details on other servers. -->
+			<VideoMetadataEditor
+				v-if="isVideoPost"
+				v-model:title="videoTitle"
+				v-model:category="videoCategory"
+				v-model:licence="videoLicence" />
+			<ContentWarningEditor
+				v-if="showWarning"
+				v-model:value="spoilerText"
+				:presets="warningPresets"
+				@remove="toggleWarning"
+				@choose="chooseWarning" />
 			<div
 				ref="composerInput"
 				:contenteditable="!loading"
@@ -265,45 +209,14 @@
 				v-model:expiresIn="pollExpiresIn"
 				@remove="togglePoll" />
 
-			<section v-if="showEvent" class="event-editor" :aria-label="t('social', 'Create an event')">
-				<h3>{{ t('social', 'Create an event') }}</h3>
-				<label>
-					{{ t('social', 'Event title') }}
-					<input
-						v-model="eventName"
-						type="text"
-						maxlength="300"
-						required
-						:placeholder="t('social', 'What is happening?')">
-				</label>
-				<div class="event-editor__times">
-					<label>
-						{{ t('social', 'Starts') }}
-						<input v-model="eventStart" type="datetime-local" required>
-					</label>
-					<label>
-						{{ t('social', 'Ends (optional)') }}
-						<input v-model="eventEnd" type="datetime-local">
-					</label>
-				</div>
-				<label>
-					{{ t('social', 'Event location (optional)') }}
-					<input
-						v-model="eventLocation"
-						type="text"
-						maxlength="500"
-						:placeholder="t('social', 'Venue or meeting place')">
-				</label>
-				<p class="event-editor__hint">
-					{{ t('social', 'Your event is shared with the audience selected below. Times use your local timezone.') }}
-				</p>
-				<p v-if="reachesBluesky" class="event-editor__hint">
-					{{ t('social', 'Events are published to the Fediverse and are not copied to Bluesky.') }}
-				</p>
-				<p v-if="!eventIsValid" class="event-editor__error" role="status">
-					{{ t('social', 'Add a title and start time; the end must be after the start.') }}
-				</p>
-			</section>
+			<EventEditor
+				v-if="showEvent"
+				v-model:name="eventName"
+				v-model:start="eventStart"
+				v-model:end="eventEnd"
+				v-model:location="eventLocation"
+				:valid="eventIsValid"
+				:reachesBluesky="reachesBluesky" />
 
 			<!-- When the post goes out, if not now. The picker is most of a
 			     date library and arrives when the clock is pressed, not with
@@ -488,6 +401,7 @@
 					</NcButton>
 					<NcButton
 						:title="showEvent ? t('social', 'Remove event') : t('social', 'Create an event')"
+						:aria-label="showEvent ? t('social', 'Remove event') : t('social', 'Create an event')"
 						variant="tertiary"
 						:aria-pressed="showEvent"
 						@click.prevent="toggleEvent">
@@ -582,8 +496,12 @@
 			</div>
 			<!-- Social's own limit stays the counter's; this is the other
 			     network's, said once it matters and not before -->
-			<p v-if="blueskyHint" class="composer-bluesky-hint">
-				{{ t('social', 'Bluesky shows the first 280 characters and a link to the full post.') }}
+			<p
+				v-if="blueskyHint"
+				class="composer-bluesky-hint"
+				role="status"
+				aria-live="polite">
+				{{ t('social', 'A long post may be split into a thread on Bluesky to fit its post limits.') }}
 			</p>
 		</form>
 		<!-- the way to a 24-hour short on the one line the composer is at rest; open,
@@ -654,6 +572,9 @@ import ConfirmDialog from '../admin/ConfirmDialog.vue'
 import { generateUrl } from '@nextcloud/router'
 import { ownAvatarUrl } from '../../services/avatar.js'
 import PollEditor from './PollEditor.vue'
+import EventEditor from './EventEditor.vue'
+import ContentWarningEditor from './ContentWarningEditor.vue'
+import VideoMetadataEditor from './VideoMetadataEditor.vue'
 import PreviewGrid from './PreviewGrid.vue'
 import ComposerPreview from './ComposerPreview.vue'
 import LanguageSelect from './LanguageSelect.vue'
@@ -694,8 +615,9 @@ import { userKey } from '../../utils/browserStore.js'
  * the instance store, and appear below as `maxLength` and `maxAttachments`.
  */
 
-/** Where Bluesky cuts a public post from here and adds a link to the rest. */
-const BLUESKY_GRAPHEMES = 280
+/** Reserve room for the full-post link and details that Social adds on publish. */
+const BLUESKY_WARNING_GRAPHEMES = 160
+const BLUESKY_WARNING_BYTES = 2800
 
 /**
  * How many characters a person sees, which is how Bluesky counts: a flag or
@@ -782,6 +704,9 @@ export default {
 		CardTextOutline,
 		CreationOutline,
 		PollEditor,
+		EventEditor,
+		ContentWarningEditor,
+		VideoMetadataEditor,
 		PreviewGrid,
 		ComposerPreview,
 		FileGifBox,
@@ -1396,9 +1321,13 @@ export default {
 		 * @return {boolean}
 		 */
 		blueskyHint() {
-			return this.serverData?.bluesky?.enabled === true
+			const text = this.statusText + (this.showWarning ? this.spoilerText : '')
+				+ (this.showPoll ? this.pollOptions.join(' ') : '')
+			const byteLength = new TextEncoder().encode(text).length
+
+			return this.reachesBluesky
 				&& this.visibility === 'public'
-				&& graphemes(this.statusText) > BLUESKY_GRAPHEMES
+				&& (graphemes(text) > BLUESKY_WARNING_GRAPHEMES || byteLength > BLUESKY_WARNING_BYTES)
 		},
 	},
 
@@ -2455,81 +2384,6 @@ function rememberedVisibility() {
 <style scoped lang="scss">
 @use '../../styles/layout.scss' as layout;
 
-.video-row {
-	display: flex;
-	flex-direction: column;
-	gap: 6px;
-	margin-block-end: 8px;
-}
-
-.video-row__pair {
-	display: flex;
-	gap: 6px;
-	flex-wrap: wrap;
-
-	> input {
-		flex: 1 1 10em;
-		min-width: 0;
-	}
-}
-
-.video-row__title {
-	width: 100%;
-}
-
-.event-editor {
-	display: grid;
-	gap: 10px;
-	margin-block: 8px 12px;
-	padding: 14px;
-	border: 1px solid var(--color-border);
-	border-radius: var(--border-radius-large);
-	background: var(--color-background-dark);
-
-	h3 {
-		margin: 0;
-		font-size: 1rem;
-	}
-
-	label {
-		display: grid;
-		gap: 4px;
-		color: var(--color-text-maxcontrast);
-		font-size: 0.9rem;
-	}
-
-	input {
-		width: 100%;
-		min-width: 0;
-	}
-}
-
-.event-editor__times {
-	display: grid;
-	grid-template-columns: repeat(2, minmax(0, 1fr));
-	gap: 10px;
-}
-
-.event-editor__hint,
-.event-editor__error {
-	margin: 0;
-	font-size: 0.85rem;
-}
-
-.event-editor__hint {
-	color: var(--color-text-maxcontrast);
-}
-
-.event-editor__error {
-	color: var(--color-error);
-}
-
-@media (max-width: 600px) {
-	.event-editor__times {
-		grid-template-columns: 1fr;
-	}
-}
-
 // one duration and one curve for the whole opening, so the parts of it arrive
 // together rather than each on its own schedule
 $composer-ease: cubic-bezier(0.25, 0.8, 0.35, 1);
@@ -3049,10 +2903,13 @@ $composer-duration: 220ms;
 }
 
 .composer-bluesky-hint {
-	margin: 4px 0 0;
-	color: var(--color-text-maxcontrast);
+	margin: 8px 0 0;
+	padding: 8px 12px;
+	border-radius: var(--border-radius);
+	background: var(--color-warning);
+	color: var(--color-warning-text, var(--color-main-text));
 	font-size: 12px;
-	text-align: end;
+	text-align: start;
 }
 
 /* the allowance as a ring that fills, rather than a limit you discover */
@@ -3286,57 +3143,6 @@ $composer-duration: 220ms;
 		border-color: var(--color-primary-element);
 		outline: 2px solid var(--color-primary-element);
 		outline-offset: 1px;
-	}
-}
-
-/* the box and the presses that fill it in are one thing on the form */
-.content-warning-row {
-	margin-bottom: 6px;
-
-	&__field {
-		display: flex;
-		align-items: center;
-		gap: 4px;
-	}
-
-	.content-warning {
-		flex-grow: 1;
-		margin-bottom: 4px;
-	}
-}
-
-.content-warning-presets {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 4px;
-	margin: 0;
-	padding: 0;
-	list-style: none;
-}
-
-.content-warning-presets__item {
-	margin: 0;
-	padding: 2px 10px;
-	border: 1px solid var(--color-border);
-	border-radius: var(--border-radius-pill, 16px);
-	background: var(--color-background-hover);
-	color: var(--color-text-maxcontrast);
-	font-size: 12px;
-	line-height: 20px;
-	cursor: pointer;
-
-	&:hover,
-	&:focus-visible {
-		border-color: var(--color-primary-element);
-		color: var(--color-main-text);
-	}
-
-	/* the one the box is currently showing, so pressing it again to clear it
-	   is an obvious thing to do rather than a discovery */
-	&--active {
-		border-color: var(--color-primary-element);
-		background: var(--color-primary-element-light);
-		color: var(--color-main-text);
 	}
 }
 
