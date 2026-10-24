@@ -65,7 +65,10 @@ class InstanceTest extends TestCase {
 			->setRegistrations(true)
 			->setApprovalRequired(false)
 			->setInvitesEnabled(true)
-			->setConfiguration(['statuses' => ['max_characters' => 5000]])
+			->setConfiguration([
+				'statuses' => ['max_characters' => 5000],
+				'vapid' => ['public_key' => 'instance-vapid-key'],
+			])
 			->setRules([['id' => '1', 'text' => 'Be kind.']]);
 	}
 
@@ -84,13 +87,17 @@ class InstanceTest extends TestCase {
 			'description' => 'long',
 			'email' => 'admin@cloud.example.org',
 			'urls' => (object)['streaming_api' => 'wss://cloud.example.org'],
+			'vapid_key' => 'instance-vapid-key',
 			'stats' => (object)['user_count' => 3, 'status_count' => 0, 'domain_count' => 0],
 			'thumbnail' => 'https://cloud.example.org/thumb.png',
 			'languages' => ['en'],
 			'registrations' => true,
 			'approval_required' => false,
 			'invites_enabled' => true,
-			'configuration' => (object)['statuses' => ['max_characters' => 5000]],
+			'configuration' => (object)[
+				'statuses' => ['max_characters' => 5000],
+				'vapid' => ['public_key' => 'instance-vapid-key'],
+			],
 			'rules' => [['id' => '1', 'text' => 'Be kind.']],
 			// always present, so a client that declares it non-optional can
 			// still decode the entity

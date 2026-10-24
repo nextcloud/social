@@ -95,12 +95,11 @@ class Instance implements IQueryRow, JsonSerializable {
 	 * `/api/v1/notifications/unread_count`. Claiming 3.5.0 was hiding all of
 	 * them — a client that believes the string never asks.
 	 *
-	 * The features still missing are announced as missing rather than left to
-	 * fail: `urls.streaming_api` names this host, where the websocket is a
-	 * clean 404 rather than a connection to `undefined`, and Web Push is
-	 * absent, so a client that tries
-	 * `/api/v1/push/subscription` gets a 404 and falls back to polling — what
-	 * it does against any server without a VAPID key.
+	 * The streaming API and Web Push are available: `urls.streaming_api` points
+	 * at the host served by the optional `social:mastodon:stream` daemon, and
+	 * the VAPID public key is advertised in both instance API versions. The
+	 * stream requires the daemon and the web-server proxy route to be enabled;
+	 * Web Push subscriptions are handled by `/api/v1/push/subscription`.
 	 *
 	 * **4.3 now, and it was 4.2 while the 4.3 surface was already being
 	 * served**: grouped notifications (`/api/v2/notifications` and its four
@@ -387,6 +386,8 @@ class Instance implements IQueryRow, JsonSerializable {
 	 */
 	#[\Override]
 	public function jsonSerialize(): array {
+		$configuration = $this->getConfiguration();
+
 		return [
 			'uri' => $this->getUri(),
 			'title' => $this->getTitle(),
@@ -395,13 +396,16 @@ class Instance implements IQueryRow, JsonSerializable {
 			'description' => $this->getDescription(),
 			'email' => $this->getEmail(),
 			'urls' => (object)$this->getUrls(),
+			// Older Mastodon clients read the VAPID key from the v1 entity;
+			// newer clients use configuration.vapid.public_key.
+			'vapid_key' => (string)($configuration['vapid']['public_key'] ?? ''),
 			'stats' => (object)$this->getStats(),
 			'thumbnail' => ($this->getImage() === '') ? null : $this->getImage(),
 			'languages' => $this->getLanguages(),
 			'registrations' => $this->isRegistrations(),
 			'approval_required' => $this->isApprovalRequired(),
 			'invites_enabled' => $this->isInvitesEnabled(),
-			'configuration' => (object)$this->getConfiguration(),
+			'configuration' => (object)$configuration,
 			'rules' => $this->getRules(),
 			'contact_account' => $this->getContactAccount(),
 		];

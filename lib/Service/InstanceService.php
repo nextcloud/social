@@ -184,10 +184,9 @@ class InstanceService {
 	/**
 	 * Mastodon's `urls`, whose only member is the streaming endpoint.
 	 *
-	 * This app has no streaming API, and the key is sent anyway: masto.js
-	 * (Elk, Phanpy) builds its websocket address from it and, without one,
-	 * tried to connect to `undefined` on every page load. Named, the
-	 * connection is a clean 404 at this host and the client polls.
+	 * The optional `social:mastodon:stream` daemon serves this address after
+	 * the web server's root proxy rule is installed. Clients can fall back to
+	 * polling while the daemon is unavailable.
 	 */
 	private function urls(string $host): array {
 		return ['streaming_api' => 'wss://' . $host];
