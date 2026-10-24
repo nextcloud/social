@@ -1,0 +1,37 @@
+--- a/node_modules/@atproto/oauth-provider/dist/request/request-uri.js
++++ b/node_modules/@atproto/oauth-provider/dist/request/request-uri.js
+@@ -5,7 +5,7 @@
+ export const REQUEST_URI_PREFIX = 'urn:ietf:params:oauth:request_uri:';
+ export const requestUriSchema = z
+     .string()
+-    .refinement((data) => data.startsWith(REQUEST_URI_PREFIX) &&
++    .refine((data) => data.startsWith(REQUEST_URI_PREFIX) &&
+     requestIdSchema.safeParse(decodeRequestUri(data)).success, {
+     code: z.ZodIssueCode.custom,
+     message: 'Invalid request_uri format',
+--- a/node_modules/@atproto/oauth-provider/dist/device/device-manager.js
++++ b/node_modules/@atproto/oauth-provider/dist/device/device-manager.js
+@@ -8,9 +8,9 @@
+  * @see {@link https://www.npmjs.com/package/keygrip | Keygrip}
+  */
+ export const keygripSchema = z.object({
+-    sign: z.function().args(z.any()).returns(z.string()),
+-    verify: z.function().args(z.any(), z.string()).returns(z.boolean()),
+-    index: z.function().args(z.any(), z.string()).returns(z.number()),
++    sign: z.function({ input: [z.any()], output: z.string() }),
++    verify: z.function({ input: [z.any(), z.string()], output: z.boolean() }),
++    index: z.function({ input: [z.any(), z.string()], output: z.number() }),
+ });
+ export const deviceManagerOptionsSchema = z.object({
+     /**
+@@ -18,9 +18,7 @@
+      * (if `true`), or from the `req.socket.remoteAddress` property (if `false`).
+      */
+     trustProxy: z
+-        .function()
+-        .args(z.string(), z.number())
+-        .returns(z.boolean())
++        .function({ input: [z.string(), z.number()], output: z.boolean() })
+         .optional(),
+     /**
+      * Amount of time (in ms) after which session IDs will be rotated
