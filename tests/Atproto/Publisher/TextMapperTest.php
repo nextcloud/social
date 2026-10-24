@@ -116,7 +116,7 @@ class TextMapperTest extends TestCase {
 
 	public function testAFullLongPostKeepsItsSocialLinkAfterTheLastThreadPart(): void {
 		$words = array_map(static fn (int $word): string => 'word' . $word, range(1, 100));
-		$url = 'https://s.example/@alice/123';
+		$url = 'https://nextcloud.test/index.php/apps/social/@atp0a9da791/17928355471005641446';
 		$fit = $this->mapper->fit(implode(' ', $words), [], $url);
 
 		$this->assertArrayHasKey('threadParts', $fit);
@@ -134,6 +134,7 @@ class TextMapperTest extends TestCase {
 			$this->assertStringContainsString($word, $threadText);
 		}
 		$this->assertStringContainsString($url, $parts[array_key_last($parts)]['text'], 'the Social link comes after all thread parts');
+		$this->assertSame(1, count(array_filter($parts, static fn (array $part): bool => str_contains($part['text'], $url))), 'the Social link is kept whole in one thread part');
 	}
 
 	public function testAResolvedMentionAtAThreadBoundaryKeepsItsFacetWhole(): void {

@@ -178,14 +178,18 @@ class TextMapper {
 					$end = $lastBreak;
 				}
 			}
-			// Do not split a hashtag or a resolved mention across records: a
-			// partial facet would be discarded from both pieces. Move the cut
-			// before the facet when possible, or include it whole if it starts
-			// in this piece and still fits under the record limits.
+			// Do not split a hashtag, resolved mention, or link across records.
+			// A partial link remains clickable in each piece, but its displayed
+			// URL is broken; move the cut before the facet when possible, or
+			// include it whole if it starts in this piece and fits the limits.
 			$boundaryByte = $end < $count ? $clusters[$end][1] : strlen($text);
 			foreach ($facets as $facet) {
 				$type = $facet['features'][0]['$type'] ?? '';
-				if (!in_array($type, ['app.bsky.richtext.facet#mention', 'app.bsky.richtext.facet#tag'], true)) {
+				if (!in_array($type, [
+					'app.bsky.richtext.facet#mention',
+					'app.bsky.richtext.facet#tag',
+					'app.bsky.richtext.facet#link',
+				], true)) {
 					continue;
 				}
 				$facetStart = $facet['index']['byteStart'];
