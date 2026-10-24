@@ -1,0 +1,7 @@
+Files: packages/node-polyfill-webpack-plugin/package.json
+Copyright: 2026 Aloha Social contributors
+License: MIT
+
+Files: tests/Interop/atproto/patches/@atproto+oauth-provider+0.24.3.patch
+Copyright: 2026 Aloha Social contributors
+License: MIT

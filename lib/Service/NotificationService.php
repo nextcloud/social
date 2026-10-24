@@ -50,9 +50,10 @@ use Psr\Log\LoggerInterface;
  * The app stores its own notifications as stream items — the rows
  * `/api/v1/notifications` serves — and until this existed that was the only
  * place anything was ever said: somebody who was mentioned, followed,
- * favourited or boosted learned about it by opening Social and looking. There
- * is no Web Push here (clients poll), so the Nextcloud notification is the
- * whole fallback: the bell, the mobile app and the mail digest all read it.
+ * favourited or boosted learned about it by opening Social and looking.
+ * Mastodon clients may receive their own Web Push notification; this service
+ * delivers the separate Nextcloud notification used by the bell, mobile app
+ * and mail digest.
  *
  * The emit hangs off the *stored* notification rather than off each of the
  * four places that create one. There is exactly one path that writes a
