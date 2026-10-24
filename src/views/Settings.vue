@@ -345,7 +345,7 @@ export default {
 							icon: 'IconInterests',
 							component: 'ForYouSettings',
 							title: t('social', 'For You'),
-							lede: t('social', 'One personalized feed that learns automatically, with separate controls for activity learning and the hashtag fallback.'),
+							lede: t('social', 'One personalized feed that learns automatically, with controls for learning and languages.'),
 						}]
 					: []),
 				{

@@ -98,7 +98,7 @@ class RecommendationTimelineAssembler {
 		array $exposurePenalties,
 		array $automaticSignals,
 	): ?array {
-		$features = $this->features->extract($post);
+		$features = $this->features->extract($post, true);
 		$allTopicIds = array_keys($features['topics']);
 		$selected = [];
 		foreach ($topics as $topic) {
@@ -141,6 +141,9 @@ class RecommendationTimelineAssembler {
 			'author_key' => $author,
 			'topic_ids' => $allTopicIds,
 			'diversity_topics' => $this->diversityTopics($allTopicIds),
+			// Used only by the in-memory re-ranker; snapshots store NIDs and the
+			// bounded explanation, never post-derived text terms.
+			'story_terms' => $features['story_terms'],
 			'matching_topic_ids' => array_keys($selected),
 			'protocol' => RecommendationProtocol::of($post),
 			'published_at' => $published,

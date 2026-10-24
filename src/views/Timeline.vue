@@ -34,6 +34,9 @@
 		</p>
 
 		<InterestsLearningBanner v-if="type === 'interests' && hasInterestsTab" />
+		<NcNoteCard v-if="showRecommendationCoverageNote" type="info" class="timeline-recommendation-coverage">
+			{{ t('social', 'Only a few posts are available in this feed right now. For you limits repeated stories and may show more as new posts arrive.') }}
+		</NcNoteCard>
 
 		<div
 			class="timeline-heading-row"
@@ -189,6 +192,7 @@ import HashtagFollowedList from './../components/HashtagFollowedList.vue'
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
 import NcButton from '@nextcloud/vue/components/NcButton'
+import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import eventBus, { NOTIFICATIONS_READ } from './../services/eventBus.js'
 import { rememberFilter, rememberedFilter } from './../services/notifications.js'
 import { hasInterestsFeed, isTracking } from './../services/interests.js'
@@ -215,6 +219,7 @@ export default {
 		Composer,
 		IconCheckAll,
 		NcButton,
+		NcNoteCard,
 		FirstPostCelebration,
 		FirstRun,
 		HashtagFollowButton,
@@ -521,6 +526,16 @@ export default {
 			}
 
 			return ['timeline', 'federated'].includes(scope) ? scope : 'home'
+		},
+
+		/** Whether this ranked feed has fewer eligible posts than the requested page. */
+		showRecommendationCoverageNote() {
+			const isForYou = this.type === 'interests'
+				|| (this.isScopedPage && this.scope === 'interests')
+				|| (this.type === 'shorts' && this.timelineStore.params?.scope === 'interests')
+			const coverage = this.timelineStore.recommendationCoverage[this.timelineStore.getTimelineIdentity]
+
+			return isForYou && coverage?.state === 'UNDERFILLED' && this.timelineStore.getTimeline.length > 0
 		},
 
 		/**

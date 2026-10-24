@@ -109,6 +109,11 @@ final class RecommendationOfflineEvaluator {
 				'returned_relevant_at_20' => self::mean(array_column($metrics, 'returned_relevant')),
 				'topic_diversity_unique_at_20' => self::mean(array_column($metrics, 'unique_topics')),
 				'topic_diversity_effective_count_at_20' => self::mean(array_column($metrics, 'effective_topic_count')),
+				'story_diversity_unique_at_20' => self::mean(array_column($metrics, 'unique_stories')),
+				'story_repeat_posts_at_20' => self::mean(array_column($metrics, 'repeated_story_posts')),
+				'story_repeat_rate_at_20' => self::mean(array_column($metrics, 'story_repeat_rate')),
+				'story_identifiable_posts_at_20' => self::mean(array_column($metrics, 'identifiable_story_posts')),
+				'largest_story_share_at_20' => self::mean(array_column($metrics, 'largest_story_share')),
 				'hard_control_compliance' => self::mean(array_column($metrics, 'hard_control_compliance')),
 				'hard_control_violations_mean' => self::mean(array_column($metrics, 'hard_control_violations')),
 				'duplicate_rate' => self::mean(array_column($metrics, 'duplicate_rate')),
@@ -122,7 +127,7 @@ final class RecommendationOfflineEvaluator {
 		}
 
 		return [
-			'schema_version' => 1,
+			'schema_version' => 2,
 			'dataset' => [
 				'name' => $dataset['name'],
 				'notice' => $dataset['notice'] ?? 'Synthetic scenario labels are exploratory and are not evidence of real-user satisfaction.',
@@ -321,6 +326,25 @@ final class RecommendationOfflineEvaluator {
 			}
 		}
 		$duplicateCount = array_sum(array_map(static fn (int $count): int => max(0, $count - 1), $pageKeys));
+		$storyTermsByCanonical = [];
+		foreach ($candidates as $candidate) {
+			$key = (string)($candidate['canonical_key'] ?? $candidate['id']);
+			if (isset($candidate['story_terms']) && is_array($candidate['story_terms'])) {
+				$storyTermsByCanonical[$key] ??= $candidate['story_terms'];
+			}
+		}
+		$storyMetricPage = array_map(static function (array $post) use ($storyTermsByCanonical): array {
+			$key = (string)($post['canonical_key'] ?? $post['id']);
+			if (!isset($post['story_terms']) && isset($storyTermsByCanonical[$key])) {
+				$post['story_terms'] = $storyTermsByCanonical[$key];
+			}
+			return $post;
+		}, $metricPage);
+		$storyClusters = RecommendationReRanker::storyClusterIds($storyMetricPage);
+		$storyCounts = array_count_values($storyClusters);
+		$identifiableStoryPosts = count($storyClusters);
+		$uniqueStories = count($storyCounts);
+		$repeatedStoryPosts = max(0, $identifiableStoryPosts - $uniqueStories);
 		$topicTotal = array_sum($topics);
 		$entropy = 0.0;
 		if ($topicTotal > 0) {
@@ -334,6 +358,11 @@ final class RecommendationOfflineEvaluator {
 			'returned_relevant' => count(array_filter($metricPage, static fn (array $post): bool => (int)$post['grade'] > 0)),
 			'unique_topics' => count($topics),
 			'effective_topic_count' => exp($entropy),
+			'unique_stories' => $uniqueStories,
+			'identifiable_story_posts' => $identifiableStoryPosts,
+			'repeated_story_posts' => $repeatedStoryPosts,
+			'story_repeat_rate' => $identifiableStoryPosts === 0 ? 0.0 : $repeatedStoryPosts / $identifiableStoryPosts,
+			'largest_story_share' => $identifiableStoryPosts === 0 ? 0.0 : max($storyCounts) / $identifiableStoryPosts,
 			'hard_control_compliance' => $metricPage === [] ? 1.0 : $valid / count($metricPage),
 			'hard_control_violations' => $violations,
 			'duplicate_rate' => $page === [] ? 0.0 : $duplicateCount / count($page),

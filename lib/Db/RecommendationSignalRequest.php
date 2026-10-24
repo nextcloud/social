@@ -13,7 +13,7 @@ use InvalidArgumentException;
 use OCP\DB\Exception as DBException;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
-/** Owner-scoped, bounded storage for behavioural aggregates and exposure. */
+/** Owner-scoped, bounded storage for behavioural aggregates and HMAC exposure keys. */
 class RecommendationSignalRequest extends CoreRequestBuilder {
 	public const TABLE_SIGNAL = 'social_rec_signal';
 	public const TABLE_EVENT = 'social_rec_event';
@@ -21,7 +21,7 @@ class RecommendationSignalRequest extends CoreRequestBuilder {
 	private const MAX_TOPICS = 300;
 	private const MAX_AUTHORS = 400;
 	private const MAX_FORMATS = 20;
-	private const MAX_SEEN = 1000;
+	private const MAX_SEEN = 8000;
 	private const MAX_EVENTS = 10000;
 	private const EVENT_TTL = 7 * 86400;
 	private const SEEN_TTL = 30 * 86400;
@@ -52,10 +52,11 @@ class RecommendationSignalRequest extends CoreRequestBuilder {
 
 	/**
 	 * The current generation's qualified impressions for a bounded candidate set.
-	 * Multiple sessions are combined without returning raw post identifiers.
+	 * Results retain session grouping so fuzzy story bands must match within a
+	 * single exposure session, without returning raw post identifiers or text.
 	 *
-	 * @param list<string> $postKeys hashed stream identifiers
-	 * @return array<string, array{impressions: int, updated_at: int}> keyed by post key
+	 * @param list<string> $postKeys owner-scoped HMAC story bands or exact-post keys
+	 * @return array<string, array<string, array{impressions: int, updated_at: int}>> keyed by fingerprint, then session key
 	 */
 	public function exposures(string $actorKey, int $generation, array $postKeys, int $since): array {
 		$postKeys = array_values(array_unique(array_filter($postKeys, static fn (string $key): bool => preg_match('/^[a-f0-9]{64}$/', $key) === 1)));
@@ -66,7 +67,7 @@ class RecommendationSignalRequest extends CoreRequestBuilder {
 		$exposures = [];
 		foreach (array_chunk($postKeys, 200) as $chunk) {
 			$qb = $this->getQueryBuilder();
-			$qb->select('post_key', 'impressions', 'updated_at')
+			$qb->select('post_key', 'session_key', 'impressions', 'updated_at')
 				->from(self::TABLE_SEEN)
 				->where($qb->expr()->eq('actor_key', $qb->createNamedParameter($actorKey)))
 				->andWhere($qb->expr()->eq('generation', $qb->createNamedParameter($generation, IQueryBuilder::PARAM_INT)))
@@ -75,9 +76,10 @@ class RecommendationSignalRequest extends CoreRequestBuilder {
 			$result = $qb->executeQuery();
 			while ($row = $result->fetch()) {
 				$key = (string)$row['post_key'];
-				$exposures[$key] ??= ['impressions' => 0, 'updated_at' => 0];
-				$exposures[$key]['impressions'] = min(32767, $exposures[$key]['impressions'] + (int)$row['impressions']);
-				$exposures[$key]['updated_at'] = max($exposures[$key]['updated_at'], (int)$row['updated_at']);
+				$session = (string)$row['session_key'];
+				$exposures[$key][$session] ??= ['impressions' => 0, 'updated_at' => 0];
+				$exposures[$key][$session]['impressions'] = min(32767, $exposures[$key][$session]['impressions'] + (int)$row['impressions']);
+				$exposures[$key][$session]['updated_at'] = max($exposures[$key][$session]['updated_at'], (int)$row['updated_at']);
 			}
 			$result->closeCursor();
 		}
@@ -90,7 +92,7 @@ class RecommendationSignalRequest extends CoreRequestBuilder {
 	 * to consent, reset generation and duplicate event delivery.
 	 *
 	 * @param list<array{dimension: string, entity_key: string, delta: float}> $signals
-	 * @param array{post_key: string, session_key: string}|null $impression
+	 * @param array{post_keys: list<string>, session_key: string}|null $impression owner-scoped HMAC story bands or exact-post keys
 	 * @return array{accepted: bool, duplicate: bool, profile_version: int}
 	 */
 	public function record(
@@ -113,7 +115,9 @@ class RecommendationSignalRequest extends CoreRequestBuilder {
 
 			$profile = $this->getQueryBuilder();
 			$profile->update(RecommendationPreferenceRequest::TABLE_PROFILE)
-				->set('profile_ver', $profile->func()->add('profile_ver', $profile->expr()->literal(1)))
+				// Keep the consent/CAS revision stable while observations arrive.
+				// Timeline snapshots keep their order across newly learned signals;
+				// only a consent change or reset invalidates their cursor.
 				->set('updated_at', $profile->createNamedParameter($now, IQueryBuilder::PARAM_INT))
 				->where($profile->expr()->eq('actor_key', $profile->createNamedParameter($actorKey)))
 				->andWhere($profile->expr()->eq('generation', $profile->createNamedParameter($generation, IQueryBuilder::PARAM_INT)))
@@ -136,7 +140,11 @@ class RecommendationSignalRequest extends CoreRequestBuilder {
 				$this->fold($actorKey, $signal['dimension'], $signal['entity_key'], $signal['delta'], $now);
 			}
 			if ($impression !== null) {
-				$this->recordImpression($actorKey, $impression['post_key'], $impression['session_key'], $generation, $now);
+				foreach (array_values(array_unique($impression['post_keys'])) as $postKey) {
+					if (preg_match('/^[a-f0-9]{64}$/', $postKey) === 1) {
+						$this->recordImpression($actorKey, $postKey, $impression['session_key'], $generation, $now);
+					}
+				}
 			}
 			$connection->commit();
 		} catch (DBException $e) {

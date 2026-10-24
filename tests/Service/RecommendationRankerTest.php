@@ -118,7 +118,7 @@ class RecommendationRankerTest extends TestCase {
 		);
 	}
 
-	public function testPageAssemblyDeduplicatesAndSoftlySpreadsAuthors(): void {
+	public function testPageAssemblyDeduplicatesAndRelaxesAuthorCapWhenNoAlternativeRemains(): void {
 		$ranked = [
 			['nid' => '1', 'canonical_key' => 'same', 'rank_score' => 1.0, 'author_key' => 'alice'],
 			['nid' => '2', 'canonical_key' => 'same', 'rank_score' => 0.99, 'author_key' => 'alice'],
@@ -135,7 +135,35 @@ class RecommendationRankerTest extends TestCase {
 		$this->assertCount(count(array_unique(array_column($page, 'nid'))), $page);
 	}
 
-	public function testPrioritisedTopicsAreExemptFromSoftTopicConcentration(): void {
+	public function testAuthorCapSurfacesOtherAuthorsWhenTheirPostsAreLowerRanked(): void {
+		$ranked = [];
+		for ($i = 1; $i <= 8; $i++) {
+			$ranked[] = ['nid' => 'alice-' . $i, 'rank_score' => 0.99 - ($i * 0.001), 'author_key' => 'alice'];
+		}
+		for ($i = 1; $i <= 4; $i++) {
+			$ranked[] = ['nid' => 'bob-' . $i, 'rank_score' => 0.30 - ($i * 0.001), 'author_key' => 'bob'];
+		}
+
+		$page = (new RecommendationReRanker())->page($ranked, 4);
+
+		$this->assertSame(['alice-1', 'alice-2', 'bob-1', 'bob-2'], array_column($page, 'nid'));
+		$this->assertLessThanOrEqual(2, count(array_filter($page, static fn (array $candidate): bool => $candidate['author_key'] === 'alice')));
+	}
+
+	public function testCombinedAuthorAndTopicCapsRelaxWhenNoCandidateSatisfiesBoth(): void {
+		$page = (new RecommendationReRanker())->page([
+			['nid' => 'alice-1', 'rank_score' => 1.0, 'author_key' => 'alice', 'topic_ids' => ['topic.one']],
+			['nid' => 'alice-2', 'rank_score' => 0.99, 'author_key' => 'alice', 'topic_ids' => ['topic.one']],
+			['nid' => 'bob-1', 'rank_score' => 0.98, 'author_key' => 'bob', 'topic_ids' => ['topic.one']],
+			['nid' => 'alice-other-topic', 'rank_score' => 0.80, 'author_key' => 'alice', 'topic_ids' => ['topic.two']],
+			['nid' => 'bob-saturated-topic', 'rank_score' => 0.79, 'author_key' => 'bob', 'topic_ids' => ['topic.one']],
+		], 5);
+
+		$this->assertCount(5, $page, 'when each remaining candidate conflicts with one cap, the caps relax instead of dropping visible posts');
+		$this->assertSame('alice-other-topic', $page[3]['nid'], 'the higher ranked alternative topic is selected first');
+	}
+
+	public function testAutomaticTopicConcentrationYieldsToAnotherTopicAfterThreeMatches(): void {
 		$ranked = [];
 		for ($i = 1; $i <= 10; $i++) {
 			$ranked[] = ['nid' => (string)$i, 'rank_score' => 1.0 - $i / 100, 'topic_ids' => ['topic.one']];
@@ -174,6 +202,208 @@ class RecommendationRankerTest extends TestCase {
 		$this->assertContains('different-topic-1', array_column($page, 'nid'));
 	}
 
+	public function testOneStoryCannotReturnAfterTwentyOtherPostsInTheSameSnapshot(): void {
+		$ranked = [];
+		$incidentTerms = ['php', 'security', 'release', 'maintainer', 'vulnerability', 'patch', 'disclosure', 'exploit'];
+		for ($i = 1; $i <= 40; $i++) {
+			$ranked[] = [
+				'nid' => 'incident-' . $i,
+				'rank_score' => 0.99 - ($i * 0.001),
+				'story_terms' => [...$incidentTerms, 'detail' . $i],
+			];
+		}
+		for ($i = 1; $i <= 60; $i++) {
+			$ranked[] = [
+				'nid' => 'unrelated-' . $i,
+				'rank_score' => 0.80 - ($i * 0.001),
+				'story_terms' => ['garden' . $i, 'community' . $i, 'event' . $i, 'local' . $i, 'meeting' . $i, 'weekend' . $i, 'people' . $i],
+			];
+		}
+
+		$page = (new RecommendationReRanker())->page($ranked, 100, 'story-cap-whole-snapshot');
+		$incidentPosts = array_filter($page, static fn (array $candidate): bool => str_starts_with($candidate['nid'], 'incident-'));
+
+		$this->assertCount(3, $incidentPosts, 'the same incident must not return after it falls outside the last twenty items');
+		$this->assertCount(63, $page, 'the remaining incident candidates are omitted once distinct alternatives fill the snapshot');
+	}
+
+	public function testRecentlyOverexposedStoriesYieldToUnseenAlternativesAcrossFeedRefreshes(): void {
+		$ranked = [];
+		for ($i = 1; $i <= 8; $i++) {
+			$ranked[] = [
+				'nid' => 'seen-php-incident-' . $i,
+				'rank_score' => 0.99 - ($i * 0.001),
+				'exposure_penalty' => 0.9,
+				'story_terms' => ['php', 'security', 'incident', 'vulnerability', 'patch', 'disclosure', 'exploit', 'detail' . $i],
+			];
+		}
+		for ($i = 1; $i <= 8; $i++) {
+			$ranked[] = [
+				'nid' => 'unseen-topic-' . $i,
+				'rank_score' => 0.7 - ($i * 0.001),
+				'exposure_penalty' => 0.0,
+				'story_terms' => ['garden' . $i, 'community' . $i, 'event' . $i, 'local' . $i, 'meeting' . $i, 'weekend' . $i, 'people' . $i],
+			];
+		}
+
+		$page = (new RecommendationReRanker())->page($ranked, 5, 'story-fatigue-after-refresh');
+
+		$this->assertCount(5, $page);
+		$this->assertSame(
+			[],
+			array_values(array_filter($page, static fn (array $candidate): bool => str_starts_with($candidate['nid'], 'seen-php-incident-'))),
+			'recently overexposed stories yield while the page has unseen alternatives',
+		);
+	}
+
+	public function testAnOverexposedStoryCanFillThePageWhenNoUnseenAlternativeExists(): void {
+		$ranked = [];
+		for ($i = 1; $i <= 5; $i++) {
+			$ranked[] = [
+				'nid' => 'only-seen-story-' . $i,
+				'rank_score' => 0.9 - ($i * 0.01),
+				'exposure_penalty' => 0.9,
+				'story_terms' => ['php', 'security', 'incident', 'vulnerability', 'patch', 'disclosure', 'exploit'],
+			];
+		}
+
+		$page = (new RecommendationReRanker())->page($ranked, 5, 'fatigue-fallback');
+
+		$this->assertCount(3, $page, 'the feed may reuse a fatigued story only when it has no alternative, and its hard story cap still applies');
+		$this->assertSame(['only-seen-story-1', 'only-seen-story-2', 'only-seen-story-3'], array_column($page, 'nid'));
+	}
+
+	public function testSimilarStoryVariantsCannotEvadeTheCapThroughAnOverlapChain(): void {
+		$variants = [
+			['a', 'b', 'c', 'd', 'e', 'f'],
+			['a', 'b', 'c', 'd', 'e', 'g'],
+			['a', 'b', 'c', 'd', 'g', 'h'],
+		];
+		$ranked = [];
+		foreach ($variants as $variant => $terms) {
+			for ($post = 1; $post <= 4; $post++) {
+				$ranked[] = [
+					'nid' => 'story-' . $variant . '-' . $post,
+					'rank_score' => 1.0 - (count($ranked) * 0.001),
+					'story_terms' => $terms,
+				];
+			}
+		}
+
+		$page = (new RecommendationReRanker())->page($ranked, 12, 'overlap-chain-story-cap');
+
+		$this->assertCount(3, $page, 'three pairwise-connected headline variants are one story cluster');
+		$this->assertSame(['story-0-1', 'story-0-2', 'story-0-3'], array_column($page, 'nid'));
+		foreach ($page as $candidate) {
+			$this->assertArrayNotHasKey('_story_cluster', $candidate, 'internal cluster IDs are not exposed');
+		}
+	}
+
+	public function testSimilarStoriesWithoutSharedTopicTagsAreLimitedWhenOtherPostsAreAvailable(): void {
+		$ranked = [];
+		$sharedTerms = ['php', 'security', 'release', 'maintainer', 'vulnerability', 'patch', 'disclosure', 'exploit'];
+		for ($i = 1; $i <= 12; $i++) {
+			$ranked[] = [
+				'nid' => 'same-incident-' . $i,
+				'rank_score' => 0.99 - ($i * 0.001),
+				'author_key' => 'incident-author-' . $i,
+				'story_terms' => [...$sharedTerms, 'detail' . $i],
+			];
+		}
+		for ($i = 1; $i <= 12; $i++) {
+			$ranked[] = [
+				'nid' => 'other-story-' . $i,
+				'rank_score' => 0.80 - ($i * 0.001),
+				'author_key' => 'other-author-' . $i,
+				'story_terms' => ['garden' . $i, 'community' . $i, 'event' . $i, 'local' . $i, 'meeting' . $i, 'weekend' . $i, 'people' . $i],
+			];
+		}
+
+		$page = (new RecommendationReRanker())->page($ranked, 20, 'story-diversity-without-tags');
+		$incidentPosts = array_filter($page, static fn (array $candidate): bool => str_starts_with($candidate['nid'], 'same-incident-'));
+
+		$this->assertLessThanOrEqual(3, count($incidentPosts));
+		$this->assertCount(15, $page, 'the page stops instead of filling its last slots with the same story');
+		$this->assertContains('other-story-1', array_column($page, 'nid'));
+		foreach ($page as $candidate) {
+			$this->assertArrayNotHasKey('story_terms', $candidate, 'text terms stay transient and are not exposed with ranked items');
+		}
+	}
+
+	public function testACommonShortPhraseDoesNotMergeAStoryWithAnUnrelatedLongPost(): void {
+		$incidentTerms = ['php', 'security', 'incident', 'patch', 'release', 'vulnerability'];
+		$ranked = [];
+		for ($i = 1; $i <= 8; $i++) {
+			$ranked[] = [
+				'nid' => 'incident-' . $i,
+				'rank_score' => 0.99 - ($i * 0.001),
+				'story_terms' => [...$incidentTerms, 'detail' . $i],
+			];
+		}
+		$ranked[] = [
+			'nid' => 'long-unrelated-post',
+			'rank_score' => 0.70,
+			'story_terms' => [...$incidentTerms, ...array_map(static fn (int $i): string => 'unrelated' . $i, range(1, 54))],
+		];
+
+		$page = (new RecommendationReRanker())->page($ranked, 5, 'short-overlap-is-not-a-story');
+		$incidentPosts = array_filter($page, static fn (array $candidate): bool => str_starts_with($candidate['nid'], 'incident-'));
+
+		$this->assertCount(3, $incidentPosts);
+		$this->assertContains('long-unrelated-post', array_column($page, 'nid'));
+		$this->assertCount(4, $page);
+	}
+
+	public function testSimilarStoryLimitStillAppliesWhenItWouldLeaveThePageUnderfilled(): void {
+		$terms = ['php', 'security', 'release', 'maintainer', 'vulnerability', 'patch', 'disclosure', 'exploit'];
+		$ranked = [];
+		for ($i = 1; $i <= 5; $i++) {
+			$ranked[] = ['nid' => 'only-story-' . $i, 'rank_score' => 1.0 - ($i * 0.01), 'story_terms' => $terms];
+		}
+
+		$page = (new RecommendationReRanker())->page($ranked, 5, 'story-diversity-no-alternative');
+
+		$this->assertCount(3, $page, 'a recognizable story stays capped even if there is no other story to fill the page');
+		$this->assertSame(['only-story-1', 'only-story-2', 'only-story-3'], array_column($page, 'nid'));
+	}
+
+	public function testShortPHPHeadlineVariantsShareTheStoryCap(): void {
+		$ranked = [];
+		for ($i = 1; $i <= 5; $i++) {
+			$terms = match ($i % 3) {
+				0 => ['php', 'security', 'patch', 'release'],
+				1 => ['php', 'security', 'patch', 'incident'],
+				default => ['php', 'security', 'patch', 'vulnerability'],
+			};
+			$ranked[] = ['nid' => 'php-security-' . $i, 'rank_score' => 1.0 - ($i * 0.01), 'story_terms' => $terms];
+		}
+		for ($i = 1; $i <= 5; $i++) {
+			$ranked[] = ['nid' => 'other-short-story-' . $i, 'rank_score' => 0.8 - ($i * 0.01), 'story_terms' => ['local', 'music', 'festival', 'summer']];
+		}
+
+		$page = (new RecommendationReRanker())->page($ranked, 10, 'short-story-diversity');
+		$incidentPosts = array_filter($page, static fn (array $candidate): bool => str_starts_with($candidate['nid'], 'php-security-'));
+
+		$this->assertCount(3, $incidentPosts, 'short title variants for one PHP security story share the page cap');
+		$this->assertCount(6, $page, 'both recognizable short stories stay under their own diversity cap');
+	}
+
+	public function testThreeTermStoryTitlesAreGroupedWhenTheirWordsMatchExactly(): void {
+		$ranked = [];
+		for ($i = 1; $i <= 5; $i++) {
+			$ranked[] = ['nid' => 'php-incident-' . $i, 'rank_score' => 1.0 - ($i * 0.01), 'story_terms' => ['php', 'security', 'incident']];
+		}
+		for ($i = 1; $i <= 5; $i++) {
+			$ranked[] = ['nid' => 'local-event-' . $i, 'rank_score' => 0.8 - ($i * 0.01), 'story_terms' => ['local', 'music', 'festival']];
+		}
+
+		$page = (new RecommendationReRanker())->page($ranked, 10, 'three-term-story-diversity');
+		$incidentPosts = array_filter($page, static fn (array $candidate): bool => str_starts_with($candidate['nid'], 'php-incident-'));
+
+		$this->assertCount(3, $incidentPosts);
+		$this->assertCount(6, $page);
+	}
+
 	public function testAHighInterestTopicCannotOverrideTheDiversityCapWhenAlternativesExist(): void {
 		$ranked = [];
 		for ($i = 1; $i <= 10; $i++) {
@@ -194,6 +424,44 @@ class RecommendationRankerTest extends TestCase {
 		$page = (new RecommendationReRanker())->page($ranked, 4, 'repeated-event-diversity');
 
 		$this->assertSame(['php-security-1', 'php-security-2', 'php-security-3', 'community-story'], array_column($page, 'nid'));
+	}
+
+	public function testPHPVulnerabilityReportsDoNotCrowdOutOtherTopics(): void {
+		$ranked = [];
+		for ($i = 1; $i <= 8; $i++) {
+			$ranked[] = [
+				'nid' => 'php-vulnerability-' . $i,
+				'rank_score' => 0.99 - ($i * 0.001),
+				'topic_ids' => ['technology', 'tech.security', 'software', 'software.backend'],
+				'diversity_topics' => ['tech.security', 'software.backend'],
+			];
+		}
+		$ranked[] = ['nid' => 'community-story', 'rank_score' => 0.40, 'diversity_topics' => ['community.civic']];
+		$ranked[] = ['nid' => 'garden-story', 'rank_score' => 0.39, 'diversity_topics' => ['environment.gardens']];
+
+		$page = (new RecommendationReRanker())->page($ranked, 5, 'php-security-topic-diversity');
+		$securityReports = array_filter($page, static fn (array $candidate): bool => in_array('tech.security', $candidate['diversity_topics'] ?? [], true));
+
+		$this->assertCount(3, $securityReports);
+		$this->assertContains('community-story', array_column($page, 'nid'));
+		$this->assertContains('garden-story', array_column($page, 'nid'));
+	}
+
+	public function testMixedTopicCandidatesDoNotBypassASaturatedTopicWhileFreshAlternativesRemain(): void {
+		$ranked = [];
+		for ($i = 1; $i <= 3; $i++) {
+			$ranked[] = ['nid' => 'security-' . $i, 'rank_score' => 1.0 - ($i / 100), 'diversity_topics' => ['software.security']];
+		}
+		$ranked[] = [
+			'nid' => 'security-and-civic',
+			'rank_score' => 0.96,
+			'diversity_topics' => ['software.security', 'community.civic'],
+		];
+		$ranked[] = ['nid' => 'civic-only', 'rank_score' => 0.95, 'diversity_topics' => ['community.civic']];
+
+		$page = (new RecommendationReRanker())->page($ranked, 5, 'mixed-topic-diversity');
+
+		$this->assertSame(['security-1', 'security-2', 'security-3', 'civic-only', 'security-and-civic'], array_column($page, 'nid'));
 	}
 
 	public function testTopicConcentrationRelaxesWhenThereAreNoOtherTopicsToShow(): void {

@@ -22,15 +22,6 @@ class InterestScorerTest extends TestCase {
 		return new InterestScorer($halfLife, $threshold, $cap);
 	}
 
-	public function testTheExpectedReadingTimeGrowsWithTextAndPicturesAndStops(): void {
-		$scorer = $this->scorer();
-
-		$this->assertSame(1200, $scorer->expectedDwellMs(0, 0));
-		$this->assertSame(1200 + 35 * 100, $scorer->expectedDwellMs(100, 0));
-		$this->assertSame(1200 + 1500 * 2, $scorer->expectedDwellMs(0, 2));
-		$this->assertSame(20000, $scorer->expectedDwellMs(5000, 4), 'nobody is expected to read all of a long post');
-	}
-
 	public function testAVideoTakesAsLongAsItRunsUpToTheCapOnOneLook(): void {
 		$scorer = $this->scorer();
 
@@ -46,33 +37,6 @@ class InterestScorerTest extends TestCase {
 		$this->assertSame(InterestScorer::SIGNAL_LONG_DWELL, $scorer->classifyWatch(9000, 10000), 'as good as all of it');
 		$this->assertSame(InterestScorer::SIGNAL_DWELL, $scorer->classifyWatch(5000, 10000), 'half');
 		$this->assertSame(0.0, $scorer->classifyWatch(2000, 10000), 'a moment says nothing');
-	}
-
-	public function testALookIsJudgedAgainstTheReadersOwnPace(): void {
-		$scorer = $this->scorer();
-
-		// the same four seconds on a post that takes two to read
-		[$slowReader] = $scorer->classifyDwell(4000, 2000, 2.0);
-		[$fastReader] = $scorer->classifyDwell(4000, 2000, 0.5);
-
-		$this->assertSame(InterestScorer::SIGNAL_DWELL, $slowReader, 'twice the time is just their pace');
-		$this->assertSame(InterestScorer::SIGNAL_LONG_DWELL, $fastReader, 'four times their pace held them');
-	}
-
-	public function testAGlanceTeachesNothing(): void {
-		[$signal] = $this->scorer()->classifyDwell(300, 2000, 1.0);
-
-		$this->assertSame(0.0, $signal);
-	}
-
-	public function testThePaceMovesALittleTowardsEveryLookAndIgnoresALunchBreak(): void {
-		$scorer = $this->scorer();
-
-		[, $after] = $scorer->classifyDwell(4000, 2000, 1.0);
-		$this->assertEqualsWithDelta(0.95 + 0.05 * 2, $after, 1e-9);
-
-		[, $lunch] = $scorer->classifyDwell(30000, 1200, 1.0);
-		$this->assertEqualsWithDelta(0.95 + 0.05 * 10, $lunch, 1e-9, 'a ratio is capped at ten');
 	}
 
 	public function testAPostsSignalIsSharedEvenlyAmongItsTagsOnceEach(): void {
@@ -110,11 +74,11 @@ class InterestScorerTest extends TestCase {
 		$this->assertSame(InterestScorer::SCORE_MIN, $row->getScore());
 	}
 
-	public function testAPinnedOrManualScoreDoesNotDecay(): void {
+	public function testLegacyPinnedAndManualScoresDecayLikeLearnedScores(): void {
 		$scorer = $this->scorer(30);
 
-		$this->assertSame(10.0, $scorer->current(new Interest('a', 10.0, self::NOW - 90 * self::DAY, true), self::NOW));
-		$this->assertSame(10.0, $scorer->current(new Interest('b', 10.0, self::NOW - 90 * self::DAY, false, 2), self::NOW));
+		$this->assertSame(1.25, $scorer->current(new Interest('a', 10.0, self::NOW - 90 * self::DAY, true), self::NOW));
+		$this->assertSame(1.25, $scorer->current(new Interest('b', 10.0, self::NOW - 90 * self::DAY, false, 2), self::NOW));
 	}
 
 	public function testANewWeekKeepsWhereTheLastOneEndedForTheTrend(): void {
@@ -150,41 +114,27 @@ class InterestScorerTest extends TestCase {
 		$this->assertTrue($assembled['thin'], 'two interests is still learning');
 	}
 
-	public function testFollowedAndManualTagsAreListedWithAtLeastTheThreshold(): void {
+	public function testLegacyManualAndPinnedTagsAreIgnoredButFollowsRemainListed(): void {
 		$assembled = $this->scorer(30, 3)->assemble([
 			new Interest('mine', 0.0, self::NOW, true),
+			new Interest('pinned', 40.0, self::NOW, false, 0),
 			new Interest('learned', 4.0, self::NOW),
 		], ['nextcloud'], self::NOW);
 
 		$byTag = array_column($assembled['listed'], null, 'tag');
-		$this->assertSame('manual', $byTag['mine']['source']);
+		$this->assertArrayNotHasKey('mine', $byTag);
+		$this->assertArrayNotHasKey('pinned', $byTag);
 		$this->assertSame('followed', $byTag['nextcloud']['source']);
 		$this->assertSame(3.0, $byTag['nextcloud']['score']);
 		$this->assertSame('learned', $assembled['listed'][0]['tag'], 'the floor is a floor, not a boost');
 	}
 
-	public function testAPinHoldsItsRankAndTheRestCloseUpAroundIt(): void {
-		$assembled = $this->scorer()->assemble([
-			new Interest('a', 9.0, self::NOW),
-			new Interest('b', 8.0, self::NOW),
-			new Interest('c', 7.0, self::NOW),
-			new Interest('d', 6.0, self::NOW),
-			new Interest('dragged', 3.5, self::NOW, false, 1),
-		], [], self::NOW);
+	public function testLearningAFormerlyChosenTagStartsFromItsNewSignal(): void {
+		$row = $this->scorer()->fold(new Interest('mine', 40.0, self::NOW, true, 0), 1.5, self::NOW);
 
-		$this->assertSame(['a', 'dragged', 'b', 'c', 'd'], array_column($assembled['listed'], 'tag'));
-		$this->assertTrue($assembled['listed'][1]['pinned']);
-	}
-
-	public function testAPinBeyondTheEndLandsAtTheEndAndTwoPinsDoNotCollide(): void {
-		$assembled = $this->scorer()->assemble([
-			new Interest('a', 9.0, self::NOW),
-			new Interest('far', 3.0, self::NOW, false, 40),
-			new Interest('first', 3.0, self::NOW, false, 0),
-			new Interest('alsoFirst', 3.0, self::NOW, false, 0),
-		], [], self::NOW);
-
-		$this->assertSame(['alsofirst', 'first', 'a', 'far'], array_map('strtolower', array_column($assembled['listed'], 'tag')));
+		$this->assertSame(1.5, $row->getScore());
+		$this->assertFalse($row->isManual());
+		$this->assertFalse($row->isPinned());
 	}
 
 	public function testTheCapLimitsWhatFloatsInAndTheOverflowIsFirstAmongTheCandidates(): void {

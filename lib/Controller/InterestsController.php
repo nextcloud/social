@@ -10,7 +10,6 @@ declare(strict_types=1);
 namespace OCA\Social\Controller;
 
 use InvalidArgumentException;
-use OCA\Social\Exceptions\InterestNotRemovableException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
@@ -70,45 +69,7 @@ class InterestsController extends ClientApiController {
 		return $this->answer(['read:accounts'], fn () => $this->interestService->state($this->viewer()));
 	}
 
-	/** Adds a hashtag the reader chose. */
-	#[NoCSRFRequired]
-	#[PublicPage]
-	#[FrontpageRoute(verb: 'POST', url: '/api/v1/interests')]
-	public function add(string $tag = ''): DataResponse {
-		return $this->answer(['write:accounts'], fn () => $this->interestService->add($this->viewer(), $tag));
-	}
-
-	/** Pins a hashtag at a rank. */
-	#[NoCSRFRequired]
-	#[PublicPage]
-	#[FrontpageRoute(verb: 'POST', url: '/api/v1/interests/{tag}/move')]
-	public function move(string $tag, int $position = 0): DataResponse {
-		return $this->answer(['write:accounts'], fn () => $this->interestService->move($this->viewer(), $tag, $position));
-	}
-
-	#[NoCSRFRequired]
-	#[PublicPage]
-	#[FrontpageRoute(verb: 'POST', url: '/api/v1/interests/{tag}/pin')]
-	public function pin(string $tag): DataResponse {
-		return $this->answer(['write:accounts'], fn () => $this->interestService->pin($this->viewer(), $tag));
-	}
-
-	#[NoCSRFRequired]
-	#[PublicPage]
-	#[FrontpageRoute(verb: 'POST', url: '/api/v1/interests/{tag}/unpin')]
-	public function unpin(string $tag): DataResponse {
-		return $this->answer(['write:accounts'], fn () => $this->interestService->unpin($this->viewer(), $tag));
-	}
-
-	/** Takes a hashtag off the list; a followed one answers 422. */
-	#[NoCSRFRequired]
-	#[PublicPage]
-	#[FrontpageRoute(verb: 'DELETE', url: '/api/v1/interests/{tag}')]
-	public function remove(string $tag): DataResponse {
-		return $this->answer(['write:accounts'], fn () => $this->interestService->remove($this->viewer(), $tag));
-	}
-
-	/** Forgets everything learned and chosen. */
+	/** Forgets the automatic profile and reading pace. */
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/interests/reset')]
@@ -291,7 +252,7 @@ class InterestsController extends ClientApiController {
 
 	/** A refusal the service raised, as the 422 the client API answers it with. */
 	private function translate(Throwable $e): Throwable {
-		if ($e instanceof InvalidArgumentException || $e instanceof InterestNotRemovableException) {
+		if ($e instanceof InvalidArgumentException) {
 			return new InvalidResourceException($e->getMessage());
 		}
 

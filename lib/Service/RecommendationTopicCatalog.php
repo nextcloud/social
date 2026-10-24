@@ -15,7 +15,7 @@ namespace OCA\Social\Service;
  * network access or infers anything about the reader.
  */
 final class RecommendationTopicCatalog {
-	public const VERSION = 2;
+	public const VERSION = 4;
 	private const SENSITIVE_ROOTS = ['health', 'identity', 'politics', 'religion'];
 	private static ?array $topicIndex = null;
 
@@ -24,7 +24,16 @@ final class RecommendationTopicCatalog {
 		['id' => 'tech.apple', 'parentId' => 'technology', 'labels' => ['en' => 'Apple', 'de' => 'Apple'], 'aliases' => ['apple', 'iphone', 'ipad', 'mac']],
 		['id' => 'tech.ai', 'parentId' => 'technology', 'labels' => ['en' => 'Artificial intelligence', 'de' => 'Künstliche Intelligenz'], 'aliases' => ['artificial intelligence', 'machine learning', 'generative ai', 'künstliche intelligenz', 'maschinelles lernen', 'generative ki']],
 		['id' => 'tech.mobile', 'parentId' => 'technology', 'labels' => ['en' => 'Mobile technology', 'de' => 'Mobiltechnik'], 'aliases' => ['android', 'mobile phones', 'smartphones', 'mobiltelefone', 'smartphones']],
-		['id' => 'tech.security', 'parentId' => 'technology', 'labels' => ['en' => 'Security', 'de' => 'IT-Sicherheit'], 'aliases' => ['cybersecurity', 'infosec', 'computer security', 'it security', 'cybersicherheit', 'computersicherheit']],
+		['id' => 'tech.security', 'parentId' => 'technology', 'labels' => ['en' => 'Security', 'de' => 'IT-Sicherheit'], 'aliases' => [
+			'php2shell', 'php 2 shell',
+			'cybersecurity', 'infosec', 'computer security', 'it security', 'cybersicherheit', 'computersicherheit',
+			'security vulnerability', 'security vulnerabilities', 'software vulnerability', 'software vulnerabilities',
+			'vulnerability disclosure', 'security advisory', 'security advisories', 'security incident', 'security incidents',
+			'security patch', 'security patches', 'zero day vulnerability', 'zero-day vulnerability', 'cyber attack',
+			'cyber attacks', 'cyberattack', 'cyberattacks', 'sicherheitslücke', 'sicherheitslücken', 'sicherheitsluecke',
+			'sicherheitsluecken', 'sicherheitsvorfall', 'sicherheitsvorfälle', 'sicherheitsvorfaelle', 'sicherheitsupdate',
+			'sicherheitsupdates', 'sicherheitswarnung', 'sicherheitswarnungen',
+		]],
 		['id' => 'tech.hardware', 'parentId' => 'technology', 'labels' => ['en' => 'Hardware', 'de' => 'Hardware'], 'aliases' => ['computer hardware', 'chips', 'semiconductors', 'computer hardware', 'halbleiter']],
 		['id' => 'tech.web', 'parentId' => 'technology', 'labels' => ['en' => 'Web and internet', 'de' => 'Web und Internet'], 'aliases' => ['web technology', 'internet', 'browsers', 'webstandards', 'web standards']],
 		['id' => 'tech.privacy', 'parentId' => 'technology', 'labels' => ['en' => 'Privacy', 'de' => 'Datenschutz'], 'aliases' => ['online privacy', 'digital privacy', 'data protection', 'online-privatsphäre', 'datenschutz']],

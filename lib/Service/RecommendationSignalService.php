@@ -9,11 +9,14 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
+use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\RecommendationSignalRequest;
 use OCA\Social\Db\StreamRequest;
+use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCP\AppFramework\Utility\ITimeFactory;
+use OCP\IConfig;
 use Throwable;
 
 /** Consent-gated projector from validated observations to compact recommendation profiles. */
@@ -21,7 +24,7 @@ final class RecommendationSignalService implements IRecommendationSignalRecorder
 	public const MAX_EVENTS = 100;
 	public const MAX_DWELL_MS = 30000;
 	public const IMPRESSION_MS = 750;
-	private const EVENT_KINDS = ['impression', 'dwell', 'skip', 'open', 'media', 'link', 'video_watch_ratio', 'profile_visit'];
+	private const EVENT_KINDS = ['impression', 'skip', 'open', 'media', 'link', 'video_watch_ratio', 'profile_visit'];
 
 	public function __construct(
 		private RecommendationPreferenceService $preferences,
@@ -29,6 +32,8 @@ final class RecommendationSignalService implements IRecommendationSignalRecorder
 		private RecommendationFeatureExtractor $features,
 		private StreamRequest $streams,
 		private ITimeFactory $timeFactory,
+		private IConfig $config,
+		private CacheActorsRequest $cachedActors,
 	) {
 	}
 
@@ -99,7 +104,18 @@ final class RecommendationSignalService implements IRecommendationSignalRecorder
 			$signals = [];
 			$impression = null;
 			if ($kind === 'profile_visit') {
-				$signals[] = ['dimension' => 'authors', 'entity_key' => hash('sha256', $entry['profile_id']), 'delta' => 0.08];
+				try {
+					$profile = $this->cachedActors->getFromId($entry['profile_id']);
+				} catch (CacheActorDoesNotExistException) {
+					$counts['discarded']++;
+					continue;
+				}
+				if ($profile->getId() === $viewer->getId()
+					|| ($profile->getUserId() !== '' && $profile->getUserId() === $viewer->getUserId())) {
+					$counts['discarded']++;
+					continue;
+				}
+				$signals[] = ['dimension' => 'authors', 'entity_key' => hash('sha256', $profile->getId()), 'delta' => 0.08];
 			} else {
 				$post = $posts[$entry['status_id']] ?? null;
 				if (!$post instanceof Stream || $post->getAttributedTo() === $viewer->getId()) {
@@ -117,12 +133,33 @@ final class RecommendationSignalService implements IRecommendationSignalRecorder
 						$counts['discarded']++;
 						continue;
 					}
-					$impression = ['post_key' => hash('sha256', (string)$post->getNid()), 'session_key' => $sessionId];
+					$features = $this->features->extract($post, true);
+					$postKeys = RecommendationStoryFingerprint::keys(
+						$features['story_terms'] ?? [],
+						$this->config->getSystemValueString('secret', ''),
+						$viewer->getUserId(),
+					);
+					// Short, sensitive or unclassifiable text keeps the existing
+					// exact-post exposure behaviour without retaining its contents or
+					// a reversible, unsalted hash of the local post ID.
+					$exactPostKey = RecommendationStoryFingerprint::exactPostKey(
+						(string)$post->getNid(),
+						$this->config->getSystemValueString('secret', ''),
+						$viewer->getUserId(),
+					);
+					$postKeys = $postKeys !== [] ? $postKeys : ($exactPostKey === null ? [] : [$exactPostKey]);
+					$impression = ['post_keys' => $postKeys, 'session_key' => $sessionId];
 				} else {
 					$features = $this->features->extract($post);
 					$delta = $this->delta($kind, $event);
-					foreach ($features['topics'] as $topicId => $_feature) {
-						$signals[] = ['dimension' => 'topics', 'entity_key' => $topicId, 'delta' => $delta['topic']];
+					// Merely leaving a post on screen is not a reliable signal of
+					// interest: the reader may be reading slowly, interrupted, or
+					// scrolling past. Explicit actions and measured video playback
+					// carry the positive intent; a quick pass can still be negative.
+					if ($delta['topic'] !== 0.0) {
+						foreach ($features['topics'] as $topicId => $_feature) {
+							$signals[] = ['dimension' => 'topics', 'entity_key' => $topicId, 'delta' => $delta['topic']];
+						}
 					}
 					$author = $post->getAttributedTo();
 					if ($author !== '' && $delta['author'] !== 0.0) {
@@ -229,16 +266,28 @@ final class RecommendationSignalService implements IRecommendationSignalRecorder
 			return [];
 		}
 
+		$keysByNid = [];
 		$postKeys = [];
-		$keyToNid = [];
 		foreach ($posts as $post) {
 			$nid = (string)$post->getNid();
 			if ($nid === '') {
 				continue;
 			}
-			$key = hash('sha256', $nid);
-			$postKeys[$key] = true;
-			$keyToNid[$key] = $nid;
+			$features = $this->features->extract($post, true);
+			$keys = RecommendationStoryFingerprint::keys(
+				$features['story_terms'] ?? [],
+				$this->config->getSystemValueString('secret', ''),
+				$viewer->getUserId(),
+			);
+			$exactPostKey = RecommendationStoryFingerprint::exactPostKey(
+				$nid,
+				$this->config->getSystemValueString('secret', ''),
+				$viewer->getUserId(),
+			);
+			$keysByNid[$nid] = $keys !== [] ? $keys : ($exactPostKey === null ? [] : [$exactPostKey]);
+			foreach ($keysByNid[$nid] as $key) {
+				$postKeys[$key] = true;
+			}
 		}
 		if ($postKeys === []) {
 			return [];
@@ -249,14 +298,42 @@ final class RecommendationSignalService implements IRecommendationSignalRecorder
 			$viewer->getUserId(), $state['generation'], array_keys($postKeys), $now - 30 * 86400
 		);
 		$penalties = [];
-		foreach ($exposures as $key => $exposure) {
-			$nid = $keyToNid[$key] ?? null;
-			if ($nid === null || $exposure['impressions'] <= 0) {
+		foreach ($keysByNid as $nid => $keys) {
+			$bySession = [];
+			$exactKey = count($keys) === RecommendationStoryFingerprint::MINHASH_BAND_COUNT + 1 ? $keys[0] : null;
+			foreach ($keys as $key) {
+				foreach ($exposures[$key] ?? [] as $session => $exposure) {
+					if ($key === $exactKey) {
+						$bySession[$session]['exact'] = true;
+					} else {
+						$bySession[$session]['bands'] = ($bySession[$session]['bands'] ?? 0) + 1;
+					}
+					$bySession[$session]['impressions'] = max($bySession[$session]['impressions'] ?? 0, $exposure['impressions']);
+					$bySession[$session]['updated_at'] = max($bySession[$session]['updated_at'] ?? 0, $exposure['updated_at']);
+				}
+			}
+			$story = count($keys) > 1;
+			$minimumMatches = count($keys) === RecommendationStoryFingerprint::MINHASH_BAND_COUNT + 1
+				? RecommendationStoryFingerprint::SHORT_STORY_MATCH_COUNT
+				: ($story ? 2 : 1);
+			$impressionCount = 0;
+			$updatedAt = 0;
+			foreach ($bySession as $exposure) {
+				if (($exposure['bands'] ?? 0) < $minimumMatches && !($exposure['exact'] ?? false)) {
+					continue;
+				}
+				// Each HMAC band tracks the same views. Use the largest band count
+				// per session (rather than summing all bands), then include repeats
+				// from that session in the penalty.
+				$impressionCount += $exposure['impressions'];
+				$updatedAt = max($updatedAt, $exposure['updated_at']);
+			}
+			if ($impressionCount === 0) {
 				continue;
 			}
-			$ageSeconds = max(0, $now - $exposure['updated_at']);
+			$ageSeconds = max(0, $now - $updatedAt);
 			$recency = exp(-0.6931471805599453 * (float)$ageSeconds / (72.0 * 3600.0));
-			$repetition = (float)$exposure['impressions'] / ((float)$exposure['impressions'] + 2.0);
+			$repetition = (float)$impressionCount / ((float)$impressionCount + 2.0);
 			$penalties[$nid] = min(1.0, max(0.0, $recency * $repetition));
 		}
 
@@ -266,12 +343,7 @@ final class RecommendationSignalService implements IRecommendationSignalRecorder
 	/** @return array{topic: float, author: float, format: float} */
 	private function delta(string $kind, array $event): array {
 		$signal = match ($kind) {
-			'like' => 0.35,
-			'boost' => 0.25,
-			'save' => 0.55,
-			'reply' => 0.08,
-			'open', 'open_thread' => 0.12,
-			'dwell' => ((int)($event['ms'] ?? 0) >= 1200) ? 0.18 : 0.0,
+			'open' => 0.12,
 			'media' => 0.12,
 			'video_watch_ratio' => self::watchSignal((float)($event['ratio'] ?? 0.0)),
 			'skip' => -0.08,

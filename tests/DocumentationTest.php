@@ -163,6 +163,17 @@ class DocumentationTest extends TestCase {
 		);
 	}
 
+	public function testOnlyTheEndpointCellCountsAsADocumentedPath(): void {
+		$this->assertSame(
+			'/xrpc/{method}',
+			$this->documentedPathFromRow('| OPTIONS | `/xrpc/{method}` | The Fediverse `/api/` policy is separate. |'),
+		);
+		$this->assertSame(
+			'/admin/recommendations',
+			$this->documentedPathFromRow('| GET/PUT | `/admin/recommendations` | Reads or updates settings. |'),
+		);
+	}
+
 	/**
 	 * The method beside a route in `docs/API.md` is what a client will send.
 	 *
@@ -1219,21 +1230,23 @@ class DocumentationTest extends TestCase {
 	private function documentedPaths(): array {
 		$paths = [];
 		foreach (explode("\n", $this->read('docs/API.md')) as $line) {
-			if (!str_starts_with(trim($line), '|')) {
+			$path = $this->documentedPathFromRow($line);
+			if ($path === null || in_array($path, self::NON_ROUTE_ENDPOINTS, true)) {
 				continue;
 			}
 
-			preg_match_all('/`(\/[^`]*)`/', $line, $matches);
-			foreach ($matches[1] as $path) {
-				if (in_array($path, self::NON_ROUTE_ENDPOINTS, true)) {
-					continue;
-				}
-
-				$paths[] = $this->normalisePath($path);
-			}
+			$paths[] = $this->normalisePath($path);
 		}
 
 		return $this->normalise($paths);
+	}
+
+	private function documentedPathFromRow(string $line): ?string {
+		if (preg_match('/^\|\s*[A-Z\/]+\s*\|\s*`(\/[^`]*)`/', trim($line), $match) !== 1) {
+			return null;
+		}
+
+		return $match[1];
 	}
 
 	/** Drops a trailing slash, so `/local/` and `/local` compare equal; keeps the root. */

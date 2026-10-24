@@ -9,9 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Controller;
 
-use InvalidArgumentException;
 use OCA\Social\Controller\InterestsController;
-use OCA\Social\Exceptions\InterestNotRemovableException;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
@@ -103,22 +101,6 @@ class InterestsControllerTest extends TestCase {
 		$this->assertSame(Http::STATUS_NOT_FOUND, $controller->signals([['status_id' => '1', 'kind' => 'open']])->getStatus());
 		$this->assertSame(Http::STATUS_NOT_FOUND, $controller->timeline()->getStatus());
 		$this->assertSame(Http::STATUS_NOT_FOUND, $controller->less('1')->getStatus());
-	}
-
-	public function testARefusalIsA422WithTheReason(): void {
-		$this->interestService->method('add')->willThrowException(new InvalidArgumentException('not a hashtag'));
-		$this->interestService->method('remove')->willThrowException(
-			new InterestNotRemovableException('Unfollow #cats to remove it from your interests')
-		);
-		$controller = $this->controller();
-
-		$added = $controller->add('two words');
-		$this->assertSame(Http::STATUS_UNPROCESSABLE_ENTITY, $added->getStatus());
-		$this->assertSame(['error' => 'not a hashtag'], $added->getData());
-
-		$removed = $controller->remove('cats');
-		$this->assertSame(Http::STATUS_UNPROCESSABLE_ENTITY, $removed->getStatus());
-		$this->assertStringContainsString('Unfollow', $removed->getData()['error']);
 	}
 
 	public function testSignalsAreHandedOnAndAnsweredWithNoContent(): void {

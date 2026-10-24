@@ -15,7 +15,6 @@ use OCA\Social\Db\FeaturedTagsRequest;
 use OCA\Social\Db\FollowedTagsRequest;
 use OCA\Social\Db\InterestsRequest;
 use OCA\Social\Db\StreamRequest;
-use OCA\Social\Exceptions\InterestNotRemovableException;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Exceptions\SettingRefusedException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -71,6 +70,7 @@ class InterestService {
 	private const KEY_PAUSED_AT = 'interests_paused_at';
 	private const KEY_LANGUAGES = 'interests_languages';
 	private const KEY_BASELINE = 'interests_baseline';
+	private const KEY_PROFILE = 'interests_profile';
 	private const KEY_NOTICE = 'interests_notice_ack';
 
 	private const DEDUPE_TTL = 86400;
@@ -188,14 +188,13 @@ class InterestService {
 
 	/**
 	 * What the page is handed before it asks for anything: the switches, and
-	 * `profile`, whether reading has taught the feed anything yet — the pace
-	 * it keeps is written the first time it does and cleared by a reset —
-	 * which is when the Shorts stack opens on For you rather than My Feed.
+	 * `profile`, whether learning has produced a profile for the Shorts stack.
 	 */
 	public function pageState(string $userId): array {
 		$settings = $this->settingsFor($userId);
 		unset($settings['languages']);
-		$settings['profile'] = $this->userValue($userId, self::KEY_BASELINE) !== '';
+		$settings['profile'] = $this->userValue($userId, self::KEY_PROFILE) === '1'
+			|| $this->userValue($userId, self::KEY_BASELINE) !== '';
 		$settings['recommendationsEnabled'] = $this->configService->getAppValueBool(ConfigService::REC_V4_ENABLED);
 
 		return $settings;
@@ -300,11 +299,15 @@ class InterestService {
 			if ($nid === '' || !ctype_digit($nid) || !in_array($kind, self::KINDS, true)) {
 				continue;
 			}
+			$context = (string)($event['context'] ?? '');
+			if ($kind === 'dwell' && !in_array($context, self::WATCH_CONTEXTS, true)) {
+				continue;
+			}
 			$wanted[] = [
 				'nid' => $nid,
 				'kind' => $kind,
 				'ms' => max(0, min(self::MAX_DWELL_MS, (int)($event['ms'] ?? 0))),
-				'context' => (string)($event['context'] ?? ''),
+				'context' => $context,
 			];
 		}
 		if ($wanted === []) {
@@ -315,7 +318,6 @@ class InterestService {
 		$posts = $this->streamRequest->getVisibleByNids(array_column($wanted, 'nid'));
 
 		$scorer = $this->scorer();
-		$baseline = (float)($this->userValue($actor->getUserId(), self::KEY_BASELINE) ?: '1');
 		$deltas = [];
 		foreach ($wanted as $event) {
 			$post = $posts[$event['nid']] ?? null;
@@ -332,11 +334,11 @@ class InterestService {
 				// about it and is left alone
 				$signal = $scorer->classifyWatch($event['ms'], $scorer->expectedWatchMs($videoMs));
 			} elseif ($event['kind'] === 'dwell') {
-				[$signal, $baseline] = $scorer->classifyDwell(
-					$event['ms'],
-					$scorer->expectedDwellMs($this->visibleChars($post), count($post->getAttachments())),
-					$baseline
-				);
+				// Time on screen is passive: it may mean reading, an interruption,
+				// or a post the reader has not scrolled past yet. Do not turn it into
+				// a positive hashtag score; the feed already records explicit actions
+				// and the Shorts player reports measured playback separately.
+				$signal = 0.0;
 			} else {
 				$signal = match ($event['kind']) {
 					'skip' => InterestScorer::SIGNAL_SKIP,
@@ -352,7 +354,6 @@ class InterestService {
 			}
 		}
 
-		$this->setUserValue($actor->getUserId(), self::KEY_BASELINE, (string)round($baseline, 4));
 		$this->apply($actor, $deltas);
 	}
 
@@ -415,92 +416,11 @@ class InterestService {
 		$this->apply($actor, $this->scorer()->share(-InterestScorer::SIGNAL_LESS, $post->getHashtags()));
 	}
 
-	/**
-	 * Adds a hashtag the reader chose. It floats with at least the listing
-	 * threshold as its score, and it does not decay.
-	 *
-	 * @throws InvalidArgumentException not a hashtag
-	 */
-	public function add(Person $actor, string $hashtag): array {
-		$tag = $this->tag($hashtag);
-		$row = $this->row($actor, $tag) ?? new Interest($tag, 0.0, $this->now());
-		$row->setManual(true);
-		$this->interestsRequest->save($actor->getId(), $row);
-
-		return $this->state($actor);
-	}
-
-	/**
-	 * Pins a tag at a rank: where the reader dragged it, one up or down, or
-	 * the top. Pins at that rank and below move down one, so the tag lands
-	 * exactly where it was dropped and the other pins keep their order.
-	 *
-	 * @throws InvalidArgumentException not a hashtag, or not one of theirs
-	 */
-	public function move(Person $actor, string $hashtag, int $position): array {
-		$tag = $this->tag($hashtag);
-		$position = max(0, $position);
-		$row = $this->listedRow($actor, $tag);
-
-		foreach ($this->interestsRequest->getByActor($actor->getId()) as $other) {
-			if ($other->getHashtag() !== $tag && $other->isPinned() && $other->getPosition() >= $position) {
-				$this->interestsRequest->save($actor->getId(), $other->setPosition($other->getPosition() + 1));
-			}
-		}
-
-		// a pinned row does not decay, so what it is worth is fixed at what it
-		// is worth now
-		$row->setScore($this->scorer()->current($row, $this->now()))->setScoredAt($this->now());
-		$this->interestsRequest->save($actor->getId(), $row->setPosition($position));
-
-		return $this->state($actor);
-	}
-
-	/** Pins a tag where it stands. */
-	public function pin(Person $actor, string $hashtag): array {
-		$tag = $this->tag($hashtag);
-		foreach ($this->state($actor)['interests'] as $entry) {
-			if ($entry['tag'] === $tag) {
-				return $this->move($actor, $tag, $entry['rank']);
-			}
-		}
-
-		throw new InvalidArgumentException('#' . $tag . ' is not one of your interests');
-	}
-
-	/** Lets a tag float on its score again, which starts decaying from now. */
-	public function unpin(Person $actor, string $hashtag): array {
-		$tag = $this->tag($hashtag);
-		$row = $this->row($actor, $tag);
-		if ($row !== null && $row->isPinned()) {
-			$this->interestsRequest->save($actor->getId(), $row->setPosition(null)->setScoredAt($this->now()));
-		}
-
-		return $this->state($actor);
-	}
-
-	/**
-	 * Takes a tag off the list. Nothing remembers it was removed: reading
-	 * about it again can bring it back, which is what the reader asked for.
-	 *
-	 * @throws InterestNotRemovableException a followed tag, which is listed
-	 *                                       for as long as it is followed
-	 */
-	public function remove(Person $actor, string $hashtag): array {
-		$tag = $this->tag($hashtag);
-		if (in_array($tag, $this->followedTags($actor), true)) {
-			throw new InterestNotRemovableException('Unfollow #' . $tag . ' to remove it from your interests');
-		}
-
-		$this->interestsRequest->deleteTags($actor->getId(), [$tag]);
-
-		return $this->state($actor);
-	}
-
-	/** Forgets everything learned and chosen, and the reader's reading pace. */
+	/** Forgets the automatic profile and reading pace. */
 	public function reset(Person $actor): array {
 		$this->interestsRequest->deleteRelatedId($actor->getId());
 		$this->setUserValue($actor->getUserId(), self::KEY_BASELINE, '');
+		$this->setUserValue($actor->getUserId(), self::KEY_PROFILE, '');
 
 		return $this->state($actor);
 	}
@@ -647,6 +567,9 @@ class InterestService {
 			));
 			$imported++;
 		}
+		if ($imported > 0) {
+			$this->setUserValue($userId, self::KEY_PROFILE, '1');
+		}
 
 		return $imported;
 	}
@@ -661,6 +584,7 @@ class InterestService {
 		if ($deltas === []) {
 			return;
 		}
+		$this->setUserValue($actor->getUserId(), self::KEY_PROFILE, '1');
 
 		$scorer = $this->scorer();
 		$now = $this->now();
@@ -682,7 +606,9 @@ class InterestService {
 		}
 
 		if (count($rows) > self::MAX_ROWS) {
-			$faint = array_filter($rows, static fn (Interest $row): bool => !$row->isManual() && !$row->isPinned());
+			// Legacy reader-selected rows are ordinary stale profile data now;
+			// they must not be kept forever or crowd learned rows out of the cap.
+			$faint = $rows;
 			uasort($faint, static fn (Interest $a, Interest $b): int
 				=> abs($scorer->current($a, $now)) <=> abs($scorer->current($b, $now)));
 			$gone = array_merge($gone, array_slice(array_keys($faint), 0, count($rows) - self::MAX_ROWS));
@@ -748,12 +674,6 @@ class InterestService {
 		return 0;
 	}
 
-	private function visibleChars(Stream $post): int {
-		$text = html_entity_decode(strip_tags($post->getContent()), ENT_QUOTES | ENT_HTML5, 'UTF-8');
-
-		return mb_strlen(trim($text), 'UTF-8');
-	}
-
 	/** @return string[] the hashtags the reader follows, normalised */
 	private function followedTags(Person $actor): array {
 		$tags = [];
@@ -772,32 +692,6 @@ class InterestService {
 		}
 
 		return null;
-	}
-
-	/**
-	 * The row of a tag on the reader's list, made on the spot for a followed
-	 * tag that has none yet.
-	 *
-	 * @throws InvalidArgumentException not on the list
-	 */
-	private function listedRow(Person $actor, string $tag): Interest {
-		foreach ($this->state($actor)['interests'] as $entry) {
-			if ($entry['tag'] === $tag) {
-				return $this->row($actor, $tag) ?? new Interest($tag, 0.0, $this->now());
-			}
-		}
-
-		throw new InvalidArgumentException('#' . $tag . ' is not one of your interests');
-	}
-
-	/** @throws InvalidArgumentException */
-	private function tag(string $hashtag): string {
-		$tag = FollowedTagsRequest::normalise($hashtag);
-		if ($tag === '' || preg_match('/[\s#,]/u', $tag) === 1) {
-			throw new InvalidArgumentException('not a hashtag');
-		}
-
-		return $tag;
 	}
 
 	/**

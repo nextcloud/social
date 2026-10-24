@@ -27,11 +27,12 @@ class RecommendationFeatureExtractorTest extends TestCase {
 
 		$features = $this->extractor()->extract($post);
 
-		$this->assertSame(4, $features['version']);
+		$this->assertSame(8, $features['version']);
 		$this->assertSame('de', $features['language']);
 		$this->assertSame(0.72, $features['topics']['oss.nextcloud']['score']);
 		$this->assertSame('text', $features['topics']['oss.nextcloud']['evidence']);
 		$this->assertArrayHasKey('oss', $features['topics']);
+		$this->assertArrayNotHasKey('story_terms', $features, 'only the For You candidate path asks for temporary story terms');
 	}
 
 	public function testWordBoundariesPreventSubstringMatchesAndHashtagsRemainStrongEvidence(): void {
@@ -58,6 +59,11 @@ class RecommendationFeatureExtractorTest extends TestCase {
 		$this->assertArrayNotHasKey('health.sleep', $health['topics']);
 		$this->assertArrayNotHasKey('identity', $identity['topics']);
 		$this->assertArrayNotHasKey('identity.lgbtq', $identity['topics']);
+
+		$privateHealth = $extractor->extract((new Note())->setContent('<p>Personal research about mental health and treatment.</p>'), true);
+		$taggedHealth = $extractor->extract((new Note())->setContent('<p>Personal research and treatment.</p>')->setHashtags(['Health']), true);
+		$this->assertSame([], $privateHealth['story_terms']);
+		$this->assertSame([], $taggedHealth['story_terms']);
 
 		$short = (new Note())->setAttachments([
 			(new MediaAttachment())->import([
@@ -91,7 +97,7 @@ class RecommendationFeatureExtractorTest extends TestCase {
 		$this->assertArrayHasKey('photography', $germanPhotography['topics']);
 		$this->assertArrayHasKey('education', $englishEducation['topics']);
 		$this->assertArrayHasKey('software', $englishSoftware['topics']);
-		$this->assertSame(4, $englishAi['version']);
+		$this->assertSame(8, $englishAi['version']);
 
 		$science = $extractor->extract((new Note())->setContent('<p>Climate science and marine biology findings.</p>'));
 		$softwareTesting = $extractor->extract((new Note())->setContent('<p>Software testing and web accessibility matter.</p>'));
@@ -121,5 +127,52 @@ class RecommendationFeatureExtractorTest extends TestCase {
 		$this->assertArrayNotHasKey('tech.apple', $code['topics']);
 		$this->assertArrayNotHasKey('oss.nextcloud', $markdownCode['topics']);
 		$this->assertArrayNotHasKey('tech.apple', $markdownCode['topics']);
+	}
+
+	public function testStoryTermsAreBoundedAndExcludeStopWordsQuotedTextAndCode(): void {
+		$content = '<p>2026: The PHP maintainers disclosed a security vulnerability and released a patch for affected installations.</p>'
+			. '<blockquote>copied quotation unrelated terminology hidden here</blockquote>'
+			. '<pre><code>private source code secretword</code></pre>';
+		$features = $this->extractor()->extract((new Note())->setContent($content), true);
+
+		$this->assertContains('php', $features['story_terms']);
+		$this->assertContains('2026', $features['story_terms']);
+		$this->assertContains('vulnerability', $features['story_terms']);
+		$this->assertNotContains('the', $features['story_terms']);
+		$this->assertNotContains('copied', $features['story_terms']);
+		$this->assertNotContains('secretword', $features['story_terms']);
+		$this->assertLessThanOrEqual(60, count($features['story_terms']));
+	}
+
+	public function testLongPostStoryTermsIncludeInformationFromTheEndOfThePost(): void {
+		$terms = array_map(static fn (int $number): string => 'distinctword' . $number, range(1, 700));
+		$terms[] = 'lateincidenttoken';
+		$features = $this->extractor()->extract((new Note())->setContent('<p>' . implode(' ', $terms) . '</p>'), true);
+
+		$this->assertCount(60, $features['story_terms']);
+		$this->assertSame('distinctword1', $features['story_terms'][0], 'the opening remains represented');
+		$this->assertContains('lateincidenttoken', $features['story_terms'], 'long-post fingerprints also cover the end');
+	}
+
+	public function testStoryFingerprintsAreOmittedWhenSensitiveEvidenceMayBeBeyondTheContentBound(): void {
+		$content = str_repeat('ordinary discussion words remain within this long post. ', 500)
+			. '<p>personal health treatment details are beyond the extraction bound</p>';
+		$features = $this->extractor()->extract((new Note())->setContent($content), true);
+
+		$this->assertSame([], $features['story_terms']);
+	}
+
+	public function testSecurityIncidentsAreRecognisedInEnglishAndGerman(): void {
+		$english = $this->extractor()->extract((new Note())->setContent(
+			'<p>PHP maintainers disclose a critical security vulnerability and release a security patch.</p>'
+		));
+		$german = $this->extractor()->extract((new Note())->setContent(
+			'<p>Die PHP-Maintainer beheben eine kritische Sicherheitslücke.</p>'
+		));
+
+		$this->assertArrayHasKey('tech.security', $english['topics']);
+		$this->assertArrayHasKey('tech.security', $german['topics']);
+		$this->assertArrayHasKey('software.backend', $english['topics']);
+		$this->assertArrayHasKey('software.backend', $german['topics']);
 	}
 }

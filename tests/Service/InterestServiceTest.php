@@ -15,7 +15,6 @@ use OCA\Social\Db\FeaturedTagsRequest;
 use OCA\Social\Db\FollowedTagsRequest;
 use OCA\Social\Db\InterestsRequest;
 use OCA\Social\Db\StreamRequest;
-use OCA\Social\Exceptions\InterestNotRemovableException;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Exceptions\SettingRefusedException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -197,15 +196,15 @@ class InterestServiceTest extends TestCase {
 		return $scores;
 	}
 
-	public function testALongLookIsSharedAmongThePostsTags(): void {
+	public function testPassiveReadingTimeDoesNotTeachPostTags(): void {
 		$this->post('100', ['Cats', 'dogs']);
 
 		$this->service()->recordEvents($this->actor(), [
 			['status_id' => '100', 'kind' => 'dwell', 'ms' => 30000, 'context' => 'home'],
 		]);
 
-		$this->assertSame(['cats' => 0.5, 'dogs' => 0.5], $this->scores());
-		$this->assertNotSame('', $this->user['interests_baseline'] ?? '', 'the reader\'s pace moved');
+		$this->assertSame([], $this->scores());
+		$this->assertSame('', $this->user['interests_profile'] ?? '', 'passive reading does not create a learned profile');
 	}
 
 	/** A post with one video of this many seconds. */
@@ -241,21 +240,21 @@ class InterestServiceTest extends TestCase {
 			['all' => InterestScorer::SIGNAL_LONG_DWELL, 'half' => InterestScorer::SIGNAL_DWELL, 'long' => InterestScorer::SIGNAL_LONG_DWELL],
 			$this->scores()
 		);
-		$this->assertSame('1', $this->user['interests_baseline'] ?? '', 'the reading pace is where it started: watching says nothing about it');
+		$this->assertSame('', $this->user['interests_baseline'] ?? '', 'video playback does not change a reading pace');
 	}
 
-	/** On a timeline the same post is judged as a post: the time it was on screen is not time the video played. */
-	public function testAVideoPostOnATimelineIsStillReadAsAPost(): void {
+	/** On a timeline the video player's playback time is unavailable, so screen time stays neutral. */
+	public function testVideoScreenTimeOnATimelineDoesNotTeachTheTopic(): void {
 		$this->video('1', ['cats'], 60.0);
 
 		$this->service()->recordEvents($this->actor(), [
 			['status_id' => '1', 'kind' => 'dwell', 'ms' => 8000, 'context' => 'home'],
 		]);
 
-		$this->assertSame(['cats' => InterestScorer::SIGNAL_LONG_DWELL], $this->scores());
+		$this->assertSame([], $this->scores());
 	}
 
-	public function testAVideoThatNeverSaidHowLongItRunsIsReadAsAPost(): void {
+	public function testVideoWithoutKnownDurationDoesNotTurnScreenTimeIntoWatchTime(): void {
 		$note = $this->post('1', ['cats']);
 		$note->setAttachments([(new MediaAttachment())->setType('video')]);
 
@@ -263,7 +262,7 @@ class InterestServiceTest extends TestCase {
 			['status_id' => '1', 'kind' => 'dwell', 'ms' => 8000, 'context' => 'shorts'],
 		]);
 
-		$this->assertSame(['cats' => InterestScorer::SIGNAL_LONG_DWELL], $this->scores());
+		$this->assertSame([], $this->scores());
 	}
 
 	/**
@@ -283,7 +282,7 @@ class InterestServiceTest extends TestCase {
 			['all' => InterestScorer::SIGNAL_LONG_DWELL, 'half' => InterestScorer::SIGNAL_DWELL],
 			$this->scores()
 		);
-		$this->assertSame('1', $this->user['interests_baseline'] ?? '');
+		$this->assertSame('', $this->user['interests_baseline'] ?? '');
 	}
 
 	public function testTheShortsAndTheMediaPagesAreContexts(): void {
@@ -306,13 +305,15 @@ class InterestServiceTest extends TestCase {
 		$this->assertCount(2, $this->hideSince);
 	}
 
-	/** Whether reading has taught it anything: the Shorts stack opens on For you once it has. */
+	/** A neutral reading event does not create a profile; an explicit open does. */
 	public function testThePageIsToldWhetherThereIsAProfileYet(): void {
 		$this->assertFalse($this->service()->pageState('alice')['profile']);
 
 		$this->post('1', ['cats']);
 		$service = $this->service();
 		$service->recordEvents($this->actor(), [['status_id' => '1', 'kind' => 'dwell', 'ms' => 5000]]);
+		$this->assertFalse($service->pageState('alice')['profile']);
+		$service->recordEvents($this->actor(), [['status_id' => '1', 'kind' => 'open']]);
 		$this->assertTrue($service->pageState('alice')['profile']);
 
 		$service->reset($this->actor());
@@ -443,58 +444,6 @@ class InterestServiceTest extends TestCase {
 		$this->service()->lessLikeThis($this->actor(), '404');
 	}
 
-	public function testAnAddedTagIsListedAndSomethingThatIsNotATagIsRefused(): void {
-		$state = $this->service()->add($this->actor(), '#Analog');
-
-		$this->assertSame([['tag' => 'analog', 'rank' => 0, 'source' => 'manual', 'pinned' => false, 'score' => 3.0, 'trend' => null]], $state['interests']);
-
-		$this->expectException(InvalidArgumentException::class);
-		$this->service()->add($this->actor(), 'two words');
-	}
-
-	public function testMovingATagPinsItThereAndPushesLaterPinsDown(): void {
-		$this->rows = [
-			'a' => new Interest('a', 9.0, self::NOW),
-			'b' => new Interest('b', 8.0, self::NOW),
-			'c' => new Interest('c', 7.0, self::NOW),
-			'pinned' => new Interest('pinned', 3.0, self::NOW, false, 1),
-		];
-
-		$state = $this->service()->move($this->actor(), 'c', 1);
-
-		$this->assertSame(['a', 'c', 'pinned', 'b'], array_column($state['interests'], 'tag'));
-		$this->assertSame(1, $this->rows['c']->getPosition());
-		$this->assertSame(2, $this->rows['pinned']->getPosition());
-	}
-
-	public function testATagThatIsNotListedCannotBeMoved(): void {
-		$this->rows = ['faint' => new Interest('faint', 1.0, self::NOW)];
-
-		$this->expectException(InvalidArgumentException::class);
-		$this->service()->move($this->actor(), 'faint', 0);
-	}
-
-	public function testUnpinningLetsATagFloatAgain(): void {
-		$this->rows = ['a' => new Interest('a', 9.0, self::NOW), 'b' => new Interest('b', 5.0, self::NOW, false, 0)];
-
-		$state = $this->service()->unpin($this->actor(), 'b');
-
-		$this->assertSame(['a', 'b'], array_column($state['interests'], 'tag'));
-		$this->assertFalse($this->rows['b']->isPinned());
-	}
-
-	public function testRemovingForgetsATagButAFollowedOneStays(): void {
-		$this->rows = ['cats' => new Interest('cats', 9.0, self::NOW)];
-		$this->followed = ['nextcloud'];
-
-		$state = $this->service()->remove($this->actor(), 'cats');
-		$this->assertSame(['nextcloud'], array_column($state['interests'], 'tag'));
-		$this->assertSame([], $this->rows);
-
-		$this->expectException(InterestNotRemovableException::class);
-		$this->service()->remove($this->actor(), 'nextcloud');
-	}
-
 	public function testResetForgetsEverythingButTheSwitches(): void {
 		$this->rows = ['cats' => new Interest('cats', 9.0, self::NOW, true)];
 		$this->hidden = ['1' => true];
@@ -577,7 +526,12 @@ class InterestServiceTest extends TestCase {
 		$this->assertSame(self::NOW - 100, $this->rows['cats']->getScoredAt(), 'decay carries on rather than restarting');
 		$this->assertSame(2, $this->rows['mine']->getPosition());
 		$this->assertTrue($this->rows['mine']->isManual());
-		$this->assertSame(['interests_learning' => '0', 'interests_languages' => '["de"]', 'interests_baseline' => '1.2'], $this->user);
+		$this->assertSame([
+			'interests_learning' => '0',
+			'interests_languages' => '["de"]',
+			'interests_baseline' => '1.2',
+			'interests_profile' => '1',
+		], $this->user);
 	}
 
 	public function testAnImportTakesNothingItCannotTrust(): void {

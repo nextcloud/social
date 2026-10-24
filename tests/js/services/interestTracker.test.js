@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
 	BATCH_SIZE,
 	FLUSH_EVERY,
+	IMPRESSION_COOLDOWN,
 	IDLE_AFTER,
 	VIEW_CAP,
 	contextFor,
@@ -131,14 +132,14 @@ describe('the interest tracker', () => {
 		expect(contextFor('bookmarks')).toBeNull()
 	})
 
-	it('reports how long a post was in view, once it leaves', () => {
+	it('does not send passive reading time as an interest signal', () => {
 		const element = entry()
 		track().observe(element, post('1'))
 		show(element)
 		vi.advanceTimersByTime(5000)
 		hide(element)
 
-		expect(tracker.pending()).toEqual([{ status_id: '1', kind: 'dwell', ms: 5000, context: 'home' }])
+		expect(tracker.pending()).toEqual([])
 	})
 
 	it('adds stable event IDs and the consent generation to v4 impressions', () => {
@@ -150,13 +151,34 @@ describe('the interest tracker', () => {
 		hide(element)
 
 		const events = tracker.pending()
-		expect(events).toHaveLength(2)
+		expect(events).toHaveLength(1)
 		for (const event of events) {
 			expect(event.event_id).toMatch(/^[0-9a-f-]{36}$/i)
 			expect(event.generation).toBe(4)
 		}
 		expect(events[0]).toMatchObject({ kind: 'impression', session_id: expect.stringMatching(/^[0-9a-f-]{36}$/i), visible_ms: 900 })
-		expect(events[1]).toMatchObject({ kind: 'dwell', ms: 900 })
+	})
+
+	it('counts a genuinely repeated view after a short observer-jitter cooldown', () => {
+		const element = entry()
+		track({ generation: 4 }).observe(element, post('1'))
+		show(element)
+		vi.advanceTimersByTime(900)
+		hide(element)
+
+		vi.advanceTimersByTime(IMPRESSION_COOLDOWN - 1800)
+		show(element)
+		vi.advanceTimersByTime(900)
+		hide(element)
+		expect(tracker.pending().filter((event) => event.kind === 'impression')).toHaveLength(1)
+
+		vi.advanceTimersByTime(1)
+		show(element)
+		vi.advanceTimersByTime(900)
+		hide(element)
+		const impressions = tracker.pending().filter((event) => event.kind === 'impression')
+		expect(impressions).toHaveLength(2)
+		expect(impressions[0].session_id).toBe(impressions[1].session_id)
 	})
 
 	it('can watch hashtagless posts in a v4 context after consent is loaded', () => {
@@ -168,7 +190,7 @@ describe('the interest tracker', () => {
 		hide(element)
 
 		expect(tracker.pending().some((event) => event.kind === 'impression')).toBe(true)
-		expect(tracker.pending().some((event) => event.kind === 'dwell')).toBe(true)
+		expect(tracker.pending().some((event) => event.kind === 'dwell')).toBe(false)
 	})
 
 	it('records media actions on hashtagless posts in a v4 context', () => {
@@ -213,7 +235,7 @@ describe('the interest tracker', () => {
 		expect(tracker.pending()).toEqual([])
 	})
 
-	it('says what was read when the tab is hidden, and sends it', () => {
+	it('does not send passive reading time when the tab is hidden', () => {
 		const element = entry()
 		track().observe(element, post('1'))
 		show(element)
@@ -221,12 +243,12 @@ describe('the interest tracker', () => {
 		doc.visibilityState = 'hidden'
 		fire(doc, 'visibilitychange')
 
-		expect(send).toHaveBeenCalledWith([{ status_id: '1', kind: 'dwell', ms: 3000, context: 'home' }], { beacon: false })
+		expect(send).not.toHaveBeenCalled()
 	})
 
 	it('pauses while the window has no focus', () => {
 		const element = entry()
-		track().observe(element, post('1'))
+		track({ generation: 4 }).observe(element, post('1'))
 		show(element)
 		vi.advanceTimersByTime(1000)
 		fire(win, 'blur')
@@ -235,34 +257,34 @@ describe('the interest tracker', () => {
 		vi.advanceTimersByTime(1000)
 		hide(element)
 
-		expect(tracker.pending()[0].ms).toBe(2000)
+		expect(tracker.pending()[0]).toMatchObject({ kind: 'impression', visible_ms: 2000 })
 	})
 
 	it('stops counting after twenty seconds without input', () => {
 		const element = entry()
-		track().observe(element, post('1'))
+		track({ generation: 4 }).observe(element, post('1'))
 		show(element)
 		vi.advanceTimersByTime(IDLE_AFTER + 5000)
 		hide(element)
 
-		expect(tracker.pending()[0].ms).toBe(IDLE_AFTER)
+		expect(tracker.pending()[0]).toMatchObject({ kind: 'impression', visible_ms: IDLE_AFTER })
 	})
 
 	it('resumes on input', () => {
 		const element = entry()
-		track().observe(element, post('1'))
+		track({ generation: 4 }).observe(element, post('1'))
 		show(element)
 		vi.advanceTimersByTime(IDLE_AFTER + 5000)
 		fire(doc, 'pointerdown')
 		vi.advanceTimersByTime(3000)
 		hide(element)
 
-		expect(tracker.pending()[0].ms).toBe(IDLE_AFTER + 3000)
+		expect(tracker.pending()[0]).toMatchObject({ kind: 'impression', visible_ms: IDLE_AFTER + 3000 })
 	})
 
 	it('caps one view at thirty seconds', () => {
 		const element = entry()
-		track().observe(element, post('1'))
+		track({ generation: 4 }).observe(element, post('1'))
 		show(element)
 		for (let i = 0; i < 6; i++) {
 			vi.advanceTimersByTime(10000)
@@ -270,14 +292,14 @@ describe('the interest tracker', () => {
 		}
 		hide(element)
 
-		expect(tracker.pending()[0].ms).toBe(VIEW_CAP)
+		expect(tracker.pending()[0]).toMatchObject({ kind: 'impression', visible_ms: VIEW_CAP })
 	})
 
 	it('does not count a post collapsed behind a content warning until it is opened', () => {
 		const element = entry('<div class="post-warning"><p>cw</p></div>')
 		expect(isReadable(element)).toBe(false)
 
-		track().observe(element, post('1'))
+		track({ generation: 4 }).observe(element, post('1'))
 		show(element)
 		vi.advanceTimersByTime(5000)
 
@@ -286,7 +308,7 @@ describe('the interest tracker', () => {
 		vi.advanceTimersByTime(3000)
 		hide(element)
 
-		expect(tracker.pending()[0].ms).toBe(3000)
+		expect(tracker.pending()[0]).toMatchObject({ kind: 'impression', visible_ms: 3000 })
 	})
 
 	it('does not count a post hidden by a filter', () => {
@@ -354,10 +376,10 @@ describe('the interest tracker', () => {
 		vi.advanceTimersByTime(400)
 		hide(element, 'above')
 
-		expect(tracker.pending()).toEqual([{ status_id: '1', kind: 'dwell', ms: 400, context: 'home' }])
+		expect(tracker.pending()).toEqual([])
 	})
 
-	it('reports one dwell per post per page view', () => {
+	it('keeps repeated passive views out of the signal buffer', () => {
 		const element = entry()
 		track().observe(element, post('1'))
 		show(element)
@@ -367,7 +389,7 @@ describe('the interest tracker', () => {
 		vi.advanceTimersByTime(2000)
 		hide(element)
 
-		expect(tracker.pending()).toHaveLength(1)
+		expect(tracker.pending()).toHaveLength(0)
 	})
 
 	it('never watches the reader\'s own posts or posts without a hashtag', () => {
@@ -422,7 +444,7 @@ describe('the interest tracker', () => {
 		vi.advanceTimersByTime(4000)
 		fire(win, 'pagehide')
 
-		expect(send).toHaveBeenCalledWith([{ status_id: '1', kind: 'dwell', ms: 4000, context: 'home' }], { beacon: true })
+		expect(send).not.toHaveBeenCalled()
 	})
 
 	it('lets go of entries that left the page and finishes their view', () => {
@@ -433,7 +455,7 @@ describe('the interest tracker', () => {
 		tracker.sync([])
 
 		expect(FakeIntersectionObserver.last.unobserve).toHaveBeenCalledWith(element)
-		expect(tracker.pending()).toEqual([{ status_id: '1', kind: 'dwell', ms: 2000, context: 'home' }])
+		expect(tracker.pending()).toEqual([])
 	})
 
 	it('sends what is left and stops listening when destroyed', () => {

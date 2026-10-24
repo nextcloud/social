@@ -96,6 +96,8 @@ class RecommendationPreferenceRequestTest extends TestCase {
 		$recorded = $this->signals->record($this->owner, $eventId, $generation, 'like', [$signal], null, 2_000_000_000);
 		self::assertTrue($recorded['accepted']);
 		self::assertFalse($recorded['duplicate']);
+		self::assertSame($enabled['revision'], $recorded['profile_version']);
+		self::assertSame($enabled['revision'], $this->request->get($this->owner)['revision'], 'learning a signal does not change the consent/CAS revision or expire open timeline cursors');
 		$duplicate = $this->signals->record($this->owner, $eventId, $generation, 'like', [$signal], null, 2_000_000_001);
 		self::assertTrue($duplicate['duplicate']);
 		self::assertSame(1, count($this->signals->profile($this->owner)['topics']));
@@ -106,6 +108,27 @@ class RecommendationPreferenceRequestTest extends TestCase {
 		$late = $this->signals->record($this->owner, '5c5bc6c7-787f-4df7-a5bd-973cf942c55c', $generation, 'like', [$signal], null, 2_000_000_002);
 		self::assertFalse($late['accepted']);
 		self::assertSame([], $this->signals->profile($this->owner)['topics']);
+	}
+
+	public function testStoryExposureBandsAreOwnerScopedAndPurgedWithTheLearningGeneration(): void {
+		$initial = $this->request->get($this->owner);
+		$enabled = $this->request->setLearningMode($this->owner, $initial['revision'], 'on');
+		self::assertNotNull($enabled);
+		$session = 'c8bb7f51-2e1e-4e92-b1a9-1cab0f3a0e10';
+		$keys = array_map(static fn (int $band): string => hash('sha256', 'story-band-' . $band), range(0, 7));
+		$impression = ['post_keys' => $keys, 'session_key' => $session];
+		$eventId = 'daafc587-f141-4e0b-9ab3-20615915a22e';
+
+		$first = $this->signals->record($this->owner, $eventId, $enabled['generation'], 'impression', [], $impression, 2_000_000_000);
+		self::assertTrue($first['accepted']);
+		self::assertFalse($first['duplicate']);
+		$duplicate = $this->signals->record($this->owner, $eventId, $enabled['generation'], 'impression', [], $impression, 2_000_000_001);
+		self::assertTrue($duplicate['duplicate']);
+		self::assertCount(8, $this->signals->exposures($this->owner, $enabled['generation'], $keys, 2_000_000_000 - 30 * 86400));
+		self::assertSame([], $this->signals->exposures($this->otherOwner, $enabled['generation'], $keys, 2_000_000_000 - 30 * 86400));
+
+		$this->request->resetLearning($this->owner, $duplicate['profile_version']);
+		self::assertSame([], $this->signals->exposures($this->owner, $enabled['generation'], $keys, 2_000_000_000 - 30 * 86400));
 	}
 
 	public function testTurningLearningOffAndBackOnInvalidatesEventsFromTheEarlierConsentPeriod(): void {

@@ -35,8 +35,12 @@ eligible candidate pool.
 
 For each variant, the report includes NDCG@20, relevant results returned,
 candidate count and corpus coverage, effective and unique topic diversity,
-hard-control compliance, duplicate rate, and local evaluator runtime median
-and p95. Candidate source recall is reported once for the retrieval fixture,
+unique story clusters, the number and rate of repeated story posts, and the
+share occupied by the largest story cluster, hard-control compliance,
+duplicate rate, and local evaluator runtime median and p95. Story metrics
+include only posts with enough text terms to identify a story;
+`story_identifiable_posts_at_20` reports that denominator. Candidate source
+recall is reported once for the retrieval fixture,
 including a breakdown by protocol; it is separate from ranking quality.
 The dataset summary also gives aggregate counts by primary candidate exclusion
 reason (privacy, discoverability, visibility, hidden topic, language, or source

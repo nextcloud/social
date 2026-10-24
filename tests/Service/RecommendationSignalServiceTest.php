@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Service;
 
+use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\RecommendationSignalRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -17,8 +18,10 @@ use OCA\Social\Model\Client\MediaAttachment;
 use OCA\Social\Service\RecommendationFeatureExtractor;
 use OCA\Social\Service\RecommendationPreferenceService;
 use OCA\Social\Service\RecommendationSignalService;
+use OCA\Social\Service\RecommendationStoryFingerprint;
 use OCA\Social\Service\RecommendationTopicCatalog;
 use OCP\AppFramework\Utility\ITimeFactory;
+use OCP\IConfig;
 use PHPUnit\Framework\TestCase;
 
 class RecommendationSignalServiceTest extends TestCase {
@@ -26,11 +29,12 @@ class RecommendationSignalServiceTest extends TestCase {
 	private RecommendationSignalRequest $signals;
 	private StreamRequest $streams;
 	private RecommendationSignalService $service;
+	private IConfig $config;
 	private int $generation = 7;
 	private string $mode = 'on';
 
 	protected function setUp(): void {
-		$this->preferences = $this->createMock(RecommendationPreferenceService::class);
+		$this->preferences = $this->createStub(RecommendationPreferenceService::class);
 		$this->preferences->method('isEnabled')->willReturn(true);
 		$this->preferences->method('get')->willReturnCallback(fn (): array => [
 			'revision' => 8, 'generation' => $this->generation, 'learning_mode' => $this->mode,
@@ -40,6 +44,8 @@ class RecommendationSignalServiceTest extends TestCase {
 		$this->streams = $this->createMock(StreamRequest::class);
 		$clock = $this->createStub(ITimeFactory::class);
 		$clock->method('getTime')->willReturn(2_000_000_000);
+		$this->config = $this->createStub(IConfig::class);
+		$this->config->method('getSystemValueString')->willReturn('test-server-secret');
 		$catalog = new RecommendationTopicCatalog();
 		$this->service = new RecommendationSignalService(
 			$this->preferences,
@@ -47,6 +53,8 @@ class RecommendationSignalServiceTest extends TestCase {
 			new RecommendationFeatureExtractor($catalog),
 			$this->streams,
 			$clock,
+			$this->config,
+			$this->createStub(CacheActorsRequest::class),
 		);
 	}
 
@@ -76,7 +84,7 @@ class RecommendationSignalServiceTest extends TestCase {
 
 	public function testSeparateActionTransitionsWithinOneSecondReceiveDistinctEventIds(): void {
 		$post = $this->parentPost();
-		$this->streams->method('getVisibleByNids')->willReturn(['123' => $post]);
+		$this->streams->expects($this->exactly(3))->method('getVisibleByNids')->with(['123'])->willReturn(['123' => $post]);
 		$ids = [];
 		$deltas = [];
 		$this->signals->expects($this->exactly(3))->method('record')->willReturnCallback(
@@ -123,9 +131,14 @@ class RecommendationSignalServiceTest extends TestCase {
 
 	public function testImpressionRequiresAQualifiedVisiblePostAndSessionId(): void {
 		$this->streams->expects($this->once())->method('getVisibleByNids')->willReturn(['123' => $this->parentPost()]);
+		$storyKeys = RecommendationStoryFingerprint::keys(
+			(new RecommendationFeatureExtractor(new RecommendationTopicCatalog()))->extract($this->parentPost(), true)['story_terms'],
+			'test-server-secret',
+			'alice',
+		);
 		$this->signals->expects($this->once())->method('record')->with(
 			'alice', '1d9cfd49-4e69-4bb8-b7fc-854df448d310', 7, 'impression', [],
-			['post_key' => hash('sha256', '123'), 'session_key' => 'f7f454f1-d33d-4fb5-a132-335837049d23'], 2_000_000_000
+			['post_keys' => $storyKeys, 'session_key' => 'f7f454f1-d33d-4fb5-a132-335837049d23'], 2_000_000_000
 		)->willReturn(['accepted' => true, 'duplicate' => false, 'profile_version' => 9]);
 
 		$result = $this->service->recordEvents($this->viewer(), [[
@@ -135,6 +148,77 @@ class RecommendationSignalServiceTest extends TestCase {
 		]]);
 
 		$this->assertSame(1, $result['accepted']);
+	}
+
+	public function testSensitiveImpressionUsesAnOwnerScopedExactPostHmac(): void {
+		$post = (new Note())
+			->setNid('123')
+			->setId('https://remote.test/posts/123')
+			->setAttributedTo('https://remote.test/users/bob')
+			->setContent('<p>Personal mental health treatment information</p>');
+		$this->streams->expects($this->once())->method('getVisibleByNids')->with(['123'])->willReturn(['123' => $post]);
+		$exactKey = RecommendationStoryFingerprint::exactPostKey('123', 'test-server-secret', 'alice');
+		$this->assertNotNull($exactKey);
+		$this->signals->expects($this->once())->method('record')->with(
+			'alice', '1d9cfd49-4e69-4bb8-b7fc-854df448d310', 7, 'impression', [],
+			['post_keys' => [$exactKey], 'session_key' => 'f7f454f1-d33d-4fb5-a132-335837049d23'], 2_000_000_000
+		)->willReturn(['accepted' => true, 'duplicate' => false, 'profile_version' => 9]);
+
+		$this->service->recordEvents($this->viewer(), [[
+			'event_id' => '1d9cfd49-4e69-4bb8-b7fc-854df448d310', 'generation' => 7,
+			'kind' => 'impression', 'context' => 'interests', 'status_id' => '123',
+			'session_id' => 'f7f454f1-d33d-4fb5-a132-335837049d23', 'visible_ms' => 750,
+		]]);
+	}
+
+	public function testQualifiedImpressionsReduceLaterCandidatesFromTheSameStory(): void {
+		$post = $this->parentPost();
+		$this->streams->expects($this->never())->method('getVisibleByNids');
+		$storyKeys = RecommendationStoryFingerprint::keys(
+			(new RecommendationFeatureExtractor(new RecommendationTopicCatalog()))->extract($post, true)['story_terms'],
+			'test-server-secret',
+			'alice',
+		);
+		$this->signals->expects($this->once())->method('exposures')->with(
+			'alice', 7, $this->callback(static fn (array $keys): bool => count($keys) === count($storyKeys) && array_diff($storyKeys, $keys) === []),
+			2_000_000_000 - 30 * 86400,
+		)->willReturnCallback(static function () use ($post): array {
+			$sessions = [];
+			foreach (['session-one', 'session-two'] as $session) {
+				$sessions[$session] = ['impressions' => 1, 'updated_at' => 2_000_000_000 - 3600];
+			}
+			$keys = [];
+			foreach (RecommendationStoryFingerprint::keys(
+				(new RecommendationFeatureExtractor(new RecommendationTopicCatalog()))->extract($post, true)['story_terms'],
+				'test-server-secret',
+				'alice',
+			) as $key) {
+				$keys[$key] = $sessions;
+			}
+			return $keys;
+		});
+
+		$penalties = $this->service->exposurePenalties($this->viewer(), [$post]);
+
+		$this->assertEqualsWithDelta(0.5 * 2 ** (-1.0 / 72.0), $penalties['123'], 0.00001);
+	}
+
+	public function testSensitiveCandidateExposureUsesTheSameOwnerScopedExactPostKey(): void {
+		$this->streams->expects($this->never())->method('getVisibleByNids');
+		$post = (new Note())
+			->setNid('123')
+			->setId('https://remote.test/posts/123')
+			->setAttributedTo('https://remote.test/users/bob')
+			->setContent('<p>Personal mental health treatment information</p>');
+		$exactKey = RecommendationStoryFingerprint::exactPostKey('123', 'test-server-secret', 'alice');
+		$this->assertNotNull($exactKey);
+		$this->signals->expects($this->once())->method('exposures')->with(
+			'alice', 7, [$exactKey], 2_000_000_000 - 30 * 86400
+		)->willReturn([
+			$exactKey => ['session-one' => ['impressions' => 1, 'updated_at' => 2_000_000_000 - 3600]],
+		]);
+
+		$this->assertEqualsWithDelta(['123' => 1.0 / 3.0 * 2 ** (-1.0 / 72.0)], $this->service->exposurePenalties($this->viewer(), [$post]), 0.00001);
 	}
 
 	public function testVisiblePostDetailEventsCanTeachWhenConsentIsOn(): void {
@@ -147,6 +231,51 @@ class RecommendationSignalServiceTest extends TestCase {
 		]]);
 
 		$this->assertSame(1, $result['accepted']);
+	}
+
+	public function testPassiveDwellIsDiscardedBeforeReadingThePost(): void {
+		$this->streams->expects($this->never())->method('getVisibleByNids');
+		$this->signals->expects($this->never())->method('record');
+
+		$events = [];
+		foreach ([1200, 30000] as $index => $milliseconds) {
+			$events[] = [
+				'event_id' => ($index === 0 ? '1' : '2') . 'd9cfd49-4e69-4bb8-b7fc-854df448d310',
+				'generation' => 7,
+				'kind' => 'dwell',
+				'context' => 'interests',
+				'status_id' => '123',
+				'ms' => $milliseconds,
+			];
+		}
+
+		$result = $this->service->recordEvents($this->viewer(), $events);
+
+		$this->assertSame(0, $result['accepted']);
+		$this->assertSame(2, $result['discarded']);
+	}
+
+	public function testQuickSkipRemainsANegativeTopicSignal(): void {
+		$this->streams->expects($this->once())->method('getVisibleByNids')->with(['123'])->willReturn(['123' => $this->parentPost()]);
+		$projected = [];
+		$this->signals->expects($this->once())->method('record')->willReturnCallback(
+			static function (string $actor, string $eventId, int $generation, string $kind, array $signals) use (&$projected): array {
+				$projected = $signals;
+				return ['accepted' => true, 'duplicate' => false, 'profile_version' => 9];
+			}
+		);
+
+		$this->service->recordEvents($this->viewer(), [[
+			'event_id' => '1d9cfd49-4e69-4bb8-b7fc-854df448d310', 'generation' => 7,
+			'kind' => 'skip', 'context' => 'interests', 'status_id' => '123',
+		]]);
+
+		$topicDeltas = array_column(array_values(array_filter(
+			$projected,
+			static fn (array $signal): bool => $signal['dimension'] === 'topics'
+		)), 'delta');
+		$this->assertNotEmpty($topicDeltas);
+		$this->assertSame(array_fill(0, count($topicDeltas), -0.08), $topicDeltas);
 	}
 
 	public function testVideoWatchRatioUsesActualPlaybackFractionAndOnlyForVideoPosts(): void {
@@ -188,19 +317,97 @@ class RecommendationSignalServiceTest extends TestCase {
 		$this->assertSame(2, $result['discarded']);
 	}
 
-	public function testConsentGatedExposurePenaltyUsesHashedPostKeyAndRecentImpressions(): void {
+	public function testRepeatedImpressionsInOneSessionIncreaseTheExposurePenaltyWithoutCountingEachBand(): void {
 		$post = $this->parentPost();
+		$this->streams->expects($this->never())->method('getVisibleByNids');
+		$keys = RecommendationStoryFingerprint::keys(
+			(new RecommendationFeatureExtractor(new RecommendationTopicCatalog()))->extract($post, true)['story_terms'],
+			'test-server-secret',
+			'alice',
+		);
+		$session = 'f7f454f1-d33d-4fb5-a132-335837049d23';
+		$exposures = [];
+		foreach ($keys as $key) {
+			$exposures[$key] = [$session => ['impressions' => 2, 'updated_at' => 2_000_000_000]];
+		}
 		$this->signals->expects($this->once())->method('exposures')->with(
-			'alice', 7, [hash('sha256', '123')], 1_997_408_000
+			'alice', 7, $keys, 1_997_408_000
+		)->willReturn($exposures);
+
+		$this->assertEqualsWithDelta(['123' => 0.5], $this->service->exposurePenalties($this->viewer(), [$post]), 0.00001);
+	}
+
+	public function testShortExactStoriesUseTheirHistoricalFirstKeyForExposureFatigue(): void {
+		$post = (new Note())
+			->setNid('124')
+			->setId('https://remote.test/posts/124')
+			->setAttributedTo('https://remote.test/users/bob')
+			->setContent('<p>Annual community picnic returns</p>');
+		$this->streams->expects($this->never())->method('getVisibleByNids');
+		$keys = RecommendationStoryFingerprint::keys(
+			(new RecommendationFeatureExtractor(new RecommendationTopicCatalog()))->extract($post, true)['story_terms'],
+			'test-server-secret',
+			'alice',
+		);
+		$this->assertCount(RecommendationStoryFingerprint::MINHASH_BAND_COUNT + 1, $keys);
+		$this->signals->expects($this->once())->method('exposures')->with(
+			'alice', 7, $keys, 1_997_408_000
 		)->willReturn([
-			hash('sha256', '123') => ['impressions' => 2, 'updated_at' => 2_000_000_000],
+			$keys[0] => ['f7f454f1-d33d-4fb5-a132-335837049d23' => ['impressions' => 2, 'updated_at' => 2_000_000_000]],
 		]);
 
-		$this->assertSame(['123' => 0.5], $this->service->exposurePenalties($this->viewer(), [$post]));
+		$this->assertEqualsWithDelta(['124' => 0.5], $this->service->exposurePenalties($this->viewer(), [$post]), 0.00001);
+	}
+
+	public function testShortPHPHeadlineVariantInheritsExposureFromTheSameStory(): void {
+		$previous = (new Note())->setContent('<p>PHP security critical patch</p>');
+		$current = (new Note())
+			->setNid('125')
+			->setId('https://remote.test/posts/125')
+			->setAttributedTo('https://remote.test/users/bob')
+			->setContent('<p>PHP security critical exploit</p>');
+		$this->streams->expects($this->never())->method('getVisibleByNids');
+		$features = new RecommendationFeatureExtractor(new RecommendationTopicCatalog());
+		$previousKeys = RecommendationStoryFingerprint::keys($features->extract($previous, true)['story_terms'], 'test-server-secret', 'alice');
+		$currentKeys = RecommendationStoryFingerprint::keys($features->extract($current, true)['story_terms'], 'test-server-secret', 'alice');
+		$matchedKeys = array_values(array_intersect(array_slice($previousKeys, 1), array_slice($currentKeys, 1)));
+		$this->assertGreaterThanOrEqual(RecommendationStoryFingerprint::SHORT_STORY_MATCH_COUNT, count($matchedKeys), 'the two short headlines share enough MinHash samples');
+		$session = 'f7f454f1-d33d-4fb5-a132-335837049d23';
+		$exposures = [];
+		foreach ($matchedKeys as $key) {
+			$exposures[$key] = [$session => ['impressions' => 3, 'updated_at' => 2_000_000_000]];
+		}
+		$this->signals->expects($this->once())->method('exposures')->with(
+			'alice', 7, $currentKeys, 2_000_000_000 - 30 * 86400
+		)->willReturn($exposures);
+
+		$this->assertEqualsWithDelta(['125' => 0.6], $this->service->exposurePenalties($this->viewer(), [$current]), 0.00001);
+	}
+
+	public function testShortStoryExposureNeedsSixMatchingSamples(): void {
+		$current = (new Note())
+			->setNid('126')
+			->setId('https://remote.test/posts/126')
+			->setAttributedTo('https://remote.test/users/bob')
+			->setContent('<p>PHP security critical exploit</p>');
+		$this->streams->expects($this->never())->method('getVisibleByNids');
+		$features = new RecommendationFeatureExtractor(new RecommendationTopicCatalog());
+		$keys = RecommendationStoryFingerprint::keys($features->extract($current, true)['story_terms'], 'test-server-secret', 'alice');
+		$session = 'f7f454f1-d33d-4fb5-a132-335837049d23';
+		$exposures = [];
+		foreach (array_slice($keys, 1, RecommendationStoryFingerprint::SHORT_STORY_MATCH_COUNT - 1) as $key) {
+			$exposures[$key] = [$session => ['impressions' => 3, 'updated_at' => 2_000_000_000]];
+		}
+		$this->signals->expects($this->once())->method('exposures')->with(
+			'alice', 7, $keys, 2_000_000_000 - 30 * 86400
+		)->willReturn($exposures);
+
+		$this->assertSame([], $this->service->exposurePenalties($this->viewer(), [$current]), 'five one-row matches do not count as a repeated story');
 	}
 
 	public function testLearningOffDoesNotReadStoredExposureHistory(): void {
 		$this->mode = 'off';
+		$this->streams->expects($this->never())->method('getVisibleByNids');
 		$this->signals->expects($this->never())->method('exposures');
 
 		$this->assertSame([], $this->service->exposurePenalties($this->viewer(), [$this->parentPost()]));

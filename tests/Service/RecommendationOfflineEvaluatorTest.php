@@ -67,6 +67,14 @@ class RecommendationOfflineEvaluatorTest extends TestCase {
 		$this->assertSame(12 * 33, $report['dataset']['eligibility']['failure_breakdown']['profile_post_record_count']);
 		$this->assertGreaterThan(0.0, $report['variants']['h0_ranker']['duplicate_rate']);
 		$this->assertSame(0.0, $report['variants']['h0_plus_rerank']['duplicate_rate']);
+		$this->assertSame(2, $report['schema_version']);
+		$reader = $report['profiles']['nextcloud-open-source'];
+		$this->assertGreaterThan(
+			$reader['h0_plus_rerank']['story_repeat_rate'],
+			$reader['h0_ranker']['story_repeat_rate'],
+			'the reranker should reduce repeated coverage of the synthetic Nextcloud release story',
+		);
+		$this->assertGreaterThan(0, $reader['h0_ranker']['identifiable_story_posts']);
 		$this->assertFalse($report['methodology']['weights_promoted']);
 	}
 

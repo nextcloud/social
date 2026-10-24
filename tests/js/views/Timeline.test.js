@@ -237,6 +237,17 @@ describe('Timeline', () => {
 		expect(wrapper.find('h2').exists()).toBe(false)
 	})
 
+	it('explains when For you has too few different posts to fill the feed', async () => {
+		const wrapper = mountTimeline({ params: { type: 'interests' } })
+		timelineStore.recommendationCoverage = {
+			[timelineStore.getTimelineIdentity]: { state: 'UNDERFILLED', known_eligible: 3, returned: 3, remote_refresh_queued: true },
+		}
+		timelineStore.addToTimeline([{ id: 'short-feed', created_at: '2026-01-01T00:00:00Z' }])
+		await nextTick()
+
+		expect(wrapper.text()).toContain('Only a few posts are available in this feed right now.')
+	})
+
 	it.each(['timeline', 'federated', 'favourites'])('switches the store to the %s timeline from the route', (type) => {
 		const wrapper = mountTimeline({ params: { type } })
 		expect(timelineStore.changeTimelineType).toHaveBeenCalledWith({ type, params: {} })
