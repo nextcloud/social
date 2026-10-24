@@ -1192,7 +1192,7 @@ class PostServiceTest extends TestCase {
 		$this->service->editPost(7, $this->actor(), 'new', null, null, null, [], null, true);
 
 		$this->assertSame('Question', $stored->getSubType());
-		$this->assertNull($stored->getDetails(Details::EVENT));
+		$this->assertSame([], $stored->getDetails(Details::EVENT));
 	}
 
 	public function testAnEditUpdatesActivityPubEventDetails(): void {

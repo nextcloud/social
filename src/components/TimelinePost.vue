@@ -971,7 +971,7 @@ export default {
 			return this.hasAttachments && !this.hasSpoiler && !this.isEditing
 		},
 
-		/** @return {string} */
+		/** @return {number} how many characters the edit has left */
 		editCharsLeft() {
 			return this.maxLength - this.editContent.length
 		},
@@ -1734,7 +1734,11 @@ export default {
 				location: this.item.event?.location || '',
 			}
 			this.isEditing = true
-			this.$nextTick(() => this.$refs.editInput?.focus())
+			this.$nextTick(() => {
+				if (this.$refs.editInput) {
+					/** @type {HTMLTextAreaElement} */ (this.$refs.editInput).focus()
+				}
+			})
 		},
 
 		async saveEdit() {
