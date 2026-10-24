@@ -118,6 +118,20 @@ SPDX-FileCopyrightText = "2026 Nextcloud GmbH and Nextcloud contributors"
 SPDX-License-Identifier = "AGPL-3.0-or-later"
 
 [[annotations]]
+# Metadata for the locally maintained MIT webpack polyfill plugin.
+path = "packages/node-polyfill-webpack-plugin/package.json"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Aloha Social contributors"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+# A compatibility patch against the MIT-licensed ATProto OAuth provider.
+path = "tests/Interop/atproto/patches/@atproto+oauth-provider+0.24.3.patch"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Aloha Social contributors"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
 path = ["psalm.xml", "tests/psalm-baseline.xml", "tests/stub.phpstub"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2022 Nextcloud GmbH and Nextcloud contributors"
